@@ -6,12 +6,21 @@ import os
 import time
 import sqlite3
 from contextlib import asynccontextmanager
-from typing import Any, Dict
+from importlib import import_module
+from typing import Any, Dict, Protocol
 
 try:
     import psycopg
 except ImportError:  # pragma: no cover - optional dependency
     psycopg = None
+
+
+class AdapterProtocol(Protocol):
+    async def list_new_filings(self, *args, **kwargs): ...
+
+    async def download(self, *args, **kwargs): ...
+
+    async def parse(self, *args, **kwargs): ...
 
 
 def connect_db(db_path: str | None = None):
@@ -69,3 +78,14 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
         )
         conn.commit()
         conn.close()
+
+
+ADAPTERS: Dict[str, AdapterProtocol] = {}
+
+
+def get_adapter(jurisdiction: str) -> AdapterProtocol:
+    """Return an adapter module for the given jurisdiction."""
+    if jurisdiction not in ADAPTERS:
+        module = import_module(f"adapters.{jurisdiction}")
+        ADAPTERS[jurisdiction] = module  # type: ignore[assignment]
+    return ADAPTERS[jurisdiction]
