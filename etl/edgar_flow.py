@@ -9,8 +9,7 @@ from pathlib import Path
 import boto3
 from prefect import flow, task
 
-from adapters import edgar
-from adapters.base import connect_db
+from adapters.base import connect_db, get_adapter
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "./data/raw"))
 RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -24,11 +23,14 @@ S3 = boto3.client(
 )
 BUCKET = os.getenv("MINIO_BUCKET", "filings")
 DB_PATH = os.getenv("DB_PATH", "dev.db")
+JURISDICTION = os.getenv("JURISDICTION", "us")
+_MAP = {"us": "edgar", "uk": "uk", "ca": "canada"}
+ADAPTER = get_adapter(_MAP.get(JURISDICTION, "edgar"))
 
 
 @task
 async def fetch_and_store(cik: str, since: str):
-    filings = await edgar.list_new_filings(cik, since)
+    filings = await ADAPTER.list_new_filings(cik, since)
     conn = connect_db(DB_PATH)
     conn.execute(
         """
@@ -45,9 +47,9 @@ async def fetch_and_store(cik: str, since: str):
     )
     results = []
     for filing in filings:
-        raw = await edgar.download(filing)
+        raw = await ADAPTER.download(filing)
         S3.put_object(Bucket=BUCKET, Key=f"raw/{filing['accession']}.xml", Body=raw)
-        parsed = await edgar.parse(raw)
+        parsed = await ADAPTER.parse(raw)
         for row in parsed:
             conn.execute(
                 "INSERT INTO holdings VALUES (?,?,?,?,?,?,?)",
