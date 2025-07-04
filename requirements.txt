@@ -7,3 +7,4 @@ boto3
 black
 ruff
 pre-commit
+psycopg[binary]

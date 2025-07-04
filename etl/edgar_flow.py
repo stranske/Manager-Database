@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import os
 import json
-import sqlite3
 from pathlib import Path
 
 import boto3
 from prefect import flow, task
 
 from adapters import edgar
+from adapters.base import connect_db
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "./data/raw"))
 RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -29,7 +29,7 @@ DB_PATH = os.getenv("DB_PATH", "dev.db")
 @task
 async def fetch_and_store(cik: str, since: str):
     filings = await edgar.list_new_filings(cik, since)
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS holdings (

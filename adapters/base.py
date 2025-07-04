@@ -1,12 +1,26 @@
-from __future__ import annotations
-
 """Utility helpers for adapters."""
+
+from __future__ import annotations
 
 import os
 import time
 import sqlite3
 from contextlib import asynccontextmanager
-from typing import Any, Callable, Dict
+from typing import Any, Dict
+
+try:
+    import psycopg
+except ImportError:  # pragma: no cover - optional dependency
+    psycopg = None
+
+
+def connect_db(db_path: str | None = None):
+    """Return a database connection to SQLite or Postgres."""
+    url = os.getenv("DB_URL")
+    if url and psycopg and url.startswith("postgres"):
+        return psycopg.connect(url)
+    path = db_path or os.getenv("DB_PATH", "dev.db")
+    return sqlite3.connect(path)
 
 
 @asynccontextmanager
@@ -20,8 +34,9 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
     endpoint:
         Endpoint or URL being hit.
     db_path:
-        Optional path to a SQLite database. Defaults to ``DB_PATH`` env var
-        or ``dev.db``.
+        Optional path to a database. If ``DB_URL`` is set and points to
+        a Postgres instance, that URL is used instead; otherwise defaults
+        to ``DB_PATH`` or ``dev.db``.
 
     Usage::
 
@@ -30,7 +45,6 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
             log(resp)
     """
 
-    path = db_path or os.getenv("DB_PATH", "dev.db")
     start = time.perf_counter()
     container: Dict[str, Any] = {}
 
@@ -44,7 +58,7 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
         latency = int((time.perf_counter() - start) * 1000)
         status = getattr(resp, "status_code", 0)
         size = len(getattr(resp, "content", b""))
-        conn = sqlite3.connect(path)
+        conn = connect_db(db_path)
         conn.execute(
             "CREATE TABLE IF NOT EXISTS api_usage (source TEXT, endpoint TEXT, status INT, bytes INT, latency_ms INT, cost_usd REAL)"
         )
