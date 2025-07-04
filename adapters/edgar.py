@@ -8,6 +8,8 @@ from typing import List, Dict
 import httpx
 from xml.etree import ElementTree as ET
 
+from .base import tracked_call
+
 
 USER_AGENT = os.getenv("EDGAR_UA", "manager-intel/0.1")
 BASE_URL = "https://data.sec.gov"
@@ -18,7 +20,9 @@ async def list_new_filings(cik: str, since: str) -> List[Dict[str, str]]:
     url = f"{BASE_URL}/submissions/CIK{cik.zfill(10)}.json"
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     async with httpx.AsyncClient() as client:
-        r = await client.get(url, headers=headers)
+        async with tracked_call("edgar", url) as log:
+            r = await client.get(url, headers=headers)
+            log(r)
         if r.status_code == 429:
             raise httpx.HTTPStatusError(
                 "Too Many Requests", request=r.request, response=r
@@ -45,7 +49,9 @@ async def download(filing: Dict[str, str]) -> str:
     url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/primary_doc.xml"
     headers = {"User-Agent": USER_AGENT}
     async with httpx.AsyncClient() as client:
-        r = await client.get(url, headers=headers)
+        async with tracked_call("edgar", url) as log:
+            r = await client.get(url, headers=headers)
+            log(r)
         if r.status_code == 429:
             raise httpx.HTTPStatusError(
                 "Too Many Requests", request=r.request, response=r
