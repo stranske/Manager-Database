@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import sys
-import sqlite3
-from pathlib import Path
+from adapters.base import connect_db
 
 
 def _fetch_latest_sets(cik: str, db_path: str):
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     cur = conn.execute(
         "SELECT filed, cusip FROM holdings WHERE cik=? ORDER BY filed DESC",
         (cik,),
