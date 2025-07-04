@@ -29,6 +29,15 @@ services:
       - db
       - minio
 
+  ui:
+    build: ./ui
+    volumes:
+      - ./ui:/app
+    ports:
+      - "8501:8501"
+    depends_on:
+      - db
+
 volumes:
   pgdata:
   miniodata:

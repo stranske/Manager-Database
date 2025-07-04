@@ -8,3 +8,5 @@ black
 ruff
 pre-commit
 psycopg[binary]
+streamlit
+pandas
