@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import datetime as dt
 from typing import List, Dict
 
 import httpx
@@ -21,7 +20,9 @@ async def list_new_filings(cik: str, since: str) -> List[Dict[str, str]]:
     async with httpx.AsyncClient() as client:
         r = await client.get(url, headers=headers)
         if r.status_code == 429:
-            raise httpx.HTTPStatusError("Too Many Requests", request=r.request, response=r)
+            raise httpx.HTTPStatusError(
+                "Too Many Requests", request=r.request, response=r
+            )
         r.raise_for_status()
         data = r.json()
     filings = []
@@ -31,7 +32,7 @@ async def list_new_filings(cik: str, since: str) -> List[Dict[str, str]]:
     accessions = recent.get("accessionNumber", [])
     for form, filed, acc in zip(forms, dates, accessions):
         if form == "13F-HR" and filed > since:
-            filings.append({"accession": acc, "cik": cik})
+            filings.append({"accession": acc, "cik": cik, "filed": filed})
     if not filings:
         raise UserWarning("No 13F-HR filings found")
     return filings
@@ -46,7 +47,9 @@ async def download(filing: Dict[str, str]) -> str:
     async with httpx.AsyncClient() as client:
         r = await client.get(url, headers=headers)
         if r.status_code == 429:
-            raise httpx.HTTPStatusError("Too Many Requests", request=r.request, response=r)
+            raise httpx.HTTPStatusError(
+                "Too Many Requests", request=r.request, response=r
+            )
         r.raise_for_status()
         return r.text
 
@@ -55,11 +58,13 @@ async def parse(raw: str) -> List[Dict[str, str]]:
     """Parse an XML 13F document into row dicts."""
     root = ET.fromstring(raw)
     rows = []
-    for info in root.findall('.//infoTable'):
-        rows.append({
-            "nameOfIssuer": (info.findtext('nameOfIssuer') or ""),
-            "cusip": (info.findtext('cusip') or ""),
-            "value": int(info.findtext('value') or 0),
-            "sshPrnamt": int(info.findtext('shrsOrPrnAmt/sshPrnamt') or 0),
-        })
+    for info in root.findall(".//infoTable"):
+        rows.append(
+            {
+                "nameOfIssuer": (info.findtext("nameOfIssuer") or ""),
+                "cusip": (info.findtext("cusip") or ""),
+                "value": int(info.findtext("value") or 0),
+                "sshPrnamt": int(info.findtext("shrsOrPrnAmt/sshPrnamt") or 0),
+            }
+        )
     return rows

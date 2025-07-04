@@ -3,3 +3,7 @@ httpx
 prefect
 beautifulsoup4
 pytest-asyncio
+boto3
+black
+ruff
+pre-commit
