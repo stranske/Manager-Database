@@ -17,3 +17,9 @@ SELECT date_trunc('month', ts) AS month,
        sum(cost_usd) AS cost
 FROM api_usage
 GROUP BY 1,2;
+
+CREATE TABLE IF NOT EXISTS documents (
+    id bigserial PRIMARY KEY,
+    content text,
+    embedding double precision[]
+);

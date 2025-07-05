@@ -45,3 +45,8 @@ Feel free to open issues or pull requests as you iterate.
    ```bash
    streamlit run ui/upload.py
    ```
+
+6. Start the chat API:
+   ```bash
+   uvicorn api.chat:app --reload
+   ```
