@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 
 from ui.daily_report import load_diffs, load_news
+import streamlit as st
 
 
 def setup_db(tmp_path: Path) -> str:
@@ -29,6 +30,7 @@ def setup_db(tmp_path: Path) -> str:
 def test_load_diffs_and_news(tmp_path, monkeypatch):
     db_path = setup_db(tmp_path)
     monkeypatch.setenv("DB_PATH", db_path)
+    st.cache_data.clear()
     diffs = load_diffs("2024-05-01")
     news = load_news("2024-05-01")
     assert len(diffs) == 2

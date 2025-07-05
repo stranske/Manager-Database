@@ -7,6 +7,7 @@ from adapters.base import connect_db
 from . import require_login
 
 
+@st.cache_data(show_spinner=False)
 def load_diffs(date: str) -> pd.DataFrame:
     conn = connect_db()
     query = "SELECT cik, cusip, change FROM daily_diff WHERE date = ?"
@@ -15,6 +16,7 @@ def load_diffs(date: str) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(show_spinner=False)
 def load_news(date: str) -> pd.DataFrame:
     conn = connect_db()
     query = "SELECT headline, source FROM news WHERE substr(published, 1, 10) = ? ORDER BY published DESC LIMIT 20"
