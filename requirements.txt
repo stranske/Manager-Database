@@ -10,3 +10,4 @@ pre-commit
 psycopg[binary]
 streamlit
 pandas
+streamlit-authenticator

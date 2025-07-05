@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from adapters.base import connect_db
+from . import require_login
 
 
 def load_diffs(date: str) -> pd.DataFrame:
@@ -26,6 +27,8 @@ def load_news(date: str) -> pd.DataFrame:
 
 
 def main():
+    if not require_login():
+        st.stop()
     date = st.date_input("Date", dt.date.today() - dt.timedelta(days=1))
     date_str = str(date)
     tab1, tab2 = st.tabs(["Filings & Diffs", "News Pulse"])
