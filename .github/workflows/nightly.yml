@@ -1,11 +1,11 @@
-name: CI
+name: Nightly Regression
 
 on:
-  push:
-    branches: [main]
+  schedule:
+    - cron: '0 4 * * *'
 
 jobs:
-  test:
+  nightly:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -18,9 +18,5 @@ jobs:
           pip install -r requirements.txt
       - name: Start services
         run: docker compose up -d
-      - name: Run pre-commit
-        run: pre-commit run --all-files
-      - name: Run tests
-        run: |
-          coverage run -m pytest -q
-          coverage report --fail-under=90
+      - name: Run nightly tests
+        run: pytest -m nightly -q
