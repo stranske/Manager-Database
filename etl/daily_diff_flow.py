@@ -51,7 +51,10 @@ if __name__ == "__main__":
     daily_diff_flow()
 
 # Prefect deployment with daily schedule at 08:00 local time
-LOCAL_TZ = os.getenv("TZ") or dt.datetime.now().astimezone().tzinfo.tzname(None)
+LOCAL_TZ = os.getenv("TZ")
+if not LOCAL_TZ:
+    tzinfo = dt.datetime.now().astimezone().tzinfo
+    LOCAL_TZ = tzinfo.tzname(None) if tzinfo else "UTC"
 daily_diff_deployment = daily_diff_flow.to_deployment(
     "daily-diff",
     schedule=Cron("0 8 * * *", timezone=LOCAL_TZ),
