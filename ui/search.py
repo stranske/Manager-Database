@@ -5,17 +5,33 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+import sqlite3
+
 from adapters.base import connect_db
 from . import require_login
 
 
 def search_news(term: str) -> pd.DataFrame:
     conn = connect_db()
-    df = pd.read_sql_query(
-        "SELECT headline, source FROM news WHERE headline LIKE ? ORDER BY published DESC LIMIT 20",
-        conn,
-        params=(f"%{term}%",),
-    )
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS news_fts USING fts5(headline, content='news', content_rowid='rowid')"
+        )
+        conn.execute("INSERT INTO news_fts(news_fts) VALUES('rebuild')")
+        query = (
+            "SELECT news.headline, news.source "
+            "FROM news_fts JOIN news ON news_fts.rowid = news.rowid "
+            "WHERE news_fts MATCH ? ORDER BY news.published DESC LIMIT 20"
+        )
+        df = pd.read_sql_query(query, conn, params=(term,))
+    else:
+        query = (
+            "SELECT headline, source "
+            "FROM news "
+            "WHERE to_tsvector('english', headline) @@ plainto_tsquery('english', %s) "
+            "ORDER BY published DESC LIMIT 20"
+        )
+        df = pd.read_sql_query(query, conn, params=(term,))
     conn.close()
     return df
 
