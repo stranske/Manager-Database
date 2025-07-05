@@ -22,9 +22,14 @@
 
 ## 1. Repository map (auto‑generated cheat‑sheet)
 .
-├── adapters/ # One file per data source
-├── etl/ # Prefect flows & helpers
+├── adapters/      # One file per data source
+├── api/           # FastAPI endpoints
+├── etl/           # Prefect flows & helpers
+├── ui/            # Streamlit pages
+├── tests/         # Pytest suite
 ├── docker-compose.yml
+├── schema.sql
+├── diff_holdings.py
 ├── README_bootstrap.md
 └── (this) Agents.md
 
