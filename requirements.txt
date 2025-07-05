@@ -11,5 +11,6 @@ psycopg[binary]
 streamlit
 pandas
 streamlit-authenticator
+altair
 mypy
 coverage

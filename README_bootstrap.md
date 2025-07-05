@@ -33,3 +33,11 @@ Feel free to open issues or pull requests as you iterate.
    ```bash
    streamlit run ui/dashboard.py
    ```
+
+4. Explore daily reports and news search:
+   ```bash
+   streamlit run ui/daily_report.py
+   ```
+   ```bash
+   streamlit run ui/search.py
+   ```
