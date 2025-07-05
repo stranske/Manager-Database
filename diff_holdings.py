@@ -16,7 +16,7 @@ def _fetch_latest_sets(cik: str, db_path: str):
     conn.close()
     if not rows:
         raise SystemExit("CIK not found")
-    grouped = {}
+    grouped: dict[str, set[str]] = {}
     for filed, cusip in rows:
         grouped.setdefault(filed, set()).add(cusip)
     dates = sorted(grouped.keys(), reverse=True)[:2]

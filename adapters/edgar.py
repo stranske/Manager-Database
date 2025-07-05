@@ -60,10 +60,10 @@ async def download(filing: Dict[str, str]) -> str:
         return r.text
 
 
-async def parse(raw: str) -> List[Dict[str, str]]:
+async def parse(raw: str) -> List[Dict[str, int | str]]:
     """Parse an XML 13F document into row dicts."""
     root = ET.fromstring(raw)
-    rows = []
+    rows: List[Dict[str, int | str]] = []
     for info in root.findall(".//infoTable"):
         rows.append(
             {

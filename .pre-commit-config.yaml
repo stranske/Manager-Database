@@ -11,3 +11,4 @@ repos:
     rev: v1.10.0
     hooks:
       - id: mypy
+        args: ["--explicit-package-bases"]
