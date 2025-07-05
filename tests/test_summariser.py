@@ -4,6 +4,8 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import pytest
+
 from etl.summariser_flow import summarise
 
 
@@ -25,9 +27,10 @@ def setup_db(path: Path) -> str:
     return str(path)
 
 
-def test_summarise(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_summarise(tmp_path, monkeypatch):
     db_file = tmp_path / "dev.db"
     setup_db(db_file)
     monkeypatch.setenv("DB_PATH", str(db_file))
-    result = summarise.fn("2024-01-02")
+    result = await summarise.fn("2024-01-02")
     assert result == "2 changes on 2024-01-02"
