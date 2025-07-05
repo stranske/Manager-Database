@@ -11,3 +11,4 @@ psycopg[binary]
 streamlit
 pandas
 streamlit-authenticator
+mypy
