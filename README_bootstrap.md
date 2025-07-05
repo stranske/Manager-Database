@@ -4,7 +4,8 @@ This repo provides a minimal stack to begin experimenting with the Manager-Intel
 
 ## Quick start
 
-1. Copy `.env.example` to `.env` and adjust passwords as needed.
+1. Copy `.env.example` to `.env` and adjust passwords as needed. The file now
+   includes a `DB_URL` pointing at the bundled Postgres container.
 2. Run `docker compose up -d` to start Postgres, MinIO and a placeholder ETL container.
 3. Run `pytest -q` to verify the environment.
 
@@ -27,3 +28,8 @@ Feel free to open issues or pull requests as you iterate.
    python etl/edgar_flow.py
    ```
    Parsed rows will be stored in `dev.db` and raw filings uploaded to the `filings` bucket in MinIO.
+
+3. Start the Streamlit dashboard:
+   ```bash
+   streamlit run ui/dashboard.py
+   ```

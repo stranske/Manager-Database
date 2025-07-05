@@ -25,6 +25,8 @@ services:
     build: ./etl
     volumes:
       - ./etl:/code
+    environment:
+      DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
     depends_on:
       - db
       - minio
@@ -33,6 +35,8 @@ services:
     build: ./ui
     volumes:
       - ./ui:/app
+    environment:
+      DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
     ports:
       - "8501:8501"
     depends_on:
