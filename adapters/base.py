@@ -29,7 +29,7 @@ def connect_db(db_path: str | None = None):
     if url and psycopg and url.startswith("postgres"):
         return psycopg.connect(url)
     path = db_path or os.getenv("DB_PATH", "dev.db")
-    return sqlite3.connect(path)
+    return sqlite3.connect(str(path))
 
 
 @asynccontextmanager
