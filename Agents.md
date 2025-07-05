@@ -22,14 +22,16 @@
 
 ## 1. Repository map (auto‑generated cheat‑sheet)
 .
-├── adapters/      # One file per data source
+├── adapters/      # Data source modules
 ├── api/           # FastAPI endpoints
 ├── etl/           # Prefect flows & helpers
 ├── ui/            # Streamlit pages
 ├── tests/         # Pytest suite
+├── data/          # Local storage for raw files
+├── embeddings.py  # Embedding utilities
+├── diff_holdings.py
 ├── docker-compose.yml
 ├── schema.sql
-├── diff_holdings.py
 ├── README_bootstrap.md
 └── (this) Agents.md
 
@@ -183,10 +185,10 @@ Project board (Projects ∞):
 
 Columns: Backlog → In Progress → Review → Done.
 
+
 Move the card whenever pushing to a branch tagged stage*.
 
-Milestones: Mirror the M1…M6 table in Manager‑Intel‑Platform.md and keep due‑dates in sync. 
-raw.githubusercontent.com
+Milestones: Mirror the M1…M6 table in Manager‑Intel‑Platform.md and keep due‑dates in sync (fetch via raw.githubusercontent.com).
 
 Codex must run a “board‑sync” routine at the end of each session:
 gh project item-status --project "Manager‑Intel" \
@@ -243,16 +245,12 @@ gh issue create --title "Stage1: Edgar adapter" --body "...details..."
 gh project item-add --project "Manager‑Intel" --issue <id>
 These commands already work with GitHub CLI; VS Code’s built‑in Copilot Chat has permission to invoke them if you’re signed‑in.
 
+1️⃣ Sample managers (CIKs locked‑in)
 
-
-1 ️⃣ Sample managers (CIKs locked‑in)
-Manager	Description	Confirmed CIK
-Elliott Investment Management L.P.	Global multi‑strategy activist fund	0001791786 
-sec.gov
-13f.info
-SIR Capital Management L.P. (umbrella for “Standard Investment Research” energy vehicles)	Oil, gas & new‑energy hedge fund	0001434997 (13F File No. 028‑13426) 
-research.secdatabase.com
-sec.gov
+| Manager | Description | Confirmed CIK | Sources |
+| ------- | ----------- | ------------- | ------- |
+| Elliott Investment Management L.P. | Global multi‑strategy activist fund | 0001791786 | [sec.gov](https://www.sec.gov), [13f.info](https://13f.info) |
+| SIR Capital Management L.P.<br/><small>umbrella for “Standard Investment Research” energy vehicles</small> | Oil, gas & new‑energy hedge fund | 0001434997 (13F File No. 028‑13426) | [research.secdatabase.com](https://research.secdatabase.com), [sec.gov](https://www.sec.gov) |
 
 Small print: SIR files genuine 13Fs under the management entity above; their various fund SPVs only file Form D. Using the manager‑level CIK lets the 13F POC work without surprises.
 
