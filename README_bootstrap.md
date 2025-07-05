@@ -50,3 +50,15 @@ Feel free to open issues or pull requests as you iterate.
    ```bash
    uvicorn api.chat:app --reload
    ```
+
+## Further reading
+
+- SEC EDGAR API docs[^1]
+- Companies House API swagger[^2]
+- Prefect 2.0 "flows & deployments" guide[^3]
+- Streamlit authentication examples[^4]
+
+[^1]: https://www.sec.gov/os/accessing-edgar-data
+[^2]: https://developer.company-information.service.gov.uk/documentation
+[^3]: https://docs.prefect.io/latest/guides/flows/#deployments
+[^4]: https://github.com/mkhorbani/streamlit-authenticator
