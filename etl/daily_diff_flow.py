@@ -4,6 +4,7 @@ import datetime as dt
 import os
 
 from prefect import flow, task
+from prefect.schedules import Cron
 
 from adapters.base import connect_db
 from diff_holdings import diff_holdings
@@ -48,3 +49,10 @@ def daily_diff_flow(cik_list: list[str] | None = None, date: str | None = None):
 
 if __name__ == "__main__":
     daily_diff_flow()
+
+# Prefect deployment with daily schedule at 08:00 local time
+LOCAL_TZ = os.getenv("TZ") or dt.datetime.now().astimezone().tzinfo.tzname(None)
+daily_diff_deployment = daily_diff_flow.to_deployment(
+    "daily-diff",
+    schedule=Cron("0 8 * * *", timezone=LOCAL_TZ),
+)
