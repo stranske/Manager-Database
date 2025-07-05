@@ -27,7 +27,8 @@ def connect_db(db_path: str | None = None):
     """Return a database connection to SQLite or Postgres."""
     url = os.getenv("DB_URL")
     if url and psycopg and url.startswith("postgres"):
-        return psycopg.connect(url)
+        # psycopg connections require autocommit for DDL during tests
+        return psycopg.connect(url, autocommit=True)
     path = db_path or os.getenv("DB_PATH", "dev.db")
     return sqlite3.connect(str(path))
 
@@ -97,11 +98,13 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
                 )
             except Exception:
                 pass
-        conn.execute(
+        placeholder = "%s" if not isinstance(conn, sqlite3.Connection) else "?"
+        values_clause = ",".join([placeholder] * 6)
+        sql = (
             "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd)"
-            " VALUES (?,?,?,?,?,?)",
-            (source, endpoint, status, size, latency, 0.0),
+            f" VALUES ({values_clause})"
         )
+        conn.execute(sql, (source, endpoint, status, size, latency, 0.0))
         conn.commit()
         conn.close()
 
