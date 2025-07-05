@@ -69,8 +69,34 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
         size = len(getattr(resp, "content", b""))
         conn = connect_db(db_path)
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS api_usage (source TEXT, endpoint TEXT, status INT, bytes INT, latency_ms INT, cost_usd REAL)"
+            """CREATE TABLE IF NOT EXISTS api_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source TEXT,
+                endpoint TEXT,
+                status INT,
+                bytes INT,
+                latency_ms INT,
+                cost_usd REAL
+            )"""
         )
+        if isinstance(conn, sqlite3.Connection):
+            conn.execute(
+                "CREATE VIEW IF NOT EXISTS monthly_usage AS "
+                "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
+                "COUNT(*) AS calls, SUM(bytes) AS mb, SUM(cost_usd) AS cost "
+                "FROM api_usage GROUP BY 1,2"
+            )
+        else:  # Postgres
+            try:
+                conn.execute(
+                    "CREATE MATERIALIZED VIEW monthly_usage AS "
+                    "SELECT date_trunc('month', ts) AS month, source, "
+                    "COUNT(*) AS calls, SUM(bytes) AS mb, SUM(cost_usd) AS cost "
+                    "FROM api_usage GROUP BY 1,2"
+                )
+            except Exception:
+                pass
         conn.execute(
             "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd)"
             " VALUES (?,?,?,?,?,?)",

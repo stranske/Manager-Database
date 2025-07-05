@@ -18,5 +18,7 @@ async def test_tracked_call_writes(tmp_path: Path):
         log(DummyResp())
     conn = sqlite3.connect(db_path)
     row = conn.execute("SELECT source, endpoint, status FROM api_usage").fetchone()
+    view_row = conn.execute("SELECT month, source, calls FROM monthly_usage").fetchone()
     conn.close()
     assert row == ("test", "http://x", 200)
+    assert view_row[1:] == ("test", 1)
