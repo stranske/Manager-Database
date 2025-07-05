@@ -41,3 +41,7 @@ Feel free to open issues or pull requests as you iterate.
    ```bash
    streamlit run ui/search.py
    ```
+5. Upload your own notes:
+   ```bash
+   streamlit run ui/upload.py
+   ```

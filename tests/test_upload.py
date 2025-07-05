@@ -1,0 +1,27 @@
+import sqlite3
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from ui.upload import save_note
+from ui.search import search_notes
+
+
+def setup_db(tmp_path: Path) -> str:
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT, content TEXT)"
+    )
+    conn.commit()
+    conn.close()
+    return str(db_path)
+
+
+def test_save_and_search(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    save_note("hello world", "note.txt")
+    df = search_notes("hello")
+    assert list(df["filename"]) == ["note.txt"]
