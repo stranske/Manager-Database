@@ -47,7 +47,7 @@
 | Stage | Goal | Human inputs Codex needs |
 |-------|------|--------------------------|
 | **S0 – Bootstrap** | Local stack running; cost‑log table created | A working Docker Desktop install |
-| **S1 – Proof‑of‑Concept** | EDGAR adapter + holdings diff in **SQLite** | Two sample CIKs |
+| **S1 – Proof‑of‑Concept** | EDGAR adapter + holdings diff in **SQLite** | **CIK_LIST="0001791786,0001434997"** |
 | **S2 – Production ETL** | Prefect + Postgres + MinIO; multi‑country adapters; tracked_call wrapper | API keys (SEC, Companies House, etc.) |
 | **S3 – Analyst Portal** | Streamlit dashboard skeleton | Basic brand colour / logo (optional) |
 | **S4 – AI‑Assist (opt.)** | Vector embeddings + RAG chat | OpenAI key & model preferences |
@@ -82,7 +82,7 @@ Codex must not advance past a stage until all exit‑criteria in §4 are met **a
 
 2. Write a Prefect flow in etl/edgar_flow.py that:
 
-Accepts CIK_LIST via env‑var.
+Accepts CIK_LIST via env‑var (defaults to Elliott & SIR).
 
 Saves raw JSON in minio://filings/raw/.
 
@@ -98,7 +98,11 @@ Happy‑path parse of Apple’s last 13F.
 
 Fails gracefully on HTTP 429.
 
-Exit‑criteria: diff_holdings.py works for both sample CIKs; tests pass.  
+5. **Sanity check**: raise `UserWarning` if a manager’s `filings.recent` array
+   doesn't include any `13F-HR`—flagging the edge‑case where a future test CIK
+   isn’t an institutional filer.
+
+Exit‑criteria: diff_holdings.py works for both sample CIKs; tests pass.
 
 4.3 Stage 2 — Production ETL
 Migrate from SQLite to Postgres container.
@@ -118,6 +122,17 @@ Encrypt MinIO bucket (sse-s3).
 Store AWS creds in GitHub Secrets.
 
 Exit‑criteria: 90% test coverage; monthly_usage materialised view returns rows.
+
+### 4.3.1 ➡️ **New sub‑stage 3.1 – Daily report GUI**
+1. In Streamlit, add `/daily_report.py`
+   * Layout: date‑picker (defaults to *yesterday*), two tabs
+     * **Filings & Diffs** – table of filings + coloured Δ arrows
+     * **News Pulse** – top 20 NLP‑tagged headlines
+   * Provide “Download CSV” button.
+2. Prefect cron: regenerate yesterday’s diff by 08:00 local time; cache in
+   Postgres for fast page loads.
+
+**Exit‑criteria:** page renders in <500 ms on laptop; csv matches on‑screen grid.
 
 4.4 Stage 3 — Analyst Portal
 Generate a Streamlit app skeleton (ui/).
@@ -235,34 +250,4 @@ research.secdatabase.com
 sec.gov
 
 Small print: SIR files genuine 13Fs under the management entity above; their various fund SPVs only file Form D. Using the manager‑level CIK lets the 13F POC work without surprises.
-
-2 ️⃣ Key edits to Agents.md
-<details> <summary>🔧 Click to view diff‑style insertions</summary>
-@@  ## 3. Stage overview
--| **S1 – Proof‑of‑Concept** | EDGAR adapter + holdings diff in **SQLite** | Two sample CIKs |
-+| **S1 – Proof‑of‑Concept** | EDGAR adapter + holdings diff in **SQLite** | **CIK_LIST="0001791786,0001434997"** |
-
-@@  ### 4.2 Stage 1 — Proof‑of‑Concept
--   * Accepts `CIK_LIST` via env‑var.  
-+   * Accepts `CIK_LIST` via env‑var (defaults to Elliott & SIR).  
-    * Saves raw JSON in `minio://filings/raw/`.  
-
-+5. **Sanity check**: raise `UserWarning` if a manager’s `filings.recent` array
-+   doesn't include any `13F-HR`—flagging the edge‑case where a future test CIK
-+   isn’t an institutional filer.
-
-@@  ## 4. Detailed task list per stage
- ### 4.3 Stage 2 — Production ETL
- ...
- ### 4.3.1 ➡️ **New sub‑stage 3.1 – Daily report GUI**
-+1. In Streamlit, add `/daily_report.py`  
-+   * Layout: date‑picker (defaults to *yesterday*), two tabs  
-+     * **Filings & Diffs** – table of filings + coloured Δ arrows  
-+     * **News Pulse** – top 20 NLP‑tagged headlines  
-+   * Provide “Download CSV” button.  
-+2. Prefect cron: regenerate yesterday’s diff by 08:00 local time; cache in
-+   Postgres for fast page loads.
-
-**Exit‑criteria:** page renders in <500 ms on laptop; csv matches on‑screen grid.
-
 
