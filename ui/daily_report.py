@@ -34,8 +34,15 @@ def main():
     tab1, tab2 = st.tabs(["Filings & Diffs", "News Pulse"])
     with tab1:
         df = load_diffs(date_str)
-        st.dataframe(df)
-        csv = df.to_csv(index=False).encode("utf-8")
+        # map change to coloured arrows for on-screen table
+        arrow = {
+            "ADD": "<span style='color:green'>&uarr;</span>",
+            "EXIT": "<span style='color:red'>&darr;</span>",
+        }
+        df["Δ"] = df["change"].map(arrow)
+        html = df[["cik", "cusip", "Δ"]].to_html(escape=False, index=False)
+        st.markdown(html, unsafe_allow_html=True)
+        csv = df[["cik", "cusip", "change"]].to_csv(index=False).encode("utf-8")
         st.download_button(
             "Download CSV", csv, file_name=f"diff_{date_str}.csv", mime="text/csv"
         )
