@@ -12,3 +12,4 @@ streamlit
 pandas
 streamlit-authenticator
 mypy
+coverage
