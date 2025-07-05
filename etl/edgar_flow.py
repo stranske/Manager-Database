@@ -48,7 +48,12 @@ async def fetch_and_store(cik: str, since: str):
     results = []
     for filing in filings:
         raw = await ADAPTER.download(filing)
-        S3.put_object(Bucket=BUCKET, Key=f"raw/{filing['accession']}.xml", Body=raw)
+        S3.put_object(
+            Bucket=BUCKET,
+            Key=f"raw/{filing['accession']}.xml",
+            Body=raw,
+            ServerSideEncryption="AES256",
+        )
         parsed = await ADAPTER.parse(raw)
         for row in parsed:
             conn.execute(

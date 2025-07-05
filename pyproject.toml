@@ -6,3 +6,6 @@ line-length = 88
 
 [tool.pytest.ini_options]
 addopts = "-q"
+markers = [
+    "nightly: nightly regression tests",
+]
