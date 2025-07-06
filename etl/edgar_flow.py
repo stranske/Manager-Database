@@ -10,6 +10,7 @@ import boto3
 from prefect import flow, task
 
 from adapters.base import connect_db, get_adapter
+from embeddings import store_document
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "./data/raw"))
 RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -55,6 +56,7 @@ async def fetch_and_store(cik: str, since: str):
             ServerSideEncryption="AES256",
         )
         parsed = await ADAPTER.parse(raw)
+        store_document(raw)
         for row in parsed:
             conn.execute(
                 "INSERT INTO holdings VALUES (?,?,?,?,?,?,?)",
