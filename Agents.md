@@ -22,17 +22,24 @@
 
 ## 1. Repository map (auto‑generated cheat‑sheet)
 .
-├── adapters/      # Data source modules
-├── api/           # FastAPI endpoints
-├── etl/           # Prefect flows & helpers
-├── ui/            # Streamlit pages
-├── tests/         # Pytest suite
-├── data/          # Local storage for raw files
-├── embeddings.py  # Embedding utilities
+├── adapters/            # Data source modules (edgar, uk, canada, base)
+├── api/                 # FastAPI endpoints (chat)
+├── etl/                 # Prefect flows & helpers
+│   ├── edgar_flow.py
+│   ├── daily_diff_flow.py
+│   └── summariser_flow.py
+├── ui/                  # Streamlit pages
+│   ├── dashboard.py
+│   ├── daily_report.py
+│   ├── search.py
+│   └── upload.py
+├── tests/               # Pytest suite
+├── embeddings.py        # Embedding utilities
 ├── diff_holdings.py
 ├── docker-compose.yml
 ├── schema.sql
 ├── README_bootstrap.md
+├── .pre-commit-config.yaml
 └── (this) Agents.md
 
 *(update with `tree -L 2` occasionally)*
@@ -49,7 +56,7 @@
 ---
 
 ## 3. Stage overview  
-*(mirrors the phased roadmap in* `Manager‑Intel‑Platform.md`*)* :contentReference[oaicite:0]{index=0}  
+*(mirrors the phased roadmap in* `Manager‑Intel‑Platform.md`*)*
 
 | Stage | Goal | Human inputs Codex needs |
 |-------|------|--------------------------|
@@ -72,7 +79,7 @@ Codex must not advance past a stage until all exit‑criteria in §4 are met **a
 3. **Write** a GitHub Action:  
    * On push to `main` → run `docker compose up -d && pytest -q`.  
 4. **Open Issues automatically**:  
-   * `#doc Improve README_bootstrap.md` (placeholder exists but has one line) :contentReference[oaicite:1]{index=1}  
+   * `#doc Improve README_bootstrap.md` (placeholder exists but has one line)
    * `#infra Add GitHub Action for CI`
 
 **Exit‑criteria**: `docker compose up` prints no errors; `api_usage` exists; CI badge shows green.
