@@ -261,3 +261,41 @@ These commands already work with GitHub CLI; VS Code’s built‑in Copilot Cha
 
 Small print: SIR files genuine 13Fs under the management entity above; their various fund SPVs only file Form D. Using the manager‑level CIK lets the 13F POC work without surprises.
 
+<!-----------------  🔧  CONFIG / METRIC UPGRADE  ---------------->
+### :construction_worker: Task — ensure ShortfallProb is always produced
+
+1 · **parameters template**  
+   * open `config/parameters_template.csv`  
+   * append a line (or update if it exists)  
+     ```
+     risk_metrics,Return,Risk,ShortfallProb
+     ```
+   * propagate the same change to any YAML sample (`params_template.yml`).
+
+2 · **CLI sanity-check** (`pa_core/config.py`)  
+   * on load, assert `"ShortfallProb" in cfg.risk_metrics`;  
+     if absent, raise `ConfigError("risk_metrics must include ShortfallProb")`.
+
+3 · **Excel exporter** (`pa_core/reporting/excel.py`)  
+   * before writing the *Summary* sheet:  
+     ```python
+     summary["ShortfallProb"] = summary.get("ShortfallProb", 0.0)
+     ```
+     so old output files never explode the viz.
+
+4 · **Dashboard guard-rail** (`pa_core/viz/risk_return.py`)  
+   * same one-liner:  
+     ```python
+     df = df.copy()
+     df["ShortfallProb"] = df.get("ShortfallProb", 0.0)
+     ```
+
+5 · **Regression test** (`tests/test_outputs.py`)  
+   ```python
+   import pandas as pd, pathlib
+   def test_shortfall_present():
+       fn = pathlib.Path("Outputs.xlsx")
+       assert fn.exists(), "Outputs.xlsx missing"
+       cols = pd.read_excel(fn, sheet_name="Summary").columns
+       assert "ShortfallProb" in cols
+
