@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -45,6 +46,13 @@ def _ping_db(timeout_seconds: float) -> None:
     # Pass a connect timeout so the ping doesn't hang on slow networks.
     conn = connect_db(connect_timeout=timeout_seconds)
     try:
+        # Cap server-side query time so the health check returns within budget.
+        if isinstance(conn, sqlite3.Connection):
+            conn.execute(f"PRAGMA busy_timeout = {int(timeout_seconds * 1000)}")
+        else:
+            conn.execute(
+                "SET statement_timeout = %s", (int(timeout_seconds * 1000),)
+            )
         conn.execute("SELECT 1")
     finally:
         conn.close()
