@@ -15,7 +15,9 @@ async def _get_db_health():
     await app.router.startup()
     try:
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
             return await client.get("/health/db")
     finally:
         await app.router.shutdown()
