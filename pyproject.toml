@@ -1,11 +1,73 @@
-[tool.black]
-line-length = 88
+[project]
+name = "manager-database"
+version = "0.1.0"
+description = "Manager Database Application"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "stranske" }]
 
-[tool.ruff]
-line-length = 88
+dependencies = [
+    "httpx",
+    "prefect",
+    "beautifulsoup4",
+    "boto3",
+    "psycopg[binary]",
+    "streamlit",
+    "pandas",
+    "streamlit-authenticator",
+    "altair",
+    "fastapi",
+    "uvicorn",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "black",
+    "ruff",
+    "pre-commit",
+    "mypy",
+    "coverage",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+# Explicit package discovery for flat layout with multiple top-level packages
+[tool.setuptools.packages.find]
+include = ["adapters*", "api*", "etl*", "ui*"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
 markers = [
     "nightly: nightly regression tests",
 ]
+
+[tool.black]
+line-length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.coverage.run]
+source = ["adapters", "api", "etl", "ui"]
+branch = true
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
