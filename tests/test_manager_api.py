@@ -11,8 +11,12 @@ from pydantic import ValidationError
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from api.chat import ManagerCreate, _create_manager_record, _validation_exception_handler
 from adapters.base import connect_db
+from api.chat import (
+    ManagerCreate,
+    _create_manager_record,
+    _validation_exception_handler,
+)
 
 
 def _run_validation(payload):
@@ -52,9 +56,10 @@ def test_create_manager_rejects_invalid_email(tmp_path, monkeypatch):
     )
     assert response.status_code == 400
     payload = json.loads(response.body.decode("utf-8"))
-    assert {"field": "email", "message": "Email must be a valid email address."} in payload[
-        "errors"
-    ]
+    assert {
+        "field": "email",
+        "message": "Email must be a valid email address.",
+    } in payload["errors"]
 
 
 def test_create_manager_persists_record(tmp_path, monkeypatch):
