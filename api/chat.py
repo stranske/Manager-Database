@@ -50,9 +50,7 @@ def _ping_db(timeout_seconds: float) -> None:
         if isinstance(conn, sqlite3.Connection):
             conn.execute(f"PRAGMA busy_timeout = {int(timeout_seconds * 1000)}")
         else:
-            conn.execute(
-                "SET statement_timeout = %s", (int(timeout_seconds * 1000),)
-            )
+            conn.execute("SET statement_timeout = %s", (int(timeout_seconds * 1000),))
         conn.execute("SELECT 1")
     finally:
         conn.close()
