@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from adapters.base import connect_db
+
 from . import require_login
 
 

@@ -3,17 +3,15 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import List, Tuple
-
 
 MILESTONE_RE = re.compile(
     r"^\|\s*\*\*(M\d+)\*\*\s*\|\s*(.*?)\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|"
 )
 
 
-def parse_milestones(path: str) -> List[Tuple[str, str, str]]:
+def parse_milestones(path: str) -> list[tuple[str, str, str]]:
     """Return (id, title, due_date) tuples parsed from a markdown table."""
-    milestones: List[Tuple[str, str, str]] = []
+    milestones: list[tuple[str, str, str]] = []
     for line in Path(path).read_text().splitlines():
         m = MILESTONE_RE.match(line)
         if m:

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import os
-import time
 import sqlite3
+import time
 from contextlib import asynccontextmanager
 from importlib import import_module
-from typing import Any, Dict, Protocol
+from typing import Any, Protocol
 
 try:
     import psycopg
@@ -56,7 +56,7 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
     """
 
     start = time.perf_counter()
-    container: Dict[str, Any] = {}
+    container: dict[str, Any] = {}
 
     def _store(resp: Any) -> None:
         container["resp"] = resp
@@ -109,7 +109,7 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
         conn.close()
 
 
-ADAPTERS: Dict[str, AdapterProtocol] = {}
+ADAPTERS: dict[str, AdapterProtocol] = {}
 
 
 def get_adapter(jurisdiction: str) -> AdapterProtocol:

@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import os
-from typing import List, Dict
-
-import httpx
 from xml.etree import ElementTree as ET
 
-from .base import tracked_call
+import httpx
 
+from .base import tracked_call
 
 USER_AGENT = os.getenv("EDGAR_UA", "manager-intel/0.1")
 BASE_URL = "https://data.sec.gov"
 
 
-async def list_new_filings(cik: str, since: str) -> List[Dict[str, str]]:
+async def list_new_filings(cik: str, since: str) -> list[dict[str, str]]:
     """Return 13F-HR filings for a CIK newer than ``since`` (YYYY-MM-DD)."""
     url = f"{BASE_URL}/submissions/CIK{cik.zfill(10)}.json"
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
@@ -34,7 +32,7 @@ async def list_new_filings(cik: str, since: str) -> List[Dict[str, str]]:
     forms = recent.get("form", [])
     dates = recent.get("filingDate", [])
     accessions = recent.get("accessionNumber", [])
-    for form, filed, acc in zip(forms, dates, accessions):
+    for form, filed, acc in zip(forms, dates, accessions, strict=False):
         if form == "13F-HR" and filed > since:
             filings.append({"accession": acc, "cik": cik, "filed": filed})
     if not filings:
@@ -42,7 +40,7 @@ async def list_new_filings(cik: str, since: str) -> List[Dict[str, str]]:
     return filings
 
 
-async def download(filing: Dict[str, str]) -> str:
+async def download(filing: dict[str, str]) -> str:
     """Download a filing's primary document."""
     accession = filing["accession"].replace("-", "")
     cik = filing["cik"].zfill(10)
@@ -60,10 +58,10 @@ async def download(filing: Dict[str, str]) -> str:
         return r.text
 
 
-async def parse(raw: str) -> List[Dict[str, int | str]]:
+async def parse(raw: str) -> list[dict[str, int | str]]:
     """Parse an XML 13F document into row dicts."""
     root = ET.fromstring(raw)
-    rows: List[Dict[str, int | str]] = []
+    rows: list[dict[str, int | str]] = []
     for info in root.findall(".//infoTable"):
         rows.append(
             {
