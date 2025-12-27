@@ -26,7 +26,11 @@ def test_create_manager_rejects_invalid_email(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.delenv("DB_URL", raising=False)
     monkeypatch.setenv("DB_PATH", str(db_path))
-    payload = {"name": "Ada Lovelace", "email": "invalid-email", "department": "Research"}
+    payload = {
+        "name": "Ada Lovelace",
+        "email": "invalid-email",
+        "department": "Research",
+    }
     with pytest.raises(HTTPException) as excinfo:
         validate_manager_payload(payload)
     assert excinfo.value.status_code == 400
@@ -38,7 +42,11 @@ def test_create_manager_persists_valid_record(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.delenv("DB_URL", raising=False)
     monkeypatch.setenv("DB_PATH", str(db_path))
-    payload = {"name": "Ada Lovelace", "email": "ada@example.com", "department": "Research"}
+    payload = {
+        "name": "Ada Lovelace",
+        "email": "ada@example.com",
+        "department": "Research",
+    }
     manager = validate_manager_payload(payload)
     body = create_manager(manager)
     assert body["name"] == payload["name"]
