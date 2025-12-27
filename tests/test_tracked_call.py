@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+
 import pytest
 
 from adapters.base import tracked_call

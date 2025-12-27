@@ -1,4 +1,5 @@
 import textwrap
+
 from scripts.open_issues import parse_tasks
 
 
