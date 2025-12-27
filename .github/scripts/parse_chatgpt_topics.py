@@ -213,16 +213,18 @@ def parse_text(
         else:
             raw_lines = []
         labels, sections, extras = _parse_sections(raw_lines)
-        data = {
-            "title": str(item.get("title", "")).strip(),
+        title = str(item.get("title", "")).strip()
+        normalized_title = re.sub(r"\s+", " ", title.strip().lower())
+        guid = str(uuid.uuid5(uuid.NAMESPACE_DNS, normalized_title))
+        data: dict[str, object] = {
+            "title": title,
             "labels": labels,
             "sections": {key: _join_section(value) for key, value in sections.items()},
             "extras": _join_section(extras),
             "enumerator": item.get("enumerator"),
             "continuity_break": bool(item.get("continuity_break", False)),
+            "guid": guid,
         }
-        normalized_title = re.sub(r"\s+", " ", data["title"].strip().lower())
-        data["guid"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, normalized_title))
         parsed.append(data)
     return parsed
 
