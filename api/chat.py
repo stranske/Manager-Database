@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import asyncio
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -66,7 +66,7 @@ async def health_db():
         latency_ms = int((time.perf_counter() - start) * 1000)
         payload = {"healthy": True, "latency_ms": latency_ms}
         return JSONResponse(status_code=200, content=payload)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         # Fail fast to keep the endpoint under the timeout budget.
         latency_ms = int(timeout_seconds * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}

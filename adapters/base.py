@@ -29,7 +29,7 @@ def connect_db(db_path: str | None = None, *, connect_timeout: float | None = No
     if url and psycopg and url.startswith("postgres"):
         # psycopg connections require autocommit for DDL during tests
         # Allow health checks to cap connection time.
-        connect_kwargs = {"autocommit": True}
+        connect_kwargs: dict[str, Any] = {"autocommit": True}
         if connect_timeout is not None:
             connect_kwargs["connect_timeout"] = connect_timeout
         return psycopg.connect(url, **connect_kwargs)
