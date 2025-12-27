@@ -4,3 +4,8 @@ __pycache__/
 pgdata/
 miniodata/
 dev.db
+
+# Codex working files (preserved via workflow artifacts, not git)
+codex-prompt.md
+codex-output.md
+verifier-context.md
