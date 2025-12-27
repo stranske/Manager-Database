@@ -1,8 +1,9 @@
 import sqlite3
 from pathlib import Path
 
-from ui.daily_report import load_diffs, load_news
 import streamlit as st
+
+from ui.daily_report import load_diffs, load_news
 
 
 def setup_db(tmp_path: Path) -> str:

@@ -1,12 +1,11 @@
-import sqlite3
 import os
-from pathlib import Path
-
+import sqlite3
 import sys
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from embeddings import store_document, search_documents
+from embeddings import search_documents, store_document
 
 
 def test_store_and_search(tmp_path):

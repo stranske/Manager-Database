@@ -1,11 +1,11 @@
 import sqlite3
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from ui.upload import save_note
 from ui.search import search_notes
+from ui.upload import save_note
 
 
 def setup_db(tmp_path: Path) -> str:
