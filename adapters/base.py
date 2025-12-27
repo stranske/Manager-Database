@@ -23,12 +23,16 @@ class AdapterProtocol(Protocol):
     async def parse(self, *args, **kwargs): ...
 
 
-def connect_db(db_path: str | None = None):
+def connect_db(db_path: str | None = None, *, connect_timeout: float | None = None):
     """Return a database connection to SQLite or Postgres."""
     url = os.getenv("DB_URL")
     if url and psycopg and url.startswith("postgres"):
         # psycopg connections require autocommit for DDL during tests
-        return psycopg.connect(url, autocommit=True)
+        # Allow health checks to cap connection time.
+        connect_kwargs = {"autocommit": True}
+        if connect_timeout is not None:
+            connect_kwargs["connect_timeout"] = connect_timeout
+        return psycopg.connect(url, **connect_kwargs)
     path = db_path or os.getenv("DB_PATH", "dev.db")
     return sqlite3.connect(str(path))
 
