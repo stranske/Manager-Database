@@ -34,7 +34,11 @@ def connect_db(db_path: str | None = None, *, connect_timeout: float | None = No
             connect_kwargs["connect_timeout"] = connect_timeout
         return psycopg.connect(url, **connect_kwargs)
     path = db_path or os.getenv("DB_PATH", "dev.db")
-    return sqlite3.connect(str(path))
+    # SQLite timeout prevents long waits on locked files during health checks.
+    connect_kwargs: dict[str, Any] = {}
+    if connect_timeout is not None:
+        connect_kwargs["timeout"] = connect_timeout
+    return sqlite3.connect(str(path), **connect_kwargs)
 
 
 @asynccontextmanager
