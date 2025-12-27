@@ -50,6 +50,20 @@ Feel free to open issues or pull requests as you iterate.
    ```bash
    uvicorn api.chat:app --reload
    ```
+   The API exposes a `POST /managers` endpoint for creating manager records with required fields:
+
+   - `name` (non-empty string)
+   - `email` (basic email format, e.g. `name@example.com`)
+   - `department` (non-empty string)
+
+   Validation failures return HTTP 400 with field-level errors, for example:
+   ```json
+   {
+     "detail": [
+       {"field": "email", "message": "email must be a valid email address"}
+     ]
+   }
+   ```
 
 ## Further reading
 

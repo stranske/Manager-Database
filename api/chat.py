@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
+import sqlite3
 import time
+from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from adapters.base import connect_db
@@ -16,6 +19,14 @@ from embeddings import search_documents
 app = FastAPI()
 APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+@dataclass(frozen=True)
+class ManagerPayload:
+    name: str
+    email: str
+    department: str
 
 
 @app.get("/chat")
@@ -27,6 +38,91 @@ def chat(q: str = Query(..., description="User question")):
     else:
         answer = "Context: " + " ".join(h["content"] for h in hits)
     return {"answer": answer}
+
+
+def _normalize_text(value: object) -> str:
+    """Normalize incoming text fields for validation."""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def validate_manager_payload(payload: dict = Body(...)) -> ManagerPayload:
+    """Validate manager payloads and raise 400s with field-level errors."""
+    errors: list[dict[str, str]] = []
+    name = _normalize_text(payload.get("name"))
+    if not name:
+        errors.append({"field": "name", "message": "name is required"})
+    email = _normalize_text(payload.get("email"))
+    if not email:
+        errors.append({"field": "email", "message": "email is required"})
+    elif not EMAIL_PATTERN.fullmatch(email):
+        # Keep email validation lightweight while still rejecting obvious bad input.
+        errors.append({"field": "email", "message": "email must be a valid email address"})
+    department = _normalize_text(payload.get("department"))
+    if not department:
+        errors.append({"field": "department", "message": "department is required"})
+    if errors:
+        # Normalize all validation errors to a single 400 response for clients.
+        raise HTTPException(status_code=400, detail=errors)
+    return ManagerPayload(name=name, email=email, department=department)
+
+
+def _ensure_managers_table(conn) -> None:
+    """Ensure the managers table exists before inserts."""
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS managers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                department TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"""
+        )
+    else:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS managers (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                department TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"""
+        )
+
+
+def _insert_manager(conn, manager: ManagerPayload) -> int:
+    """Insert the manager row and return its new ID."""
+    if isinstance(conn, sqlite3.Connection):
+        cursor = conn.execute(
+            "INSERT INTO managers(name, email, department) VALUES (?, ?, ?)",
+            (manager.name, manager.email, manager.department),
+        )
+        manager_id = int(cursor.lastrowid)
+    else:
+        cursor = conn.execute(
+            "INSERT INTO managers(name, email, department) VALUES (%s, %s, %s) RETURNING id",
+            (manager.name, manager.email, manager.department),
+        )
+        manager_id = int(cursor.fetchone()[0])
+    conn.commit()
+    return manager_id
+
+
+@app.post("/managers", status_code=201)
+def create_manager(manager: ManagerPayload = Depends(validate_manager_payload)):
+    """Create a manager record after validating required fields."""
+    conn = connect_db()
+    try:
+        _ensure_managers_table(conn)
+        manager_id = _insert_manager(conn, manager)
+    finally:
+        conn.close()
+    return {
+        "id": manager_id,
+        "name": manager.name,
+        "email": manager.email,
+        "department": manager.department,
+    }
 
 
 @app.on_event("startup")
