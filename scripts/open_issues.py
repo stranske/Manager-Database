@@ -2,17 +2,15 @@ import argparse
 import re
 import subprocess
 from pathlib import Path
-from typing import List, Tuple
-
 
 TASK_RE = re.compile(r"^\s*(?:\d+\.|\*)\s+(.*)")
 # Match headings like "### 4.2 Stage 1 — Proof" and capture the Stage number.
 STAGE_RE = re.compile(r"^###\s+4\.\d+\s+Stage\s+(\d+)")
 
 
-def parse_tasks(path: str) -> List[Tuple[str, str]]:
+def parse_tasks(path: str) -> list[tuple[str, str]]:
     """Return (stage, task) tuples parsed from Agents.md."""
-    tasks: List[Tuple[str, str]] = []
+    tasks: list[tuple[str, str]] = []
     stage = None
     for line in Path(path).read_text().splitlines():
         m = STAGE_RE.match(line)

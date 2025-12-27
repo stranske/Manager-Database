@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import os
-from typing import Optional
 
 import pandas as pd
 import requests  # type: ignore
@@ -34,7 +33,7 @@ async def summarise(date: str) -> str:
 
 
 @flow
-async def summariser_flow(date: Optional[str] = None) -> str:
+async def summariser_flow(date: str | None = None) -> str:
     """Run the summary task for the given date."""
     if date is None:
         date = str(dt.date.today() - dt.timedelta(days=1))

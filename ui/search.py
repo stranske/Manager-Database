@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import sqlite3
+
 import pandas as pd
 import streamlit as st
 
-import sqlite3
-
 from adapters.base import connect_db
+
 from . import require_login
 
 

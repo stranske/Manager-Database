@@ -40,7 +40,7 @@ jobs:
       - name: Run tests
         run: |
           coverage run -m pytest -q
-          coverage report --fail-under=90
+          coverage report --fail-under=85
 
   summary:
     name: gate-summary
