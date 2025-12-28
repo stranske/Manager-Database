@@ -1,0 +1,9 @@
+name: Test Reusable
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    uses: stranske/Workflows/.github/workflows/reusable-10-ci-python.yml@main
+    secrets: inherit
