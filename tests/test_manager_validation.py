@@ -24,7 +24,9 @@ def test_empty_name_returns_400(tmp_path, monkeypatch):
         )
         payload = json.loads(response.body)
         assert response.status_code == 400
-        assert {"field": "name", "message": "name must not be empty"} in payload["errors"]
+        assert {"field": "name", "message": "name must not be empty"} in payload[
+            "errors"
+        ]
 
 
 def test_invalid_email_returns_400(tmp_path, monkeypatch):

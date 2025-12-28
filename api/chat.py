@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import os
-import time
-from concurrent.futures import ThreadPoolExecutor
-
 import re
 import sqlite3
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, Query
 from fastapi.exceptions import RequestValidationError
@@ -68,7 +67,9 @@ def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(_, exc: RequestValidationError):
     """Return 400 responses so validation failures match API expectations."""
-    return JSONResponse(status_code=400, content={"errors": _format_validation_errors(exc)})
+    return JSONResponse(
+        status_code=400, content={"errors": _format_validation_errors(exc)}
+    )
 
 
 def _ensure_manager_table(conn) -> None:
@@ -102,7 +103,7 @@ def _store_manager(payload: ManagerCreate) -> int:
             "INSERT INTO managers(name, email, department) VALUES (?, ?, ?)",
             (payload.name, str(payload.email), payload.department),
         )
-        manager_id = int(cursor.lastrowid)
+        manager_id = int(cursor.lastrowid) if cursor.lastrowid is not None else 0
     else:
         cursor = conn.execute(
             "INSERT INTO managers(name, email, department) VALUES (%s, %s, %s) RETURNING id",
@@ -186,4 +187,6 @@ def _shutdown_executors() -> None:
     """Release the health check executors on app shutdown."""
     APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
     HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+
+
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
