@@ -55,6 +55,8 @@ def test_health_db_timeout(monkeypatch):
     elapsed = time.perf_counter() - start
     assert elapsed < 0.5
     assert resp.status_code == 503
+    payload = resp.json()
+    assert payload["latency_ms"] >= 0
 
 
 def test_health_db_timeout_cap(monkeypatch):

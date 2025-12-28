@@ -32,6 +32,13 @@ def chat(q: str = Query(..., description="User question")):
 @app.on_event("startup")
 async def _configure_default_executor() -> None:
     """Install a known-good default executor for sync endpoints."""
+    global APP_EXECUTOR
+    global HEALTH_EXECUTOR
+    # Recreate executors if a prior shutdown (e.g., tests) already closed them.
+    if getattr(APP_EXECUTOR, "_shutdown", False):
+        APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+    if getattr(HEALTH_EXECUTOR, "_shutdown", False):
+        HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
     asyncio.get_running_loop().set_default_executor(APP_EXECUTOR)
 
 
@@ -56,18 +63,17 @@ async def health_db():
     """Return database connectivity status and latency."""
     start = time.perf_counter()
     timeout_seconds = _db_timeout_seconds()
+    loop = asyncio.get_running_loop()
+    future = loop.run_in_executor(HEALTH_EXECUTOR, _ping_db, timeout_seconds)
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
-        await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(
-                HEALTH_EXECUTOR, _ping_db, timeout_seconds
-            ),
-            timeout=timeout_seconds,
-        )
+        await asyncio.wait_for(future, timeout=timeout_seconds)
         latency_ms = int((time.perf_counter() - start) * 1000)
         payload = {"healthy": True, "latency_ms": latency_ms}
         return JSONResponse(status_code=200, content=payload)
     except TimeoutError:
+        # Cancel the queued future to avoid piling up stale health checks.
+        future.cancel()
         # Fail fast to keep the endpoint under the timeout budget.
         latency_ms = int(timeout_seconds * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}
