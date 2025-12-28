@@ -43,6 +43,22 @@ def test_invalid_email_returns_400(tmp_path, monkeypatch):
         assert "valid email" in payload["errors"][0]["message"]
 
 
+def test_empty_email_returns_400(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+    try:
+        ManagerCreate(name="Alex Manager", email=" ", department="Research")
+    except ValidationError as exc:
+        response = asyncio.run(
+            validation_exception_handler(None, RequestValidationError(exc.errors()))
+        )
+        payload = json.loads(response.body)
+        # Confirm the empty-email rule surfaces a specific message.
+        assert response.status_code == 400
+        assert {"field": "email", "message": "email must not be empty"} in payload[
+            "errors"
+        ]
+
+
 def test_valid_manager_is_stored(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
     payload = create_manager(

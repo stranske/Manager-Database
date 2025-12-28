@@ -34,6 +34,7 @@ class ManagerCreate(BaseModel):
     def non_empty(cls, value, info):
         """Reject blank strings so we don't store empty names/departments."""
         stripped = value.strip()
+        # Normalize whitespace to keep required fields consistent.
         if not stripped:
             raise ValueError(f"{info.field_name} must not be empty")
         return stripped
@@ -42,9 +43,13 @@ class ManagerCreate(BaseModel):
     @classmethod
     def valid_email(cls, value):
         """Require a basic email shape to avoid malformed addresses."""
-        if not EMAIL_PATTERN.match(value):
+        cleaned = value.strip()
+        # Use a trimmed value so blank emails get a clear error message.
+        if not cleaned:
+            raise ValueError("email must not be empty")
+        if not EMAIL_PATTERN.match(cleaned):
             raise ValueError("email must be a valid email address")
-        return value
+        return cleaned
 
 
 def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str]]:
