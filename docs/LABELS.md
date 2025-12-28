@@ -77,7 +77,7 @@ This document describes all labels that trigger automated workflows or affect CI
 - Issue must have a valid agent assignee (configured in repository settings)
 - Issue should have clear requirements in the description
 
-**Workflow:** Agents 63 Issue Intake GitHub Actions workflow
+**Workflow:** `agents-63-issue-intake.yml` (Agents 63 Issue Intake)
 
 ---
 

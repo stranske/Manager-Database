@@ -9,3 +9,8 @@ dev.db
 codex-prompt.md
 codex-output.md
 verifier-context.md
+# These files are rebuilt each run and would cause merge conflicts
+# if multiple PRs commit them. Historical data is preserved in:
+# - PR comments (completion summaries)
+# - Workflow artifacts (full outputs)
+# - Commit messages (change descriptions)
