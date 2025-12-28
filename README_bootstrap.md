@@ -51,6 +51,15 @@ Feel free to open issues or pull requests as you iterate.
    uvicorn api.chat:app --reload
    ```
 
+## Manager API validation
+
+The manager create endpoint enforces required fields and basic format rules:
+
+- `POST /managers` with JSON body containing `name`, `email`, and `department`.
+- `name` and `department` must be non-empty strings.
+- `email` must be a valid email address.
+- Validation errors return HTTP 400 with an `errors` list containing `field` and `message`.
+
 ## Further reading
 
 - SEC EDGAR API docs[^1]
