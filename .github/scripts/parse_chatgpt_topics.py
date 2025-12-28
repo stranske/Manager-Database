@@ -9,6 +9,7 @@ import re
 import sys
 import uuid
 from pathlib import Path
+from typing import Any
 
 INPUT_PATH = Path("input.txt")
 OUTPUT_PATH = Path("topics.json")
@@ -213,7 +214,7 @@ def parse_text(
         else:
             raw_lines = []
         labels, sections, extras = _parse_sections(raw_lines)
-        data = {
+        data: dict[str, Any] = {
             "title": str(item.get("title", "")).strip(),
             "labels": labels,
             "sections": {key: _join_section(value) for key, value in sections.items()},
@@ -221,7 +222,8 @@ def parse_text(
             "enumerator": item.get("enumerator"),
             "continuity_break": bool(item.get("continuity_break", False)),
         }
-        normalized_title = re.sub(r"\s+", " ", data["title"].strip().lower())
+        title_str = str(data["title"])  # ensure mypy knows it's a string
+        normalized_title = re.sub(r"\s+", " ", title_str.strip().lower())
         data["guid"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, normalized_title))
         parsed.append(data)
     return parsed
