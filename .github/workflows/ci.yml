@@ -24,7 +24,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  python:
+  python-ci:
     name: Python CI
     uses: stranske/Workflows/.github/workflows/reusable-10-ci-python.yml@main
     with:
