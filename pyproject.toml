@@ -12,6 +12,7 @@ dependencies = [
     "prefect",
     "beautifulsoup4",
     "boto3",
+    "requests", # Slack webhook calls in summariser_flow
     "psycopg[binary]",
     "streamlit",
     "pandas",

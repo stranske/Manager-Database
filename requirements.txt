@@ -4,6 +4,7 @@ prefect
 beautifulsoup4
 pytest-asyncio
 boto3
+requests  # Slack webhook calls in summariser_flow
 black
 ruff
 pre-commit
