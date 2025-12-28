@@ -215,7 +215,7 @@ def parse_text(text: str, *, allow_single_fallback: bool = False) -> list[dict[s
             "enumerator": item.get("enumerator"),
             "continuity_break": bool(item.get("continuity_break", False)),
         }
-        normalized_title = re.sub(r"\s+", " ", data["title"].strip().lower())
+        normalized_title = re.sub(r"\s+", " ", str(data["title"]).strip().lower())
         data["guid"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, normalized_title))
         parsed.append(data)
     return parsed
