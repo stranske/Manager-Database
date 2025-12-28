@@ -30,7 +30,7 @@ TESTS_DIR = REPO_ROOT / "tests"
 DEV_EXTRA = "dev"
 
 # Try to import tomlkit for editing (optional)
-TOMLKIT_ERROR: ImportError | None
+TOMLKIT_ERROR: ImportError | None = None
 try:
     import tomlkit
 except ImportError as exc:
