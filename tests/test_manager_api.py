@@ -15,8 +15,9 @@ async def _post_manager(payload: dict):
     await app.router.startup()
     try:
         transport = httpx.ASGITransport(app=app)
+        # Timeout keeps stuck ASGI calls from stalling the test suite.
         async with httpx.AsyncClient(
-            transport=transport, base_url="http://test"
+            transport=transport, base_url="http://test", timeout=5.0
         ) as client:
             return await client.post("/managers", json=payload)
     finally:

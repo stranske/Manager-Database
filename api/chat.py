@@ -8,6 +8,7 @@ import re
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -102,6 +103,20 @@ def _validate_manager_payload(payload: ManagerCreate) -> list[dict[str, str]]:
     return errors
 
 
+def _require_valid_manager(handler):
+    """Decorator to guard manager writes with validation."""
+
+    @wraps(handler)
+    async def wrapper(payload: ManagerCreate, *args, **kwargs):
+        errors = _validate_manager_payload(payload)
+        if errors:
+            # Short-circuit invalid payloads before touching the database.
+            return JSONResponse(status_code=400, content={"errors": errors})
+        return await handler(payload, *args, **kwargs)
+
+    return wrapper
+
+
 @app.get("/chat")
 def chat(q: str = Query(..., description="User question")):
     """Return a naive answer built from stored documents."""
@@ -114,12 +129,9 @@ def chat(q: str = Query(..., description="User question")):
 
 
 @app.post("/managers", status_code=201)
+@_require_valid_manager
 async def create_manager(payload: ManagerCreate):
     """Create a manager record after validating required fields."""
-    errors = _validate_manager_payload(payload)
-    if errors:
-        # Return validation errors before touching the database.
-        return JSONResponse(status_code=400, content={"errors": errors})
     conn = connect_db()
     try:
         # Ensure schema exists before storing the record.
