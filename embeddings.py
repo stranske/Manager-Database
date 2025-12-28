@@ -10,12 +10,15 @@ from typing import Any
 
 from adapters.base import connect_db
 
-try:  # heavy optional dependency
-    from sentence_transformers import SentenceTransformer
+MODEL = None
+if os.getenv("USE_SIMPLE_EMBED") != "1":
+    try:  # heavy optional dependency
+        from sentence_transformers import SentenceTransformer
 
-    MODEL = SentenceTransformer("all-MiniLM-L6-v2")
-except Exception:  # pragma: no cover - optional
-    MODEL = None
+        # Avoid model downloads when tests request the lightweight fallback.
+        MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+    except Exception:  # pragma: no cover - optional
+        MODEL = None
 
 try:  # optional PGVector integration
     from pgvector.psycopg import Vector, register_vector

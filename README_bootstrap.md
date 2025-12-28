@@ -51,6 +51,32 @@ Feel free to open issues or pull requests as you iterate.
    uvicorn api.chat:app --reload
    ```
 
+## Manager API
+
+Create manager records via `POST /managers`. Required fields are `name`,
+`email`, and `department`. The API returns `400` with an `errors` list when
+validation fails; each error includes the `field` and `message`.
+
+Example request:
+
+```bash
+curl -X POST http://localhost:8000/managers \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alex Manager","email":"alex@example.com","department":"Ops"}'
+```
+
+Example error response:
+
+```json
+{
+  "detail": {
+    "errors": [
+      {"field": "email", "message": "Email format is invalid."}
+    ]
+  }
+}
+```
+
 ## Further reading
 
 - SEC EDGAR API docs[^1]

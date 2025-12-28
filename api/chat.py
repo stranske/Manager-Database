@@ -12,10 +12,14 @@ from fastapi.responses import JSONResponse
 
 from adapters.base import connect_db
 from embeddings import search_documents
+from .managers import router as managers_router
 
 app = FastAPI()
 APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+
+# Include manager endpoints alongside chat routes.
+app.include_router(managers_router)
 
 
 @app.get("/chat")
