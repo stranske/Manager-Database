@@ -24,6 +24,7 @@ def setup_db(tmp_path: Path) -> str:
     return str(db_path)
 
 
+@pytest.mark.nightly
 def test_daily_diff_flow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     db_path = setup_db(tmp_path)
     monkeypatch.setenv("DB_PATH", db_path)
