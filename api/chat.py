@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
+import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from adapters.base import connect_db
 from embeddings import search_documents
@@ -16,6 +20,86 @@ from embeddings import search_documents
 app = FastAPI()
 APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+class ManagerCreate(BaseModel):
+    """Payload for creating manager records."""
+
+    name: str = Field(..., description="Manager name")
+    email: str = Field(..., description="Manager email address")
+    department: str = Field(..., description="Manager department")
+
+
+def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str]]:
+    """Normalize validation errors into a concise field/message list."""
+    errors: list[dict[str, str]] = []
+    for err in exc.errors():
+        loc = [str(part) for part in err.get("loc", []) if part != "body"]
+        field = loc[-1] if loc else "unknown"
+        errors.append({"field": field, "message": err.get("msg", "Invalid value")})
+    return errors
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exception_handler(
+    _request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    # Return 400s with field-level messages for API clients.
+    return JSONResponse(status_code=400, content={"errors": _format_validation_errors(exc)})
+
+
+def _ensure_manager_table(conn) -> None:
+    """Create the managers table if it does not exist."""
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS managers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                department TEXT NOT NULL
+            )"""
+        )
+    else:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS managers (
+                id bigserial PRIMARY KEY,
+                name text NOT NULL,
+                email text NOT NULL,
+                department text NOT NULL
+            )"""
+        )
+
+
+def _insert_manager(conn, payload: ManagerCreate) -> int:
+    """Insert a manager record and return the generated id."""
+    if isinstance(conn, sqlite3.Connection):
+        cursor = conn.execute(
+            "INSERT INTO managers(name, email, department) VALUES (?, ?, ?)",
+            (payload.name, payload.email, payload.department),
+        )
+        conn.commit()
+        return int(cursor.lastrowid)
+    cursor = conn.execute(
+        "INSERT INTO managers(name, email, department) VALUES (%s, %s, %s) RETURNING id",
+        (payload.name, payload.email, payload.department),
+    )
+    row = cursor.fetchone()
+    return int(row[0]) if row else 0
+
+
+def _validate_manager_payload(payload: ManagerCreate) -> list[dict[str, str]]:
+    """Apply required field and email format checks."""
+    errors: list[dict[str, str]] = []
+    if not payload.name.strip():
+        errors.append({"field": "name", "message": "Name is required."})
+    if not payload.department.strip():
+        errors.append({"field": "department", "message": "Department is required."})
+    if not EMAIL_PATTERN.match(payload.email.strip()):
+        errors.append({"field": "email", "message": "Email must be a valid address."})
+    return errors
 
 
 @app.get("/chat")
@@ -27,6 +111,28 @@ def chat(q: str = Query(..., description="User question")):
     else:
         answer = "Context: " + " ".join(h["content"] for h in hits)
     return {"answer": answer}
+
+
+@app.post("/managers", status_code=201)
+async def create_manager(payload: ManagerCreate):
+    """Create a manager record after validating required fields."""
+    errors = _validate_manager_payload(payload)
+    if errors:
+        # Return validation errors before touching the database.
+        return JSONResponse(status_code=400, content={"errors": errors})
+    conn = connect_db()
+    try:
+        # Ensure schema exists before storing the record.
+        _ensure_manager_table(conn)
+        manager_id = _insert_manager(conn, payload)
+    finally:
+        conn.close()
+    return {
+        "id": manager_id,
+        "name": payload.name,
+        "email": payload.email,
+        "department": payload.department,
+    }
 
 
 @app.on_event("startup")

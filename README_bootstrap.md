@@ -51,6 +51,29 @@ Feel free to open issues or pull requests as you iterate.
    uvicorn api.chat:app --reload
    ```
 
+### Manager API validation
+
+The API expects manager records to include non-empty `name`, valid `email`, and
+non-empty `department` values.
+
+Example request:
+
+```bash
+curl -X POST http://localhost:8000/managers \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Grace Hopper","email":"grace@example.com","department":"Eng"}'
+```
+
+Validation failures return HTTP 400 with field-level error messages:
+
+```json
+{
+  "errors": [
+    {"field": "email", "message": "value is not a valid email address"}
+  ]
+}
+```
+
 ## Further reading
 
 - SEC EDGAR API docs[^1]
