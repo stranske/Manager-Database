@@ -53,7 +53,11 @@ def test_manager_invalid_email_returns_400(tmp_path, monkeypatch):
 def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    payload = {"name": "Grace Hopper", "email": "grace@example.com", "department": "Eng"}
+    payload = {
+        "name": "Grace Hopper",
+        "email": "grace@example.com",
+        "department": "Eng",
+    }
     resp = asyncio.run(_post_manager(payload))
     assert resp.status_code == 201
     created = resp.json()
