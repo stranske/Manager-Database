@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from adapters.base import connect_db
 from embeddings import search_documents
+
 from .managers import router as managers_router
 
 app = FastAPI()
