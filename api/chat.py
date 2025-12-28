@@ -37,7 +37,8 @@ async def _configure_default_executor() -> None:
 
 def _db_timeout_seconds() -> float:
     """Return the DB health timeout in seconds."""
-    return float(os.getenv("DB_HEALTH_TIMEOUT_S", "5"))
+    # Cap health checks to 5s so monitoring calls never stall longer.
+    return min(float(os.getenv("DB_HEALTH_TIMEOUT_S", "5")), 5.0)
 
 
 def _ping_db(timeout_seconds: float) -> None:

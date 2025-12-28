@@ -55,3 +55,11 @@ def test_health_db_timeout(monkeypatch):
     elapsed = time.perf_counter() - start
     assert elapsed < 0.5
     assert resp.status_code == 503
+
+
+def test_health_db_timeout_cap(monkeypatch):
+    # Ensure the helper never exceeds the 5s cap, even if env is larger.
+    monkeypatch.setenv("DB_HEALTH_TIMEOUT_S", "10")
+    from api.chat import _db_timeout_seconds
+
+    assert _db_timeout_seconds() == 5.0
