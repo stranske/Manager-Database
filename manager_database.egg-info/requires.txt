@@ -19,3 +19,4 @@ ruff
 pre-commit
 mypy
 coverage
+referencing
