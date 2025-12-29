@@ -4,7 +4,7 @@ import datetime as dt
 import os
 
 from prefect import flow, task
-from prefect.schedules import Cron
+from prefect.client.schemas.schedules import CronSchedule
 
 from adapters.base import connect_db
 from diff_holdings import diff_holdings
@@ -57,5 +57,6 @@ if not LOCAL_TZ:
     LOCAL_TZ = tzinfo.tzname(None) if tzinfo else "UTC"
 daily_diff_deployment = daily_diff_flow.to_deployment(
     "daily-diff",
-    schedule=Cron("0 8 * * *", timezone=LOCAL_TZ),
+    # Prefect 2.x expects CronSchedule from prefect.client.schemas.schedules.
+    schedule=CronSchedule(cron="0 8 * * *", timezone=LOCAL_TZ),
 )

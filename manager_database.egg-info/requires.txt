@@ -1,5 +1,5 @@
 httpx
-prefect
+prefect<3.0,>=2.20.0
 jsonschema<4.23.0,>=4.17.3
 beautifulsoup4
 boto3

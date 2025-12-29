@@ -7,7 +7,7 @@ License: MIT
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 Requires-Dist: httpx
-Requires-Dist: prefect
+Requires-Dist: prefect<3.0,>=2.20.0
 Requires-Dist: jsonschema<4.23.0,>=4.17.3
 Requires-Dist: beautifulsoup4
 Requires-Dist: boto3
