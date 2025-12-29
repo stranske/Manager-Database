@@ -28,6 +28,16 @@ def setup_db(path: Path) -> str:
     return str(path)
 
 
+def setup_empty_db(path: Path) -> str:
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)"
+    )
+    conn.commit()
+    conn.close()
+    return str(path)
+
+
 @pytest.mark.asyncio
 async def test_summarise(tmp_path, monkeypatch):
     db_file = tmp_path / "dev.db"
@@ -35,6 +45,16 @@ async def test_summarise(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(db_file))
     result = await summarise.fn("2024-01-02")
     assert result == "2 changes on 2024-01-02"
+
+
+@pytest.mark.asyncio
+async def test_summarise_with_no_rows(tmp_path, monkeypatch):
+    db_file = tmp_path / "dev.db"
+    setup_empty_db(db_file)
+    monkeypatch.setenv("DB_PATH", str(db_file))
+    # Validate zero-row summaries return a stable message.
+    result = await summarise.fn("2024-01-05")
+    assert result == "0 changes on 2024-01-05"
 
 
 @pytest.mark.asyncio

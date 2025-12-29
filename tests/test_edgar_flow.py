@@ -30,6 +30,17 @@ class MultiFilingAdapter:
         return [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
 
 
+class EmptyFilingAdapter:
+    async def list_new_filings(self, cik, since):
+        return []
+
+    async def download(self, filing):
+        raise AssertionError("download should not be called for empty filings")
+
+    async def parse(self, raw):
+        raise AssertionError("parse should not be called for empty filings")
+
+
 @pytest.mark.nightly
 @pytest.mark.asyncio
 async def test_fetch_and_store_encryption(monkeypatch, tmp_path):
@@ -80,6 +91,37 @@ async def test_fetch_and_store_inserts_multiple_filings(monkeypatch, tmp_path):
     assert len(results) == 2
     assert len(put_calls) == 2
     assert stored == ["<xml accession='1'></xml>", "<xml accession='2'></xml>"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_handles_empty_filings(monkeypatch, tmp_path):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "ADAPTER", EmptyFilingAdapter())
+
+    put_calls = []
+    stored = []
+
+    def put_object(**kwargs):
+        put_calls.append(kwargs)
+
+    def record_document(raw):
+        stored.append(raw)
+
+    monkeypatch.setattr(flow.S3, "put_object", put_object)
+    monkeypatch.setattr(flow, "store_document", record_document)
+
+    # Ensure empty filings do not trigger storage or embedding side effects.
+    results = await flow.fetch_and_store.fn("0", "2024-01-01")
+
+    assert results == []
+    assert put_calls == []
+    assert stored == []
+    conn = sqlite3.connect(db_path)
+    count = conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0]
+    conn.close()
+    assert count == 0
 
 
 @pytest.mark.asyncio
