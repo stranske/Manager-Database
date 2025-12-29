@@ -48,9 +48,11 @@ def _load_ui_module():
 def test_require_login_short_circuits_when_authenticated(monkeypatch):
     ui = _load_ui_module()
     fake_st = FakeStreamlit(session_state={"auth": True})
+
     # Ensure no auth UI is invoked when already authenticated.
     def exploding_auth(*_args, **_kwargs):
         raise AssertionError("Authenticate should not be called")
+
     monkeypatch.setattr(ui, "st", fake_st)
     monkeypatch.setattr(
         ui,
