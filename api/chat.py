@@ -92,7 +92,7 @@ async def health_db():
         await asyncio.wait_for(future, timeout=timeout_seconds)
         payload = _health_payload(start, True)
         return JSONResponse(status_code=200, content=payload)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         # Cancel the queued future to avoid piling up stale health checks.
         future.cancel()
         # Fail fast to keep the endpoint under the timeout budget.
