@@ -8,6 +8,8 @@ def test_connect_db_respects_timeout(tmp_path):
     # Exercise the SQLite timeout path for health checks.
     conn = connect_db(str(db_path), connect_timeout=0.01)
     try:
+        # Ensure the adapter returns a native SQLite connection instance.
+        assert isinstance(conn, sqlite3.Connection)
         conn.execute("CREATE TABLE IF NOT EXISTS t (id INTEGER)")
         conn.execute("INSERT INTO t VALUES (1)")
         assert conn.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 1
