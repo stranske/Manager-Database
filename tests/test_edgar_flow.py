@@ -1,6 +1,11 @@
+import json
 import sqlite3
+import sys
+from pathlib import Path
 
 import pytest
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import etl.edgar_flow as flow
 
@@ -28,6 +33,31 @@ class MultiFilingAdapter:
 
     async def parse(self, raw):
         return [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
+
+
+class EmptyFilingAdapter:
+    async def list_new_filings(self, cik, since):
+        return []
+
+    async def download(self, filing):
+        raise AssertionError("download should not be called for empty filings")
+
+    async def parse(self, raw):
+        raise AssertionError("parse should not be called for empty filings")
+
+
+class MultiRowAdapter:
+    async def list_new_filings(self, cik, since):
+        return [{"accession": "1", "cik": cik, "filed": "2024-05-01"}]
+
+    async def download(self, filing):
+        return "<xml></xml>"
+
+    async def parse(self, raw):
+        return [
+            {"nameOfIssuer": "CorpA", "cusip": "AAA", "value": 1, "sshPrnamt": 1},
+            {"nameOfIssuer": "CorpB", "cusip": "BBB", "value": 2, "sshPrnamt": 2},
+        ]
 
 
 @pytest.mark.nightly
@@ -83,6 +113,67 @@ async def test_fetch_and_store_inserts_multiple_filings(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_fetch_and_store_handles_empty_filings(monkeypatch, tmp_path):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "ADAPTER", EmptyFilingAdapter())
+
+    put_calls = []
+    stored = []
+
+    def put_object(**kwargs):
+        put_calls.append(kwargs)
+
+    def record_document(raw):
+        stored.append(raw)
+
+    monkeypatch.setattr(flow.S3, "put_object", put_object)
+    monkeypatch.setattr(flow, "store_document", record_document)
+
+    # Ensure empty filings do not trigger storage or embedding side effects.
+    results = await flow.fetch_and_store.fn("0", "2024-01-01")
+
+    assert results == []
+    assert put_calls == []
+    assert stored == []
+    conn = sqlite3.connect(db_path)
+    count = conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0]
+    conn.close()
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "ADAPTER", MultiRowAdapter())
+
+    stored = []
+
+    def record_document(raw):
+        stored.append(raw)
+
+    def put_object(**kwargs):
+        assert kwargs["Key"] == "raw/1.xml"
+
+    monkeypatch.setattr(flow.S3, "put_object", put_object)
+    monkeypatch.setattr(flow, "store_document", record_document)
+
+    results = await flow.fetch_and_store.fn("0", "2024-01-01")
+
+    assert len(results) == 2
+    assert stored == ["<xml></xml>"]
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute(
+        "SELECT cusip, value, sshPrnamt FROM holdings ORDER BY cusip"
+    ).fetchall()
+    conn.close()
+    assert rows == [("AAA", 1, 1), ("BBB", 2, 2)]
+
+
+@pytest.mark.asyncio
 async def test_edgar_flow_skips_userwarning_and_writes_json(monkeypatch, tmp_path):
     captured = {"since": None}
 
@@ -102,7 +193,9 @@ async def test_edgar_flow_skips_userwarning_and_writes_json(monkeypatch, tmp_pat
         {"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}
     ]
     assert captured["since"] == "1970-01-01"
-    assert (tmp_path / "parsed.json").exists()
+    parsed_path = tmp_path / "parsed.json"
+    assert parsed_path.exists()
+    assert json.loads(parsed_path.read_text()) == rows
 
 
 @pytest.mark.asyncio

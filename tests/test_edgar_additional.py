@@ -44,3 +44,31 @@ async def test_download_success(monkeypatch):
     monkeypatch.setattr(edgar.httpx, "AsyncClient", DummyClient)
     text = await edgar.download({"accession": "1", "cik": "0"})
     assert "ok" in text
+
+
+@pytest.mark.asyncio
+async def test_list_new_filings_raises_when_empty(monkeypatch):
+    data = {
+        "filings": {
+            "recent": {
+                "form": ["10-K"],
+                "filingDate": ["2024-01-01"],
+                "accessionNumber": ["1"],
+            }
+        }
+    }
+
+    class DummyClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, *args, **kwargs):
+            return httpx.Response(200, request=httpx.Request("GET", "x"), json=data)
+
+    # Confirm we raise on a CIK with no recent 13F-HR filings.
+    monkeypatch.setattr(edgar.httpx, "AsyncClient", DummyClient)
+    with pytest.raises(UserWarning):
+        await edgar.list_new_filings("0", "2024-01-01")

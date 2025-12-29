@@ -105,3 +105,17 @@ def test_compute_handles_no_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     rows = conn.execute("SELECT * FROM daily_diff").fetchall()
     conn.close()
     assert rows == []
+
+
+def test_daily_diff_flow_strips_ciks(monkeypatch: pytest.MonkeyPatch):
+    seen = []
+
+    def fake_compute(cik: str, _date: str, _db_path: str) -> None:
+        seen.append(cik)
+
+    # Ensure whitespace in CIK_LIST does not affect the split logic.
+    monkeypatch.setenv("CIK_LIST", "0001, 0002")
+    monkeypatch.setattr("etl.daily_diff_flow.compute", fake_compute)
+    daily_diff_flow.fn(cik_list=None, date="2024-01-01")
+
+    assert seen == ["0001", "0002"]
