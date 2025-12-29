@@ -7,6 +7,7 @@ adapters/edgar.py
 adapters/uk.py
 api/__init__.py
 api/chat.py
+etl/__init__.py
 etl/daily_diff_flow.py
 etl/edgar_flow.py
 etl/summariser_flow.py
@@ -15,6 +16,7 @@ manager_database.egg-info/SOURCES.txt
 manager_database.egg-info/dependency_links.txt
 manager_database.egg-info/requires.txt
 manager_database.egg-info/top_level.txt
+tests/test_adapter_base.py
 tests/test_adapter_registry.py
 tests/test_board_sync.py
 tests/test_chat_api.py
@@ -27,6 +29,7 @@ tests/test_edgar.py
 tests/test_edgar_additional.py
 tests/test_edgar_flow.py
 tests/test_embeddings.py
+tests/test_etl_flows_additional.py
 tests/test_manager_api.py
 tests/test_open_issues.py
 tests/test_placeholder.py
