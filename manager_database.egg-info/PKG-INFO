@@ -8,6 +8,7 @@ Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 Requires-Dist: httpx
 Requires-Dist: prefect
+Requires-Dist: jsonschema<4.23.0,>=4.17.3
 Requires-Dist: beautifulsoup4
 Requires-Dist: boto3
 Requires-Dist: psycopg[binary]
@@ -15,7 +16,7 @@ Requires-Dist: streamlit
 Requires-Dist: pandas
 Requires-Dist: streamlit-authenticator
 Requires-Dist: altair
-Requires-Dist: fastapi
+Requires-Dist: fastapi<0.100
 Requires-Dist: uvicorn
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
@@ -26,3 +27,10 @@ Requires-Dist: ruff; extra == "dev"
 Requires-Dist: pre-commit; extra == "dev"
 Requires-Dist: mypy; extra == "dev"
 Requires-Dist: coverage; extra == "dev"
+Requires-Dist: referencing; extra == "dev"
+
+# Manager-Database
+
+This repository contains the Manager-Database application.
+
+For setup and usage instructions, see `README_bootstrap.md`.

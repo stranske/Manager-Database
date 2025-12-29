@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 adapters/__init__.py
 adapters/base.py
@@ -26,6 +27,7 @@ tests/test_edgar.py
 tests/test_edgar_additional.py
 tests/test_edgar_flow.py
 tests/test_embeddings.py
+tests/test_manager_api.py
 tests/test_open_issues.py
 tests/test_placeholder.py
 tests/test_search.py
