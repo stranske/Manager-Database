@@ -24,6 +24,12 @@ HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# Keep validation rules centralized so API docs/tests stay in sync with behavior.
+REQUIRED_FIELD_ERRORS = {
+    "name": "Name is required.",
+    "department": "Department is required.",
+}
+EMAIL_ERROR_MESSAGE = "Email must be a valid address."
 
 
 class ManagerCreate(BaseModel):
@@ -97,11 +103,13 @@ def _validate_manager_payload(payload: ManagerCreate) -> list[dict[str, str]]:
     """Apply required field and email format checks."""
     errors: list[dict[str, str]] = []
     if not payload.name.strip():
-        errors.append({"field": "name", "message": "Name is required."})
+        errors.append({"field": "name", "message": REQUIRED_FIELD_ERRORS["name"]})
     if not payload.department.strip():
-        errors.append({"field": "department", "message": "Department is required."})
+        errors.append(
+            {"field": "department", "message": REQUIRED_FIELD_ERRORS["department"]}
+        )
     if not EMAIL_PATTERN.match(payload.email.strip()):
-        errors.append({"field": "email", "message": "Email must be a valid address."})
+        errors.append({"field": "email", "message": EMAIL_ERROR_MESSAGE})
     return errors
 
 
