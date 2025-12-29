@@ -68,7 +68,7 @@ warn_unused_ignores = false
 ignore_missing_imports = true
 check_untyped_defs = false
 disallow_untyped_defs = false
-exclude = ["scripts/", "etl/", "embeddings.py", "adapters/", "api/"]
+exclude = "(?x)(^scripts/|^etl/|^embeddings\\.py$|^adapters/|^api/)"
 
 [tool.coverage.run]
 source = ["adapters", "api", "etl", "ui"]
