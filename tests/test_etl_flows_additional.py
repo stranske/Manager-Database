@@ -18,9 +18,7 @@ class FixedDate(date):
 
 
 @pytest.mark.asyncio
-async def test_edgar_flow_writes_parsed_json_and_skips_warnings(
-    tmp_path, monkeypatch
-):
+async def test_edgar_flow_writes_parsed_json_and_skips_warnings(tmp_path, monkeypatch):
     monkeypatch.setenv("CIK_LIST", "skip,ok")
     monkeypatch.setattr(edgar_flow, "RAW_DIR", tmp_path)
     calls = []
@@ -154,7 +152,9 @@ async def test_summarise_posts_to_slack_when_webhook_set(tmp_path, monkeypatch):
 
     # Stub outbound HTTP while still logging usage.
     monkeypatch.setattr(summariser_flow, "tracked_call", fake_tracked_call)
-    monkeypatch.setattr(summariser_flow.requests, "post", lambda *_args, **_kw: DummyResp())
+    monkeypatch.setattr(
+        summariser_flow.requests, "post", lambda *_args, **_kw: DummyResp()
+    )
 
     result = await summariser_flow.summarise.fn("2024-01-02")
 
