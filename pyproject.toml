@@ -18,7 +18,8 @@ dependencies = [
     "pandas",
     "streamlit-authenticator",
     "altair",
-    "fastapi<0.100",
+    # Prefect requires newer FastAPI; avoid conflicting pin.
+    "fastapi",
     "uvicorn",
 ]
 

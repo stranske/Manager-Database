@@ -14,5 +14,6 @@ streamlit-authenticator
 altair
 mypy
 coverage
-fastapi<0.100
+# Prefect requires newer FastAPI; avoid conflicting pin.
+fastapi
 uvicorn
