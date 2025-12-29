@@ -16,7 +16,7 @@ Requires-Dist: streamlit
 Requires-Dist: pandas
 Requires-Dist: streamlit-authenticator
 Requires-Dist: altair
-Requires-Dist: fastapi<0.100
+Requires-Dist: fastapi
 Requires-Dist: uvicorn
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"

@@ -8,7 +8,7 @@ streamlit
 pandas
 streamlit-authenticator
 altair
-fastapi<0.100
+fastapi
 uvicorn
 
 [dev]
