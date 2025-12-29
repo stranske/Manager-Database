@@ -16,6 +16,20 @@ class DummyAdapter:
         return [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
 
 
+class MultiFilingAdapter:
+    async def list_new_filings(self, cik, since):
+        return [
+            {"accession": "1", "cik": cik, "filed": "2024-05-01"},
+            {"accession": "2", "cik": cik, "filed": "2024-05-02"},
+        ]
+
+    async def download(self, filing):
+        return f"<xml accession='{filing['accession']}'></xml>"
+
+    async def parse(self, raw):
+        return [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
+
+
 @pytest.mark.nightly
 @pytest.mark.asyncio
 async def test_fetch_and_store_encryption(monkeypatch, tmp_path):
@@ -38,6 +52,34 @@ async def test_fetch_and_store_encryption(monkeypatch, tmp_path):
     row = conn.execute("SELECT cik, cusip FROM holdings").fetchone()
     conn.close()
     assert row == ("0", "AAA")
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_inserts_multiple_filings(monkeypatch, tmp_path):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "ADAPTER", MultiFilingAdapter())
+
+    put_calls = []
+
+    def put_object(**kwargs):
+        put_calls.append(kwargs)
+
+    stored = []
+
+    def record_document(raw):
+        stored.append(raw)
+
+    monkeypatch.setattr(flow.S3, "put_object", put_object)
+    monkeypatch.setattr(flow, "store_document", record_document)
+
+    # Use the underlying function to avoid spinning up the Prefect engine.
+    results = await flow.fetch_and_store.fn("0", "2024-01-01")
+
+    assert len(results) == 2
+    assert len(put_calls) == 2
+    assert stored == ["<xml accession='1'></xml>", "<xml accession='2'></xml>"]
 
 
 @pytest.mark.asyncio
