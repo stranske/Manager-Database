@@ -73,6 +73,13 @@ def _ping_db(timeout_seconds: float) -> None:
         conn.close()
 
 
+def _health_payload(start: float, healthy: bool) -> dict[str, int | bool]:
+    """Build the health response payload with a consistent latency measurement."""
+    # Measure latency after each exit path to keep results comparable.
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    return {"healthy": healthy, "latency_ms": latency_ms}
+
+
 @app.get("/health/db")
 async def health_db():
     """Return database connectivity status and latency."""
@@ -83,19 +90,16 @@ async def health_db():
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
         await asyncio.wait_for(future, timeout=timeout_seconds)
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        payload = {"healthy": True, "latency_ms": latency_ms}
+        payload = _health_payload(start, True)
         return JSONResponse(status_code=200, content=payload)
-    except TimeoutError:
+    except asyncio.TimeoutError:
         # Cancel the queued future to avoid piling up stale health checks.
         future.cancel()
         # Fail fast to keep the endpoint under the timeout budget.
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        payload = {"healthy": False, "latency_ms": latency_ms}
+        payload = _health_payload(start, False)
         return JSONResponse(status_code=503, content=payload)
     except Exception:
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        payload = {"healthy": False, "latency_ms": latency_ms}
+        payload = _health_payload(start, False)
         return JSONResponse(status_code=503, content=payload)
 
 
