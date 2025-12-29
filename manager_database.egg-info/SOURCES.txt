@@ -18,6 +18,7 @@ manager_database.egg-info/requires.txt
 manager_database.egg-info/top_level.txt
 tests/test_adapter_base.py
 tests/test_adapter_registry.py
+tests/test_autofix_validation.py
 tests/test_board_sync.py
 tests/test_chat_api.py
 tests/test_daily_diff.py
