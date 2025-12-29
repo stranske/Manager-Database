@@ -49,3 +49,16 @@ def test_diff_requires_two_filings(tmp_path):
     conn.close()
     with pytest.raises(SystemExit):
         diff_holdings("0000000000", str(db_path))
+
+
+def test_diff_requires_existing_cik(tmp_path):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE holdings (cik TEXT, accession TEXT, filed DATE, nameOfIssuer TEXT, cusip TEXT, value INTEGER, sshPrnamt INTEGER)"
+    )
+    # Leave the table empty to exercise the missing CIK path.
+    conn.commit()
+    conn.close()
+    with pytest.raises(SystemExit):
+        diff_holdings("0000000000", str(db_path))
