@@ -9,7 +9,7 @@ authors = [{ name = "stranske" }]
 
 dependencies = [
     "httpx",
-    "prefect",
+    "prefect>=2.20.0,<3.0", # Pin to Prefect 2.x for stable CI installs.
     "jsonschema>=4.17.3,<4.23.0",
     "beautifulsoup4",
     "boto3",

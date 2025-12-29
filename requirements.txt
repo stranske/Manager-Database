@@ -1,6 +1,6 @@
 pytest
 httpx
-prefect
+prefect>=2.20.0,<3.0  # Pin to Prefect 2.x for stable CI installs.
 beautifulsoup4
 pytest-asyncio
 boto3
