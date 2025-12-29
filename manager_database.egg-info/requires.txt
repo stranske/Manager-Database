@@ -1,5 +1,6 @@
 httpx
 prefect
+jsonschema<4.23.0
 beautifulsoup4
 boto3
 requests
