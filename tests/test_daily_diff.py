@@ -89,3 +89,19 @@ def test_daily_diff_flow_uses_env_defaults(
         ("2024-05-01", "0000000000", "BBB", "EXIT"),
         ("2024-05-01", "0000000000", "CCC", "ADD"),
     ]
+
+
+def test_compute_handles_no_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    db_path = tmp_path / "dev.db"
+
+    def fake_diff_holdings(_cik: str, _db_path: str):
+        # Force the no-change path to confirm zero inserts.
+        return set(), set()
+
+    monkeypatch.setattr("etl.daily_diff_flow.diff_holdings", fake_diff_holdings)
+    compute.fn("0000000000", "2024-05-01", str(db_path))
+
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute("SELECT * FROM daily_diff").fetchall()
+    conn.close()
+    assert rows == []
