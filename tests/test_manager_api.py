@@ -50,6 +50,21 @@ def test_manager_invalid_email_returns_400(tmp_path, monkeypatch):
     assert "valid" in payload["errors"][0]["message"].lower()
 
 
+def test_manager_empty_department_returns_400(tmp_path, monkeypatch):
+    # Validate that required department values are enforced.
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(
+        _post_manager(
+            {"name": "Ada Lovelace", "email": "ada@example.com", "department": "   "}
+        )
+    )
+    assert resp.status_code == 400
+    payload = resp.json()
+    assert payload["errors"][0]["field"] == "department"
+    assert "required" in payload["errors"][0]["message"].lower()
+
+
 def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
