@@ -3,6 +3,7 @@
 This conftest.py automatically skips tests marked as `nightly` unless
 explicitly requested via `-m nightly` or `--run-nightly`.
 """
+
 import pytest
 
 
@@ -18,7 +19,7 @@ def pytest_collection_modifyitems(config, items):
     # Check if nightly tests are explicitly requested
     if config.getoption("-m") and "nightly" in config.getoption("-m"):
         return  # User explicitly asked for nightly tests
-    
+
     # Check for custom flag
     if hasattr(config.option, "run_nightly") and config.option.run_nightly:
         return
