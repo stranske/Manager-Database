@@ -256,6 +256,7 @@ async def test_summarise_skips_webhook_when_unset(tmp_path, monkeypatch):
 
     assert result == "2 changes on 2024-01-02"
 
+
 @pytest.mark.asyncio
 async def test_summariser_flow_defaults_to_yesterday(monkeypatch):
     monkeypatch.setattr(summariser_flow.dt, "date", FixedDate)
