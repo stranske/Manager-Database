@@ -19,6 +19,27 @@ def test_store_and_search(tmp_path):
     assert results[0]["content"] == "hello world"
 
 
+def test_embed_text_simple_mode(monkeypatch):
+    # Force the lightweight fallback to cover the simple embedding path.
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    vec = embed_text("aaab")
+    assert sum(vec) == 1.0
+    assert vec[0] > vec[1]
+
+
+def test_search_documents_empty_returns_list(tmp_path):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE documents (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT, embedding TEXT)"
+    )
+    conn.commit()
+    conn.close()
+    # Verify we handle empty tables without raising.
+    results = search_documents("query", str(db_path))
+    assert results == []
+
+
 def test_embed_text_uses_model_when_available(monkeypatch):
     class FakeVector:
         def tolist(self):
