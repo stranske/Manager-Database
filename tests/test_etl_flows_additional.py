@@ -2,7 +2,6 @@ import json
 import sqlite3
 from contextlib import asynccontextmanager
 from datetime import date
-from pathlib import Path
 
 import pytest
 
@@ -11,6 +10,7 @@ import etl.edgar_flow as edgar_flow
 import etl.summariser_flow as summariser_flow
 
 
+# Fixed date for deterministic flow defaults.
 class FixedDate(date):
     @classmethod
     def today(cls):
