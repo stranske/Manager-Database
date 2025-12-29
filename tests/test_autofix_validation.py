@@ -1,136 +1,67 @@
-"""Test coverage for adapter utilities and error handling paths."""
+"""Test file with intentional errors to validate the full autofix pipeline.
 
+This file contains:
+1. Formatting issues (ruff/black can fix) - cosmetic
+2. Type errors (mypy will catch) - non-cosmetic, needs Codex
+3. Test failures (pytest will catch) - non-cosmetic, needs Codex
+
+The autofix system should:
+1. First run basic autofix (ruff/black) to fix formatting
+2. Gate should still fail due to mypy/pytest errors
+3. Auto-escalate to Codex to fix the remaining issues
+"""
 import os
+from typing import Dict,List,Optional
+import sys
 
-import pytest
+# Formatting issue 1: missing spaces around operators
+x=1+2+3
 
-from adapters.base import connect_db, get_adapter
+# Formatting issue 2: multiple imports on one line (already above)
 
+# Formatting issue 3: trailing whitespace (invisible but present)
+y = 42   
 
-def formatted_type_annotation(x: int) -> str:
-    """Return a string for basic type coverage."""
-    return str(x)
+# Formatting issue 4: inconsistent quotes
+message = "hello"
+other_message = 'world'
 
+# Type error 1: wrong type assignment
+def get_count() -> int:
+    return "not an int"  # mypy error: returning str instead of int
 
-def missing_return_type(value: int) -> int:
-    """Return a stable numeric output."""
-    return value * 2
+# Type error 2: incompatible types
+def process_items(items: List[str]) -> Dict[str, int]:
+    result: Dict[str, int] = {}
+    for item in items:
+        result[item] = "count"  # mypy error: assigning str to int
+    return result
 
+# Type error 3: missing return
+def calculate_total(values: List[int]) -> int:
+    total = sum(values)
+    # Missing return statement - mypy should catch this
 
-def poorly_formatted_function(arg1: int, arg2: int, arg3: int) -> int:
-    """Simple helper to keep formatting coverage."""
-    result = arg1 + arg2 + arg3
-    if result > 10:
-        return result
-    return result * 2
+# Unused import (ruff will catch this)
+import json
 
-
-class BadlyFormattedClass:
-    """Class with formatting issues."""
-
-    def __init__(self, name: str, value: int):
-        self.name = name
-        self.value = value
-
-    def compute(self, multiplier: int) -> int:
-        return self.value * multiplier
-
-
-# --- ACTUAL USEFUL COVERAGE TESTS ---
-
-
-def test_connect_db_sqlite_default():
-    """Test connect_db returns valid SQLite connection."""
-    # Clear env vars to force SQLite path
-    old_url = os.environ.pop("DB_URL", None)
-    old_path = os.environ.pop("DB_PATH", None)
-
-    try:
-        conn = connect_db(":memory:")
-        assert conn is not None
-        # Verify it's a working connection
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        result = cursor.fetchone()
-        assert result == (1,)
-        conn.close()
-    finally:
-        if old_url:
-            os.environ["DB_URL"] = old_url
-        if old_path:
-            os.environ["DB_PATH"] = old_path
-
-
-def test_connect_db_with_timeout():
-    """Test connect_db accepts timeout parameter."""
-    conn = connect_db(":memory:", connect_timeout=5.0)
-    assert conn is not None
-    conn.close()
-
-
-def test_get_adapter_edgar():
-    """Test that edgar adapter can be loaded."""
-    try:
-        adapter = get_adapter("edgar")
-        assert adapter is not None
-        # Ensure the adapter exposes the expected coroutine entry point.
-        assert callable(getattr(adapter, "list_new_filings", None))
-    except ModuleNotFoundError:
-        # Adapter module may not exist yet
-        pass
-
-
-def test_get_adapter_invalid():
-    """Test get_adapter raises for unknown adapter."""
-    # Validate the import error path for unknown adapters.
-    with pytest.raises((ModuleNotFoundError, ImportError)):
-        get_adapter("nonexistent_adapter_xyz")
-
-
-def test_intentional_failure_assertion():
-    """Exercise assertion error paths without failing the suite."""
+# Test that will fail
+def test_intentional_failure():
+    """This test intentionally fails to trigger Codex escalation."""
     expected = 42
-    actual = 41
-    # Confirm mismatched values raise AssertionError.
-    with pytest.raises(AssertionError):
-        assert actual == expected, f"Expected {expected} but got {actual}"
+    actual = 41  # Wrong value
+    assert actual == expected, f"Expected {expected}, got {actual}"
 
+# Another failing test
+def test_type_mismatch():
+    """Test type handling with intentional failure."""
+    result = get_count()
+    assert isinstance(result, int), f"Expected int, got {type(result)}"
 
-def test_intentional_failure_exception():
-    """Exercise KeyError handling without failing the suite."""
-    data = {"key": "value"}
-    # Accessing a missing key should raise KeyError.
-    with pytest.raises(KeyError):
-        _ = data["nonexistent_key"]
-
-
-def test_intentional_failure_type_error():
-    """Exercise TypeError handling without failing the suite."""
-    value = "not a number"
-    # Mixing string and int should raise TypeError.
-    with pytest.raises(TypeError):
-        _ = value + 5
-
-
-def function_with_trailing_whitespace():
-    """Has trailing whitespace."""
-    x = 1
-    y = 2
-    return x + y
-
-
-def bad_none_comparison(value):
-    # Use explicit None checks to avoid truthiness surprises.
-    if value is None:
-        return "empty"
-    return "full"
-
-
-def bad_bool_comparison(flag):
-    # Prefer direct boolean checks for readability.
-    if flag:
-        return "yes"
-    return "no"
-
-
-# Autofix retest - 2025-12-29T05:30:11Z
+# Test with assertion error
+def test_list_processing():
+    """Test list processing with intentional failure."""
+    items = ["a", "b", "c"]
+    result = process_items(items)
+    # This will fail because process_items has a bug
+    assert all(isinstance(v, int) for v in result.values())
