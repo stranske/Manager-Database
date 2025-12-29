@@ -28,3 +28,9 @@ Requires-Dist: pre-commit; extra == "dev"
 Requires-Dist: mypy; extra == "dev"
 Requires-Dist: coverage; extra == "dev"
 Requires-Dist: referencing; extra == "dev"
+
+# Manager-Database
+
+This repository contains the Manager-Database application.
+
+For setup and usage instructions, see `README_bootstrap.md`.

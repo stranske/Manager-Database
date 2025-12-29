@@ -14,5 +14,5 @@ streamlit-authenticator
 altair
 mypy
 coverage
-fastapi
+fastapi<0.100
 uvicorn
