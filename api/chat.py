@@ -54,7 +54,10 @@ def _ping_db(timeout_seconds: float) -> None:
     # Pass a connect timeout so the ping doesn't hang on slow networks.
     conn = connect_db(connect_timeout=timeout_seconds)
     try:
-        if not isinstance(conn, sqlite3.Connection):
+        if isinstance(conn, sqlite3.Connection):
+            # Align SQLite busy timeout with the health check deadline.
+            conn.execute(f"PRAGMA busy_timeout = {int(timeout_seconds * 1000)}")
+        else:
             # Best-effort statement timeout keeps slow DBs within the health budget.
             try:
                 conn.execute(
@@ -62,7 +65,10 @@ def _ping_db(timeout_seconds: float) -> None:
                 )
             except Exception:
                 pass
-        conn.execute("SELECT 1")
+        cursor = conn.execute("SELECT 1")
+        # Force the database to return a result so the query truly runs.
+        if hasattr(cursor, "fetchone"):
+            cursor.fetchone()
     finally:
         conn.close()
 
@@ -84,7 +90,7 @@ async def health_db():
         # Cancel the queued future to avoid piling up stale health checks.
         future.cancel()
         # Fail fast to keep the endpoint under the timeout budget.
-        latency_ms = int(timeout_seconds * 1000)
+        latency_ms = int((time.perf_counter() - start) * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}
         return JSONResponse(status_code=503, content=payload)
     except Exception:
