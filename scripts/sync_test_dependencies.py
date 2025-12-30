@@ -80,6 +80,7 @@ STDLIB_MODULES = {
     "struct",
     "subprocess",
     "sys",
+    "sqlite3",
     "tempfile",
     "textwrap",
     "threading",
@@ -135,6 +136,9 @@ _BASE_PROJECT_MODULES = {
     "fallback_split",
     "parse_chatgpt_topics",
     "health_summarize",
+    # Root-level modules imported by tests; keep them treated as first-party.
+    "diff_holdings",
+    "embeddings",
 }
 
 
