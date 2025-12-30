@@ -37,9 +37,7 @@ async def test_download_success(monkeypatch):
             return False
 
         async def get(self, *args, **kwargs):
-            return httpx.Response(
-                200, text="<xml>ok</xml>", request=httpx.Request("GET", "x")
-            )
+            return httpx.Response(200, text="<xml>ok</xml>", request=httpx.Request("GET", "x"))
 
     monkeypatch.setattr(edgar.httpx, "AsyncClient", DummyClient)
     text = await edgar.download({"accession": "1", "cik": "0"})

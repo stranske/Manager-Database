@@ -22,9 +22,7 @@ async def list_new_filings(cik: str, since: str) -> list[dict[str, str]]:
             r = await client.get(url, headers=headers)
             log(r)
         if r.status_code == 429:
-            raise httpx.HTTPStatusError(
-                "Too Many Requests", request=r.request, response=r
-            )
+            raise httpx.HTTPStatusError("Too Many Requests", request=r.request, response=r)
         r.raise_for_status()
         data = r.json()
     filings = []
@@ -51,9 +49,7 @@ async def download(filing: dict[str, str]) -> str:
             r = await client.get(url, headers=headers)
             log(r)
         if r.status_code == 429:
-            raise httpx.HTTPStatusError(
-                "Too Many Requests", request=r.request, response=r
-            )
+            raise httpx.HTTPStatusError("Too Many Requests", request=r.request, response=r)
         r.raise_for_status()
         return r.text
 

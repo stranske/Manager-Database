@@ -55,9 +55,7 @@ async def _validation_exception_handler(
     _request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     # Return 400s with field-level messages for API clients.
-    return JSONResponse(
-        status_code=400, content={"errors": _format_validation_errors(exc)}
-    )
+    return JSONResponse(status_code=400, content={"errors": _format_validation_errors(exc)})
 
 
 def _ensure_manager_table(conn) -> None:
@@ -105,9 +103,7 @@ def _validate_manager_payload(payload: ManagerCreate) -> list[dict[str, str]]:
     if not payload.name.strip():
         errors.append({"field": "name", "message": REQUIRED_FIELD_ERRORS["name"]})
     if not payload.department.strip():
-        errors.append(
-            {"field": "department", "message": REQUIRED_FIELD_ERRORS["department"]}
-        )
+        errors.append({"field": "department", "message": REQUIRED_FIELD_ERRORS["department"]})
     if not EMAIL_PATTERN.match(payload.email.strip()):
         errors.append({"field": "email", "message": EMAIL_ERROR_MESSAGE})
     return errors
@@ -187,9 +183,7 @@ async def health_db():
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
         await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(
-                HEALTH_EXECUTOR, _ping_db, timeout_seconds
-            ),
+            asyncio.get_running_loop().run_in_executor(HEALTH_EXECUTOR, _ping_db, timeout_seconds),
             timeout=timeout_seconds,
         )
         latency_ms = int((time.perf_counter() - start) * 1000)

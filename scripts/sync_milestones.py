@@ -4,9 +4,7 @@ import re
 import subprocess
 from pathlib import Path
 
-MILESTONE_RE = re.compile(
-    r"^\|\s*\*\*(M\d+)\*\*\s*\|\s*(.*?)\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|"
-)
+MILESTONE_RE = re.compile(r"^\|\s*\*\*(M\d+)\*\*\s*\|\s*(.*?)\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|")
 
 
 def parse_milestones(path: str) -> list[tuple[str, str, str]]:
