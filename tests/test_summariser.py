@@ -12,9 +12,7 @@ from etl.summariser_flow import summarise, summariser_flow
 
 def setup_db(path: Path) -> str:
     conn = sqlite3.connect(path)
-    conn.execute(
-        "CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)"
-    )
+    conn.execute("CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)")
     conn.execute(
         "INSERT INTO daily_diff VALUES (?,?,?,?)",
         ("2024-01-02", "1", "AAA", "ADD"),
@@ -30,9 +28,7 @@ def setup_db(path: Path) -> str:
 
 def setup_empty_db(path: Path) -> str:
     conn = sqlite3.connect(path)
-    conn.execute(
-        "CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)"
-    )
+    conn.execute("CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)")
     conn.commit()
     conn.close()
     return str(path)

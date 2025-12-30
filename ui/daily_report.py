@@ -46,9 +46,7 @@ def main():
         html = df[["cik", "cusip", "Δ"]].to_html(escape=False, index=False)
         st.markdown(html, unsafe_allow_html=True)
         csv = df[["cik", "cusip", "change"]].to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "Download CSV", csv, file_name=f"diff_{date_str}.csv", mime="text/csv"
-        )
+        st.download_button("Download CSV", csv, file_name=f"diff_{date_str}.csv", mime="text/csv")
     with tab2:
         news = load_news(date_str)
         st.dataframe(news)

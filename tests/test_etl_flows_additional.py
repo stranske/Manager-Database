@@ -42,9 +42,7 @@ async def test_edgar_flow_writes_parsed_json_and_skips_warnings(tmp_path, monkey
     rows = await edgar_flow.edgar_flow.fn()
 
     assert calls == [("skip", "1970-01-01"), ("ok", "1970-01-01")]
-    assert rows == [
-        {"nameOfIssuer": "Corp", "cusip": "okCUS", "value": 1, "sshPrnamt": 1}
-    ]
+    assert rows == [{"nameOfIssuer": "Corp", "cusip": "okCUS", "value": 1, "sshPrnamt": 1}]
     parsed = json.loads((tmp_path / "parsed.json").read_text())
     assert parsed == rows
 
@@ -170,9 +168,7 @@ def test_compute_inserts_additions_and_exits(tmp_path, monkeypatch):
     daily_flow.compute.fn("0000", "2024-05-01", str(db_path))
 
     conn = sqlite3.connect(db_path)
-    rows = conn.execute(
-        "SELECT cik, cusip, change FROM daily_diff ORDER BY change"
-    ).fetchall()
+    rows = conn.execute("SELECT cik, cusip, change FROM daily_diff ORDER BY change").fetchall()
     conn.close()
     assert rows == [
         ("0000", "AAA", "ADD"),
@@ -184,9 +180,7 @@ def test_compute_inserts_additions_and_exits(tmp_path, monkeypatch):
 async def test_summarise_posts_to_slack_when_webhook_set(tmp_path, monkeypatch):
     db_file = tmp_path / "dev.db"
     conn = sqlite3.connect(db_file)
-    conn.execute(
-        "CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)"
-    )
+    conn.execute("CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)")
     conn.execute(
         "INSERT INTO daily_diff VALUES (?,?,?,?)",
         ("2024-01-02", "1", "AAA", "ADD"),
@@ -213,9 +207,7 @@ async def test_summarise_posts_to_slack_when_webhook_set(tmp_path, monkeypatch):
 
     # Stub outbound HTTP while still logging usage.
     monkeypatch.setattr(summariser_flow, "tracked_call", fake_tracked_call)
-    monkeypatch.setattr(
-        summariser_flow.requests, "post", lambda *_args, **_kw: DummyResp()
-    )
+    monkeypatch.setattr(summariser_flow.requests, "post", lambda *_args, **_kw: DummyResp())
 
     result = await summariser_flow.summarise.fn("2024-01-02")
 
@@ -231,9 +223,7 @@ async def test_summarise_posts_to_slack_when_webhook_set(tmp_path, monkeypatch):
 async def test_summarise_skips_webhook_when_unset(tmp_path, monkeypatch):
     db_file = tmp_path / "dev.db"
     conn = sqlite3.connect(db_file)
-    conn.execute(
-        "CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)"
-    )
+    conn.execute("CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)")
     conn.executemany(
         "INSERT INTO daily_diff VALUES (?,?,?,?)",
         [

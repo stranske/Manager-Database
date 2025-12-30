@@ -34,9 +34,7 @@ def test_daily_diff_flow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DB_PATH", db_path)
     daily_diff_flow(["0000000000"], date="2024-05-01")
     conn = sqlite3.connect(db_path)
-    rows = conn.execute(
-        "SELECT cik, cusip, change FROM daily_diff ORDER BY cusip"
-    ).fetchall()
+    rows = conn.execute("SELECT cik, cusip, change FROM daily_diff ORDER BY cusip").fetchall()
     conn.close()
     assert rows == [
         ("0000000000", "BBB", "EXIT"),
@@ -49,9 +47,7 @@ def test_compute_writes_daily_diff_rows(tmp_path: Path):
     # Run the task body directly to avoid Prefect orchestration in unit tests.
     compute.fn("0000000000", "2024-05-01", db_path)
     conn = sqlite3.connect(db_path)
-    rows = conn.execute(
-        "SELECT date, cik, cusip, change FROM daily_diff ORDER BY cusip"
-    ).fetchall()
+    rows = conn.execute("SELECT date, cik, cusip, change FROM daily_diff ORDER BY cusip").fetchall()
     conn.close()
     assert rows == [
         ("2024-05-01", "0000000000", "BBB", "EXIT"),
@@ -59,9 +55,7 @@ def test_compute_writes_daily_diff_rows(tmp_path: Path):
     ]
 
 
-def test_daily_diff_flow_uses_env_defaults(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_daily_diff_flow_uses_env_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     db_path = setup_db(tmp_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("CIK_LIST", "0000000000")
@@ -81,9 +75,7 @@ def test_daily_diff_flow_uses_env_defaults(
     monkeypatch.setattr("etl.daily_diff_flow.compute", compute.fn)
     daily_diff_flow.fn()
     conn = sqlite3.connect(db_path)
-    rows = conn.execute(
-        "SELECT date, cik, cusip, change FROM daily_diff ORDER BY cusip"
-    ).fetchall()
+    rows = conn.execute("SELECT date, cik, cusip, change FROM daily_diff ORDER BY cusip").fetchall()
     conn.close()
     assert rows == [
         ("2024-05-01", "0000000000", "BBB", "EXIT"),

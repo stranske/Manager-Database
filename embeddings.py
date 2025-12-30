@@ -80,9 +80,7 @@ def store_document(text: str, db_path: str | None = None) -> None:
     conn.close()
 
 
-def search_documents(
-    query: str, db_path: str | None = None, k: int = 3
-) -> list[dict[str, Any]]:
+def search_documents(query: str, db_path: str | None = None, k: int = 3) -> list[dict[str, Any]]:
     """Return top ``k`` docs similar to ``query``."""
     conn = connect_db(db_path)
     is_pg = conn.__class__.__name__ == "Connection" and hasattr(conn, "info")

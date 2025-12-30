@@ -40,9 +40,7 @@ def test_manager_invalid_email_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     resp = asyncio.run(
-        _post_manager(
-            {"name": "Ada Lovelace", "email": "not-an-email", "department": "Ops"}
-        )
+        _post_manager({"name": "Ada Lovelace", "email": "not-an-email", "department": "Ops"})
     )
     assert resp.status_code == 400
     payload = resp.json()
@@ -55,9 +53,7 @@ def test_manager_empty_department_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     resp = asyncio.run(
-        _post_manager(
-            {"name": "Ada Lovelace", "email": "ada@example.com", "department": "   "}
-        )
+        _post_manager({"name": "Ada Lovelace", "email": "ada@example.com", "department": "   "})
     )
     assert resp.status_code == 400
     payload = resp.json()

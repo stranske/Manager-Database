@@ -9,9 +9,7 @@ from ui.daily_report import load_diffs, load_news
 def setup_db(tmp_path: Path) -> str:
     db_path = tmp_path / "dev.db"
     conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)"
-    )
+    conn.execute("CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)")
     conn.execute("CREATE TABLE news (headline TEXT, source TEXT, published TEXT)")
     diff_rows = [
         ("2024-05-01", "0", "AAA", "ADD"),

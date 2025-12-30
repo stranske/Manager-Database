@@ -166,9 +166,7 @@ async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
     assert len(results) == 2
     assert stored == ["<xml></xml>"]
     conn = sqlite3.connect(db_path)
-    rows = conn.execute(
-        "SELECT cusip, value, sshPrnamt FROM holdings ORDER BY cusip"
-    ).fetchall()
+    rows = conn.execute("SELECT cusip, value, sshPrnamt FROM holdings ORDER BY cusip").fetchall()
     conn.close()
     assert rows == [("AAA", 1, 1), ("BBB", 2, 2)]
 
@@ -189,9 +187,7 @@ async def test_edgar_flow_skips_userwarning_and_writes_json(monkeypatch, tmp_pat
     # Use the underlying function to avoid spinning up the Prefect engine.
     rows = await flow.edgar_flow.fn(cik_list=["ok", "bad"])
 
-    assert rows == [
-        {"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}
-    ]
+    assert rows == [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
     assert captured["since"] == "1970-01-01"
     parsed_path = tmp_path / "parsed.json"
     assert parsed_path.exists()
