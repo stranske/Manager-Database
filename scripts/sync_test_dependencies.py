@@ -75,6 +75,7 @@ STDLIB_MODULES = {
     "signal",
     "sitecustomize",
     "socket",
+    "sqlite3",  # stdlib import used by tests
     "stat",
     "string",
     "struct",
@@ -114,6 +115,8 @@ TEST_FRAMEWORK_MODULES = {
 _BASE_PROJECT_MODULES = {
     "analysis",
     "cli",
+    "diff_holdings",  # repo root module imported by tests
+    "embeddings",  # repo root module imported by tests
     "trend_analysis",
     "trend_portfolio_app",
     "streamlit_app",
