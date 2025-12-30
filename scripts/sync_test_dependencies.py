@@ -80,6 +80,7 @@ STDLIB_MODULES = {
     "struct",
     "subprocess",
     "sys",
+    "sqlite3",
     "tempfile",
     "textwrap",
     "threading",
@@ -167,8 +168,8 @@ def _detect_local_project_modules() -> set[str]:
             # Check for packages (directories with __init__.py)
             if item.is_dir() and (item / "__init__.py").exists():
                 detected.add(item.name)
-            # Check for standalone .py modules (but not in root .)
-            elif source_dir != Path(".") and item.suffix == ".py":
+            # Include standalone root modules (ex: embeddings.py, diff_holdings.py).
+            elif item.suffix == ".py":
                 detected.add(item.stem)
 
     return detected
@@ -390,3 +391,8 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry point
     sys.exit(main())
+
+# Commit-message checklist:
+# - [ ] type is accurate (fix, chore, refactor)
+# - [ ] scope is clear (scripts)
+# - [ ] summary is concise and imperative
