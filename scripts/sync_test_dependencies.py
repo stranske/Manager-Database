@@ -79,6 +79,7 @@ STDLIB_MODULES = {
     "string",
     "struct",
     "subprocess",
+    "sqlite3",
     "sys",
     "tempfile",
     "textwrap",
@@ -114,6 +115,8 @@ TEST_FRAMEWORK_MODULES = {
 _BASE_PROJECT_MODULES = {
     "analysis",
     "cli",
+    "diff_holdings",
+    "embeddings",
     "trend_analysis",
     "trend_portfolio_app",
     "streamlit_app",
