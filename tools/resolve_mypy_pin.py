@@ -30,14 +30,17 @@ def get_mypy_python_version() -> str | None:
 
         content = pyproject_path.read_text()
         data = tomlkit.parse(content)
-        tool = data.get("tool")
-        if not isinstance(tool, dict):
-            tool = {}
-        mypy = tool.get("mypy")
-        if not isinstance(mypy, dict):
-            mypy = {}
+        tool_raw = data.get("tool")
+        # Use dict() to normalize tomlkit types and satisfy mypy
+        # tomlkit returns Table objects that act like dicts but mypy doesn't know this
+        tool: dict[str, object] = dict(tool_raw) if hasattr(tool_raw, "get") else {}  # type: ignore[arg-type,call-overload]
+        mypy_raw = tool.get("mypy")
+        mypy: dict[str, object] = dict(mypy_raw) if hasattr(mypy_raw, "get") else {}  # type: ignore[arg-type,call-overload]
         version = mypy.get("python_version")
-        return str(version) if version is not None else None
+        # Validate type before conversion - TOML can parse various types
+        if isinstance(version, (str, int, float)):
+            return str(version)
+        return None
     except ImportError:
         pass
 
@@ -86,5 +89,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":  # pragma: no cover - CLI entry point
+if __name__ == "__main__":
     sys.exit(main())
