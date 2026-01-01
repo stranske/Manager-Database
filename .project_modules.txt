@@ -1,0 +1,6 @@
+# Repo-specific first-party modules for Manager-Database
+# These standalone .py files in root are used by tests but excluded from
+# auto-detection (which skips root-level .py files).
+# See: https://github.com/stranske/Workflows/pull/441
+diff_holdings
+embeddings
