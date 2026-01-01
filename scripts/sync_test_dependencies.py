@@ -137,8 +137,6 @@ _BASE_PROJECT_MODULES = {
     "fallback_split",
     "parse_chatgpt_topics",
     "health_summarize",
-    "diff_holdings",
-    "embeddings",
 }
 
 
