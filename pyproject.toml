@@ -10,7 +10,7 @@ authors = [{ name = "stranske" }]
 dependencies = [
     "httpx",
     "prefect",
-    "jsonschema>=4.17.3,<4.23.0",
+    "jsonschema>=4.17.3,<4.26.0",
     "beautifulsoup4",
     "boto3",
     "psycopg[binary]",
