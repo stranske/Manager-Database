@@ -139,6 +139,8 @@ _BASE_PROJECT_MODULES = {
     "health_summarize",
     "diff_holdings",
     "embeddings",
+    "diff_holdings",
+    "embeddings",
 }
 
 
