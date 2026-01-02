@@ -1,6 +1,8 @@
 """Rate limiter module for API calls.
 
-This module needs significant work to be production-ready.
+The limiter uses a sliding window per key by storing monotonic timestamps in a
+deque, pruning entries older than the rolling window on each check/record, and
+enforcing the cap against the remaining timestamps.
 """
 
 from __future__ import annotations
@@ -12,9 +14,9 @@ from collections import deque
 class RateLimiter:
     """Sliding window rate limiter keyed by caller identity.
 
-    The algorithm keeps per-key timestamps in a deque and, on each access,
-    prunes entries older than the rolling window before enforcing the cap.
-    This yields O(k) pruning where k is the number of expired entries.
+    Each key maps to a deque of monotonic timestamps. The limiter prunes entries
+    older than the rolling window before enforcing the max request cap. Pruning
+    cost is proportional to expired entries, and checks stay O(1) otherwise.
     """
 
     _max_requests: int
@@ -34,11 +36,11 @@ class RateLimiter:
         self._max_requests = max_requests
         self._window_seconds = window_seconds
         # Store per-key timestamps to support sliding window checks.
-        self._events = {}
+        self._events: dict[str, deque[float]] = {}
 
     def _prune_events(self, events: deque[float], window_start: float) -> None:
         """Drop timestamps that have aged out of the current window."""
-        # Trim timestamps that are outside the rolling window.
+        # Keep deques small by removing timestamps that precede the window start.
         while events and events[0] <= window_start:
             events.popleft()
 
