@@ -41,6 +41,7 @@ tests/test_summariser.py
 tests/test_sync_milestones.py
 tests/test_tracked_call.py
 tests/test_ui_auth.py
+tests/test_uk.py
 tests/test_upload.py
 ui/__init__.py
 ui/daily_report.py
