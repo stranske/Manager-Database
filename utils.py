@@ -14,6 +14,8 @@ def format_provider_name(provider: str) -> str:
         "mistral": "Mistral",
         "bedrock": "Bedrock",
         "huggingface": "Hugging Face",
+        # Use brand capitalization for GitHub Models.
+        "github models": "GitHub Models",
     }
     # Preserve canonical branding for known providers.
     if normalized in overrides:
