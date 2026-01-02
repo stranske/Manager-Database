@@ -1,4 +1,10 @@
-"""Companies House UK adapter."""
+"""Companies House UK adapter.
+
+Supported filing types:
+- Annual returns
+- Confirmation statements
+
+"""
 
 from __future__ import annotations
 
@@ -42,6 +48,14 @@ async def download(filing: dict[str, str]):
         return r.content
 
 
-async def parse(raw: bytes):
-    """Return placeholder parsed result for UK filings."""
-    return [{"raw_bytes": len(raw)}]
+async def parse(raw: bytes) -> dict:
+    """Parse UK Companies House filing PDF.
+
+    Args:
+        raw: Raw PDF bytes from download()
+
+    Returns:
+        Dict with company_name, filing_date, filing_type keys.
+    """
+    # TODO: Implement actual PDF parsing
+    return {"raw_bytes": len(raw), "parsed": False}
