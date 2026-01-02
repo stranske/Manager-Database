@@ -12,8 +12,9 @@ from collections import deque
 class RateLimiter:
     """Sliding window rate limiter keyed by caller identity.
 
-    The algorithm stores per-key request timestamps and trims any entry that
-    falls outside the rolling window before evaluating the current budget.
+    The algorithm keeps per-key timestamps in a deque and, on each access,
+    prunes entries older than the rolling window before enforcing the cap.
+    This yields O(k) pruning where k is the number of expired entries.
     """
 
     _max_requests: int
@@ -51,6 +52,7 @@ class RateLimiter:
         window_start: float = now - self._window_seconds
         events: deque[float] | None = self._events.get(key)
         if events is None:
+            # No history means the key has the full budget available.
             return True
         self._prune_events(events, window_start)
         return len(events) < self._max_requests
