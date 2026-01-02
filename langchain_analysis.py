@@ -8,6 +8,25 @@ GITHUB_MODELS_TOKEN_ENV = "GITHUB_MODELS_TOKEN"
 OPENAI_API_KEY_ENV = "OPENAI_API_KEY"
 OPENAI_BASE_URL_ENV = "OPENAI_BASE_URL"
 
+SUPPORTED_LLM_PROVIDERS = (
+    "github models",
+    "openai",
+    "azure openai",
+    "anthropic",
+    "cohere",
+    "mistral",
+    "google",
+    "bedrock",
+    "huggingface",
+    "unknown",
+)
+
+
+def list_supported_llm_providers() -> tuple[str, ...]:
+    """Return known providers in display-ready form."""
+    # Keep order aligned with docs/README.md for consistent presentation.
+    return tuple(format_provider_name(provider) for provider in SUPPORTED_LLM_PROVIDERS)
+
 
 def detect_llm_provider(model_identifier: str) -> str:
     """Infer the LLM provider based on a LangChain model identifier."""
