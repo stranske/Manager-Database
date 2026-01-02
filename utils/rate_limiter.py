@@ -15,8 +15,10 @@ class RateLimiter:
     """Sliding window rate limiter keyed by caller identity.
 
     Each key maps to a deque of monotonic timestamps. The limiter prunes entries
-    older than the rolling window before enforcing the max request cap. Pruning
-    cost is proportional to expired entries, and checks stay O(1) otherwise.
+    older than the rolling window before enforcing the max request cap. The
+    sliding window moves forward with monotonic time, so the limiter only keeps
+    events that can still count toward the current budget. Pruning cost is
+    proportional to expired entries, and checks stay O(1) otherwise.
     """
 
     _max_requests: int
@@ -28,6 +30,7 @@ class RateLimiter:
 
         Each key keeps a deque of monotonic timestamps; on every operation, the
         limiter trims entries older than the rolling window to enforce the cap.
+        The algorithm avoids fixed buckets by comparing timestamps directly.
         """
         if max_requests <= 0:
             raise ValueError("max_requests must be positive")
@@ -56,6 +59,7 @@ class RateLimiter:
         if events is None:
             # No history means the key has the full budget available.
             return True
+        # Prune before counting so the length reflects the active window only.
         self._prune_events(events, window_start)
         return len(events) < self._max_requests
 
