@@ -317,7 +317,7 @@ jobs:
       - preflight
       - mark-running
     if: needs.evaluate.outputs.agent_type == 'codex'
-    uses: stranske/Workflows/.github/workflows/reusable-codex-run.yml@feature/langchain-analysis
+    uses: stranske/Workflows/.github/workflows/reusable-codex-run.yml@main
     secrets:
       CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
       WORKFLOWS_APP_ID: ${{ secrets.WORKFLOWS_APP_ID }}
@@ -330,7 +330,6 @@ jobs:
       pr_ref: ${{ needs.evaluate.outputs.pr_ref }}
       appendix: ${{ needs.evaluate.outputs.task_appendix }}
       iteration: ${{ needs.evaluate.outputs.iteration }}
-      workflows_ref: feature/langchain-analysis
 
   summary:
     name: Update keepalive summary
