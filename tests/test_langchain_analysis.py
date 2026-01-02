@@ -9,7 +9,6 @@ from langchain_analysis import (
     GITHUB_MODELS_ENDPOINT_ENV,
     GITHUB_MODELS_TOKEN_ENV,
     OPENAI_API_KEY_ENV,
-    OPENAI_BASE_URL_ENV,
     PREFERRED_LLM_PROVIDER_ENV,
     detect_llm_provider,
     resolve_llm_provider,
