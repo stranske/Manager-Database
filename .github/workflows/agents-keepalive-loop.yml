@@ -330,6 +330,7 @@ jobs:
       pr_ref: ${{ needs.evaluate.outputs.pr_ref }}
       appendix: ${{ needs.evaluate.outputs.task_appendix }}
       iteration: ${{ needs.evaluate.outputs.iteration }}
+      workflows_ref: feature/langchain-analysis
 
   summary:
     name: Update keepalive summary
