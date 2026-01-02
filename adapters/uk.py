@@ -64,6 +64,7 @@ async def parse(raw: bytes) -> dict:
     Returns:
         Dict with company_name, filing_date, filing_type keys.
     """
+
     def extract_pdf_strings(payload: bytes) -> list[str]:
         # Basic literal-string extraction for text-based PDFs without dependencies.
         strings: list[str] = []

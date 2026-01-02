@@ -101,9 +101,7 @@ async def test_list_new_filings_filters_by_date(monkeypatch):
 
     results = await uk.list_new_filings("12345678", "2024-01-01")
 
-    assert results == [
-        {"transaction_id": "t1", "company_number": "12345678", "date": "2024-01-02"}
-    ]
+    assert results == [{"transaction_id": "t1", "company_number": "12345678", "date": "2024-01-02"}]
 
 
 @pytest.mark.asyncio
