@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 # Ensure repository root is on sys.path for direct package imports.
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from utils.rate_limiter import RateLimiter
 import utils.rate_limiter as rate_limiter
+from utils.rate_limiter import RateLimiter
 
 
 def test_allows_within_limit_and_blocks_after(monkeypatch: pytest.MonkeyPatch) -> None:
