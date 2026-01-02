@@ -10,13 +10,21 @@ from collections import deque
 
 
 class RateLimiter:
-    """Sliding window rate limiter keyed by caller identity."""
+    """Sliding window rate limiter keyed by caller identity.
+
+    The algorithm stores per-key request timestamps and trims any entry that
+    falls outside the rolling window before evaluating the current budget.
+    """
+
+    _max_requests: int
+    _window_seconds: float
+    _events: dict[str, deque[float]]
 
     def __init__(self, max_requests: int, window_seconds: float) -> None:
         """Create a sliding window limiter.
 
-        The limiter stores request timestamps per key and trims entries that fall
-        outside the rolling window on every check/record.
+        Each key keeps a deque of monotonic timestamps; on every operation, the
+        limiter trims entries older than the rolling window to enforce the cap.
         """
         if max_requests <= 0:
             raise ValueError("max_requests must be positive")
@@ -24,10 +32,14 @@ class RateLimiter:
             raise ValueError("window_seconds must be positive")
         self._max_requests = max_requests
         self._window_seconds = window_seconds
-        self._events: dict[str, deque[float]] = {}
+        # Store per-key timestamps to support sliding window checks.
+        self._events = {}
 
     def check(self, key: str) -> bool:
-        """Return True when another request is allowed for the key."""
+        """Return True when another request is allowed for the key.
+
+        This method does not record a request; it only verifies budget.
+        """
         now = time.monotonic()
         window_start = now - self._window_seconds
         events = self._events.get(key)

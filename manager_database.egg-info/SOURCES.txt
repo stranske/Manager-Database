@@ -35,6 +35,7 @@ tests/test_etl_flows_additional.py
 tests/test_manager_api.py
 tests/test_open_issues.py
 tests/test_placeholder.py
+tests/test_rate_limiter.py
 tests/test_search.py
 tests/test_summariser.py
 tests/test_sync_milestones.py
