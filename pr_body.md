@@ -7,9 +7,9 @@ Implement a production-ready rate limiter with Redis backend and comprehensive t
 ### Achievable by Codex
 - [x] Implement sliding window rate limiting algorithm in `utils/rate_limiter.py`
 - [x] Add `__init__` parameters for `max_requests` and `window_seconds`
-- [x] Add type hints to all methods
+- [ ] Add type hints to all methods
 - [x] Create `tests/test_rate_limiter.py` with unit tests
-- [x] Add docstrings explaining the algorithm
+- [ ] Add docstrings explaining the algorithm
 
 ### Requires External Setup (Codex cannot complete)
 - [ ] Configure Redis connection pooling with production credentials
