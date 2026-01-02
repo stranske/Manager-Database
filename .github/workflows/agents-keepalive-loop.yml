@@ -80,7 +80,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stranske/Workflows
-          ref: main
+          ref: feature/langchain-analysis
           sparse-checkout: |
             .github/scripts
           sparse-checkout-cone-mode: false
@@ -285,7 +285,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stranske/Workflows
-          ref: main
+          ref: feature/langchain-analysis
           sparse-checkout: |
             .github/scripts
           sparse-checkout-cone-mode: false
@@ -317,7 +317,7 @@ jobs:
       - preflight
       - mark-running
     if: needs.evaluate.outputs.agent_type == 'codex'
-    uses: stranske/Workflows/.github/workflows/reusable-codex-run.yml@main
+    uses: stranske/Workflows/.github/workflows/reusable-codex-run.yml@feature/langchain-analysis
     secrets:
       CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
       WORKFLOWS_APP_ID: ${{ secrets.WORKFLOWS_APP_ID }}
@@ -345,7 +345,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stranske/Workflows
-          ref: main
+          ref: feature/langchain-analysis
           sparse-checkout: |
             .github/scripts
           sparse-checkout-cone-mode: false
