@@ -35,27 +35,31 @@ class RateLimiter:
         # Store per-key timestamps to support sliding window checks.
         self._events = {}
 
-    def check(self, key: str) -> bool:
-        """Return True when another request is allowed for the key.
-
-        This method does not record a request; it only verifies budget.
-        """
-        now = time.monotonic()
-        window_start = now - self._window_seconds
-        events = self._events.get(key)
-        if events is None:
-            return True
+    def _prune_events(self, events: deque[float], window_start: float) -> None:
+        """Drop timestamps that have aged out of the current window."""
         # Trim timestamps that are outside the rolling window.
         while events and events[0] <= window_start:
             events.popleft()
+
+    def check(self, key: str) -> bool:
+        """Return True when another request is allowed for the key.
+
+        This method does not record a request; it only verifies budget by
+        trimming the sliding window and comparing the remaining count.
+        """
+        now: float = time.monotonic()
+        window_start: float = now - self._window_seconds
+        events: deque[float] | None = self._events.get(key)
+        if events is None:
+            return True
+        self._prune_events(events, window_start)
         return len(events) < self._max_requests
 
     def record(self, key: str) -> None:
-        """Record a request timestamp for the key."""
-        now = time.monotonic()
-        window_start = now - self._window_seconds
-        events = self._events.setdefault(key, deque())
+        """Record a request timestamp for the key after pruning old entries."""
+        now: float = time.monotonic()
+        window_start: float = now - self._window_seconds
+        events: deque[float] = self._events.setdefault(key, deque())
         # Keep the deque tight for the key before adding a new timestamp.
-        while events and events[0] <= window_start:
-            events.popleft()
+        self._prune_events(events, window_start)
         events.append(now)
