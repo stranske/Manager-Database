@@ -38,6 +38,23 @@ async def test_parse_uk_pdf_with_labels():
 
 
 @pytest.mark.asyncio
+async def test_parse_uk_pdf_with_alternate_labels():
+    raw = _pdf_bytes_with_text(
+        [
+            "Company name: Example Holdings Limited",
+            "Date of filing: 1 March 2024",
+            "Document type: Accounts",
+        ]
+    )
+
+    parsed = await uk.parse(raw)
+
+    assert parsed["company_name"] == "Example Holdings Limited"
+    assert parsed["filing_date"] == "2024-03-01"
+    assert parsed["filing_type"] == "Accounts"
+
+
+@pytest.mark.asyncio
 async def test_parse_uk_pdf_falls_back_on_type_phrase():
     raw = _pdf_bytes_with_text(
         [

@@ -7,7 +7,8 @@ Supported filing types:
 - Incorporation documents
 
 The PDF filings are text-based and typically embed labeled fields (e.g.
-"Company name", "Filing date") inside content streams as literal strings.
+"Company name", "Filing date", "Date of filing", "Document type") inside
+content streams as literal strings.
 """
 
 from __future__ import annotations
@@ -140,20 +141,21 @@ async def parse(raw: bytes) -> dict:
             )
             if name_match and not company_name:
                 company_name = normalize_text(name_match.group(1))
+            # Companies House PDFs use multiple labels for filing dates/types.
             date_match = re.search(
-                r"filing date[:\s]+(.+)",
+                r"(filing date|date of filing)[:\s]+(.+)",
                 normalized,
                 re.IGNORECASE,
             )
             if date_match and not filing_date:
-                filing_date = parse_date(date_match.group(1))
+                filing_date = parse_date(date_match.group(2))
             type_match = re.search(
-                r"filing type[:\s]+(.+)",
+                r"(filing type|document type|type of document)[:\s]+(.+)",
                 normalized,
                 re.IGNORECASE,
             )
             if type_match and not filing_type:
-                filing_type = normalize_text(type_match.group(1))
+                filing_type = normalize_text(type_match.group(2))
 
         if not filing_type:
             # Fall back to known filing phrases if labels are absent.
