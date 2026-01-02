@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Deque, Dict
 
 
 class RateLimiter:
@@ -25,7 +24,7 @@ class RateLimiter:
             raise ValueError("window_seconds must be positive")
         self._max_requests = max_requests
         self._window_seconds = window_seconds
-        self._events: Dict[str, Deque[float]] = {}
+        self._events: dict[str, deque[float]] = {}
 
     def check(self, key: str) -> bool:
         """Return True when another request is allowed for the key."""
