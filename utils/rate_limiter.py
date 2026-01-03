@@ -10,6 +10,9 @@ from __future__ import annotations
 import time
 from collections import deque
 
+Timestamp = float
+EventDeque = deque[Timestamp]
+
 
 class RateLimiter:
     """Sliding window rate limiter keyed by caller identity.
@@ -23,7 +26,7 @@ class RateLimiter:
 
     _max_requests: int
     _window_seconds: float
-    _events: dict[str, deque[float]]
+    _events: dict[str, EventDeque]
 
     def __init__(self, max_requests: int, window_seconds: float) -> None:
         """Create a sliding window limiter.
@@ -39,10 +42,15 @@ class RateLimiter:
         self._max_requests = max_requests
         self._window_seconds = window_seconds
         # Store per-key timestamps to support sliding window checks.
-        self._events: dict[str, deque[float]] = {}
+        # Type alias keeps method signatures readable for the sliding window data.
+        self._events: dict[str, EventDeque] = {}
 
-    def _prune_events(self, events: deque[float], window_start: float) -> None:
-        """Drop timestamps that have aged out of the current window."""
+    def _prune_events(self, events: EventDeque, window_start: float) -> None:
+        """Drop timestamps that have aged out of the current window.
+
+        The deque is ordered by arrival time, so pruning stops as soon as the
+        first remaining timestamp falls within the active window.
+        """
         # Keep deques small by removing timestamps that precede the window start.
         while events and events[0] <= window_start:
             events.popleft()
@@ -51,11 +59,13 @@ class RateLimiter:
         """Return True when another request is allowed for the key.
 
         This method does not record a request; it only verifies budget by
-        trimming the sliding window and comparing the remaining count.
+        trimming the sliding window and comparing the remaining count. The
+        sliding window is computed as [now - window_seconds, now], so only
+        timestamps inside that interval can consume the budget.
         """
-        now: float = time.monotonic()
+        now: Timestamp = time.monotonic()
         window_start: float = now - self._window_seconds
-        events: deque[float] | None = self._events.get(key)
+        events: EventDeque | None = self._events.get(key)
         if events is None:
             # No history means the key has the full budget available.
             return True
@@ -64,10 +74,14 @@ class RateLimiter:
         return len(events) < self._max_requests
 
     def record(self, key: str) -> None:
-        """Record a request timestamp for the key after pruning old entries."""
-        now: float = time.monotonic()
+        """Record a request timestamp for the key after pruning old entries.
+
+        The record step mirrors check(): expire old timestamps, then append the
+        current event so the deque stays ordered for future pruning.
+        """
+        now: Timestamp = time.monotonic()
         window_start: float = now - self._window_seconds
-        events: deque[float] = self._events.setdefault(key, deque())
+        events: EventDeque = self._events.setdefault(key, deque())
         # Keep the deque tight for the key before adding a new timestamp.
         self._prune_events(events, window_start)
         events.append(now)
