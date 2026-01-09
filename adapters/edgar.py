@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import os
-import logging
 import asyncio
+import logging
+import os
 from xml.etree import ElementTree as ET
 
 import httpx

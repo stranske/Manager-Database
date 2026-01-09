@@ -1,8 +1,8 @@
+import logging
 import sys
 from pathlib import Path
 
 import httpx
-import logging
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))

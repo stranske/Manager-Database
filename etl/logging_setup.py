@@ -78,12 +78,8 @@ class CloudWatchHandler(logging.Handler):
 
 def _build_formatter() -> logging.Formatter:
     if jsonlogger is None:
-        return logging.Formatter(
-            fmt="%(asctime)s %(levelname)s %(name)s %(service)s %(message)s"
-        )
-    return jsonlogger.JsonFormatter(
-        "%(asctime)s %(levelname)s %(name)s %(service)s %(message)s"
-    )
+        return logging.Formatter(fmt="%(asctime)s %(levelname)s %(name)s %(service)s %(message)s")
+    return jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(name)s %(service)s %(message)s")
 
 
 def configure_logging(service_name: str | None = None) -> None:
