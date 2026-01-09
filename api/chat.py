@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import sqlite3
@@ -209,6 +210,23 @@ async def health_db():
         latency_ms = int((time.perf_counter() - start) * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}
         return JSONResponse(status_code=503, content=payload)
+
+
+@app.get("/health/ready")
+async def health_ready():
+    """Return readiness status combining app and database checks."""
+    # Reuse the existing health endpoints to keep readiness logic consistent.
+    app_payload = health_app()
+    db_response = await health_db()
+    db_payload = json.loads(db_response.body)
+    healthy = app_payload["healthy"] and db_payload["healthy"]
+    payload = {
+        "healthy": healthy,
+        "uptime_s": app_payload["uptime_s"],
+        "db_latency_ms": db_payload["latency_ms"],
+    }
+    status_code = 200 if healthy else 503
+    return JSONResponse(status_code=status_code, content=payload)
 
 
 @app.on_event("shutdown")
