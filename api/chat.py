@@ -138,12 +138,23 @@ def chat(q: str = Query(..., description="User question")):
     return {"answer": answer}
 
 
-@app.get("/health")
-def health_app():
-    """Return application liveness and uptime."""
+def _health_payload() -> dict[str, int | bool]:
+    """Build the base app health payload."""
     # Use monotonic time to avoid issues if the system clock changes.
     uptime_s = int(time.monotonic() - APP_START_TIME)
     return {"healthy": True, "uptime_s": uptime_s}
+
+
+@app.get("/health")
+def health_app():
+    """Return application liveness and uptime."""
+    return _health_payload()
+
+
+@app.get("/health/live")
+def health_live():
+    """Alias liveness endpoint for standard probes."""
+    return _health_payload()
 
 
 @app.post("/managers", status_code=201)
@@ -216,7 +227,7 @@ async def health_db():
 async def health_ready():
     """Return readiness status combining app and database checks."""
     # Reuse the existing health endpoints to keep readiness logic consistent.
-    app_payload = health_app()
+    app_payload = _health_payload()
     db_response = await health_db()
     db_payload = json.loads(db_response.body)
     healthy = app_payload["healthy"] and db_payload["healthy"]
