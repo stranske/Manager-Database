@@ -16,11 +16,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from adapters.base import connect_db
-from embeddings import search_documents
 
 app = FastAPI()
 APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+APP_START_TIME = time.monotonic()
 
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -126,12 +126,23 @@ def _require_valid_manager(handler):
 @app.get("/chat")
 def chat(q: str = Query(..., description="User question")):
     """Return a naive answer built from stored documents."""
+    # Import here to avoid loading embedding models during unrelated endpoints/tests.
+    from embeddings import search_documents
+
     hits = search_documents(q)
     if not hits:
         answer = "No documents found."
     else:
         answer = "Context: " + " ".join(h["content"] for h in hits)
     return {"answer": answer}
+
+
+@app.get("/health")
+def health_app():
+    """Return application liveness and uptime."""
+    # Use monotonic time to avoid issues if the system clock changes.
+    uptime_s = int(time.monotonic() - APP_START_TIME)
+    return {"healthy": True, "uptime_s": uptime_s}
 
 
 @app.post("/managers", status_code=201)
