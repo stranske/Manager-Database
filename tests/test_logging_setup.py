@@ -56,3 +56,23 @@ def test_configure_logging_adds_cloudwatch_handler(monkeypatch):
 
     assert events
     assert "cloudwatch" in events[0]["message"]
+
+
+def test_log_outcome_uses_warning_for_empty(caplog):
+    logger = logging.getLogger("etl.outcome")
+    caplog.set_level(logging.INFO, logger="etl.outcome")
+
+    logging_setup.log_outcome(logger, "done", has_data=False)
+
+    assert any(
+        record.levelno == logging.WARNING and record.message == "done"
+        for record in caplog.records
+    )
+
+    caplog.clear()
+    logging_setup.log_outcome(logger, "done", has_data=True)
+
+    assert any(
+        record.levelno == logging.INFO and record.message == "done"
+        for record in caplog.records
+    )

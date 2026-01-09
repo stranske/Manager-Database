@@ -11,7 +11,7 @@ import requests  # type: ignore
 from prefect import flow, task
 
 from adapters.base import connect_db, tracked_call
-from etl.logging_setup import configure_logging
+from etl.logging_setup import configure_logging, log_outcome
 
 configure_logging("summariser_flow")
 logger = logging.getLogger(__name__)
@@ -46,7 +46,12 @@ async def summarise(date: str) -> str:
                 raise
     else:
         logger.warning("Slack webhook unset; skipping post", extra={"date": date})
-    logger.info("Summary generated", extra={"date": date, "rows": len(df)})
+    log_outcome(
+        logger,
+        "Summary generated",
+        has_data=not df.empty,
+        extra={"date": date, "rows": len(df)},
+    )
     return summary
 
 

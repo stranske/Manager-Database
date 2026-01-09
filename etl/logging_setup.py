@@ -128,3 +128,17 @@ def reset_logging() -> None:
     for handler in list(root.handlers):
         root.removeHandler(handler)
     _LOGGING_CONFIGURED = False
+
+
+def log_outcome(
+    logger: logging.Logger,
+    message: str,
+    *,
+    has_data: bool | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """Log completion outcomes at info or warning levels."""
+    level = logging.INFO
+    if has_data is False:
+        level = logging.WARNING
+    logger.log(level, message, extra=extra)

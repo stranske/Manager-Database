@@ -9,7 +9,7 @@ from prefect.schedules import Cron
 
 from adapters.base import connect_db
 from diff_holdings import diff_holdings
-from etl.logging_setup import configure_logging
+from etl.logging_setup import configure_logging, log_outcome
 
 configure_logging("daily_diff_flow")
 logger = logging.getLogger(__name__)
@@ -40,9 +40,18 @@ def compute(cik: str, date: str, db_path: str) -> None:
             )
         conn.commit()
         conn.close()
-        logger.info(
+        total_changes = len(additions) + len(exits)
+        log_outcome(
+            logger,
             "Daily diff computed",
-            extra={"cik": cik, "date": date, "additions": len(additions), "exits": len(exits)},
+            has_data=total_changes > 0,
+            extra={
+                "cik": cik,
+                "date": date,
+                "additions": len(additions),
+                "exits": len(exits),
+                "changes": total_changes,
+            },
         )
     except Exception:
         logger.exception("Daily diff failed", extra={"cik": cik, "date": date})
