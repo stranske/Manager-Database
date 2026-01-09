@@ -4,6 +4,7 @@ prefect
 beautifulsoup4
 pytest-asyncio
 boto3
+python-json-logger
 black
 ruff
 pre-commit

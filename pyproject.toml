@@ -13,6 +13,7 @@ dependencies = [
     "jsonschema>=4.17.3,<4.26.0",
     "beautifulsoup4",
     "boto3",
+    "python-json-logger",
     "psycopg[binary]",
     "streamlit",
     "pandas",

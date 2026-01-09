@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import logging
+import asyncio
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -11,6 +13,38 @@ from .base import tracked_call
 
 USER_AGENT = os.getenv("EDGAR_UA", "manager-intel/0.1")
 BASE_URL = "https://data.sec.gov"
+logger = logging.getLogger(__name__)
+
+
+async def _request_with_retry(
+    client: httpx.AsyncClient,
+    url: str,
+    headers: dict[str, str],
+    *,
+    source: str,
+    max_retries: int = 3,
+) -> httpx.Response:
+    for attempt in range(1, max_retries + 1):
+        try:
+            async with tracked_call(source, url) as log:
+                response = await client.get(url, headers=headers)
+                log(response)
+            response.raise_for_status()
+            return response
+        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+            if attempt >= max_retries:
+                logger.error(
+                    "EDGAR request failed after retries",
+                    extra={"url": url, "attempts": attempt},
+                    exc_info=exc,
+                )
+                raise
+            wait = 0.5 * attempt
+            logger.warning(
+                "EDGAR request failed; retrying",
+                extra={"url": url, "attempt": attempt, "max_retries": max_retries},
+            )
+            await asyncio.sleep(wait)
 
 
 async def list_new_filings(cik: str, since: str) -> list[dict[str, str]]:
@@ -18,12 +52,7 @@ async def list_new_filings(cik: str, since: str) -> list[dict[str, str]]:
     url = f"{BASE_URL}/submissions/CIK{cik.zfill(10)}.json"
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     async with httpx.AsyncClient() as client:
-        async with tracked_call("edgar", url) as log:
-            r = await client.get(url, headers=headers)
-            log(r)
-        if r.status_code == 429:
-            raise httpx.HTTPStatusError("Too Many Requests", request=r.request, response=r)
-        r.raise_for_status()
+        r = await _request_with_retry(client, url, headers, source="edgar")
         data = r.json()
     filings = []
     recent = data.get("filings", {}).get("recent", {})
@@ -45,12 +74,7 @@ async def download(filing: dict[str, str]) -> str:
     url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/primary_doc.xml"
     headers = {"User-Agent": USER_AGENT}
     async with httpx.AsyncClient() as client:
-        async with tracked_call("edgar", url) as log:
-            r = await client.get(url, headers=headers)
-            log(r)
-        if r.status_code == 429:
-            raise httpx.HTTPStatusError("Too Many Requests", request=r.request, response=r)
-        r.raise_for_status()
+        r = await _request_with_retry(client, url, headers, source="edgar")
         return r.text
 
 

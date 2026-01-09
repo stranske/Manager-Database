@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from prefect import flow, task
 
 from adapters.base import connect_db, get_adapter
 from embeddings import store_document
+from etl.logging_setup import configure_logging
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "./data/raw"))
 RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -27,6 +29,9 @@ DB_PATH = os.getenv("DB_PATH", "dev.db")
 JURISDICTION = os.getenv("JURISDICTION", "us")
 _MAP = {"us": "edgar", "uk": "uk", "ca": "canada"}
 ADAPTER = get_adapter(_MAP.get(JURISDICTION, "edgar"))
+
+configure_logging("edgar_flow")
+logger = logging.getLogger(__name__)
 
 
 @task
@@ -71,6 +76,10 @@ async def fetch_and_store(cik: str, since: str):
                 ),
             )
         results.extend(parsed)
+    logger.info(
+        "Stored filings",
+        extra={"cik": cik, "filings": len(filings), "rows": len(results)},
+    )
     conn.commit()
     conn.close()
     return results
@@ -87,9 +96,13 @@ async def edgar_flow(cik_list: list[str] | None = None, since: str | None = None
         try:
             rows = await fetch_and_store(cik, since)
             all_rows.extend(rows)
+            logger.info("EDGAR flow completed", extra={"cik": cik, "rows": len(rows)})
         except UserWarning:
-            pass
+            logger.warning("No filings found", extra={"cik": cik, "since": since})
+        except Exception:
+            logger.exception("EDGAR flow failed", extra={"cik": cik, "since": since})
     (RAW_DIR / "parsed.json").write_text(json.dumps(all_rows))
+    logger.info("EDGAR flow finished", extra={"total_rows": len(all_rows)})
     return all_rows
 
 

@@ -1,4 +1,5 @@
 import json
+import logging
 import sqlite3
 import sys
 from pathlib import Path
@@ -210,3 +211,17 @@ async def test_edgar_flow_default_ciks(monkeypatch, tmp_path):
     await flow.edgar_flow.fn(cik_list=None, since="2024-01-01")
 
     assert seen == ["0001", "0002"]
+
+
+@pytest.mark.asyncio
+async def test_edgar_flow_logs_missing_filings(monkeypatch, tmp_path, caplog):
+    async def fake_fetch_and_store(cik, since):
+        raise UserWarning("not a filer")
+
+    monkeypatch.setattr(flow, "fetch_and_store", fake_fetch_and_store)
+    monkeypatch.setattr(flow, "RAW_DIR", tmp_path)
+
+    caplog.set_level(logging.WARNING, logger="etl.edgar_flow")
+    await flow.edgar_flow.fn(cik_list=["bad"])
+
+    assert any("No filings found" in msg for msg in caplog.messages)
