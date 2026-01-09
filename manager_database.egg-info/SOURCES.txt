@@ -10,6 +10,7 @@ api/chat.py
 etl/__init__.py
 etl/daily_diff_flow.py
 etl/edgar_flow.py
+etl/logging_setup.py
 etl/summariser_flow.py
 manager_database.egg-info/PKG-INFO
 manager_database.egg-info/SOURCES.txt
@@ -33,6 +34,7 @@ tests/test_edgar_additional.py
 tests/test_edgar_flow.py
 tests/test_embeddings.py
 tests/test_etl_flows_additional.py
+tests/test_logging_setup.py
 tests/test_manager_api.py
 tests/test_open_issues.py
 tests/test_placeholder.py

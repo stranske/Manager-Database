@@ -3,6 +3,7 @@ prefect
 jsonschema<4.26.0,>=4.17.3
 beautifulsoup4
 boto3
+python-json-logger
 psycopg[binary]
 streamlit
 pandas

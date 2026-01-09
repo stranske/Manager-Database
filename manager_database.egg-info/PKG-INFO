@@ -11,6 +11,7 @@ Requires-Dist: prefect
 Requires-Dist: jsonschema<4.26.0,>=4.17.3
 Requires-Dist: beautifulsoup4
 Requires-Dist: boto3
+Requires-Dist: python-json-logger
 Requires-Dist: psycopg[binary]
 Requires-Dist: streamlit
 Requires-Dist: pandas
