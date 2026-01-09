@@ -1,6 +1,6 @@
 httpx
 prefect
-jsonschema<4.23.0,>=4.17.3
+jsonschema<4.26.0,>=4.17.3
 beautifulsoup4
 boto3
 psycopg[binary]
@@ -12,12 +12,12 @@ fastapi
 uvicorn
 
 [dev]
-pytest
+pytest>=9.0.2
 pytest-asyncio
-pytest-cov
-black
-ruff
+pytest-cov>=7.0.0
+black>=25.12.0
+ruff>=0.14.10
 pre-commit
-mypy
-coverage
+mypy>=1.19.1
+coverage>=7.13.1
 referencing
