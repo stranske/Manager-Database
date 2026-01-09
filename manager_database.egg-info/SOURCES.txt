@@ -39,6 +39,7 @@ tests/test_logging_setup.py
 tests/test_manager_api.py
 tests/test_open_issues.py
 tests/test_placeholder.py
+tests/test_ready_health.py
 tests/test_search.py
 tests/test_summariser.py
 tests/test_sync_milestones.py
