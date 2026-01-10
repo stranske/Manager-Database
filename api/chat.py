@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import sqlite3
@@ -16,11 +17,23 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from adapters.base import connect_db
-from embeddings import search_documents
 
 app = FastAPI()
-APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
-HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+_APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+_HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+APP_START_TIME = time.monotonic()
+
+
+def get_health_executor():
+    """Return a working health executor, creating a new one if needed."""
+    global _HEALTH_EXECUTOR
+    if _HEALTH_EXECUTOR._shutdown:
+        _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+    return _HEALTH_EXECUTOR
+
+
+# Keep APP_EXECUTOR for backwards compatibility
+APP_EXECUTOR = _APP_EXECUTOR
 
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -126,12 +139,47 @@ def _require_valid_manager(handler):
 @app.get("/chat")
 def chat(q: str = Query(..., description="User question")):
     """Return a naive answer built from stored documents."""
+    # Import here to avoid loading embedding models during unrelated endpoints/tests.
+    from embeddings import search_documents
+
     hits = search_documents(q)
     if not hits:
         answer = "No documents found."
     else:
         answer = "Context: " + " ".join(h["content"] for h in hits)
     return {"answer": answer}
+
+
+def _health_payload() -> dict[str, int | bool]:
+    """Build the base app health payload."""
+    # Use monotonic time to avoid issues if the system clock changes.
+    uptime_s = int(time.monotonic() - APP_START_TIME)
+    return {"healthy": True, "uptime_s": uptime_s}
+
+
+@app.get("/health")
+def health_app():
+    """Return application liveness and uptime."""
+    return _health_payload()
+
+
+@app.get("/health/live")
+def health_live():
+    """Alias liveness endpoint for standard probes."""
+    return _health_payload()
+
+
+@app.get("/healthz")
+def healthz():
+    """Alias liveness endpoint for common probe conventions."""
+    # Keep probe aliases routed through the same liveness payload.
+    return _health_payload()
+
+
+@app.get("/livez")
+def health_livez():
+    """Alias live probe endpoint for common probe conventions."""
+    return _health_payload()
 
 
 @app.post("/managers", status_code=201)
@@ -156,7 +204,7 @@ async def create_manager(payload: ManagerCreate):
 @app.on_event("startup")
 async def _configure_default_executor() -> None:
     """Install a known-good default executor for sync endpoints."""
-    asyncio.get_running_loop().set_default_executor(APP_EXECUTOR)
+    asyncio.get_running_loop().set_default_executor(_APP_EXECUTOR)
 
 
 def _db_timeout_seconds() -> float:
@@ -183,7 +231,9 @@ async def health_db():
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
         await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(HEALTH_EXECUTOR, _ping_db, timeout_seconds),
+            asyncio.get_running_loop().run_in_executor(
+                get_health_executor(), _ping_db, timeout_seconds
+            ),
             timeout=timeout_seconds,
         )
         latency_ms = int((time.perf_counter() - start) * 1000)
@@ -200,8 +250,32 @@ async def health_db():
         return JSONResponse(status_code=503, content=payload)
 
 
+@app.get("/health/ready")
+async def health_ready():
+    """Return readiness status combining app and database checks."""
+    # Reuse the existing health endpoints to keep readiness logic consistent.
+    app_payload = _health_payload()
+    db_response = await health_db()
+    db_payload = json.loads(db_response.body)
+    healthy = app_payload["healthy"] and db_payload["healthy"]
+    payload = {
+        "healthy": healthy,
+        "uptime_s": app_payload["uptime_s"],
+        "db_latency_ms": db_payload["latency_ms"],
+    }
+    status_code = 200 if healthy else 503
+    return JSONResponse(status_code=status_code, content=payload)
+
+
+@app.get("/readyz")
+async def health_readyz():
+    """Alias readiness endpoint for common probe conventions."""
+    # Reuse the main readiness check so probes stay in sync.
+    return await health_ready()
+
+
 @app.on_event("shutdown")
 def _shutdown_executors() -> None:
     """Release the health check executors on app shutdown."""
-    APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
-    HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+    _APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+    _HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
