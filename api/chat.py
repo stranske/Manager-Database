@@ -11,10 +11,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Body, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
 
@@ -48,6 +48,17 @@ EMAIL_ERROR_MESSAGE = "Email must be a valid address."
 class ManagerCreate(BaseModel):
     """Payload for creating manager records."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "Grace Hopper",
+                    "email": "grace@example.com",
+                    "department": "Engineering",
+                }
+            ]
+        }
+    )
     name: str = Field(..., description="Manager name")
     email: str = Field(..., description="Manager email address")
     department: str = Field(..., description="Manager department")
@@ -57,6 +68,18 @@ class ManagerCreate(BaseModel):
 class ManagerResponse(BaseModel):
     """Response payload for manager records."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": 101,
+                    "name": "Grace Hopper",
+                    "email": "grace@example.com",
+                    "department": "Engineering",
+                }
+            ]
+        }
+    )
     id: int = Field(..., description="Manager identifier")
     name: str = Field(..., description="Manager name")
     email: str = Field(..., description="Manager email address")
@@ -66,12 +89,26 @@ class ManagerResponse(BaseModel):
 class ChatResponse(BaseModel):
     """Response payload for chat responses."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "answer": (
+                        "Context: The latest holdings update was filed on 2024-06-30."
+                    )
+                }
+            ]
+        }
+    )
     answer: str = Field(..., description="Generated answer based on stored documents")
 
 
 class HealthDbResponse(BaseModel):
     """Response payload for database health checks."""
 
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"healthy": True, "latency_ms": 42}]}
+    )
     healthy: bool = Field(..., description="Whether the database is reachable")
     latency_ms: int = Field(..., description="Observed database ping latency in milliseconds")
 
@@ -169,7 +206,18 @@ def _require_valid_manager(handler):
         "answer composed from the matching context."
     ),
 )
-def chat(q: str = Query(..., description="User question")):
+def chat(
+    q: str = Query(
+        ...,
+        description="User question",
+        examples={
+            "basic": {
+                "summary": "Holdings question",
+                "value": "What is the latest holdings update?",
+            }
+        },
+    )
+):
     """Return a naive answer built from stored documents."""
     # Import here to avoid loading embedding models during unrelated endpoints/tests.
     from embeddings import search_documents
@@ -225,7 +273,21 @@ def health_livez():
     ),
 )
 @_require_valid_manager
-async def create_manager(payload: ManagerCreate):
+async def create_manager(
+    payload: ManagerCreate = Body(
+        ...,
+        examples={
+            "basic": {
+                "summary": "New manager",
+                "value": {
+                    "name": "Grace Hopper",
+                    "email": "grace@example.com",
+                    "department": "Engineering",
+                },
+            }
+        },
+    )
+):
     """Create a manager record after validating required fields."""
     conn = connect_db()
     try:
@@ -264,7 +326,15 @@ def _ping_db(timeout_seconds: float) -> None:
         conn.close()
 
 
-@app.get("/health/db", response_model=HealthDbResponse)
+@app.get(
+    "/health/db",
+    response_model=HealthDbResponse,
+    summary="Check database connectivity",
+    description=(
+        "Run a lightweight database ping and return the health status with "
+        "observed latency."
+    ),
+)
 async def health_db():
     """Return database connectivity status and latency."""
     start = time.perf_counter()
