@@ -53,6 +53,16 @@ class ManagerCreate(BaseModel):
     department: str = Field(..., description="Manager department")
 
 
+# Response model keeps /managers schema explicit in OpenAPI.
+class ManagerResponse(BaseModel):
+    """Response payload for manager records."""
+
+    id: int = Field(..., description="Manager identifier")
+    name: str = Field(..., description="Manager name")
+    email: str = Field(..., description="Manager email address")
+    department: str = Field(..., description="Manager department")
+
+
 class ChatResponse(BaseModel):
     """Response payload for chat responses."""
 
@@ -188,7 +198,7 @@ def health_livez():
     return _health_payload()
 
 
-@app.post("/managers", status_code=201)
+@app.post("/managers", status_code=201, response_model=ManagerResponse)
 @_require_valid_manager
 async def create_manager(payload: ManagerCreate):
     """Create a manager record after validating required fields."""
