@@ -10,6 +10,7 @@ import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
+from typing import Annotated
 
 from fastapi import Body, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -318,19 +319,22 @@ def health_livez():
 )
 @_require_valid_manager
 async def create_manager(
-    payload: ManagerCreate = Body(
-        ...,
-        examples={
-            "basic": {
-                "summary": "New manager",
-                "value": {
-                    "name": "Grace Hopper",
-                    "email": "grace@example.com",
-                    "department": "Engineering",
-                },
-            }
-        },
-    )
+    payload: Annotated[
+        ManagerCreate,
+        Body(
+            ...,
+            examples={
+                "basic": {
+                    "summary": "New manager",
+                    "value": {
+                        "name": "Grace Hopper",
+                        "email": "grace@example.com",
+                        "department": "Engineering",
+                    },
+                }
+            },
+        ),
+    ],
 ):
     """Create a manager record after validating required fields."""
     conn = connect_db()
