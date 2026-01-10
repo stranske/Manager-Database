@@ -218,7 +218,9 @@ async def health_db():
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
         await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(get_health_executor(), _ping_db, timeout_seconds),
+            asyncio.get_running_loop().run_in_executor(
+                get_health_executor(), _ping_db, timeout_seconds
+            ),
             timeout=timeout_seconds,
         )
         latency_ms = int((time.perf_counter() - start) * 1000)
