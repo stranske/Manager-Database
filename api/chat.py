@@ -99,11 +99,7 @@ class ErrorResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
-                {
-                    "errors": [
-                        {"field": "email", "message": "Email must be a valid address."}
-                    ]
-                }
+                {"errors": [{"field": "email", "message": "Email must be a valid address."}]}
             ]
         }
     )
