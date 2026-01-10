@@ -169,6 +169,19 @@ def health_live():
     return _health_payload()
 
 
+@app.get("/healthz")
+def healthz():
+    """Alias liveness endpoint for common probe conventions."""
+    # Keep probe aliases routed through the same liveness payload.
+    return _health_payload()
+
+
+@app.get("/livez")
+def health_livez():
+    """Alias live probe endpoint for common probe conventions."""
+    return _health_payload()
+
+
 @app.post("/managers", status_code=201)
 @_require_valid_manager
 async def create_manager(payload: ManagerCreate):
@@ -252,6 +265,13 @@ async def health_ready():
     }
     status_code = 200 if healthy else 503
     return JSONResponse(status_code=status_code, content=payload)
+
+
+@app.get("/readyz")
+async def health_readyz():
+    """Alias readiness endpoint for common probe conventions."""
+    # Reuse the main readiness check so probes stay in sync.
+    return await health_ready()
 
 
 @app.on_event("shutdown")
