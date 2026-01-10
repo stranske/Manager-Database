@@ -19,9 +19,21 @@ from pydantic import BaseModel, Field
 from adapters.base import connect_db
 
 app = FastAPI()
-APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
-HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+_APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+_HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 APP_START_TIME = time.monotonic()
+
+
+def get_health_executor():
+    """Return a working health executor, creating a new one if needed."""
+    global _HEALTH_EXECUTOR
+    if _HEALTH_EXECUTOR._shutdown:
+        _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+    return _HEALTH_EXECUTOR
+
+
+# Keep APP_EXECUTOR for backwards compatibility
+APP_EXECUTOR = _APP_EXECUTOR
 
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -179,7 +191,7 @@ async def create_manager(payload: ManagerCreate):
 @app.on_event("startup")
 async def _configure_default_executor() -> None:
     """Install a known-good default executor for sync endpoints."""
-    asyncio.get_running_loop().set_default_executor(APP_EXECUTOR)
+    asyncio.get_running_loop().set_default_executor(_APP_EXECUTOR)
 
 
 def _db_timeout_seconds() -> float:
@@ -206,7 +218,7 @@ async def health_db():
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
         await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(HEALTH_EXECUTOR, _ping_db, timeout_seconds),
+            asyncio.get_running_loop().run_in_executor(get_health_executor(), _ping_db, timeout_seconds),
             timeout=timeout_seconds,
         )
         latency_ms = int((time.perf_counter() - start) * 1000)
@@ -243,5 +255,5 @@ async def health_ready():
 @app.on_event("shutdown")
 def _shutdown_executors() -> None:
     """Release the health check executors on app shutdown."""
-    APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
-    HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+    _APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+    _HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
