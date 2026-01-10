@@ -214,7 +214,16 @@ def health_livez():
     return _health_payload()
 
 
-@app.post("/managers", status_code=201, response_model=ManagerResponse)
+@app.post(
+    "/managers",
+    status_code=201,
+    response_model=ManagerResponse,
+    summary="Create a manager record",
+    description=(
+        "Validate the incoming manager details, store the record, and return the "
+        "saved manager payload with its generated identifier."
+    ),
+)
 @_require_valid_manager
 async def create_manager(payload: ManagerCreate):
     """Create a manager record after validating required fields."""
