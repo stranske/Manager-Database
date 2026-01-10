@@ -34,7 +34,9 @@ def test_openapi_chat_schema():
     parameters = {param["name"]: param for param in chat_schema["parameters"]}
     query_param = parameters["q"]
     assert query_param["description"] == "User question"
-    assert query_param["schema"]["examples"]["basic"]["value"] == "What is the latest holdings update?"
+    assert (
+        query_param["schema"]["examples"]["basic"]["value"] == "What is the latest holdings update?"
+    )
 
     chat_component = schema["components"]["schemas"]["ChatResponse"]
     assert chat_component["examples"][0]["answer"].startswith("Context:")
@@ -73,7 +75,7 @@ def test_openapi_health_db_schema():
     health_component = schema["components"]["schemas"]["HealthDbResponse"]
     assert health_component["examples"][0]["healthy"] is True
 
-    timeout_example = (
-        health_schema["responses"]["503"]["content"]["application/json"]["examples"]["timeout"]
-    )
+    timeout_example = health_schema["responses"]["503"]["content"]["application/json"]["examples"][
+        "timeout"
+    ]
     assert timeout_example["value"]["healthy"] is False
