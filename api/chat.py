@@ -10,11 +10,12 @@ import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
+from typing import Annotated
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Body, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
 
@@ -48,9 +49,90 @@ EMAIL_ERROR_MESSAGE = "Email must be a valid address."
 class ManagerCreate(BaseModel):
     """Payload for creating manager records."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "Grace Hopper",
+                    "email": "grace@example.com",
+                    "department": "Engineering",
+                }
+            ]
+        }
+    )
     name: str = Field(..., description="Manager name")
     email: str = Field(..., description="Manager email address")
     department: str = Field(..., description="Manager department")
+
+
+# Response model keeps /managers schema explicit in OpenAPI.
+class ManagerResponse(BaseModel):
+    """Response payload for manager records."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": 101,
+                    "name": "Grace Hopper",
+                    "email": "grace@example.com",
+                    "department": "Engineering",
+                }
+            ]
+        }
+    )
+    id: int = Field(..., description="Manager identifier")
+    name: str = Field(..., description="Manager name")
+    email: str = Field(..., description="Manager email address")
+    department: str = Field(..., description="Manager department")
+
+
+class ErrorDetail(BaseModel):
+    """Single validation error detail."""
+
+    field: str = Field(..., description="Field that failed validation")
+    message: str = Field(..., description="Validation error message")
+
+
+class ErrorResponse(BaseModel):
+    """Response payload for validation errors."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"errors": [{"field": "email", "message": "Email must be a valid address."}]}
+            ]
+        }
+    )
+    errors: list[ErrorDetail] = Field(..., description="List of validation errors")
+
+
+class ChatResponse(BaseModel):
+    """Response payload for chat responses."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"answer": ("Context: The latest holdings update was filed on 2024-06-30.")}
+            ]
+        }
+    )
+    answer: str = Field(..., description="Generated answer based on stored documents")
+
+
+class HealthDbResponse(BaseModel):
+    """Response payload for database health checks."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"healthy": True, "latency_ms": 42},
+                {"healthy": False, "latency_ms": 5000},
+            ]
+        }
+    )
+    healthy: bool = Field(..., description="Whether the database is reachable")
+    latency_ms: int = Field(..., description="Observed database ping latency in milliseconds")
 
 
 def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str]]:
@@ -136,8 +218,28 @@ def _require_valid_manager(handler):
     return wrapper
 
 
-@app.get("/chat")
-def chat(q: str = Query(..., description="User question")):
+# OpenAPI metadata keeps /docs clear about chat behavior.
+@app.get(
+    "/chat",
+    response_model=ChatResponse,
+    summary="Answer a chat query",
+    description=(
+        "Search stored documents using the provided question and return a concise "
+        "answer composed from the matching context."
+    ),
+)
+def chat(
+    q: str = Query(
+        ...,
+        description="User question",
+        examples={
+            "basic": {
+                "summary": "Holdings question",
+                "value": "What is the latest holdings update?",
+            }
+        },
+    )
+):
     """Return a naive answer built from stored documents."""
     # Import here to avoid loading embedding models during unrelated endpoints/tests.
     from embeddings import search_documents
@@ -182,9 +284,58 @@ def health_livez():
     return _health_payload()
 
 
-@app.post("/managers", status_code=201)
+@app.post(
+    "/managers",
+    status_code=201,
+    response_model=ManagerResponse,
+    summary="Create a manager record",
+    description=(
+        "Validate the incoming manager details, store the record, and return the "
+        "saved manager payload with its generated identifier."
+    ),
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": "Validation error",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid-email": {
+                            "summary": "Invalid email",
+                            "value": {
+                                "errors": [
+                                    {
+                                        "field": "email",
+                                        "message": "Email must be a valid address.",
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 @_require_valid_manager
-async def create_manager(payload: ManagerCreate):
+async def create_manager(
+    payload: Annotated[
+        ManagerCreate,
+        Body(
+            ...,
+            examples={
+                "basic": {
+                    "summary": "New manager",
+                    "value": {
+                        "name": "Grace Hopper",
+                        "email": "grace@example.com",
+                        "department": "Engineering",
+                    },
+                }
+            },
+        ),
+    ],
+):
     """Create a manager record after validating required fields."""
     conn = connect_db()
     try:
@@ -223,7 +374,30 @@ def _ping_db(timeout_seconds: float) -> None:
         conn.close()
 
 
-@app.get("/health/db")
+@app.get(
+    "/health/db",
+    response_model=HealthDbResponse,
+    summary="Check database connectivity",
+    description=(
+        "Run a lightweight database ping and return the health status with " "observed latency."
+    ),
+    responses={
+        503: {
+            "model": HealthDbResponse,
+            "description": "Database unavailable",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "timeout": {
+                            "summary": "Timed out ping",
+                            "value": {"healthy": False, "latency_ms": 5000},
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 async def health_db():
     """Return database connectivity status and latency."""
     start = time.perf_counter()
