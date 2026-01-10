@@ -92,11 +92,7 @@ class ChatResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
-                {
-                    "answer": (
-                        "Context: The latest holdings update was filed on 2024-06-30."
-                    )
-                }
+                {"answer": ("Context: The latest holdings update was filed on 2024-06-30.")}
             ]
         }
     )
@@ -106,9 +102,7 @@ class ChatResponse(BaseModel):
 class HealthDbResponse(BaseModel):
     """Response payload for database health checks."""
 
-    model_config = ConfigDict(
-        json_schema_extra={"examples": [{"healthy": True, "latency_ms": 42}]}
-    )
+    model_config = ConfigDict(json_schema_extra={"examples": [{"healthy": True, "latency_ms": 42}]})
     healthy: bool = Field(..., description="Whether the database is reachable")
     latency_ms: int = Field(..., description="Observed database ping latency in milliseconds")
 
@@ -331,8 +325,7 @@ def _ping_db(timeout_seconds: float) -> None:
     response_model=HealthDbResponse,
     summary="Check database connectivity",
     description=(
-        "Run a lightweight database ping and return the health status with "
-        "observed latency."
+        "Run a lightweight database ping and return the health status with " "observed latency."
     ),
 )
 async def health_db():
