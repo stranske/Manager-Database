@@ -53,6 +53,12 @@ class ManagerCreate(BaseModel):
     department: str = Field(..., description="Manager department")
 
 
+class ChatResponse(BaseModel):
+    """Response payload for chat responses."""
+
+    answer: str = Field(..., description="Generated answer based on stored documents")
+
+
 def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str]]:
     """Normalize validation errors into a concise field/message list."""
     errors: list[dict[str, str]] = []
@@ -136,7 +142,7 @@ def _require_valid_manager(handler):
     return wrapper
 
 
-@app.get("/chat")
+@app.get("/chat", response_model=ChatResponse)
 def chat(q: str = Query(..., description="User question")):
     """Return a naive answer built from stored documents."""
     # Import here to avoid loading embedding models during unrelated endpoints/tests.
