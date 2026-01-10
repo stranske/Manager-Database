@@ -86,6 +86,30 @@ class ManagerResponse(BaseModel):
     department: str = Field(..., description="Manager department")
 
 
+class ErrorDetail(BaseModel):
+    """Single validation error detail."""
+
+    field: str = Field(..., description="Field that failed validation")
+    message: str = Field(..., description="Validation error message")
+
+
+class ErrorResponse(BaseModel):
+    """Response payload for validation errors."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "errors": [
+                        {"field": "email", "message": "Email must be a valid address."}
+                    ]
+                }
+            ]
+        }
+    )
+    errors: list[ErrorDetail] = Field(..., description="List of validation errors")
+
+
 class ChatResponse(BaseModel):
     """Response payload for chat responses."""
 
@@ -102,7 +126,14 @@ class ChatResponse(BaseModel):
 class HealthDbResponse(BaseModel):
     """Response payload for database health checks."""
 
-    model_config = ConfigDict(json_schema_extra={"examples": [{"healthy": True, "latency_ms": 42}]})
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"healthy": True, "latency_ms": 42},
+                {"healthy": False, "latency_ms": 5000},
+            ]
+        }
+    )
     healthy: bool = Field(..., description="Whether the database is reachable")
     latency_ms: int = Field(..., description="Observed database ping latency in milliseconds")
 
@@ -265,6 +296,29 @@ def health_livez():
         "Validate the incoming manager details, store the record, and return the "
         "saved manager payload with its generated identifier."
     ),
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": "Validation error",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid-email": {
+                            "summary": "Invalid email",
+                            "value": {
+                                "errors": [
+                                    {
+                                        "field": "email",
+                                        "message": "Email must be a valid address.",
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                }
+            },
+        }
+    },
 )
 @_require_valid_manager
 async def create_manager(
@@ -327,6 +381,22 @@ def _ping_db(timeout_seconds: float) -> None:
     description=(
         "Run a lightweight database ping and return the health status with " "observed latency."
     ),
+    responses={
+        503: {
+            "model": HealthDbResponse,
+            "description": "Database unavailable",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "timeout": {
+                            "summary": "Timed out ping",
+                            "value": {"healthy": False, "latency_ms": 5000},
+                        }
+                    }
+                }
+            },
+        }
+    },
 )
 async def health_db():
     """Return database connectivity status and latency."""
