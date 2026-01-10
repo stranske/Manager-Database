@@ -69,6 +69,13 @@ class ChatResponse(BaseModel):
     answer: str = Field(..., description="Generated answer based on stored documents")
 
 
+class HealthDbResponse(BaseModel):
+    """Response payload for database health checks."""
+
+    healthy: bool = Field(..., description="Whether the database is reachable")
+    latency_ms: int = Field(..., description="Observed database ping latency in milliseconds")
+
+
 def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str]]:
     """Normalize validation errors into a concise field/message list."""
     errors: list[dict[str, str]] = []
@@ -239,7 +246,7 @@ def _ping_db(timeout_seconds: float) -> None:
         conn.close()
 
 
-@app.get("/health/db")
+@app.get("/health/db", response_model=HealthDbResponse)
 async def health_db():
     """Return database connectivity status and latency."""
     start = time.perf_counter()
