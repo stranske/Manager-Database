@@ -159,7 +159,16 @@ def _require_valid_manager(handler):
     return wrapper
 
 
-@app.get("/chat", response_model=ChatResponse)
+# OpenAPI metadata keeps /docs clear about chat behavior.
+@app.get(
+    "/chat",
+    response_model=ChatResponse,
+    summary="Answer a chat query",
+    description=(
+        "Search stored documents using the provided question and return a concise "
+        "answer composed from the matching context."
+    ),
+)
 def chat(q: str = Query(..., description="User question")):
     """Return a naive answer built from stored documents."""
     # Import here to avoid loading embedding models during unrelated endpoints/tests.
