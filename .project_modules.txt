@@ -4,3 +4,5 @@
 # See: https://github.com/stranske/Workflows/pull/441
 diff_holdings
 embeddings
+# root-level module imported by tests
+langchain_analysis
