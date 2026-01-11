@@ -62,6 +62,23 @@ def test_check_does_not_record(monkeypatch: pytest.MonkeyPatch) -> None:
     assert limiter.check("client-a") is False
 
 
+def test_prunes_empty_keys_after_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    current_time = 0.0
+
+    def fake_monotonic() -> float:
+        return current_time
+
+    monkeypatch.setattr(rate_limiter.time, "monotonic", fake_monotonic)
+
+    limiter = RateLimiter(max_requests=1, window_seconds=10)
+    limiter.record("client-a")
+
+    current_time = 15.0
+    assert limiter.check("client-a") is True
+    # Empty deques should be cleaned up after pruning to avoid idle growth.
+    assert "client-a" not in limiter._events
+
+
 @pytest.mark.parametrize(
     ("max_requests", "window_seconds"),
     [(0, 1), (-1, 1), (1, 0), (1, -5)],

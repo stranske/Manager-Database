@@ -72,6 +72,10 @@ class RateLimiter:
             return True
         # Prune before counting so the length reflects the active window only.
         self._prune_events(events, window_start)
+        if not events:
+            # Drop empty deques to avoid unbounded growth in idle keys.
+            self._events.pop(key, None)
+            return True
         return len(events) < self._max_requests
 
     def record(self, key: str) -> None:
