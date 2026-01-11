@@ -3,41 +3,65 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
-import re
-import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
 
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
-from embeddings import search_documents
+from api.managers import router as managers_router
 
 app = FastAPI()
-APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
-HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+# Register the managers router to keep /managers definitions in its own module.
+app.include_router(managers_router)
+_APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+_HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+APP_START_TIME = time.monotonic()
 
 
-EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-# Keep validation rules centralized so API docs/tests stay in sync with behavior.
-REQUIRED_FIELD_ERRORS = {
-    "name": "Name is required.",
-    "department": "Department is required.",
-}
-EMAIL_ERROR_MESSAGE = "Email must be a valid address."
+def get_health_executor():
+    """Return a working health executor, creating a new one if needed."""
+    global _HEALTH_EXECUTOR
+    if _HEALTH_EXECUTOR._shutdown:
+        _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+    return _HEALTH_EXECUTOR
 
 
-class ManagerCreate(BaseModel):
-    """Payload for creating manager records."""
+# Keep APP_EXECUTOR for backwards compatibility
+APP_EXECUTOR = _APP_EXECUTOR
 
-    name: str = Field(..., description="Manager name")
-    email: str = Field(..., description="Manager email address")
-    department: str = Field(..., description="Manager department")
+
+class ChatResponse(BaseModel):
+    """Response payload for chat responses."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"answer": ("Context: The latest holdings update was filed on 2024-06-30.")}
+            ]
+        }
+    )
+    answer: str = Field(..., description="Generated answer based on stored documents")
+
+
+class HealthDbResponse(BaseModel):
+    """Response payload for database health checks."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"healthy": True, "latency_ms": 42},
+                {"healthy": False, "latency_ms": 5000},
+            ]
+        }
+    )
+    healthy: bool = Field(..., description="Whether the database is reachable")
+    latency_ms: int = Field(..., description="Observed database ping latency in milliseconds")
 
 
 def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str]]:
@@ -58,74 +82,32 @@ async def _validation_exception_handler(
     return JSONResponse(status_code=400, content={"errors": _format_validation_errors(exc)})
 
 
-def _ensure_manager_table(conn) -> None:
-    """Create the managers table if it does not exist."""
-    if isinstance(conn, sqlite3.Connection):
-        conn.execute(
-            """CREATE TABLE IF NOT EXISTS managers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT NOT NULL,
-                department TEXT NOT NULL
-            )"""
-        )
-    else:
-        conn.execute(
-            """CREATE TABLE IF NOT EXISTS managers (
-                id bigserial PRIMARY KEY,
-                name text NOT NULL,
-                email text NOT NULL,
-                department text NOT NULL
-            )"""
-        )
-
-
-def _insert_manager(conn, payload: ManagerCreate) -> int:
-    """Insert a manager record and return the generated id."""
-    if isinstance(conn, sqlite3.Connection):
-        cursor = conn.execute(
-            "INSERT INTO managers(name, email, department) VALUES (?, ?, ?)",
-            (payload.name, payload.email, payload.department),
-        )
-        conn.commit()
-        return int(cursor.lastrowid)
-    cursor = conn.execute(
-        "INSERT INTO managers(name, email, department) VALUES (%s, %s, %s) RETURNING id",
-        (payload.name, payload.email, payload.department),
+# OpenAPI metadata keeps /docs clear about chat behavior.
+@app.get(
+    "/chat",
+    response_model=ChatResponse,
+    summary="Answer a chat query",
+    description=(
+        "Search stored documents using the provided question and return a concise "
+        "answer composed from the matching context."
+    ),
+)
+def chat(
+    q: str = Query(
+        ...,
+        description="User question",
+        examples={
+            "basic": {
+                "summary": "Holdings question",
+                "value": "What is the latest holdings update?",
+            }
+        },
     )
-    row = cursor.fetchone()
-    return int(row[0]) if row else 0
-
-
-def _validate_manager_payload(payload: ManagerCreate) -> list[dict[str, str]]:
-    """Apply required field and email format checks."""
-    errors: list[dict[str, str]] = []
-    if not payload.name.strip():
-        errors.append({"field": "name", "message": REQUIRED_FIELD_ERRORS["name"]})
-    if not payload.department.strip():
-        errors.append({"field": "department", "message": REQUIRED_FIELD_ERRORS["department"]})
-    if not EMAIL_PATTERN.match(payload.email.strip()):
-        errors.append({"field": "email", "message": EMAIL_ERROR_MESSAGE})
-    return errors
-
-
-def _require_valid_manager(handler):
-    """Decorator to guard manager writes with validation."""
-
-    @wraps(handler)
-    async def wrapper(payload: ManagerCreate, *args, **kwargs):
-        errors = _validate_manager_payload(payload)
-        if errors:
-            # Short-circuit invalid payloads before touching the database.
-            return JSONResponse(status_code=400, content={"errors": errors})
-        return await handler(payload, *args, **kwargs)
-
-    return wrapper
-
-
-@app.get("/chat")
-def chat(q: str = Query(..., description="User question")):
+):
     """Return a naive answer built from stored documents."""
+    # Import here to avoid loading embedding models during unrelated endpoints/tests.
+    from embeddings import search_documents
+
     hits = search_documents(q)
     if not hits:
         answer = "No documents found."
@@ -134,29 +116,42 @@ def chat(q: str = Query(..., description="User question")):
     return {"answer": answer}
 
 
-@app.post("/managers", status_code=201)
-@_require_valid_manager
-async def create_manager(payload: ManagerCreate):
-    """Create a manager record after validating required fields."""
-    conn = connect_db()
-    try:
-        # Ensure schema exists before storing the record.
-        _ensure_manager_table(conn)
-        manager_id = _insert_manager(conn, payload)
-    finally:
-        conn.close()
-    return {
-        "id": manager_id,
-        "name": payload.name,
-        "email": payload.email,
-        "department": payload.department,
-    }
+def _health_payload() -> dict[str, int | bool]:
+    """Build the base app health payload."""
+    # Use monotonic time to avoid issues if the system clock changes.
+    uptime_s = int(time.monotonic() - APP_START_TIME)
+    return {"healthy": True, "uptime_s": uptime_s}
+
+
+@app.get("/health")
+def health_app():
+    """Return application liveness and uptime."""
+    return _health_payload()
+
+
+@app.get("/health/live")
+def health_live():
+    """Alias liveness endpoint for standard probes."""
+    return _health_payload()
+
+
+@app.get("/healthz")
+def healthz():
+    """Alias liveness endpoint for common probe conventions."""
+    # Keep probe aliases routed through the same liveness payload.
+    return _health_payload()
+
+
+@app.get("/livez")
+def health_livez():
+    """Alias live probe endpoint for common probe conventions."""
+    return _health_payload()
 
 
 @app.on_event("startup")
 async def _configure_default_executor() -> None:
     """Install a known-good default executor for sync endpoints."""
-    asyncio.get_running_loop().set_default_executor(APP_EXECUTOR)
+    asyncio.get_running_loop().set_default_executor(_APP_EXECUTOR)
 
 
 def _db_timeout_seconds() -> float:
@@ -175,7 +170,30 @@ def _ping_db(timeout_seconds: float) -> None:
         conn.close()
 
 
-@app.get("/health/db")
+@app.get(
+    "/health/db",
+    response_model=HealthDbResponse,
+    summary="Check database connectivity",
+    description=(
+        "Run a lightweight database ping and return the health status with " "observed latency."
+    ),
+    responses={
+        503: {
+            "model": HealthDbResponse,
+            "description": "Database unavailable",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "timeout": {
+                            "summary": "Timed out ping",
+                            "value": {"healthy": False, "latency_ms": 5000},
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 async def health_db():
     """Return database connectivity status and latency."""
     start = time.perf_counter()
@@ -183,7 +201,9 @@ async def health_db():
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
         await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(HEALTH_EXECUTOR, _ping_db, timeout_seconds),
+            asyncio.get_running_loop().run_in_executor(
+                get_health_executor(), _ping_db, timeout_seconds
+            ),
             timeout=timeout_seconds,
         )
         latency_ms = int((time.perf_counter() - start) * 1000)
@@ -200,8 +220,32 @@ async def health_db():
         return JSONResponse(status_code=503, content=payload)
 
 
+@app.get("/health/ready")
+async def health_ready():
+    """Return readiness status combining app and database checks."""
+    # Reuse the existing health endpoints to keep readiness logic consistent.
+    app_payload = _health_payload()
+    db_response = await health_db()
+    db_payload = json.loads(db_response.body)
+    healthy = app_payload["healthy"] and db_payload["healthy"]
+    payload = {
+        "healthy": healthy,
+        "uptime_s": app_payload["uptime_s"],
+        "db_latency_ms": db_payload["latency_ms"],
+    }
+    status_code = 200 if healthy else 503
+    return JSONResponse(status_code=status_code, content=payload)
+
+
+@app.get("/readyz")
+async def health_readyz():
+    """Alias readiness endpoint for common probe conventions."""
+    # Reuse the main readiness check so probes stay in sync.
+    return await health_ready()
+
+
 @app.on_event("shutdown")
 def _shutdown_executors() -> None:
     """Release the health check executors on app shutdown."""
-    APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
-    HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+    _APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+    _HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)

@@ -1,4 +1,0 @@
-adapters
-api
-etl
-ui

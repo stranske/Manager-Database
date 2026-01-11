@@ -51,6 +51,20 @@ Feel free to open issues or pull requests as you iterate.
    uvicorn api.chat:app --reload
    ```
 
+### API examples
+
+Chat query:
+
+```bash
+curl "http://localhost:8000/chat?q=What%20is%20the%20latest%20holdings%20update%3F"
+```
+
+Database health check:
+
+```bash
+curl http://localhost:8000/health/db
+```
+
 ### Manager API validation
 
 The API expects manager records to include non-empty `name`, valid `email`, and
