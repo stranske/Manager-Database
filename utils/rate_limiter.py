@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Deque, TypeAlias
+from typing import TypeAlias
 
 Timestamp: TypeAlias = float
-EventDeque: TypeAlias = Deque[Timestamp]
+EventDeque: TypeAlias = deque[Timestamp]
 
 
 class RateLimiter:
