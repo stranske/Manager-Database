@@ -5,11 +5,40 @@ const path = require('path');
 
 const { parseScopeTasksAcceptanceSections } = require('./issue_scope_parser');
 const { loadKeepaliveState, formatStateComment } = require('./keepalive_state');
+const { resolvePromptMode } = require('./keepalive_prompt_routing');
 const { classifyError, ERROR_CATEGORIES } = require('./error_classifier');
 const { formatFailureComment } = require('./failure_comment_formatter');
+const { detectConflicts } = require('./conflict_detector');
+
+const ATTEMPT_HISTORY_LIMIT = 5;
+const ATTEMPTED_TASK_LIMIT = 6;
+
+const PROMPT_ROUTES = {
+  fix_ci: {
+    mode: 'fix_ci',
+    file: '.github/codex/prompts/fix_ci_failures.md',
+  },
+  conflict: {
+    mode: 'conflict',
+    file: '.github/codex/prompts/fix_merge_conflicts.md',
+  },
+  verify: {
+    mode: 'verify',
+    file: '.github/codex/prompts/verifier_acceptance_check.md',
+  },
+  normal: {
+    mode: 'normal',
+    file: '.github/codex/prompts/keepalive_next_task.md',
+  },
+};
 
 function normalise(value) {
   return String(value ?? '').trim();
+}
+
+function resolvePromptRouting({ scenario, mode, action, reason } = {}) {
+  const resolvedMode = resolvePromptMode({ scenario, mode, action, reason });
+  return PROMPT_ROUTES[resolvedMode] || PROMPT_ROUTES.normal;
 }
 
 function toBool(value, defaultValue = false) {
@@ -52,6 +81,120 @@ function toOptionalNumber(value) {
     return int;
   }
   return null;
+}
+
+function buildAttemptEntry({
+  iteration,
+  action,
+  reason,
+  runResult,
+  promptMode,
+  promptFile,
+  gateConclusion,
+  errorCategory,
+  errorType,
+}) {
+  const actionValue = normalise(action) || 'unknown';
+  const reasonValue = normalise(reason) || actionValue;
+  const entry = {
+    iteration: Math.max(0, toNumber(iteration, 0)),
+    action: actionValue,
+    reason: reasonValue,
+  };
+
+  if (runResult) {
+    entry.run_result = normalise(runResult);
+  }
+  if (promptMode) {
+    entry.prompt_mode = normalise(promptMode);
+  }
+  if (promptFile) {
+    entry.prompt_file = normalise(promptFile);
+  }
+  if (gateConclusion) {
+    entry.gate = normalise(gateConclusion);
+  }
+  if (errorCategory) {
+    entry.error_category = normalise(errorCategory);
+  }
+  if (errorType) {
+    entry.error_type = normalise(errorType);
+  }
+
+  return entry;
+}
+
+function updateAttemptHistory(existing, nextEntry, limit = ATTEMPT_HISTORY_LIMIT) {
+  const history = Array.isArray(existing)
+    ? existing.filter((item) => item && typeof item === 'object')
+    : [];
+  if (!nextEntry || typeof nextEntry !== 'object') {
+    return history.slice(-limit);
+  }
+  const trimmed = history.slice(-limit);
+  const last = trimmed[trimmed.length - 1];
+  if (
+    last &&
+    last.iteration === nextEntry.iteration &&
+    last.action === nextEntry.action &&
+    last.reason === nextEntry.reason
+  ) {
+    return [...trimmed.slice(0, -1), { ...last, ...nextEntry }];
+  }
+  return [...trimmed, nextEntry].slice(-limit);
+}
+
+function normaliseTaskText(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function normaliseTaskKey(value) {
+  return normaliseTaskText(value).toLowerCase();
+}
+
+function normaliseAttemptedTasks(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const entries = [];
+  value.forEach((entry) => {
+    if (typeof entry === 'string') {
+      const task = normaliseTaskText(entry);
+      if (task) {
+        entries.push({ task, key: normaliseTaskKey(task) });
+      }
+      return;
+    }
+    if (entry && typeof entry === 'object') {
+      const task = normaliseTaskText(entry.task || entry.text || '');
+      if (!task) {
+        return;
+      }
+      entries.push({
+        ...entry,
+        task,
+        key: normaliseTaskKey(entry.key || task),
+      });
+    }
+  });
+  return entries;
+}
+
+function updateAttemptedTasks(existing, nextTask, iteration, limit = ATTEMPTED_TASK_LIMIT) {
+  const history = normaliseAttemptedTasks(existing);
+  const taskText = normaliseTaskText(nextTask);
+  if (!taskText) {
+    return history.slice(-limit);
+  }
+  const key = normaliseTaskKey(taskText);
+  const trimmed = history.filter((entry) => entry.key !== key).slice(-limit);
+  const entry = {
+    task: taskText,
+    key,
+    iteration: Math.max(0, toNumber(iteration, 0)),
+    timestamp: new Date().toISOString(),
+  };
+  return [...trimmed, entry].slice(-limit);
 }
 
 function resolveDurationMs({ durationMs, startTs }) {
@@ -231,6 +374,27 @@ function classifyFailureDetails({ action, runResult, summaryReason, agentExitCod
   let category = errorInfo.category;
   const isGateCancelled = summaryReason.startsWith('gate-cancelled');
 
+  // If the agent runner reports failure with exit code 0, that strongly suggests
+  // an infrastructure/control-plane hiccup rather than a code/tool failure.
+  if (runFailed && summaryReason === 'agent-run-failed' && (!agentExitCode || agentExitCode === '0')) {
+    category = ERROR_CATEGORIES.transient;
+  }
+
+  // Detect dirty git state issues - agent saw unexpected changes before starting.
+  // These are typically workflow artifacts (.workflows-lib, codex-session-*.jsonl)
+  // that should have been cleaned up but weren't. Classify as transient.
+  const dirtyGitPatterns = [
+    /unexpected\s*changes/i,
+    /\.workflows-lib.*modified/i,
+    /codex-session.*untracked/i,
+    /existing\s*changes/i,
+    /how\s*would\s*you\s*like\s*me\s*to\s*proceed/i,
+    /before\s*making\s*edits/i,
+  ];
+  if (dirtyGitPatterns.some(pattern => pattern.test(message))) {
+    category = ERROR_CATEGORIES.transient;
+  }
+
   if (runFailed && (runResult === 'cancelled' || runResult === 'skipped')) {
     category = ERROR_CATEGORIES.transient;
   }
@@ -277,6 +441,21 @@ function extractSourceSection(body) {
     }
   }
   return null;
+}
+
+function extractChecklistItems(markdown) {
+  const items = [];
+  const content = String(markdown || '');
+  const regex = /(?:^|\n)\s*(?:[-*+]|\d+[.)])\s*\[( |x|X)\]\s*(.+)/g;
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    const checked = (match[1] || '').toLowerCase() === 'x';
+    const text = normaliseTaskText(match[2] || '');
+    if (text) {
+      items.push({ text, checked });
+    }
+  }
+  return items;
 }
 
 /**
@@ -334,6 +513,29 @@ function buildTaskAppendix(sections, checkboxCounts, state = {}, options = {}) {
     lines.push(sections.acceptance);
     lines.push('');
   }
+
+  const attemptedTasks = normaliseAttemptedTasks(state?.attempted_tasks);
+  const candidateSource = sections?.tasks || sections?.acceptance || '';
+  const taskItems = extractChecklistItems(candidateSource);
+  const unchecked = taskItems.filter((item) => !item.checked);
+  const attemptedKeys = new Set(attemptedTasks.map((entry) => entry.key));
+  const suggested = unchecked.find((item) => !attemptedKeys.has(normaliseTaskKey(item.text))) || unchecked[0];
+
+  if (attemptedTasks.length > 0) {
+    lines.push('### Recently Attempted Tasks');
+    lines.push('Avoid repeating these unless a task needs explicit follow-up:');
+    lines.push('');
+    attemptedTasks.slice(-3).forEach((entry) => {
+      lines.push(`- ${entry.task}`);
+    });
+    lines.push('');
+  }
+
+  if (suggested?.text) {
+    lines.push('### Suggested Next Task');
+    lines.push(`- ${suggested.text}`);
+    lines.push('');
+  }
   
   // Add Source section if PR body contains links to parent issues/PRs
   if (options.prBody) {
@@ -350,6 +552,25 @@ function buildTaskAppendix(sections, checkboxCounts, state = {}, options = {}) {
   lines.push('---');
   
   return lines.join('\n');
+}
+
+async function fetchPrBody({ github, context, prNumber, core }) {
+  if (!github?.rest?.pulls?.get || !context?.repo?.owner || !context?.repo?.repo) {
+    return '';
+  }
+  try {
+    const { data } = await github.rest.pulls.get({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      pull_number: prNumber,
+    });
+    return String(data?.body || '');
+  } catch (error) {
+    if (core) {
+      core.info(`Failed to fetch PR body for task focus: ${error.message}`);
+    }
+    return '';
+  }
 }
 
 function extractConfigSnippet(body) {
@@ -428,6 +649,9 @@ function parseConfigFromSnippet(snippet) {
 function normaliseConfig(config = {}) {
   const cfg = config && typeof config === 'object' ? config : {};
   const trace = normalise(cfg.trace || cfg.keepalive_trace);
+  const promptMode = normalise(cfg.prompt_mode ?? cfg.promptMode);
+  const promptFile = normalise(cfg.prompt_file ?? cfg.promptFile);
+  const promptScenario = normalise(cfg.prompt_scenario ?? cfg.promptScenario);
   return {
     keepalive_enabled: toBool(
       cfg.keepalive_enabled ?? cfg.enable_keepalive ?? cfg.keepalive,
@@ -438,6 +662,9 @@ function normaliseConfig(config = {}) {
     max_iterations: toNumber(cfg.max_iterations ?? cfg.keepalive_max_iterations, 5),
     failure_threshold: toNumber(cfg.failure_threshold ?? cfg.keepalive_failure_threshold, 3),
     trace,
+    prompt_mode: promptMode,
+    prompt_file: promptFile,
+    prompt_scenario: promptScenario,
   };
 }
 
@@ -822,23 +1049,72 @@ async function evaluateKeepaliveLoop({ github, context, core, payload: overrideP
   const maxIterations = toNumber(config.max_iterations ?? state.max_iterations, 5);
   const failureThreshold = toNumber(config.failure_threshold ?? state.failure_threshold, 3);
 
-  // Productivity tracking: determine if recent iterations have been productive
-  // An iteration is productive if it made file changes or completed tasks
+  // Evidence-based productivity tracking
+  // Uses multiple signals to determine if work is being done:
+  // 1. File changes (primary signal)
+  // 2. Task completion progress
+  // 3. Historical productivity trend
   const lastFilesChanged = toNumber(state.last_files_changed, 0);
+  const prevFilesChanged = toNumber(state.prev_files_changed, 0);
   const hasRecentFailures = Boolean(state.failure?.count > 0);
-  const isProductive = lastFilesChanged > 0 && !hasRecentFailures;
+  
+  // Track task completion trend
+  const previousTasks = state.tasks || {};
+  const prevUnchecked = toNumber(previousTasks.unchecked, checkboxCounts.unchecked);
+  const tasksCompletedSinceLastRound = prevUnchecked - checkboxCounts.unchecked;
+  
+  // Calculate productivity score (0-100)
+  // This is evidence-based: higher score = more confidence work is happening
+  let productivityScore = 0;
+  if (lastFilesChanged > 0) productivityScore += Math.min(40, lastFilesChanged * 10);
+  if (tasksCompletedSinceLastRound > 0) productivityScore += Math.min(40, tasksCompletedSinceLastRound * 20);
+  if (prevFilesChanged > 0 && iteration > 1) productivityScore += 10; // Recent historical activity
+  if (!hasRecentFailures) productivityScore += 10; // No failures is a positive signal
+  
+  // An iteration is productive if it has a reasonable productivity score
+  const isProductive = productivityScore >= 20 && !hasRecentFailures;
+  
+  // Early detection: Check for diminishing returns pattern
+  // If we had activity before but now have none, might be naturally completing
+  const diminishingReturns = 
+    iteration >= 2 && 
+    prevFilesChanged > 0 && 
+    lastFilesChanged === 0 && 
+    tasksCompletedSinceLastRound === 0;
   
   // max_iterations is a "stuck detection" threshold, not a hard cap
   // Continue past max if productive work is happening
+  // But stop earlier if we detect diminishing returns pattern
   const shouldStopForMaxIterations = iteration >= maxIterations && !isProductive;
+  const shouldStopEarly = diminishingReturns && iteration >= Math.ceil(maxIterations * 0.6);
 
   // Build task appendix for the agent prompt (after state load for reconciliation info)
   const taskAppendix = buildTaskAppendix(normalisedSections, checkboxCounts, state, { prBody: pr.body });
 
+  // Check for merge conflicts - this takes priority over other work
+  let conflictResult = { hasConflict: false };
+  try {
+    conflictResult = await detectConflicts(github, context, prNumber, pr.head.sha);
+    if (conflictResult.hasConflict && core) {
+      core.info(`Merge conflict detected via ${conflictResult.primarySource}. Files: ${conflictResult.files?.join(', ') || 'unknown'}`);
+    }
+  } catch (conflictError) {
+    if (core) core.warning(`Conflict detection failed: ${conflictError.message}`);
+  }
+
   let action = 'wait';
   let reason = 'pending';
+  const verificationStatus = normalise(state?.verification?.status)?.toLowerCase();
+  const verificationDone = ['done', 'verified', 'complete'].includes(verificationStatus);
+  const verificationAttempted = Boolean(state?.verification?.iteration);
+  // Only try verification once - if it fails, that's OK, tasks are still complete
+  const needsVerification = allComplete && !verificationDone && !verificationAttempted;
 
-  if (!hasAgentLabel) {
+  // Conflict resolution takes highest priority - conflicts block all other work
+  if (conflictResult.hasConflict && hasAgentLabel && keepaliveEnabled) {
+    action = 'conflict';
+    reason = `merge-conflict-${conflictResult.primarySource || 'detected'}`;
+  } else if (!hasAgentLabel) {
     action = 'wait';
     reason = 'missing-agent-label';
   } else if (!keepaliveEnabled) {
@@ -847,12 +1123,6 @@ async function evaluateKeepaliveLoop({ github, context, core, payload: overrideP
   } else if (!tasksPresent) {
     action = 'stop';
     reason = 'no-checklists';
-  } else if (allComplete) {
-    action = 'stop';
-    reason = 'tasks-complete';
-  } else if (shouldStopForMaxIterations) {
-    action = 'stop';
-    reason = isProductive ? 'max-iterations' : 'max-iterations-unproductive';
   } else if (gateNormalized !== 'success') {
     if (gateNormalized === 'cancelled') {
       gateRateLimit = await detectRateLimitCancellation({
@@ -861,8 +1131,13 @@ async function evaluateKeepaliveLoop({ github, context, core, payload: overrideP
         runId: gateRun.runId,
         core,
       });
-      // forceRetry bypasses defer/wait for cancelled gates
-      if (forceRetry && tasksRemaining) {
+      // Rate limits are infrastructure noise, not code quality issues
+      // Proceed with work if Gate only failed due to rate limits
+      if (gateRateLimit && tasksRemaining) {
+        action = 'run';
+        reason = 'bypass-rate-limit-gate';
+        if (core) core.info('Gate cancelled due to rate limits only - proceeding with work');
+      } else if (forceRetry && tasksRemaining) {
         action = 'run';
         reason = 'force-retry-cancelled';
         if (core) core.info(`Force retry enabled: bypassing cancelled gate (rate_limit=${gateRateLimit})`);
@@ -871,7 +1146,7 @@ async function evaluateKeepaliveLoop({ github, context, core, payload: overrideP
         reason = gateRateLimit ? 'gate-cancelled-rate-limit' : 'gate-cancelled';
       }
     } else {
-      // Gate failed - check if we should route to fix mode or wait
+      // Gate failed - check if failure is rate-limit related vs code quality
       const gateFailure = await classifyGateFailure({ github, context, pr, core });
       if (gateFailure.shouldFixMode && gateNormalized === 'failure') {
         action = 'fix';
@@ -886,16 +1161,37 @@ async function evaluateKeepaliveLoop({ github, context, core, payload: overrideP
         reason = gateNormalized ? 'gate-not-success' : 'gate-pending';
       }
     }
+  } else if (allComplete) {
+    if (needsVerification) {
+      action = 'run';
+      reason = 'verify-acceptance';
+    } else {
+      action = 'stop';
+      reason = 'tasks-complete';
+    }
+  } else if (shouldStopEarly) {
+    // Evidence-based early stopping: diminishing returns detected
+    action = 'stop';
+    reason = 'diminishing-returns';
+  } else if (shouldStopForMaxIterations) {
+    action = 'stop';
+    reason = isProductive ? 'max-iterations' : 'max-iterations-unproductive';
   } else if (tasksRemaining) {
     action = 'run';
     reason = iteration >= maxIterations ? 'ready-extended' : 'ready';
   }
 
-  // Determine prompt mode based on action
-  const promptMode = action === 'fix' ? 'fix_ci' : 'normal';
-  const promptFile = action === 'fix'
-    ? '.github/codex/prompts/fix_ci_failures.md'
-    : '.github/codex/prompts/keepalive_next_task.md';
+  const promptScenario = normalise(config.prompt_scenario);
+  const promptModeOverride = normalise(config.prompt_mode);
+  const promptFileOverride = normalise(config.prompt_file);
+  const promptRoute = resolvePromptRouting({
+    scenario: promptScenario,
+    mode: promptModeOverride,
+    action,
+    reason,
+  });
+  const promptMode = promptModeOverride || promptRoute.mode;
+  const promptFile = promptFileOverride || promptRoute.file;
 
   return {
     prNumber,
@@ -918,6 +1214,9 @@ async function evaluateKeepaliveLoop({ github, context, core, payload: overrideP
     stateCommentId: stateResult.commentId || 0,
     state,
     forceRetry: Boolean(forceRetry),
+    hasConflict: conflictResult.hasConflict,
+    conflictSource: conflictResult.primarySource || null,
+    conflictFiles: conflictResult.files || [],
   };
 }
 
@@ -949,11 +1248,30 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
   const agentFilesChanged = toNumber(inputs.agent_files_changed ?? inputs.agentFilesChanged ?? inputs.codex_files_changed ?? inputs.codexFilesChanged, 0);
   const agentSummary = normalise(inputs.agent_summary ?? inputs.agentSummary ?? inputs.codex_summary ?? inputs.codexSummary);
   const runUrl = normalise(inputs.run_url ?? inputs.runUrl);
+  const promptModeInput = normalise(inputs.prompt_mode ?? inputs.promptMode);
+  const promptFileInput = normalise(inputs.prompt_file ?? inputs.promptFile);
+  const promptScenarioInput = normalise(inputs.prompt_scenario ?? inputs.promptScenario);
+  const promptRoute = resolvePromptRouting({
+    scenario: promptScenarioInput,
+    mode: promptModeInput,
+    action,
+    reason,
+  });
+  const promptMode = promptModeInput || promptRoute.mode;
+  const promptFile = promptFileInput || promptRoute.file;
 
   // LLM task analysis details
   const llmProvider = normalise(inputs.llm_provider ?? inputs.llmProvider);
   const llmConfidence = toNumber(inputs.llm_confidence ?? inputs.llmConfidence, 0);
   const llmAnalysisRun = toBool(inputs.llm_analysis_run ?? inputs.llmAnalysisRun, false);
+  
+  // Quality metrics for BS detection and evidence-based decisions
+  const llmRawConfidence = toNumber(inputs.llm_raw_confidence ?? inputs.llmRawConfidence, llmConfidence);
+  const llmConfidenceAdjusted = toBool(inputs.llm_confidence_adjusted ?? inputs.llmConfidenceAdjusted, false);
+  const llmQualityWarnings = normalise(inputs.llm_quality_warnings ?? inputs.llmQualityWarnings);
+  const sessionDataQuality = normalise(inputs.session_data_quality ?? inputs.sessionDataQuality);
+  const sessionEffortScore = toNumber(inputs.session_effort_score ?? inputs.sessionEffortScore, 0);
+  const analysisTextLength = toNumber(inputs.analysis_text_length ?? inputs.analysisTextLength, 0);
 
   const { state: previousState, commentId } = await loadKeepaliveState({
     github,
@@ -962,6 +1280,12 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
     trace: stateTrace,
   });
   const previousFailure = previousState?.failure || {};
+  const prBody = await fetchPrBody({ github, context, prNumber, core });
+  const focusSections = prBody ? normaliseChecklistSections(parseScopeTasksAcceptanceSections(prBody)) : {};
+  const focusItems = extractChecklistItems(focusSections.tasks || focusSections.acceptance || '');
+  const focusUnchecked = focusItems.filter((item) => !item.checked);
+  const currentFocus = normaliseTaskText(previousState?.current_focus || '');
+  const fallbackFocus = focusUnchecked[0]?.text || '';
 
   // Use the iteration from the CURRENT persisted state, not the stale value from evaluate.
   // This prevents race conditions where another run updated state between evaluate and summary.
@@ -985,12 +1309,12 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
     agentExitCode,
     agentSummary,
   });
-  const runFailed = action === 'run' && runResult && runResult !== 'success';
-  const isTransientFailure =
+  const runFailed =
     action === 'run' &&
     runResult &&
-    runResult !== 'success' &&
-    transientDetails.category === ERROR_CATEGORIES.transient;
+    !['success', 'skipped', 'cancelled'].includes(runResult);
+  const isTransientFailure =
+    runFailed && transientDetails.category === ERROR_CATEGORIES.transient;
   const waitLikeAction = action === 'wait' || action === 'defer';
   const waitIsTransientReason = [
     'gate-pending',
@@ -1018,7 +1342,16 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
       nextIteration = currentIteration + 1;
       failure = {};
     } else if (runResult) {
-      if (isTransientFailure) {
+      // If the job was skipped/cancelled, it usually means the workflow condition
+      // prevented execution (e.g. gate not ready, label missing, concurrency).
+      // Don't treat this as an agent failure.
+      if (runResult === 'skipped') {
+        failure = {};
+        summaryReason = 'agent-run-skipped';
+      } else if (runResult === 'cancelled') {
+        failure = {};
+        summaryReason = 'agent-run-cancelled';
+      } else if (isTransientFailure) {
         failure = {};
         summaryReason = 'agent-run-transient';
       } else {
@@ -1169,6 +1502,20 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
       if (agentCommitSha) {
         summaryLines.push(`| Commit | [\`${agentCommitSha.slice(0, 7)}\`](../commit/${agentCommitSha}) |`);
       }
+    } else if (runResult === 'skipped') {
+      summaryLines.push(
+        `| Result | Value |`,
+        `|--------|-------|`,
+        `| Status | ⏭️ Skipped |`,
+        `| Reason | ${summaryReason || 'agent-run-skipped'} |`,
+      );
+    } else if (runResult === 'cancelled') {
+      summaryLines.push(
+        `| Result | Value |`,
+        `|--------|-------|`,
+        `| Status | 🚫 Cancelled |`,
+        `| Reason | ${summaryReason || 'agent-run-cancelled'} |`,
+      );
     } else {
       summaryLines.push(
         `| Result | Value |`,
@@ -1225,12 +1572,60 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
                           llmProvider === 'openai' ? 'OpenAI (fallback)' :
                           llmProvider === 'regex-fallback' ? 'Regex (fallback)' : llmProvider;
     const confidencePercent = Math.round(llmConfidence * 100);
+    
     summaryLines.push(
       '',
       '### 🧠 Task Analysis',
       `| Provider | ${providerIcon} ${providerLabel} |`,
       `| Confidence | ${confidencePercent}% |`,
     );
+    
+    // Show quality metrics if available
+    if (sessionDataQuality) {
+      const qualityIcon = sessionDataQuality === 'high' ? '🟢' :
+                          sessionDataQuality === 'medium' ? '🟡' :
+                          sessionDataQuality === 'low' ? '🟠' : '🔴';
+      summaryLines.push(`| Data Quality | ${qualityIcon} ${sessionDataQuality} |`);
+    }
+    if (sessionEffortScore > 0) {
+      summaryLines.push(`| Effort Score | ${sessionEffortScore}/100 |`);
+    }
+    
+    // Show BS detection warnings if confidence was adjusted
+    if (llmConfidenceAdjusted && llmRawConfidence !== llmConfidence) {
+      const rawPercent = Math.round(llmRawConfidence * 100);
+      summaryLines.push(
+        '',
+        `> ⚠️ **Confidence adjusted**: Raw confidence was ${rawPercent}%, adjusted to ${confidencePercent}% based on session quality metrics.`
+      );
+    }
+    
+    // Show specific quality warnings if present
+    if (llmQualityWarnings) {
+      summaryLines.push(
+        '',
+        '#### Quality Warnings',
+      );
+      // Parse warnings (could be JSON array or comma-separated)
+      let warnings = [];
+      try {
+        warnings = JSON.parse(llmQualityWarnings);
+      } catch {
+        warnings = llmQualityWarnings.split(';').filter(w => w.trim());
+      }
+      for (const warning of warnings) {
+        summaryLines.push(`- ⚠️ ${warning.trim()}`);
+      }
+    }
+    
+    // Analysis data health check
+    if (analysisTextLength > 0 && analysisTextLength < 200 && agentFilesChanged > 0) {
+      summaryLines.push(
+        '',
+        `> 🔴 **Data Loss Alert**: Analysis text was only ${analysisTextLength} chars despite ${agentFilesChanged} file changes. Task detection may be inaccurate.`
+      );
+    }
+    
     if (llmProvider !== 'github-models') {
       summaryLines.push(
         '',
@@ -1282,6 +1677,27 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
     );
   }
 
+  const focusTask = currentFocus || fallbackFocus;
+  const shouldRecordAttempt = action === 'run' && reason !== 'verify-acceptance';
+  let attemptedTasks = normaliseAttemptedTasks(previousState?.attempted_tasks);
+  if (shouldRecordAttempt && focusTask) {
+    attemptedTasks = updateAttemptedTasks(attemptedTasks, focusTask, metricsIteration);
+  }
+
+  let verification = previousState?.verification && typeof previousState.verification === 'object'
+    ? { ...previousState.verification }
+    : {};
+  if (tasksUnchecked > 0) {
+    verification = {};
+  } else if (reason === 'verify-acceptance') {
+    verification = {
+      status: runResult === 'success' ? 'done' : 'failed',
+      iteration: nextIteration,
+      last_result: runResult || '',
+      updated_at: new Date().toISOString(),
+    };
+  }
+
   const newState = {
     trace: stateTrace || previousState?.trace || '',
     pr_number: prNumber,
@@ -1297,8 +1713,28 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
     failure_threshold: failureThreshold,
     // Track task reconciliation for next iteration
     needs_task_reconciliation: madeChangesButNoTasksChecked,
+    // Productivity tracking for evidence-based decisions
     last_files_changed: agentFilesChanged,
+    prev_files_changed: toNumber(previousState?.last_files_changed, 0),
+    // Quality metrics for analysis validation
+    last_effort_score: sessionEffortScore,
+    last_data_quality: sessionDataQuality,
+    attempted_tasks: attemptedTasks,
+    last_focus: focusTask || '',
+    verification,
   };
+  const attemptEntry = buildAttemptEntry({
+    iteration: metricsIteration,
+    action,
+    reason: summaryReason,
+    runResult,
+    promptMode,
+    promptFile,
+    gateConclusion,
+    errorCategory,
+    errorType,
+  });
+  newState.attempts = updateAttemptHistory(previousState?.attempts, attemptEntry);
 
   const summaryOutcome = runResult || summaryReason || action || 'unknown';
   if (action === 'run' || runResult) {
@@ -1407,6 +1843,13 @@ async function markAgentRunning({ github, context, core, inputs }) {
     prNumber,
     trace: stateTrace,
   });
+  const prBody = await fetchPrBody({ github, context, prNumber, core });
+  const focusSections = prBody ? normaliseChecklistSections(parseScopeTasksAcceptanceSections(prBody)) : {};
+  const focusItems = extractChecklistItems(focusSections.tasks || focusSections.acceptance || '');
+  const focusUnchecked = focusItems.filter((item) => !item.checked);
+  const attemptedTasks = normaliseAttemptedTasks(previousState?.attempted_tasks);
+  const attemptedKeys = new Set(attemptedTasks.map((entry) => entry.key));
+  const suggestedFocus = focusUnchecked.find((item) => !attemptedKeys.has(normaliseTaskKey(item.text))) || focusUnchecked[0];
 
   // Capitalize agent name for display
   const agentDisplayName = agentType.charAt(0).toUpperCase() + agentType.slice(1);
@@ -1449,6 +1892,10 @@ async function markAgentRunning({ github, context, core, inputs }) {
   const preservedState = previousState || {};
   preservedState.running = true;
   preservedState.running_since = new Date().toISOString();
+  if (suggestedFocus?.text) {
+    preservedState.current_focus = suggestedFocus.text;
+    preservedState.current_focus_set_at = new Date().toISOString();
+  }
   
   summaryLines.push('', formatStateComment(preservedState));
   const body = summaryLines.join('\n');
@@ -1488,6 +1935,11 @@ async function markAgentRunning({ github, context, core, inputs }) {
 async function analyzeTaskCompletion({ github, context, prNumber, baseSha, headSha, taskText, core }) {
   const matches = [];
   const log = (msg) => core?.info?.(msg) || console.log(msg);
+
+  if (!context?.repo?.owner || !context?.repo?.repo) {
+    log('Skipping task analysis: missing repo context.');
+    return { matches, summary: 'Missing repo context for task analysis' };
+  }
 
   if (!taskText || !baseSha || !headSha) {
     log('Skipping task analysis: missing task text or commit range.');
@@ -1716,6 +2168,17 @@ async function analyzeTaskCompletion({ github, context, prNumber, baseSha, headS
  */
 async function autoReconcileTasks({ github, context, prNumber, baseSha, headSha, llmCompletedTasks, core }) {
   const log = (msg) => core?.info?.(msg) || console.log(msg);
+  const sources = { llm: 0, commit: 0 };
+
+  if (!context?.repo?.owner || !context?.repo?.repo || !prNumber) {
+    log('Skipping reconciliation: missing repo context or PR number.');
+    return {
+      updated: false,
+      tasksChecked: 0,
+      details: 'Missing repo context or PR number',
+      sources,
+    };
+  }
 
   // Get current PR body
   let pr;
@@ -1736,7 +2199,7 @@ async function autoReconcileTasks({ github, context, prNumber, baseSha, headSha,
 
   if (!taskText) {
     log('Skipping reconciliation: no tasks found in PR body.');
-    return { updated: false, tasksChecked: 0, details: 'No tasks found in PR body' };
+    return { updated: false, tasksChecked: 0, details: 'No tasks found in PR body', sources };
   }
 
   // Build high-confidence matches from multiple sources
@@ -1752,6 +2215,7 @@ async function autoReconcileTasks({ github, context, prNumber, baseSha, headSha,
         confidence: 'high',
         source: 'llm',
       });
+      sources.llm += 1;
     }
   }
 
@@ -1770,6 +2234,7 @@ async function autoReconcileTasks({ github, context, prNumber, baseSha, headSha,
     log(`Commit analysis found ${commitMatches.length} additional task(s)`);
     for (const match of commitMatches) {
       highConfidence.push({ ...match, source: 'commit' });
+      sources.commit += 1;
     }
   }
   
@@ -1778,7 +2243,8 @@ async function autoReconcileTasks({ github, context, prNumber, baseSha, headSha,
     return { 
       updated: false, 
       tasksChecked: 0, 
-      details: analysis.summary + ' (no high-confidence matches for auto-check)'
+      details: analysis.summary + ' (no high-confidence matches for auto-check)',
+      sources,
     };
   }
 
@@ -1803,7 +2269,8 @@ async function autoReconcileTasks({ github, context, prNumber, baseSha, headSha,
     return { 
       updated: false, 
       tasksChecked: 0, 
-      details: 'Tasks matched but patterns not found in body' 
+      details: 'Tasks matched but patterns not found in body',
+      sources,
     };
   }
 
@@ -1822,25 +2289,21 @@ async function autoReconcileTasks({ github, context, prNumber, baseSha, headSha,
       updated: false, 
       tasksChecked: 0, 
       details: `Failed to update PR: ${error.message}`,
-      sources: { llm: 0, commit: 0 },
+      sources,
     };
   }
 
-  // Count matches by source for reporting
-  const llmCount = highConfidence.filter(m => m.source === 'llm').length;
-  const commitCount = highConfidence.filter(m => m.source === 'commit').length;
-  
   // Build detailed description
   const sourceDesc = [];
-  if (llmCount > 0) sourceDesc.push(`${llmCount} from LLM analysis`);
-  if (commitCount > 0) sourceDesc.push(`${commitCount} from commit analysis`);
+  if (sources.llm > 0) sourceDesc.push(`${sources.llm} from LLM analysis`);
+  if (sources.commit > 0) sourceDesc.push(`${sources.commit} from commit analysis`);
   const sourceInfo = sourceDesc.length > 0 ? ` (${sourceDesc.join(', ')})` : '';
 
   return {
     updated: true,
     tasksChecked: checkedCount,
     details: `Auto-checked ${checkedCount} task(s)${sourceInfo}: ${highConfidence.map(m => m.task.slice(0, 30) + '...').join(', ')}`,
-    sources: { llm: llmCount, commit: commitCount },
+    sources,
   };
 }
 

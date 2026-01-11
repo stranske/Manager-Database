@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 
 from prefect import flow, task
@@ -8,32 +9,53 @@ from prefect.schedules import Cron
 
 from adapters.base import connect_db
 from diff_holdings import diff_holdings
+from etl.logging_setup import configure_logging, log_outcome
+
+configure_logging("daily_diff_flow")
+logger = logging.getLogger(__name__)
 
 
 @task
 def compute(cik: str, date: str, db_path: str) -> None:
-    additions, exits = diff_holdings(cik, db_path)
-    conn = connect_db(db_path)
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS daily_diff (
-            date TEXT,
-            cik TEXT,
-            cusip TEXT,
-            change TEXT
-        )"""
-    )
-    for cusip in additions:
+    try:
+        additions, exits = diff_holdings(cik, db_path)
+        conn = connect_db(db_path)
         conn.execute(
-            "INSERT INTO daily_diff VALUES (?,?,?,?)",
-            (date, cik, cusip, "ADD"),
+            """CREATE TABLE IF NOT EXISTS daily_diff (
+                date TEXT,
+                cik TEXT,
+                cusip TEXT,
+                change TEXT
+            )"""
         )
-    for cusip in exits:
-        conn.execute(
-            "INSERT INTO daily_diff VALUES (?,?,?,?)",
-            (date, cik, cusip, "EXIT"),
+        for cusip in additions:
+            conn.execute(
+                "INSERT INTO daily_diff VALUES (?,?,?,?)",
+                (date, cik, cusip, "ADD"),
+            )
+        for cusip in exits:
+            conn.execute(
+                "INSERT INTO daily_diff VALUES (?,?,?,?)",
+                (date, cik, cusip, "EXIT"),
+            )
+        conn.commit()
+        conn.close()
+        total_changes = len(additions) + len(exits)
+        log_outcome(
+            logger,
+            "Daily diff computed",
+            has_data=total_changes > 0,
+            extra={
+                "cik": cik,
+                "date": date,
+                "additions": len(additions),
+                "exits": len(exits),
+                "changes": total_changes,
+            },
         )
-    conn.commit()
-    conn.close()
+    except Exception:
+        logger.exception("Daily diff failed", extra={"cik": cik, "date": date})
+        raise
 
 
 @flow
@@ -45,6 +67,7 @@ def daily_diff_flow(cik_list: list[str] | None = None, date: str | None = None):
     date = date or str(dt.date.today() - dt.timedelta(days=1))
     for cik in cik_list:
         compute(cik, date, db_path)
+    logger.info("Daily diff flow finished", extra={"date": date, "ciks": len(cik_list)})
 
 
 if __name__ == "__main__":
