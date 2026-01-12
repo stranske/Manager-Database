@@ -16,3 +16,4 @@ verifier-context.md
 # - Workflow artifacts (full outputs)
 # - Commit messages (change descriptions)
 autofix_report_enriched.json
+scripts/langchain/
