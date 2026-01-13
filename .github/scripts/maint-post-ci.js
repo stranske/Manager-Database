@@ -347,10 +347,7 @@ async function resolveAutofixContext({ github, context, core }) {
     `Resolved PR #${result.pr} (${resolvedHeadRef} @ ${resolvedHeadSha}) for Gate run ${gateRunId}.`,
   );
 
-  const failureTrackerSkipPrsEnv = process.env.FAILURE_TRACKER_SKIP_PRS || "";
-  const failureTrackerSkipPrs = new Set(
-    failureTrackerSkipPrsEnv.split(",").map(s => s.trim()).filter(s => s).map(Number).filter(n => Number.isInteger(n))
-  );
+  const failureTrackerSkipPrs = new Set([10, 12]);
   if (failureTrackerSkipPrs.has(prNumber)) {
     core.info(`PR #${prNumber} flagged to skip failure tracker updates (legacy duplicate).`);
     result.failure_tracker_skip = 'true';
@@ -655,6 +652,7 @@ async function updateFailureTracker({ github, context, core }) {
 
   const signatureParts = failedJobs.map(job => `${job.name} (${job.conclusion || job.status || 'unknown'})`);
   const title = `${slugify(run.name || run.display_title || 'Gate')} failure: ${signatureParts.join(', ')}`;
+  const descriptionLines = [
     `Workflow: ${run.name || run.display_title || 'Gate'}`,
     `Run ID: ${runId}`,
     `Run URL: ${run.html_url || ''}`,
