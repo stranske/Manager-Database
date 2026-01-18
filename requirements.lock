@@ -35,7 +35,7 @@ beartype==0.22.9
     #   py-key-value-shared
 beautifulsoup4==4.14.3
     # via manager-database (pyproject.toml)
-black==25.12.0
+black==26.1.0
     # via manager-database (pyproject.toml)
 blinker==1.9.0
     # via streamlit
