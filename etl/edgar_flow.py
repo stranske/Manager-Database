@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 async def fetch_and_store(cik: str, since: str):
     filings = await ADAPTER.list_new_filings(cik, since)
     conn = connect_db(DB_PATH)
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS holdings (
             cik TEXT,
             accession TEXT,
@@ -48,7 +49,8 @@ async def fetch_and_store(cik: str, since: str):
             value INTEGER,
             sshPrnamt INTEGER
         )
-        """)
+        """
+    )
     results = []
     for filing in filings:
         raw = await ADAPTER.download(filing)
