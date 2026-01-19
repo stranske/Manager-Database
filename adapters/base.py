@@ -79,7 +79,8 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
         status = getattr(resp, "status_code", 0)
         size = len(getattr(resp, "content", b""))
         conn = connect_db(db_path)
-        conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS api_usage (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 source TEXT,
@@ -88,7 +89,8 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
                 bytes INT,
                 latency_ms INT,
                 cost_usd REAL
-            )""")
+            )"""
+        )
         if isinstance(conn, sqlite3.Connection):
             conn.execute(
                 "CREATE VIEW IF NOT EXISTS monthly_usage AS "
