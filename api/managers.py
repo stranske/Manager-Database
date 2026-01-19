@@ -88,19 +88,23 @@ def _ensure_manager_table(conn) -> None:
     """Create the managers table if it does not exist."""
     # Use dialect-specific schema to keep SQLite and Postgres aligned.
     if isinstance(conn, sqlite3.Connection):
-        conn.execute("""CREATE TABLE IF NOT EXISTS managers (
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS managers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 email TEXT NOT NULL,
                 department TEXT NOT NULL
-            )""")
+            )"""
+        )
     else:
-        conn.execute("""CREATE TABLE IF NOT EXISTS managers (
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS managers (
                 id bigserial PRIMARY KEY,
                 name text NOT NULL,
                 email text NOT NULL,
                 department text NOT NULL
-            )""")
+            )"""
+        )
 
 
 def _insert_manager(conn, payload: ManagerCreate) -> int:
@@ -111,7 +115,11 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
             (payload.name, payload.email, payload.department),
         )
         conn.commit()
-        return int(cursor.lastrowid)
+        return (
+            int(cursor.lastrowid)
+            if cursor.lastrowid is not None
+            else 0 if cursor.lastrowid is not None else 0
+        )
     cursor = conn.execute(
         "INSERT INTO managers(name, email, department) VALUES (%s, %s, %s) RETURNING id",
         (payload.name, payload.email, payload.department),

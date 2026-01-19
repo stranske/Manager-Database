@@ -96,12 +96,7 @@ def chat(
     q: str = Query(
         ...,
         description="User question",
-        examples={
-            "basic": {
-                "summary": "Holdings question",
-                "value": "What is the latest holdings update?",
-            }
-        },
+        examples=["What is the latest holdings update?"],
     )
 ):
     """Return a naive answer built from stored documents."""

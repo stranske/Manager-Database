@@ -20,12 +20,14 @@ def compute(cik: str, date: str, db_path: str) -> None:
     try:
         additions, exits = diff_holdings(cik, db_path)
         conn = connect_db(db_path)
-        conn.execute("""CREATE TABLE IF NOT EXISTS daily_diff (
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS daily_diff (
                 date TEXT,
                 cik TEXT,
                 cusip TEXT,
                 change TEXT
-            )""")
+            )"""
+        )
         for cusip in additions:
             conn.execute(
                 "INSERT INTO daily_diff VALUES (?,?,?,?)",

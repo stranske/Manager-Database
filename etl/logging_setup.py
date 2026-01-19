@@ -10,9 +10,11 @@ from typing import Any
 import boto3
 
 try:  # pragma: no cover - optional dependency for structured logs
-    from pythonjsonlogger import jsonlogger
+    from pythonjsonlogger import jsonlogger as _jsonlogger
 except ImportError:  # pragma: no cover
-    jsonlogger = None
+    _jsonlogger = None  # type: ignore[assignment]
+
+jsonlogger = _jsonlogger
 
 _LOGGING_CONFIGURED = False
 

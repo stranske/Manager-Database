@@ -45,6 +45,10 @@ async def _request_with_retry(
                 extra={"url": url, "attempt": attempt, "max_retries": max_retries},
             )
             await asyncio.sleep(wait)
+    # Unreachable but satisfies type checker
+    raise RuntimeError("Unreachable")  # pragma: no cover
+    # Unreachable but satisfies type checker
+    raise RuntimeError("Unreachable")  # pragma: no cover
 
 
 async def list_new_filings(cik: str, since: str) -> list[dict[str, str]]:
