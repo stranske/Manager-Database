@@ -21,6 +21,8 @@ apprise==1.9.6
     # via prefect
 asgi-lifespan==2.1.0
     # via prefect
+async-timeout==5.0.1 ; python_full_version < '3.11.3'
+    # via redis
 asyncpg==0.31.0
     # via prefect
 attrs==25.4.0
@@ -35,7 +37,7 @@ beartype==0.22.9
     #   py-key-value-shared
 beautifulsoup4==4.14.3
     # via manager-database (pyproject.toml)
-black==25.12.0
+black==26.1.0
     # via manager-database (pyproject.toml)
 blinker==1.9.0
     # via streamlit
@@ -242,7 +244,7 @@ pandas==2.3.3
     # via
     #   manager-database (pyproject.toml)
     #   streamlit
-pathspec==0.12.1
+pathspec==1.0.3
     # via
     #   black
     #   mypy
@@ -328,7 +330,9 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
     # via pydantic-settings
 python-json-logger==4.0.0
-    # via pydocket
+    # via
+    #   manager-database (pyproject.toml)
+    #   pydocket
 python-slugify==8.0.4
     # via prefect
 pytokens==0.3.0
@@ -426,6 +430,8 @@ toml==0.10.2
     # via
     #   prefect
     #   streamlit
+tomli==2.4.0 ; python_full_version <= '3.11'
+    # via coverage
 tornado==6.5.4
     # via streamlit
 typer==0.20.1
