@@ -13,7 +13,7 @@ _METRIC_THRESHOLD_PATTERN = re.compile(
     r"health_check_duration_seconds[^<>]*?(>=|<=|>|<)\s*([0-9]+(?:\.[0-9]+)?)",
     re.DOTALL,
 )
-_ENDPOINT_LABEL_PATTERN = re.compile(r'endpoint="(/?health)"')
+_ENDPOINT_LABEL_PATTERN = re.compile(r'endpoint\s*=~?\s*"(/?health)"')
 
 
 def _iter_rules(config: dict) -> list[dict]:
