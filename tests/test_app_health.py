@@ -184,6 +184,30 @@ async def test_health_app_timeout_budget_caps_total_time(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_health_app_wait_timeout_respects_budget(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.05")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setattr(chat, "_ping_db", lambda _timeout_seconds: None)
+    monkeypatch.setattr(chat, "_ping_minio", lambda _timeout_seconds: None)
+    monkeypatch.setattr(chat, "_ping_redis", lambda _redis_url, _timeout_seconds: None)
+
+    captured = {}
+    original_wait = chat.asyncio.wait
+
+    async def _capture_wait(*args, **kwargs):
+        # Capture the timeout passed to asyncio.wait without changing behavior.
+        captured["timeout"] = kwargs.get("timeout")
+        return await original_wait(*args, **kwargs)
+
+    monkeypatch.setattr(chat.asyncio, "wait", _capture_wait)
+    resp = await health_app()
+    _shutdown_health_executor()
+    assert resp.status_code == 200
+    assert captured["timeout"] == pytest.approx(0.1)
+
+
+@pytest.mark.asyncio
 async def test_health_app_circuit_breaker_opens_after_summary_timeouts(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.05")
