@@ -34,9 +34,7 @@ def validate_health_alerts(config_path: Path) -> None:
         thresholds = [float(match) for match in _THRESHOLD_PATTERN.findall(expr)]
         if any(value >= 0.5 for value in thresholds):
             return
-    raise AssertionError(
-        "Missing warning alert for /health with threshold greater than 500ms."
-    )
+    raise AssertionError("Missing warning alert for /health with threshold greater than 500ms.")
 
 
 def main(argv: list[str] | None = None) -> int:
