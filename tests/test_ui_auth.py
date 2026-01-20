@@ -11,12 +11,16 @@ class FakeStreamlit:
         self.session_state = session_state or {}
         self.success_messages = []
         self.error_messages = []
+        self.warning_messages = []
 
     def success(self, message: str) -> None:
         self.success_messages.append(message)
 
     def error(self, message: str) -> None:
         self.error_messages.append(message)
+
+    def warning(self, message: str) -> None:
+        self.warning_messages.append(message)
 
 
 class FakeHasher:
@@ -69,6 +73,8 @@ def test_require_login_sets_session_on_success(monkeypatch):
     ui = _load_ui_module()
     fake_st = FakeStreamlit()
     authenticator = FakeAuthenticator(auth_status=True, name="Avery")
+    monkeypatch.setenv("UI_USERNAME", "analyst")
+    monkeypatch.setenv("UI_PASSWORD", "pass")
     monkeypatch.setattr(ui, "st", fake_st)
     monkeypatch.setattr(
         ui,
@@ -89,6 +95,8 @@ def test_require_login_handles_invalid_credentials(monkeypatch):
     ui = _load_ui_module()
     fake_st = FakeStreamlit()
     authenticator = FakeAuthenticator(auth_status=False)
+    monkeypatch.setenv("UI_USERNAME", "analyst")
+    monkeypatch.setenv("UI_PASSWORD", "pass")
     monkeypatch.setattr(ui, "st", fake_st)
     monkeypatch.setattr(
         ui,
@@ -101,3 +109,17 @@ def test_require_login_handles_invalid_credentials(monkeypatch):
 
     assert ui.require_login() is False
     assert fake_st.error_messages == ["Invalid credentials"]
+
+
+def test_require_login_skips_auth_when_credentials_missing(monkeypatch):
+    ui = _load_ui_module()
+    fake_st = FakeStreamlit()
+    monkeypatch.delenv("UI_USERNAME", raising=False)
+    monkeypatch.delenv("UI_PASSWORD", raising=False)
+    monkeypatch.setattr(ui, "st", fake_st)
+
+    assert ui.require_login() is True
+    assert fake_st.session_state["auth"] is True
+    assert fake_st.warning_messages == [
+        "UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode."
+    ]

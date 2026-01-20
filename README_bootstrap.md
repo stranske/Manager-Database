@@ -5,7 +5,9 @@ This repo provides a minimal stack to begin experimenting with the Manager-Intel
 ## Quick start
 
 1. Copy `.env.example` to `.env` and adjust passwords as needed. The file now
-   includes a `DB_URL` pointing at the bundled Postgres container.
+   includes a `DB_URL` pointing at the bundled Postgres container. Set
+   `UI_USERNAME` and `UI_PASSWORD` to enable Streamlit UI authentication (if
+   unset, the UI runs without authentication for local development).
 2. Run `docker compose up -d` to start Postgres, MinIO and a placeholder ETL container.
 3. Run `pytest -q` to verify the environment.
 
