@@ -133,6 +133,18 @@ def test_manager_list_returns_paginated_results(tmp_path, monkeypatch):
     assert names == ["Ada Lovelace", "Mary Jackson"]
 
 
+def test_manager_list_defaults_return_empty_page(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(_get_managers())
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["items"] == []
+    assert body["total"] == 0
+    assert body["limit"] == 25
+    assert body["offset"] == 0
+
+
 def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
