@@ -182,6 +182,34 @@ async def test_circuit_breaker_opens_after_three_failures(monkeypatch):
     _shutdown_health_executor()
 
 
+@pytest.mark.asyncio
+async def test_health_app_reports_circuit_breaker_open(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=60.0)
+    )
+
+    def _raise_minio(_timeout_seconds):
+        raise RuntimeError("minio down")
+
+    monkeypatch.setattr(chat, "_ping_minio", _raise_minio)
+    resp = await health_app()
+    payload = json.loads(resp.body)
+    assert resp.status_code == 503
+    assert payload["failed_checks"]["minio"] == "minio down"
+
+    def _unexpected_minio(_timeout_seconds):
+        raise AssertionError("minio should not be called when circuit is open")
+
+    monkeypatch.setattr(chat, "_ping_minio", _unexpected_minio)
+    resp = await health_app()
+    _shutdown_health_executor()
+    payload = json.loads(resp.body)
+    assert resp.status_code == 503
+    assert payload["failed_checks"]["minio"] == "circuit_open"
+    assert payload["components"]["minio"]["circuit_open"] is True
+
+
 # Commit-message checklist:
 # - [ ] type is accurate (feat, fix, test)
 # - [ ] scope is clear (health)
