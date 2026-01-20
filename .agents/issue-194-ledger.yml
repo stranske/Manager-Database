@@ -5,10 +5,10 @@ branch: codex/issue-194
 tasks:
   - id: task-01
     title: Create a basic /health endpoint returning HTTP 200 when healthy.
-    status: doing
+    status: done
     started_at: '2026-01-20T02:16:50Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-20T02:16:58Z'
+    commit: 5049c925a176ee4caffdcab3f3e3cd2aa6f9a4fe
     notes: []
   - id: task-02
     title: Implement a detailed /health/detailed endpoint checking database connectivity.
