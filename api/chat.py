@@ -265,6 +265,58 @@ async def _run_dependency_check(
         return payload, _format_dependency_error(exc)
 
 
+async def _run_health_summary_checks(
+    timeout_budget: float,
+    db_timeout_seconds: float,
+    minio_timeout_seconds: float,
+    redis_timeout_seconds: float,
+    redis_url: str | None,
+) -> dict[str, tuple[dict[str, int | bool], str | None]]:
+    """Run summary dependency checks with an overall time budget."""
+    tasks = {
+        "database": asyncio.create_task(
+            _run_dependency_check(_ping_db, db_timeout_seconds, db_timeout_seconds)
+        ),
+        "minio": asyncio.create_task(
+            _run_dependency_check(
+                _ping_minio,
+                minio_timeout_seconds,
+                minio_timeout_seconds,
+                circuit_breaker=_MINIO_CIRCUIT,
+            )
+        ),
+        "redis": asyncio.create_task(
+            _run_dependency_check(
+                _ping_redis,
+                redis_timeout_seconds,
+                redis_url,
+                redis_timeout_seconds,
+                circuit_breaker=_REDIS_CIRCUIT,
+                enabled=bool(redis_url),
+                include_enabled=True,
+            )
+        ),
+    }
+    start = time.perf_counter()
+    overall_timeout = min(timeout_budget + 0.05, 0.2)
+    done, pending = await asyncio.wait(tasks.values(), timeout=overall_timeout)
+    elapsed_ms = int(min(overall_timeout, time.perf_counter() - start) * 1000)
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+    results: dict[str, tuple[dict[str, int | bool], str | None]] = {}
+    for name, task in tasks.items():
+        if task in done:
+            results[name] = task.result()
+        else:
+            payload = {"healthy": False, "latency_ms": elapsed_ms}
+            if name == "redis":
+                payload["enabled"] = bool(redis_url)
+            results[name] = (payload, "timeout")
+    return results
+
+
 @app.get("/health")
 async def health_app():
     """Return application health and dependency status."""
@@ -276,25 +328,16 @@ async def health_app():
         minio_timeout_seconds = min(_minio_timeout_seconds(), timeout_budget)
         redis_timeout_seconds = min(_redis_timeout_seconds(), timeout_budget)
         redis_url = os.getenv("REDIS_URL")
-        db_task = _run_dependency_check(_ping_db, db_timeout_seconds, db_timeout_seconds)
-        minio_task = _run_dependency_check(
-            _ping_minio,
+        results = await _run_health_summary_checks(
+            timeout_budget,
+            db_timeout_seconds,
             minio_timeout_seconds,
-            minio_timeout_seconds,
-            circuit_breaker=_MINIO_CIRCUIT,
-        )
-        redis_task = _run_dependency_check(
-            _ping_redis,
             redis_timeout_seconds,
             redis_url,
-            redis_timeout_seconds,
-            circuit_breaker=_REDIS_CIRCUIT,
-            enabled=bool(redis_url),
-            include_enabled=True,
         )
-        (db_payload, db_reason), (minio_payload, minio_reason), (redis_payload, redis_reason) = (
-            await asyncio.gather(db_task, minio_task, redis_task)
-        )
+        db_payload, db_reason = results["database"]
+        minio_payload, minio_reason = results["minio"]
+        redis_payload, redis_reason = results["redis"]
         components = {
             "app": {"healthy": app_payload["healthy"], "uptime_s": app_payload["uptime_s"]},
             "database": db_payload,

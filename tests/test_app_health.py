@@ -115,6 +115,36 @@ async def test_health_app_parallel_dependency_checks(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_health_app_timeout_budget_caps_total_time(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.05")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+
+    def _slow_db(_timeout_seconds):
+        time.sleep(0.2)
+
+    def _slow_minio(_timeout_seconds):
+        time.sleep(0.2)
+
+    def _slow_redis(_redis_url, _timeout_seconds):
+        time.sleep(0.2)
+
+    monkeypatch.setattr(chat, "_ping_db", _slow_db)
+    monkeypatch.setattr(chat, "_ping_minio", _slow_minio)
+    monkeypatch.setattr(chat, "_ping_redis", _slow_redis)
+    start = time.perf_counter()
+    resp = await health_app()
+    _shutdown_health_executor()
+    elapsed = time.perf_counter() - start
+    payload = json.loads(resp.body)
+    assert resp.status_code == 503
+    assert elapsed < 0.2
+    assert payload["failed_checks"]["database"] == "timeout"
+    assert payload["failed_checks"]["minio"] == "timeout"
+    assert payload["failed_checks"]["redis"] == "timeout"
+
+
+@pytest.mark.asyncio
 async def test_circuit_breaker_opens_after_three_failures(monkeypatch):
     monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
 
