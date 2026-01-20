@@ -250,6 +250,24 @@ async def test_circuit_breaker_opens_after_three_timeouts(monkeypatch):
     _shutdown_health_executor()
 
 
+def test_circuit_breaker_resets_after_timeout(monkeypatch):
+    clock = {"now": 0.0}
+
+    def _fake_monotonic():
+        return clock["now"]
+
+    monkeypatch.setattr(chat.time, "monotonic", _fake_monotonic)
+    circuit = chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=10.0)
+    circuit.record_failure()
+    assert circuit.is_open() is True
+
+    clock["now"] = 10.5
+    assert circuit.is_open() is False
+
+    circuit.record_failure()
+    assert circuit.is_open() is True
+
+
 @pytest.mark.asyncio
 async def test_health_app_reports_circuit_breaker_open(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
