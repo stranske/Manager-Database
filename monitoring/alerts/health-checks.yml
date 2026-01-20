@@ -1,0 +1,17 @@
+groups:
+  - name: health-checks
+    rules:
+      - alert: HealthCheckLatencyWarning
+        expr: >
+          histogram_quantile(
+            0.95,
+            sum(rate(health_check_duration_seconds_bucket{endpoint="health"}[5m])) by (le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Health check latency above 500ms
+          description: >
+            95th percentile /health latency exceeded 500ms for 5 minutes
+            (current value: {{ $value }}s).
