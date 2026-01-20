@@ -25,6 +25,20 @@ def _shutdown_health_executor():
     chat._HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
 
 
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def perf_counter(self) -> float:
+        return self.now
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
 @pytest.mark.asyncio
 async def test_health_app_ok(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
@@ -80,6 +94,31 @@ async def test_health_app_responds_within_budget(tmp_path, monkeypatch, budget_s
     resp = await health_app()
     _shutdown_health_executor()
     elapsed = time.perf_counter() - start
+    assert resp.status_code == 200
+    assert elapsed < 0.2
+
+
+@pytest.mark.asyncio
+async def test_health_app_performance_with_mocked_timing(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    fake_clock = _FakeClock()
+
+    async def _fast_checks(*_args, **_kwargs):
+        fake_clock.advance(0.15)
+        return {
+            "database": ({"healthy": True, "latency_ms": 10}, None),
+            "minio": ({"healthy": True, "latency_ms": 12}, None),
+            "redis": ({"healthy": True, "latency_ms": 8, "enabled": False}, None),
+        }
+
+    monkeypatch.setattr(chat, "_run_health_summary_checks", _fast_checks)
+    monkeypatch.setattr(chat.time, "perf_counter", fake_clock.perf_counter)
+    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+
+    start = chat.time.perf_counter()
+    resp = await health_app()
+    _shutdown_health_executor()
+    elapsed = chat.time.perf_counter() - start
     assert resp.status_code == 200
     assert elapsed < 0.2
 
@@ -264,6 +303,24 @@ def test_circuit_breaker_resets_after_timeout(monkeypatch):
     clock["now"] = 10.5
     assert circuit.is_open() is False
 
+    circuit.record_failure()
+    assert circuit.is_open() is True
+
+
+def test_circuit_breaker_allows_calls_after_reset(monkeypatch):
+    fake_clock = _FakeClock()
+    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+    circuit = chat.CircuitBreaker(failure_threshold=2, reset_timeout_s=5.0)
+
+    circuit.record_failure()
+    circuit.record_failure()
+    assert circuit.is_open() is True
+
+    fake_clock.advance(6.0)
+    assert circuit.is_open() is False
+
+    circuit.record_failure()
+    assert circuit.is_open() is False
     circuit.record_failure()
     assert circuit.is_open() is True
 
