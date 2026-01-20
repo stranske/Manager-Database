@@ -9,10 +9,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import boto3
+from botocore.config import Config as BotoConfig
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from botocore.config import Config as BotoConfig
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
