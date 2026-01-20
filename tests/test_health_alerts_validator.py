@@ -6,8 +6,11 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 import pytest
 import yaml
 
-from scripts.validate_health_alerts import _ENDPOINT_LABEL_PATTERN, _METRIC_THRESHOLD_PATTERN
-from scripts.validate_health_alerts import validate_health_alerts
+from scripts.validate_health_alerts import (
+    _ENDPOINT_LABEL_PATTERN,
+    _METRIC_THRESHOLD_PATTERN,
+    validate_health_alerts,
+)
 
 
 def test_health_alert_warning_threshold_present():
