@@ -79,6 +79,7 @@ class HealthDetailedResponse(BaseModel):
                         "app": {"healthy": True, "uptime_s": 3600},
                         "database": {"healthy": True, "latency_ms": 42},
                         "minio": {"healthy": True, "latency_ms": 58},
+                        "redis": {"healthy": True, "latency_ms": 12, "enabled": True},
                     },
                 }
             ]
@@ -219,6 +220,20 @@ def _minio_client(timeout_seconds: float):
     )
 
 
+def _redis_timeout_seconds() -> float:
+    """Return the Redis health timeout in seconds."""
+    return min(float(os.getenv("REDIS_HEALTH_TIMEOUT_S", "2")), 5.0)
+
+
+def _ping_redis(redis_url: str, timeout_seconds: float) -> None:
+    """Run a lightweight Redis ping to verify cache connectivity."""
+    # Import lazily so Redis remains optional outside of cache deployments.
+    import redis
+
+    client = redis.Redis.from_url(redis_url, socket_timeout=timeout_seconds)
+    client.ping()
+
+
 def _ping_minio(timeout_seconds: float) -> None:
     """Run a lightweight MinIO API call to verify connectivity."""
     client = _minio_client(timeout_seconds)
@@ -334,6 +349,40 @@ async def health_detailed():
     except Exception:
         minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
         minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        redis_start = time.perf_counter()
+        redis_timeout_seconds = _redis_timeout_seconds()
+        try:
+            await asyncio.wait_for(
+                asyncio.get_running_loop().run_in_executor(
+                    get_health_executor(), _ping_redis, redis_url, redis_timeout_seconds
+                ),
+                timeout=redis_timeout_seconds,
+            )
+            redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+            redis_payload = {
+                "healthy": True,
+                "latency_ms": redis_latency_ms,
+                "enabled": True,
+            }
+        except TimeoutError:
+            redis_latency_ms = int(redis_timeout_seconds * 1000)
+            redis_payload = {
+                "healthy": False,
+                "latency_ms": redis_latency_ms,
+                "enabled": True,
+            }
+        except Exception:
+            redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+            redis_payload = {
+                "healthy": False,
+                "latency_ms": redis_latency_ms,
+                "enabled": True,
+            }
+    else:
+        # Skip cache probes when Redis isn't configured in this environment.
+        redis_payload = {"healthy": True, "latency_ms": 0, "enabled": False}
     components = {
         "app": {"healthy": app_payload["healthy"], "uptime_s": app_payload["uptime_s"]},
         "database": {
@@ -341,8 +390,15 @@ async def health_detailed():
             "latency_ms": db_payload["latency_ms"],
         },
         "minio": minio_payload,
+        "redis": redis_payload,
     }
-    healthy = app_payload["healthy"] and db_payload["healthy"] and minio_payload["healthy"]
+    redis_healthy = redis_payload["healthy"] if redis_payload["enabled"] else True
+    healthy = (
+        app_payload["healthy"]
+        and db_payload["healthy"]
+        and minio_payload["healthy"]
+        and redis_healthy
+    )
     payload = {
         "healthy": healthy,
         "uptime_s": app_payload["uptime_s"],
