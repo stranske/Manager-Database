@@ -1,0 +1,154 @@
+version: 1
+issue: 133
+base: main
+branch: codex/issue-133
+tasks:
+  - id: task-01
+    title: Add `GET /managers` endpoint to list all managers in `api/chat.py`
+    status: doing
+    started_at: '2026-01-20T01:00:33Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: Add `GET /managers/{id}` endpoint to retrieve a single manager by ID in
+      `api/chat.py`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Implement pagination support with `limit` and `offset` query parameters
+      in `api/chat.py`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: Add Pydantic response models for the new endpoints in `api/chat.py`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: Write unit tests for `GET /managers` endpoint in `tests/`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: Write unit tests for `GET /managers/{id}` endpoint in `tests/`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: Add `GET /managers` endpoint to list all managers
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Add `GET /managers/{id}` endpoint to retrieve a single manager by ID
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Implement pagination support with `limit` and `offset` query parameters
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Add Pydantic response models for the new endpoints
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Write unit tests for both new endpoints
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: '`GET /managers` returns a list of all managers with pagination metadata'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: '`GET /managers/{id}` returns the manager or 404 if not found'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: Pagination works correctly with `?limit=10&offset=0` query params
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: All new endpoints have test coverage
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: OpenAPI docs at `/docs` show the new endpoints
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: '`GET /managers` returns a list of all managers with pagination metadata'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: '`GET /managers/{id}` returns the manager or 404 if not found'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: Pagination works correctly with `?limit=10&offset=0` query params
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: All new endpoints have test coverage
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: OpenAPI docs at `/docs` show the new endpoints
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
