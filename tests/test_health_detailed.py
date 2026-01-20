@@ -3,6 +3,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from api import chat
@@ -11,6 +13,14 @@ from api import chat
 def _payload_from_response(response):
     # Decode JSONResponse bodies without spinning up an ASGI client.
     return json.loads(response.body)
+
+
+@pytest.fixture(autouse=True)
+def _fast_health_timeouts(monkeypatch):
+    # Keep health checks fast in tests without changing production defaults.
+    monkeypatch.setenv("DB_HEALTH_TIMEOUT_S", "0.1")
+    monkeypatch.setenv("MINIO_HEALTH_TIMEOUT_S", "0.1")
+    monkeypatch.setenv("REDIS_HEALTH_TIMEOUT_S", "0.1")
 
 
 def test_health_detailed_ok(tmp_path, monkeypatch):
@@ -63,6 +73,42 @@ def test_health_detailed_minio_unreachable(tmp_path, monkeypatch):
     payload = _payload_from_response(resp)
     assert payload["healthy"] is False
     assert payload["components"]["minio"]["healthy"] is False
+
+
+def test_health_detailed_minio_retries_with_backoff(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("MINIO_HEALTH_TIMEOUT_S", "1")
+    monkeypatch.setattr(
+        chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
+    )
+    async def _healthy_db():
+        return chat.JSONResponse(status_code=200, content={"healthy": True, "latency_ms": 0})
+
+    monkeypatch.setattr(chat, "health_db", _healthy_db)
+
+    calls = []
+
+    def _flaky_minio(_timeout_seconds):
+        calls.append("call")
+        if len(calls) < 4:
+            raise RuntimeError("minio flaky")
+
+    sleep_calls = []
+
+    def _fake_sleep(duration):
+        sleep_calls.append(duration)
+
+    monkeypatch.setattr(chat, "_ping_minio", _flaky_minio)
+    monkeypatch.setattr(chat.time, "sleep", _fake_sleep)
+    resp = asyncio.run(chat.health_detailed())
+    payload = _payload_from_response(resp)
+    assert resp.status_code == 200
+    assert payload["components"]["minio"]["healthy"] is True
+    assert calls == ["call", "call", "call", "call"]
+    assert sleep_calls == [0.1, 0.2, 0.4]
 
 
 def test_health_detailed_redis_unreachable(tmp_path, monkeypatch):

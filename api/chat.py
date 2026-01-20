@@ -78,6 +78,7 @@ def _circuit_breaker_reset_seconds() -> float:
 
 _MINIO_CIRCUIT = CircuitBreaker(reset_timeout_s=_circuit_breaker_reset_seconds())
 _REDIS_CIRCUIT = CircuitBreaker(reset_timeout_s=_circuit_breaker_reset_seconds())
+_HEALTH_RETRY_BACKOFFS = (0.1, 0.2, 0.4)
 
 
 # Keep APP_EXECUTOR for backwards compatibility
@@ -286,6 +287,30 @@ def _ping_minio(timeout_seconds: float) -> None:
     client.list_buckets()
 
 
+async def _run_health_check_with_retries(
+    func, timeout_seconds: float, *args
+) -> None:
+    """Run a health check with exponential backoff for flaky dependencies."""
+    def _run_with_retries_sync() -> None:
+        deadline = time.perf_counter() + timeout_seconds
+        for attempt, backoff in enumerate(_HEALTH_RETRY_BACKOFFS):
+            try:
+                func(*args)
+                return
+            except Exception:
+                if time.perf_counter() + backoff >= deadline:
+                    raise
+                time.sleep(backoff)
+        func(*args)
+
+    await asyncio.wait_for(
+        asyncio.get_running_loop().run_in_executor(
+            get_health_executor(), _run_with_retries_sync
+        ),
+        timeout=timeout_seconds,
+    )
+
+
 @app.get(
     "/health/db",
     response_model=HealthDbResponse,
@@ -316,18 +341,13 @@ async def health_db():
     timeout_seconds = _db_timeout_seconds()
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
-        await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(
-                get_health_executor(), _ping_db, timeout_seconds
-            ),
-            timeout=timeout_seconds,
-        )
+        await _run_health_check_with_retries(_ping_db, timeout_seconds, timeout_seconds)
         latency_ms = int((time.perf_counter() - start) * 1000)
         payload = {"healthy": True, "latency_ms": latency_ms}
         return JSONResponse(status_code=200, content=payload)
     except TimeoutError:
         # Fail fast to keep the endpoint under the timeout budget.
-        latency_ms = int(timeout_seconds * 1000)
+        latency_ms = int(min(timeout_seconds, time.perf_counter() - start) * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}
         return JSONResponse(status_code=503, content=payload)
     except Exception:
@@ -384,11 +404,8 @@ async def health_detailed():
         minio_start = time.perf_counter()
         minio_timeout_seconds = _minio_timeout_seconds()
         try:
-            await asyncio.wait_for(
-                asyncio.get_running_loop().run_in_executor(
-                    get_health_executor(), _ping_minio, minio_timeout_seconds
-                ),
-                timeout=minio_timeout_seconds,
+            await _run_health_check_with_retries(
+                _ping_minio, minio_timeout_seconds, minio_timeout_seconds
             )
             minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
             _MINIO_CIRCUIT.record_success()
@@ -414,14 +431,8 @@ async def health_detailed():
             redis_start = time.perf_counter()
             redis_timeout_seconds = _redis_timeout_seconds()
             try:
-                await asyncio.wait_for(
-                    asyncio.get_running_loop().run_in_executor(
-                        get_health_executor(),
-                        _ping_redis,
-                        redis_url,
-                        redis_timeout_seconds,
-                    ),
-                    timeout=redis_timeout_seconds,
+                await _run_health_check_with_retries(
+                    _ping_redis, redis_timeout_seconds, redis_url, redis_timeout_seconds
                 )
                 redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
                 _REDIS_CIRCUIT.record_success()
