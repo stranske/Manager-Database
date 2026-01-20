@@ -32,7 +32,7 @@ def validate_health_alerts(config_path: Path) -> None:
         if 'endpoint="health"' not in expr:
             continue
         comparisons = _THRESHOLD_PATTERN.findall(expr)
-        if any(op in (">", ">=") and float(value) >= 0.5 for op, value in comparisons):
+        if any(op == ">" and float(value) >= 0.5 for op, value in comparisons):
             return
     raise AssertionError("Missing warning alert for /health with threshold greater than 500ms.")
 

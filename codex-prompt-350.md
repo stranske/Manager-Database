@@ -183,9 +183,10 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
+- [#346](https://github.com/stranske/Manager-Database/issues/346)
 - [#347](https://github.com/stranske/Manager-Database/issues/347)
 
 ### Suggested Next Task
-- [#346](https://github.com/stranske/Manager-Database/issues/346)
+- [#347](https://github.com/stranske/Manager-Database/issues/347)
 
 ---
