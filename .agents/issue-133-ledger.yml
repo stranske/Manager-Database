@@ -5,10 +5,10 @@ branch: codex/issue-133
 tasks:
   - id: task-01
     title: Add `GET /managers` endpoint to list all managers in `api/chat.py`
-    status: doing
+    status: done
     started_at: '2026-01-20T01:00:33Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-20T01:00:39Z'
+    commit: a8ea3cb345ae66909a916bd9f4f1574bdd663204
     notes: []
   - id: task-02
     title: Add `GET /managers/{id}` endpoint to retrieve a single manager by ID in
