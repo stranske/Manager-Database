@@ -170,7 +170,7 @@ PR #347 addressed issue #346 but verification identified concerns (verdict: **CO
 Complete these in order. Mark checkbox done ONLY after implementation is verified:
 
 - [x] [#347](https://github.com/stranske/Manager-Database/issues/347)
-- [ ] [#346](https://github.com/stranske/Manager-Database/issues/346)
+- [x] [#346](https://github.com/stranske/Manager-Database/issues/346)
 
 ### Acceptance Criteria
 The PR is complete when ALL of these are satisfied:
