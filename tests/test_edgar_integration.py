@@ -218,6 +218,13 @@ async def test_parse_step_with_mocked_input_multiple_rows():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_parse_step_with_mocked_input_empty_document():
+    rows = await edgar.parse("<edgarSubmission></edgarSubmission>")
+    assert rows == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_rate_limit_handling(monkeypatch, tmp_path):
     attempts = {"count": 0}
     db_path = tmp_path / "dev.db"
