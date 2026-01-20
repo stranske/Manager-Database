@@ -137,6 +137,7 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
     def put_object(**kwargs):
         put_calls.append(kwargs)
 
+    # Mock external storage writes to keep the test local.
     def responder(url):
         if "submissions/CIK" in url:
             return httpx.Response(
@@ -155,6 +156,10 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
     assert rows
     assert stored == [sample_xml()]
     assert put_calls[0]["Key"] == "raw/0000000000-24-000001.xml"
+    conn = sqlite3.connect(db_path)
+    row = conn.execute("SELECT cik, accession, cusip, value, sshPrnamt FROM holdings").fetchone()
+    conn.close()
+    assert row == ("0000000000", "0000000000-24-000001", "123456789", 1000, 100)
 
 
 @pytest.mark.integration
