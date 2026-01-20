@@ -6,10 +6,11 @@ import asyncio
 import json
 import os
 import time
-from dataclasses import dataclass
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -28,6 +29,8 @@ app.include_router(managers_router, tags=["Managers"])
 _APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 # Allow concurrent health checks without serializing every dependency probe.
 _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=3)
+
+
 @dataclass(frozen=True)
 class HealthClock:
     """Centralize time sources to enable deterministic health check tests."""
