@@ -21,9 +21,7 @@ def require_login() -> bool:
     username = _get_env_credential("UI_USERNAME")
     password = _get_env_credential("UI_PASSWORD")
     if not username or not password:
-        st.warning(
-            "UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode."
-        )
+        st.warning("UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode.")
         st.session_state["auth"] = True
         return True
 
