@@ -16,7 +16,7 @@ def _configure_health_env(monkeypatch, tmp_path):
     monkeypatch.delenv("DB_URL", raising=False)
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
-    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.2")
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.18")
     monkeypatch.setattr(chat, "_ping_minio", lambda _timeout_seconds: None)
 
 
@@ -76,6 +76,36 @@ async def test_health_app_reports_failed_dependencies(tmp_path, monkeypatch):
 async def test_health_app_responds_within_budget(tmp_path, monkeypatch, budget_s):
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", budget_s)
+    start = time.perf_counter()
+    resp = await health_app()
+    _shutdown_health_executor()
+    elapsed = time.perf_counter() - start
+    assert resp.status_code == 200
+    assert elapsed < 0.2
+
+
+@pytest.mark.asyncio
+async def test_health_app_parallel_dependency_checks(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.18")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+
+    def _slow_db(_timeout_seconds):
+        time.sleep(0.03)
+
+    def _slow_minio(_timeout_seconds):
+        time.sleep(0.03)
+
+    def _slow_redis(_redis_url, _timeout_seconds):
+        time.sleep(0.03)
+
+    monkeypatch.setattr(chat, "_ping_db", _slow_db)
+    monkeypatch.setattr(chat, "_ping_minio", _slow_minio)
+    monkeypatch.setattr(chat, "_ping_redis", _slow_redis)
+    # Warm executor threads so timing reflects steady-state performance.
+    executor = chat.get_health_executor()
+    for _ in range(3):
+        executor.submit(lambda: None).result()
     start = time.perf_counter()
     resp = await health_app()
     _shutdown_health_executor()
