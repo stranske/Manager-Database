@@ -218,6 +218,22 @@ async def test_parse_step_with_mocked_input_multiple_rows():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_parse_step_with_mocked_input_fixture():
+    sample_path = Path(__file__).parent / "data" / "sample_13f.xml"
+    rows = await edgar.parse(sample_path.read_text())
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_parse_step_with_mocked_input_empty_document():
     rows = await edgar.parse("<edgarSubmission></edgarSubmission>")
     assert rows == []
