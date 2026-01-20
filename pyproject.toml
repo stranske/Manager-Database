@@ -33,6 +33,7 @@ dev = [
     "ruff>=0.14.13",
     "pre-commit",
     "mypy>=1.19.1",
+    "types-PyYAML",
     "coverage>=7.13.1",
     "referencing",
 ]
