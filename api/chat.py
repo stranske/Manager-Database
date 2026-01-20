@@ -303,7 +303,7 @@ async def _run_health_check_with_retries(func, timeout_seconds: float, *args) ->
 
     def _run_with_retries_sync() -> None:
         deadline = time.perf_counter() + timeout_seconds
-        for attempt, backoff in enumerate(_HEALTH_RETRY_BACKOFFS):
+        for backoff in _HEALTH_RETRY_BACKOFFS:
             try:
                 func(*args)
                 return
