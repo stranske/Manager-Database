@@ -3,13 +3,22 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from api.chat import health_app, health_live, health_livez, healthz
+from fastapi.testclient import TestClient
+
+from api.chat import app, health_app, health_live, health_livez, healthz
 
 
 def test_health_app_ok():
     payload = health_app()
     assert payload["healthy"] is True
     assert payload["uptime_s"] >= 0
+
+
+def test_health_app_http_ok():
+    # Exercise the HTTP route to ensure the status code stays 200 when healthy.
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code == 200
 
 
 def test_health_live_ok():
