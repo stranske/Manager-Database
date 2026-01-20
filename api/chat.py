@@ -24,7 +24,8 @@ app = FastAPI()
 # Tag manager endpoints so they group clearly in the Swagger UI.
 app.include_router(managers_router, tags=["Managers"])
 _APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
-_HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+# Allow concurrent health checks without serializing every dependency probe.
+_HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=3)
 APP_START_TIME = time.monotonic()
 HEALTH_CHECK_DURATION = Histogram(
     "health_check_duration_seconds",
@@ -37,7 +38,7 @@ def get_health_executor():
     """Return a working health executor, creating a new one if needed."""
     global _HEALTH_EXECUTOR
     if _HEALTH_EXECUTOR._shutdown:
-        _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+        _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=3)
     return _HEALTH_EXECUTOR
 
 
@@ -204,14 +205,175 @@ def _health_payload() -> dict[str, int | bool]:
     return {"healthy": True, "uptime_s": uptime_s}
 
 
-@app.get("/health")
-def health_app():
-    """Return application liveness and uptime."""
+def _format_dependency_error(exc: Exception) -> str:
+    """Return a short reason string for failed dependency checks."""
+    message = str(exc).strip()
+    return (message or exc.__class__.__name__)[:200]
+
+
+def _health_summary_timeout_seconds() -> float:
+    """Return the timeout budget for /health dependency checks."""
+    timeout = float(os.getenv("HEALTH_SUMMARY_TIMEOUT_S", "0.2"))
+    return max(min(timeout, 0.2), 0.05)
+
+
+async def _run_dependency_check(
+    func,
+    timeout_seconds: float,
+    *args,
+    circuit_breaker: CircuitBreaker | None = None,
+    enabled: bool = True,
+    include_enabled: bool = False,
+) -> tuple[dict[str, int | bool], str | None]:
+    """Run a dependency check and return its payload plus failure reason."""
+    if not enabled:
+        payload = {"healthy": True, "latency_ms": 0}
+        if include_enabled:
+            payload["enabled"] = False
+        return payload, None
+    if circuit_breaker and circuit_breaker.is_open():
+        payload = {"healthy": False, "latency_ms": 0, "circuit_open": True}
+        if include_enabled:
+            payload["enabled"] = True
+        return payload, "circuit_open"
     start = time.perf_counter()
     try:
-        return _health_payload()
+        # Keep retries inside the per-check timeout budget for responsiveness.
+        await _run_health_check_with_retries(func, timeout_seconds, *args)
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        if circuit_breaker:
+            circuit_breaker.record_success()
+        payload = {"healthy": True, "latency_ms": latency_ms}
+        if include_enabled:
+            payload["enabled"] = True
+        return payload, None
+    except TimeoutError:
+        latency_ms = int(min(timeout_seconds, time.perf_counter() - start) * 1000)
+        if circuit_breaker:
+            circuit_breaker.record_failure()
+        payload = {"healthy": False, "latency_ms": latency_ms}
+        if include_enabled:
+            payload["enabled"] = True
+        return payload, "timeout"
+    except Exception as exc:
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        if circuit_breaker:
+            circuit_breaker.record_failure()
+        payload = {"healthy": False, "latency_ms": latency_ms}
+        if include_enabled:
+            payload["enabled"] = True
+        return payload, _format_dependency_error(exc)
+
+
+async def _run_health_summary_checks(
+    timeout_budget: float,
+    db_timeout_seconds: float,
+    minio_timeout_seconds: float,
+    redis_timeout_seconds: float,
+    redis_url: str | None,
+) -> dict[str, tuple[dict[str, int | bool], str | None]]:
+    """Run summary dependency checks with an overall time budget."""
+    tasks = {
+        "database": asyncio.create_task(
+            _run_dependency_check(_ping_db, db_timeout_seconds, db_timeout_seconds)
+        ),
+        "minio": asyncio.create_task(
+            _run_dependency_check(
+                _ping_minio,
+                minio_timeout_seconds,
+                minio_timeout_seconds,
+                circuit_breaker=_MINIO_CIRCUIT,
+            )
+        ),
+        "redis": asyncio.create_task(
+            _run_dependency_check(
+                _ping_redis,
+                redis_timeout_seconds,
+                redis_url,
+                redis_timeout_seconds,
+                circuit_breaker=_REDIS_CIRCUIT,
+                enabled=bool(redis_url),
+                include_enabled=True,
+            )
+        ),
+    }
+    task_names = {task: name for name, task in tasks.items()}
+    start = time.perf_counter()
+    overall_timeout = min(timeout_budget + 0.05, 0.2)
+    done, pending = await asyncio.wait(tasks.values(), timeout=overall_timeout)
+    elapsed_ms = int(min(overall_timeout, time.perf_counter() - start) * 1000)
+    for task in pending:
+        task.cancel()
+        name = task_names.get(task)
+        if name == "minio":
+            _MINIO_CIRCUIT.record_failure()
+        elif name == "redis" and redis_url:
+            _REDIS_CIRCUIT.record_failure()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+    results: dict[str, tuple[dict[str, int | bool], str | None]] = {}
+    for name, task in tasks.items():
+        if task in done:
+            results[name] = task.result()
+        else:
+            payload = {"healthy": False, "latency_ms": elapsed_ms}
+            if name == "redis":
+                payload["enabled"] = bool(redis_url)
+            results[name] = (payload, "timeout")
+    return results
+
+
+@app.get("/health")
+async def health_app():
+    """Return application health and dependency status."""
+    start = time.perf_counter()
+    try:
+        app_payload = _health_payload()
+        timeout_budget = _health_summary_timeout_seconds()
+        db_timeout_seconds = min(_db_timeout_seconds(), timeout_budget)
+        minio_timeout_seconds = min(_minio_timeout_seconds(), timeout_budget)
+        redis_timeout_seconds = min(_redis_timeout_seconds(), timeout_budget)
+        redis_url = os.getenv("REDIS_URL")
+        results = await _run_health_summary_checks(
+            timeout_budget,
+            db_timeout_seconds,
+            minio_timeout_seconds,
+            redis_timeout_seconds,
+            redis_url,
+        )
+        db_payload, db_reason = results["database"]
+        minio_payload, minio_reason = results["minio"]
+        redis_payload, redis_reason = results["redis"]
+        components = {
+            "app": {"healthy": app_payload["healthy"], "uptime_s": app_payload["uptime_s"]},
+            "database": db_payload,
+            "minio": minio_payload,
+            "redis": redis_payload,
+        }
+        failed_checks = {}
+        if not db_payload["healthy"]:
+            failed_checks["database"] = db_reason or "unhealthy"
+        if not minio_payload["healthy"]:
+            failed_checks["minio"] = minio_reason or "unhealthy"
+        if redis_payload.get("enabled", True) and not redis_payload["healthy"]:
+            failed_checks["redis"] = redis_reason or "unhealthy"
+        redis_healthy = redis_payload["healthy"] if redis_payload.get("enabled", True) else True
+        healthy = (
+            app_payload["healthy"]
+            and db_payload["healthy"]
+            and minio_payload["healthy"]
+            and redis_healthy
+        )
+        payload = {
+            "healthy": healthy,
+            "uptime_s": app_payload["uptime_s"],
+            "components": components,
+            "failed_checks": failed_checks,
+        }
+        status_code = 200 if healthy else 503
+        return JSONResponse(status_code=status_code, content=payload)
     finally:
-        # Track baseline liveness latency for Prometheus scrapes.
+        # Track summary health latency for dashboards and alerts.
         HEALTH_CHECK_DURATION.labels(endpoint="health").observe(time.perf_counter() - start)
 
 

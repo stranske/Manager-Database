@@ -2,6 +2,7 @@ groups:
   - name: health-checks
     rules:
       - alert: HealthCheckLatencyWarning
+        # Warning when /health p95 latency exceeds 500ms (0.5s).
         expr: >
           histogram_quantile(
             0.95,
@@ -15,3 +16,8 @@ groups:
           description: >
             95th percentile /health latency exceeded 500ms for 5 minutes
             (current value: {{ $value }}s).
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (health)
+# - [ ] summary is concise and imperative
