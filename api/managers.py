@@ -145,20 +145,25 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
             (payload.name, payload.email, payload.department),
         )
         conn.commit()
-        return int(cursor.lastrowid)
+        lastrowid = cursor.lastrowid
+        return int(lastrowid) if lastrowid is not None else 0
     cursor = conn.execute(
         "INSERT INTO managers(name, email, department) VALUES (%s, %s, %s) RETURNING id",
         (payload.name, payload.email, payload.department),
     )
     row = cursor.fetchone()
-    return int(row[0]) if row else 0
+    if not row or row[0] is None:
+        return 0
+    return int(row[0])
 
 
 def _count_managers(conn) -> int:
     """Return the total number of managers."""
     cursor = conn.execute("SELECT COUNT(*) FROM managers")
     row = cursor.fetchone()
-    return int(row[0]) if row else 0
+    if not row or row[0] is None:
+        return 0
+    return int(row[0])
 
 
 def _fetch_managers(conn, limit: int, offset: int) -> list[tuple[int, str, str, str]]:

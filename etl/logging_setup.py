@@ -5,14 +5,17 @@ from __future__ import annotations
 import logging
 import os
 import time
+from types import ModuleType
 from typing import Any
 
 import boto3
 
 try:  # pragma: no cover - optional dependency for structured logs
-    from pythonjsonlogger import jsonlogger
+    from pythonjsonlogger import jsonlogger as _jsonlogger
 except ImportError:  # pragma: no cover
-    jsonlogger = None
+    jsonlogger: ModuleType | None = None
+else:  # pragma: no cover - imported above when available
+    jsonlogger = _jsonlogger
 
 _LOGGING_CONFIGURED = False
 

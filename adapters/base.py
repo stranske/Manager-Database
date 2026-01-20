@@ -7,12 +7,15 @@ import sqlite3
 import time
 from contextlib import asynccontextmanager
 from importlib import import_module
+from types import ModuleType
 from typing import Any, Protocol
 
 try:
-    import psycopg
+    import psycopg as _psycopg
 except ImportError:  # pragma: no cover - optional dependency
-    psycopg = None
+    psycopg: ModuleType | None = None
+else:  # pragma: no cover - imported above when available
+    psycopg = _psycopg
 
 
 class AdapterProtocol(Protocol):

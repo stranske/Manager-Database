@@ -8,6 +8,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+from typing import Any, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -178,12 +179,15 @@ def chat(
     q: str = Query(
         ...,
         description="User question",
-        examples={
-            "basic": {
-                "summary": "Holdings question",
-                "value": "What is the latest holdings update?",
-            }
-        },
+        examples=cast(
+            Any,
+            {
+                "basic": {
+                    "summary": "Holdings question",
+                    "value": "What is the latest holdings update?",
+                }
+            },
+        ),
     )
 ):
     """Return a naive answer built from stored documents."""
