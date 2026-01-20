@@ -42,6 +42,18 @@ class _FakeClock:
         self.now += seconds
 
 
+def _install_health_clock(monkeypatch, fake_clock: _FakeClock) -> chat.HealthClock:
+    # Provide a deterministic clock for health endpoint timing assertions.
+    clock = chat.HealthClock(
+        perf_counter=fake_clock.perf_counter,
+        monotonic=fake_clock.monotonic,
+        sleep=fake_clock.sleep,
+    )
+    monkeypatch.setattr(chat, "HEALTH_CLOCK", clock)
+    monkeypatch.setattr(chat, "APP_START_TIME", clock.monotonic())
+    return clock
+
+
 @pytest.mark.asyncio
 async def test_health_app_ok(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
@@ -94,6 +106,7 @@ async def test_health_app_responds_within_budget(tmp_path, monkeypatch, budget_s
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", budget_s)
     fake_clock = _FakeClock()
+    health_clock = _install_health_clock(monkeypatch, fake_clock)
 
     async def _fast_checks(*_args, **_kwargs):
         fake_clock.advance(0.08)
@@ -104,15 +117,11 @@ async def test_health_app_responds_within_budget(tmp_path, monkeypatch, budget_s
         }
 
     monkeypatch.setattr(chat, "_run_health_summary_checks", _fast_checks)
-    monkeypatch.setattr(chat.time, "perf_counter", fake_clock.perf_counter)
-    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
-    monkeypatch.setattr(chat.time, "sleep", fake_clock.sleep)
-    monkeypatch.setattr(chat, "APP_START_TIME", fake_clock.monotonic())
 
-    start = chat.time.perf_counter()
+    start = health_clock.perf_counter()
     resp = await health_app()
     _shutdown_health_executor()
-    elapsed = chat.time.perf_counter() - start
+    elapsed = health_clock.perf_counter() - start
     assert resp.status_code == 200
     assert elapsed < 0.2
 
@@ -121,6 +130,7 @@ async def test_health_app_responds_within_budget(tmp_path, monkeypatch, budget_s
 async def test_health_app_performance_with_mocked_timing(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
     fake_clock = _FakeClock()
+    health_clock = _install_health_clock(monkeypatch, fake_clock)
 
     async def _fast_checks(*_args, **_kwargs):
         fake_clock.advance(0.15)
@@ -131,13 +141,11 @@ async def test_health_app_performance_with_mocked_timing(tmp_path, monkeypatch):
         }
 
     monkeypatch.setattr(chat, "_run_health_summary_checks", _fast_checks)
-    monkeypatch.setattr(chat.time, "perf_counter", fake_clock.perf_counter)
-    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
 
-    start = chat.time.perf_counter()
+    start = health_clock.perf_counter()
     resp = await health_app()
     _shutdown_health_executor()
-    elapsed = chat.time.perf_counter() - start
+    elapsed = health_clock.perf_counter() - start
     assert resp.status_code == 200
     assert elapsed < 0.2
 
@@ -333,17 +341,13 @@ async def test_circuit_breaker_opens_after_three_timeouts(monkeypatch):
 
 
 def test_circuit_breaker_resets_after_timeout(monkeypatch):
-    clock = {"now": 0.0}
-
-    def _fake_monotonic():
-        return clock["now"]
-
-    monkeypatch.setattr(chat.time, "monotonic", _fake_monotonic)
+    fake_clock = _FakeClock()
+    _install_health_clock(monkeypatch, fake_clock)
     circuit = chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=10.0)
     circuit.record_failure()
     assert circuit.is_open() is True
 
-    clock["now"] = 10.5
+    fake_clock.advance(10.5)
     assert circuit.is_open() is False
 
     circuit.record_failure()
@@ -352,7 +356,7 @@ def test_circuit_breaker_resets_after_timeout(monkeypatch):
 
 def test_circuit_breaker_allows_calls_after_reset(monkeypatch):
     fake_clock = _FakeClock()
-    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+    _install_health_clock(monkeypatch, fake_clock)
     circuit = chat.CircuitBreaker(failure_threshold=2, reset_timeout_s=5.0)
 
     circuit.record_failure()
@@ -371,7 +375,7 @@ def test_circuit_breaker_allows_calls_after_reset(monkeypatch):
 @pytest.mark.asyncio
 async def test_circuit_breaker_allows_dependency_after_cooldown(monkeypatch):
     fake_clock = _FakeClock()
-    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+    _install_health_clock(monkeypatch, fake_clock)
     monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
     calls = {"count": 0}
 

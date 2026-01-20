@@ -19,11 +19,29 @@ class _FakeClock:
     def __init__(self) -> None:
         self.now = 0.0
 
+    def perf_counter(self) -> float:
+        return self.now
+
     def monotonic(self) -> float:
         return self.now
 
+    def sleep(self, seconds: float) -> None:
+        self.advance(seconds)
+
     def advance(self, seconds: float) -> None:
         self.now += seconds
+
+
+def _install_health_clock(monkeypatch, fake_clock: _FakeClock) -> chat.HealthClock:
+    # Keep health timing deterministic without patching the time module.
+    clock = chat.HealthClock(
+        perf_counter=fake_clock.perf_counter,
+        monotonic=fake_clock.monotonic,
+        sleep=fake_clock.sleep,
+    )
+    monkeypatch.setattr(chat, "HEALTH_CLOCK", clock)
+    monkeypatch.setattr(chat, "APP_START_TIME", clock.monotonic())
+    return clock
 
 
 @pytest.fixture(autouse=True)
@@ -238,8 +256,7 @@ def test_health_detailed_minio_circuit_breaker_resets_after_cooldown(tmp_path, m
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
     fake_clock = _FakeClock()
-    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
-    monkeypatch.setattr(chat, "APP_START_TIME", fake_clock.monotonic())
+    _install_health_clock(monkeypatch, fake_clock)
     monkeypatch.setattr(
         chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=5.0)
     )
