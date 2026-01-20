@@ -1,7 +1,6 @@
 import json
 import sys
 import threading
-import time
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -322,14 +321,20 @@ async def test_circuit_breaker_opens_after_three_failures(monkeypatch):
 @pytest.mark.asyncio
 async def test_circuit_breaker_opens_after_three_timeouts(monkeypatch):
     monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
+    fake_clock = _FakeClock()
+    _install_health_clock(monkeypatch, fake_clock)
 
-    def _slow_dependency(_timeout_seconds):
-        time.sleep(0.05)
+    async def _timeout_run(*_args, **_kwargs):
+        # Simulate elapsed time without sleeping so timeouts stay deterministic.
+        fake_clock.advance(0.02)
+        raise TimeoutError
 
     circuit = chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
+    monkeypatch.setattr(chat, "_run_health_check_with_retries", _timeout_run)
+    dependency = lambda _timeout_seconds: None
     for _ in range(2):
         payload, reason = await chat._run_dependency_check(
-            _slow_dependency,
+            dependency,
             0.01,
             0.01,
             circuit_breaker=circuit,
@@ -339,7 +344,7 @@ async def test_circuit_breaker_opens_after_three_timeouts(monkeypatch):
         assert circuit.is_open() is False
 
     payload, reason = await chat._run_dependency_check(
-        _slow_dependency,
+        dependency,
         0.01,
         0.01,
         circuit_breaker=circuit,
@@ -349,7 +354,7 @@ async def test_circuit_breaker_opens_after_three_timeouts(monkeypatch):
     assert circuit.is_open() is True
 
     payload, reason = await chat._run_dependency_check(
-        _slow_dependency,
+        dependency,
         0.01,
         0.01,
         circuit_breaker=circuit,
