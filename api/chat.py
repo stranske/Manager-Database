@@ -297,12 +297,18 @@ async def _run_health_summary_checks(
             )
         ),
     }
+    task_names = {task: name for name, task in tasks.items()}
     start = time.perf_counter()
     overall_timeout = min(timeout_budget + 0.05, 0.2)
     done, pending = await asyncio.wait(tasks.values(), timeout=overall_timeout)
     elapsed_ms = int(min(overall_timeout, time.perf_counter() - start) * 1000)
     for task in pending:
         task.cancel()
+        name = task_names.get(task)
+        if name == "minio":
+            _MINIO_CIRCUIT.record_failure()
+        elif name == "redis" and redis_url:
+            _REDIS_CIRCUIT.record_failure()
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
     results: dict[str, tuple[dict[str, int | bool], str | None]] = {}

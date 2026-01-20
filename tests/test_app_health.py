@@ -145,6 +145,34 @@ async def test_health_app_timeout_budget_caps_total_time(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_health_app_circuit_breaker_opens_after_summary_timeouts(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.05")
+    monkeypatch.setattr(
+        chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
+    )
+
+    def _slow_minio(_timeout_seconds):
+        time.sleep(0.2)
+
+    monkeypatch.setattr(chat, "_ping_minio", _slow_minio)
+    for _ in range(3):
+        resp = await health_app()
+        assert resp.status_code == 503
+
+    def _unexpected_minio(_timeout_seconds):
+        raise AssertionError("minio should not be called when circuit is open")
+
+    monkeypatch.setattr(chat, "_ping_minio", _unexpected_minio)
+    resp = await health_app()
+    payload = json.loads(resp.body)
+    _shutdown_health_executor()
+    assert resp.status_code == 503
+    assert payload["failed_checks"]["minio"] == "circuit_open"
+    assert payload["components"]["minio"]["circuit_open"] is True
+
+
+@pytest.mark.asyncio
 async def test_circuit_breaker_opens_after_three_failures(monkeypatch):
     monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
 
