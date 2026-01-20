@@ -64,6 +64,30 @@ class HealthDbResponse(BaseModel):
     latency_ms: int = Field(..., description="Observed database ping latency in milliseconds")
 
 
+class HealthDetailedResponse(BaseModel):
+    """Response payload for detailed health checks."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "healthy": True,
+                    "uptime_s": 3600,
+                    "components": {
+                        "app": {"healthy": True, "uptime_s": 3600},
+                        "database": {"healthy": True, "latency_ms": 42},
+                    },
+                }
+            ]
+        }
+    )
+    healthy: bool = Field(..., description="Whether all components are healthy")
+    uptime_s: int = Field(..., description="Application uptime in seconds")
+    components: dict[str, dict[str, int | bool]] = Field(
+        ..., description="Per-component health details"
+    )
+
+
 def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str]]:
     """Normalize validation errors into a concise field/message list."""
     errors: list[dict[str, str]] = []
@@ -244,8 +268,49 @@ async def health_readyz():
     return await health_ready()
 
 
+@app.get(
+    "/health/detailed",
+    response_model=HealthDetailedResponse,
+    summary="Return detailed health status",
+    description="Return per-component health status, including database connectivity.",
+    responses={
+        503: {
+            "model": HealthDetailedResponse,
+            "description": "One or more components are unavailable",
+        }
+    },
+)
+async def health_detailed():
+    """Return detailed health status for app and database components."""
+    # Reuse existing health payloads to keep liveness logic consistent.
+    app_payload = _health_payload()
+    db_response = await health_db()
+    db_payload = json.loads(db_response.body)
+    components = {
+        "app": {"healthy": app_payload["healthy"], "uptime_s": app_payload["uptime_s"]},
+        "database": {
+            "healthy": db_payload["healthy"],
+            "latency_ms": db_payload["latency_ms"],
+        },
+    }
+    healthy = app_payload["healthy"] and db_payload["healthy"]
+    payload = {
+        "healthy": healthy,
+        "uptime_s": app_payload["uptime_s"],
+        "components": components,
+    }
+    status_code = 200 if healthy else 503
+    return JSONResponse(status_code=status_code, content=payload)
+
+
 @app.on_event("shutdown")
 def _shutdown_executors() -> None:
     """Release the health check executors on app shutdown."""
     _APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
     _HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (health)
+# - [ ] summary is concise and imperative
