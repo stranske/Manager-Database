@@ -320,8 +320,7 @@ async def list_managers(
     finally:
         conn.close()
     items = [
-        ManagerResponse(id=row[0], name=row[1], email=row[2], department=row[3])
-        for row in rows
+        ManagerResponse(id=row[0], name=row[1], email=row[2], department=row[3]) for row in rows
     ]
     return ManagerListResponse(items=items, total=total, limit=limit, offset=offset)
 
