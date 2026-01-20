@@ -468,6 +468,8 @@ typing-inspection==0.4.2
     # via
     #   pydantic
     #   pydantic-settings
+types-pyyaml==6.0.12.20250915
+    # via manager-database (pyproject.toml)
 tzdata==2025.3
     # via
     #   apprise
