@@ -1,0 +1,278 @@
+version: 1
+issue: 194
+base: main
+branch: codex/issue-194
+tasks:
+  - id: task-01
+    title: Create a basic /health endpoint returning HTTP 200 when healthy.
+    status: done
+    started_at: '2026-01-20T02:16:50Z'
+    finished_at: '2026-01-20T02:16:58Z'
+    commit: 5049c925a176ee4caffdcab3f3e3cd2aa6f9a4fe
+    notes: []
+  - id: task-02
+    title: Implement a detailed /health/detailed endpoint checking database connectivity.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Add a check for MinIO storage availability.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: Verify Redis cache connection (if applicable).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: Add a circuit breaker for external service checks.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: Implement retry logic with exponential backoff for flaky checks.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: Add a metrics endpoint at /metrics for Prometheus scraping.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Configure alerting thresholds (response time > 500ms = warning).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Export Grafana dashboard JSON to docs/grafana/.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Document runbook for common health check failures in docs/runbooks/health-checks.md.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'We need a complete health monitoring solution:'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: Basic /health endpoint returning HTTP 200 when healthy
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: Detailed /health/detailed endpoint checking database connectivity
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: Check MinIO storage availability
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: Verify Redis cache connection (if applicable)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: Add circuit breaker for external service checks
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: Implement retry logic with exponential backoff for flaky checks
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: Add metrics endpoint at /metrics for Prometheus scraping
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: Configure alerting thresholds (response time > 500ms = warning)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: Set up health check dashboard in Grafana (template)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: Document runbook for common health check failures
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: /health returns 200 OK when all services up.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: /health returns 503 Service Unavailable with details when any check fails.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: /health/detailed returns JSON with each component status.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: /metrics exposes health_check_duration_seconds histogram.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: Response time < 200ms for basic health check.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: Circuit breaker opens after 3 consecutive failures.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: Retry logic uses exponential backoff (100ms, 200ms, 400ms).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: Grafana dashboard JSON exported to docs/grafana/.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: Runbook added to docs/runbooks/health-checks.md.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: /health returns 200 OK when all services up
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: /health returns 503 Service Unavailable with details when any check fails
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: /health/detailed returns JSON with each component status
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: /metrics exposes health_check_duration_seconds histogram
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: Response time < 200ms for basic health check
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: Circuit breaker opens after 3 consecutive failures
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: Retry logic uses exponential backoff (100ms, 200ms, 400ms)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: Grafana dashboard JSON exported to docs/grafana/
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: Runbook added to docs/runbooks/health-checks.md
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []

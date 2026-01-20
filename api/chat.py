@@ -7,10 +7,14 @@ import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
+import boto3
+from botocore.config import Config as BotoConfig
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
@@ -22,6 +26,11 @@ app.include_router(managers_router, tags=["Managers"])
 _APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 APP_START_TIME = time.monotonic()
+HEALTH_CHECK_DURATION = Histogram(
+    "health_check_duration_seconds",
+    "Health check latency by endpoint.",
+    labelnames=("endpoint",),
+)
 
 
 def get_health_executor():
@@ -30,6 +39,52 @@ def get_health_executor():
     if _HEALTH_EXECUTOR._shutdown:
         _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
     return _HEALTH_EXECUTOR
+
+
+class CircuitBreaker:
+    """Track consecutive failures and open after a threshold."""
+
+    def __init__(self, failure_threshold: int = 3, reset_timeout_s: float = 30.0) -> None:
+        self._failure_threshold = failure_threshold
+        self._reset_timeout_s = reset_timeout_s
+        self._consecutive_failures = 0
+        self._opened_at: float | None = None
+        self._lock = Lock()
+
+    def is_open(self) -> bool:
+        """Return True when the breaker is open and requests should be skipped."""
+        with self._lock:
+            if self._opened_at is None:
+                return False
+            if (time.monotonic() - self._opened_at) >= self._reset_timeout_s:
+                self._opened_at = None
+                self._consecutive_failures = 0
+                return False
+            return True
+
+    def record_success(self) -> None:
+        """Reset the breaker after a successful call."""
+        with self._lock:
+            self._consecutive_failures = 0
+            self._opened_at = None
+
+    def record_failure(self) -> None:
+        """Track a failure and open the breaker if needed."""
+        with self._lock:
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= self._failure_threshold:
+                if self._opened_at is None:
+                    self._opened_at = time.monotonic()
+
+
+def _circuit_breaker_reset_seconds() -> float:
+    """Return the circuit breaker reset timeout in seconds."""
+    return max(float(os.getenv("HEALTH_CIRCUIT_RESET_S", "30")), 1.0)
+
+
+_MINIO_CIRCUIT = CircuitBreaker(reset_timeout_s=_circuit_breaker_reset_seconds())
+_REDIS_CIRCUIT = CircuitBreaker(reset_timeout_s=_circuit_breaker_reset_seconds())
+_HEALTH_RETRY_BACKOFFS = (0.1, 0.2, 0.4)
 
 
 # Keep APP_EXECUTOR for backwards compatibility
@@ -62,6 +117,32 @@ class HealthDbResponse(BaseModel):
     )
     healthy: bool = Field(..., description="Whether the database is reachable")
     latency_ms: int = Field(..., description="Observed database ping latency in milliseconds")
+
+
+class HealthDetailedResponse(BaseModel):
+    """Response payload for detailed health checks."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "healthy": True,
+                    "uptime_s": 3600,
+                    "components": {
+                        "app": {"healthy": True, "uptime_s": 3600},
+                        "database": {"healthy": True, "latency_ms": 42},
+                        "minio": {"healthy": True, "latency_ms": 58},
+                        "redis": {"healthy": True, "latency_ms": 12, "enabled": True},
+                    },
+                }
+            ]
+        }
+    )
+    healthy: bool = Field(..., description="Whether all components are healthy")
+    uptime_s: int = Field(..., description="Application uptime in seconds")
+    components: dict[str, dict[str, int | bool]] = Field(
+        ..., description="Per-component health details"
+    )
 
 
 def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str]]:
@@ -126,7 +207,12 @@ def _health_payload() -> dict[str, int | bool]:
 @app.get("/health")
 def health_app():
     """Return application liveness and uptime."""
-    return _health_payload()
+    start = time.perf_counter()
+    try:
+        return _health_payload()
+    finally:
+        # Track baseline liveness latency for Prometheus scrapes.
+        HEALTH_CHECK_DURATION.labels(endpoint="health").observe(time.perf_counter() - start)
 
 
 @app.get("/health/live")
@@ -170,6 +256,69 @@ def _ping_db(timeout_seconds: float) -> None:
         conn.close()
 
 
+def _minio_timeout_seconds() -> float:
+    """Return the MinIO health timeout in seconds."""
+    return min(float(os.getenv("MINIO_HEALTH_TIMEOUT_S", "5")), 5.0)
+
+
+def _minio_client(timeout_seconds: float):
+    """Create a MinIO client with aggressive timeouts for health checks."""
+    config = BotoConfig(
+        connect_timeout=timeout_seconds,
+        read_timeout=timeout_seconds,
+        retries={"max_attempts": 0},
+    )
+    return boto3.client(
+        "s3",
+        endpoint_url=os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
+        aws_access_key_id=os.getenv("MINIO_ROOT_USER", "minio"),
+        aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD", "minio123"),
+        region_name=os.getenv("MINIO_REGION", "us-east-1"),
+        config=config,
+    )
+
+
+def _redis_timeout_seconds() -> float:
+    """Return the Redis health timeout in seconds."""
+    return min(float(os.getenv("REDIS_HEALTH_TIMEOUT_S", "2")), 5.0)
+
+
+def _ping_redis(redis_url: str, timeout_seconds: float) -> None:
+    """Run a lightweight Redis ping to verify cache connectivity."""
+    # Import lazily so Redis remains optional outside of cache deployments.
+    import redis
+
+    client = redis.Redis.from_url(redis_url, socket_timeout=timeout_seconds)
+    client.ping()
+
+
+def _ping_minio(timeout_seconds: float) -> None:
+    """Run a lightweight MinIO API call to verify connectivity."""
+    client = _minio_client(timeout_seconds)
+    client.list_buckets()
+
+
+async def _run_health_check_with_retries(func, timeout_seconds: float, *args) -> None:
+    """Run a health check with exponential backoff for flaky dependencies."""
+
+    def _run_with_retries_sync() -> None:
+        deadline = time.perf_counter() + timeout_seconds
+        for backoff in _HEALTH_RETRY_BACKOFFS:
+            try:
+                func(*args)
+                return
+            except Exception:
+                if time.perf_counter() + backoff >= deadline:
+                    raise
+                time.sleep(backoff)
+        func(*args)
+
+    await asyncio.wait_for(
+        asyncio.get_running_loop().run_in_executor(get_health_executor(), _run_with_retries_sync),
+        timeout=timeout_seconds,
+    )
+
+
 @app.get(
     "/health/db",
     response_model=HealthDbResponse,
@@ -200,41 +349,44 @@ async def health_db():
     timeout_seconds = _db_timeout_seconds()
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
-        await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(
-                get_health_executor(), _ping_db, timeout_seconds
-            ),
-            timeout=timeout_seconds,
-        )
+        await _run_health_check_with_retries(_ping_db, timeout_seconds, timeout_seconds)
         latency_ms = int((time.perf_counter() - start) * 1000)
         payload = {"healthy": True, "latency_ms": latency_ms}
         return JSONResponse(status_code=200, content=payload)
     except TimeoutError:
         # Fail fast to keep the endpoint under the timeout budget.
-        latency_ms = int(timeout_seconds * 1000)
+        latency_ms = int(min(timeout_seconds, time.perf_counter() - start) * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}
         return JSONResponse(status_code=503, content=payload)
     except Exception:
         latency_ms = int((time.perf_counter() - start) * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}
         return JSONResponse(status_code=503, content=payload)
+    finally:
+        # Record total DB check duration even when the ping fails.
+        HEALTH_CHECK_DURATION.labels(endpoint="health_db").observe(time.perf_counter() - start)
 
 
 @app.get("/health/ready")
 async def health_ready():
     """Return readiness status combining app and database checks."""
+    start = time.perf_counter()
     # Reuse the existing health endpoints to keep readiness logic consistent.
     app_payload = _health_payload()
-    db_response = await health_db()
-    db_payload = json.loads(db_response.body)
-    healthy = app_payload["healthy"] and db_payload["healthy"]
-    payload = {
-        "healthy": healthy,
-        "uptime_s": app_payload["uptime_s"],
-        "db_latency_ms": db_payload["latency_ms"],
-    }
-    status_code = 200 if healthy else 503
-    return JSONResponse(status_code=status_code, content=payload)
+    try:
+        db_response = await health_db()
+        db_payload = json.loads(db_response.body)
+        healthy = app_payload["healthy"] and db_payload["healthy"]
+        payload = {
+            "healthy": healthy,
+            "uptime_s": app_payload["uptime_s"],
+            "db_latency_ms": db_payload["latency_ms"],
+        }
+        status_code = 200 if healthy else 503
+        return JSONResponse(status_code=status_code, content=payload)
+    finally:
+        # Capture readiness latency for alerting dashboards.
+        HEALTH_CHECK_DURATION.labels(endpoint="health_ready").observe(time.perf_counter() - start)
 
 
 @app.get("/readyz")
@@ -244,8 +396,133 @@ async def health_readyz():
     return await health_ready()
 
 
+@app.get(
+    "/health/detailed",
+    response_model=HealthDetailedResponse,
+    summary="Return detailed health status",
+    description="Return per-component health status, including database connectivity.",
+    responses={
+        503: {
+            "model": HealthDetailedResponse,
+            "description": "One or more components are unavailable",
+        }
+    },
+)
+async def health_detailed():
+    """Return detailed health status for app and database components."""
+    start = time.perf_counter()
+    # Reuse existing health payloads to keep liveness logic consistent.
+    app_payload = _health_payload()
+    try:
+        db_response = await health_db()
+        db_payload = json.loads(db_response.body)
+        if _MINIO_CIRCUIT.is_open():
+            minio_payload = {"healthy": False, "latency_ms": 0, "circuit_open": True}
+        else:
+            minio_start = time.perf_counter()
+            minio_timeout_seconds = _minio_timeout_seconds()
+            try:
+                await _run_health_check_with_retries(
+                    _ping_minio, minio_timeout_seconds, minio_timeout_seconds
+                )
+                minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
+                _MINIO_CIRCUIT.record_success()
+                minio_payload = {"healthy": True, "latency_ms": minio_latency_ms}
+            except TimeoutError:
+                minio_latency_ms = int(minio_timeout_seconds * 1000)
+                _MINIO_CIRCUIT.record_failure()
+                minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
+            except Exception:
+                minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
+                _MINIO_CIRCUIT.record_failure()
+                minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            if _REDIS_CIRCUIT.is_open():
+                redis_payload = {
+                    "healthy": False,
+                    "latency_ms": 0,
+                    "enabled": True,
+                    "circuit_open": True,
+                }
+            else:
+                redis_start = time.perf_counter()
+                redis_timeout_seconds = _redis_timeout_seconds()
+                try:
+                    await _run_health_check_with_retries(
+                        _ping_redis, redis_timeout_seconds, redis_url, redis_timeout_seconds
+                    )
+                    redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+                    _REDIS_CIRCUIT.record_success()
+                    redis_payload = {
+                        "healthy": True,
+                        "latency_ms": redis_latency_ms,
+                        "enabled": True,
+                    }
+                except TimeoutError:
+                    redis_latency_ms = int(redis_timeout_seconds * 1000)
+                    _REDIS_CIRCUIT.record_failure()
+                    redis_payload = {
+                        "healthy": False,
+                        "latency_ms": redis_latency_ms,
+                        "enabled": True,
+                    }
+                except Exception:
+                    redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+                    _REDIS_CIRCUIT.record_failure()
+                    redis_payload = {
+                        "healthy": False,
+                        "latency_ms": redis_latency_ms,
+                        "enabled": True,
+                    }
+        else:
+            # Skip cache probes when Redis isn't configured in this environment.
+            redis_payload = {"healthy": True, "latency_ms": 0, "enabled": False}
+        components = {
+            "app": {"healthy": app_payload["healthy"], "uptime_s": app_payload["uptime_s"]},
+            "database": {
+                "healthy": db_payload["healthy"],
+                "latency_ms": db_payload["latency_ms"],
+            },
+            "minio": minio_payload,
+            "redis": redis_payload,
+        }
+        redis_healthy = redis_payload["healthy"] if redis_payload["enabled"] else True
+        healthy = (
+            app_payload["healthy"]
+            and db_payload["healthy"]
+            and minio_payload["healthy"]
+            and redis_healthy
+        )
+        payload = {
+            "healthy": healthy,
+            "uptime_s": app_payload["uptime_s"],
+            "components": components,
+        }
+        status_code = 200 if healthy else 503
+        return JSONResponse(status_code=status_code, content=payload)
+    finally:
+        # Track full detailed health check latency for dashboards.
+        HEALTH_CHECK_DURATION.labels(endpoint="health_detailed").observe(
+            time.perf_counter() - start
+        )
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    """Return Prometheus metrics for scraping."""
+    # Prometheus expects the text exposition format on this endpoint.
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.on_event("shutdown")
 def _shutdown_executors() -> None:
     """Release the health check executors on app shutdown."""
     _APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
     _HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (health)
+# - [ ] summary is concise and imperative
