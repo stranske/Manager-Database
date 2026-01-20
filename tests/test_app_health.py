@@ -211,6 +211,46 @@ async def test_circuit_breaker_opens_after_three_failures(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_circuit_breaker_opens_after_three_timeouts(monkeypatch):
+    monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
+
+    def _slow_dependency(_timeout_seconds):
+        time.sleep(0.05)
+
+    circuit = chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
+    for _ in range(2):
+        payload, reason = await chat._run_dependency_check(
+            _slow_dependency,
+            0.01,
+            0.01,
+            circuit_breaker=circuit,
+        )
+        assert payload["healthy"] is False
+        assert reason == "timeout"
+        assert circuit.is_open() is False
+
+    payload, reason = await chat._run_dependency_check(
+        _slow_dependency,
+        0.01,
+        0.01,
+        circuit_breaker=circuit,
+    )
+    assert payload["healthy"] is False
+    assert reason == "timeout"
+    assert circuit.is_open() is True
+
+    payload, reason = await chat._run_dependency_check(
+        _slow_dependency,
+        0.01,
+        0.01,
+        circuit_breaker=circuit,
+    )
+    assert payload["circuit_open"] is True
+    assert reason == "circuit_open"
+    _shutdown_health_executor()
+
+
+@pytest.mark.asyncio
 async def test_health_app_reports_circuit_breaker_open(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setattr(

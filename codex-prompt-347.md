@@ -140,7 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 5/9 tasks complete, 4 remaining
+**Progress:** 7/9 tasks complete, 2 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
@@ -169,8 +169,8 @@ PR #345 addressed issue #194 but verification identified concerns (verdict: **CO
 ### Tasks
 Complete these in order. Mark checkbox done ONLY after implementation is verified:
 
-- [ ] [#345](https://github.com/stranske/Manager-Database/issues/345)
-- [ ] [#194](https://github.com/stranske/Manager-Database/issues/194)
+- [x] [#345](https://github.com/stranske/Manager-Database/issues/345)
+- [x] [#194](https://github.com/stranske/Manager-Database/issues/194)
 
 ### Acceptance Criteria
 The PR is complete when ALL of these are satisfied:
@@ -178,16 +178,16 @@ The PR is complete when ALL of these are satisfied:
 - [x] Add the Grafana dashboard JSON file to the docs/grafana/ directory.
 - [x] Create or update the docs/runbooks/health-checks.md file with a detailed runbook for health check failures.
 - [x] Implement a circuit breaker mechanism that transitions to an 'open' state after detecting three consecutive health check failures, and add unit tests that simulate three failures to verify the state change.
-- [ ] Implement retry logic with exponential backoff with delays of 100ms, 200ms, and 400ms, and add unit tests that verify the timing of these retries.
+- [x] Implement retry logic with exponential backoff with delays of 100ms, 200ms, and 400ms, and add unit tests that verify the timing of these retries.
 - [x] Modify the /health endpoint logic so that when any dependency check fails, it returns a 503 Service Unavailable status along with a JSON object detailing which checks failed and why, and add tests to simulate failure scenarios.
 - [x] Review and update the monitoring/alerts/health-checks.yml file to explicitly include a rule that triggers a warning when health check response times exceed 500ms, and add tests or documentation to validate this rule.
-- [ ] Ensure that the /health endpoint performance is optimized to respond within 200ms, potentially by revising dependency call strategies and add performance tests to measure response times.
+- [x] Ensure that the /health endpoint performance is optimized to respond within 200ms, potentially by revising dependency call strategies and add performance tests to measure response times.
 
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- [#345](https://github.com/stranske/Manager-Database/issues/345)
 - [#194](https://github.com/stranske/Manager-Database/issues/194)
+- [#345](https://github.com/stranske/Manager-Database/issues/345)
 
 ### Suggested Next Task
 - [#345](https://github.com/stranske/Manager-Database/issues/345)
