@@ -13,6 +13,7 @@ _METRIC_THRESHOLD_PATTERN = re.compile(
     r"health_check_duration_seconds[^<>]*?(>=|<=|>|<)\s*([0-9]+(?:\.[0-9]+)?)",
     re.DOTALL,
 )
+_ENDPOINT_LABEL_PATTERN = re.compile(r'endpoint="(/?health)"')
 
 
 def _iter_rules(config: dict) -> list[dict]:
@@ -32,7 +33,7 @@ def validate_health_alerts(config_path: Path) -> None:
         expr = rule.get("expr", "")
         if "health_check_duration_seconds" not in expr:
             continue
-        if 'endpoint="health"' not in expr:
+        if not _ENDPOINT_LABEL_PATTERN.search(expr):
             continue
         comparisons = _METRIC_THRESHOLD_PATTERN.findall(expr)
         for op, value in comparisons:

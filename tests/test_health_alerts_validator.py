@@ -64,3 +64,11 @@ def test_health_alert_validator_rejects_other_metric_thresholds(tmp_path: Path):
     )
     with pytest.raises(AssertionError, match="Missing warning alert"):
         validate_health_alerts(config_path)
+
+
+def test_health_alert_validator_accepts_slash_health_endpoint(tmp_path: Path):
+    config_path = _write_alert_config(
+        tmp_path,
+        'histogram_quantile(0.95, sum(rate(health_check_duration_seconds_bucket{endpoint="/health"}[5m])) by (le)) > 0.6',
+    )
+    validate_health_alerts(config_path)
