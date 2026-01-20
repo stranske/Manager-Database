@@ -64,9 +64,9 @@ def test_openapi_managers_schema():
 
     manager_list_schema = schema["paths"]["/managers"]["get"]
     assert manager_list_schema["summary"] == "List managers"
-    list_response_schema = (
-        manager_list_schema["responses"]["200"]["content"]["application/json"]["schema"]
-    )
+    list_response_schema = manager_list_schema["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]
     assert list_response_schema["$ref"] == "#/components/schemas/ManagerListResponse"
     list_parameters = {param["name"]: param for param in manager_list_schema["parameters"]}
     assert list_parameters["limit"]["schema"]["default"] == 25
@@ -74,9 +74,9 @@ def test_openapi_managers_schema():
 
     manager_detail_schema = schema["paths"]["/managers/{id}"]["get"]
     assert manager_detail_schema["summary"] == "Retrieve a manager"
-    detail_response_schema = (
-        manager_detail_schema["responses"]["200"]["content"]["application/json"]["schema"]
-    )
+    detail_response_schema = manager_detail_schema["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
     assert detail_response_schema["$ref"] == "#/components/schemas/ManagerResponse"
     not_found_schema = manager_detail_schema["responses"]["404"]["content"]["application/json"][
         "schema"

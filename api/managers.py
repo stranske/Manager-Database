@@ -283,9 +283,7 @@ async def create_manager(
     description="Return a paginated list of managers with total count metadata.",
 )
 async def list_managers(
-    limit: int = Query(
-        25, ge=1, le=100, description="Maximum number of managers to return"
-    ),
+    limit: int = Query(25, ge=1, le=100, description="Maximum number of managers to return"),
     offset: int = Query(0, ge=0, description="Number of managers to skip"),
 ):
     """Return a paginated list of managers."""
@@ -297,10 +295,7 @@ async def list_managers(
         rows = _fetch_managers(conn, limit, offset)
     finally:
         conn.close()
-    items = [
-        {"id": row[0], "name": row[1], "email": row[2], "department": row[3]}
-        for row in rows
-    ]
+    items = [{"id": row[0], "name": row[1], "email": row[2], "department": row[3]} for row in rows]
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
@@ -316,7 +311,10 @@ async def list_managers(
             "content": {
                 "application/json": {
                     "examples": {
-                        "missing": {"summary": "Missing manager", "value": {"detail": "Manager not found"}}
+                        "missing": {
+                            "summary": "Missing manager",
+                            "value": {"detail": "Manager not found"},
+                        }
                     }
                 }
             },
