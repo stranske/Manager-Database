@@ -12,7 +12,7 @@ def test_health_alert_warning_threshold_present():
     validate_health_alerts(Path("monitoring/alerts/health-checks.yml"))
 
 
-def _write_alert_config(tmp_path: Path, expr: str) -> Path:
+def _write_alert_config(tmp_path: Path, expr: str, *, severity: str = "warning") -> Path:
     config_path = tmp_path / "alerts.yml"
     config_path.write_text(
         "\n".join(
@@ -23,7 +23,7 @@ def _write_alert_config(tmp_path: Path, expr: str) -> Path:
                 "      - alert: HealthCheckLatencyWarning",
                 f"        expr: {expr}",
                 "        labels:",
-                "          severity: warning",
+                f"          severity: {severity}",
             ]
         )
     )
@@ -52,6 +52,16 @@ def test_health_alert_validator_rejects_threshold_below_500ms(tmp_path: Path):
     config_path = _write_alert_config(
         tmp_path,
         'histogram_quantile(0.95, sum(rate(health_check_duration_seconds_bucket{endpoint="health"}[5m])) by (le)) > 0.4',
+    )
+    with pytest.raises(AssertionError, match="Missing warning alert"):
+        validate_health_alerts(config_path)
+
+
+def test_health_alert_validator_rejects_non_warning_severity(tmp_path: Path):
+    config_path = _write_alert_config(
+        tmp_path,
+        'histogram_quantile(0.95, sum(rate(health_check_duration_seconds_bucket{endpoint="/health"}[5m])) by (le)) > 0.6',
+        severity="critical",
     )
     with pytest.raises(AssertionError, match="Missing warning alert"):
         validate_health_alerts(config_path)
