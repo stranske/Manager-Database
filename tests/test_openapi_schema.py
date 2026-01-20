@@ -62,6 +62,37 @@ def test_openapi_managers_schema():
     error_examples = manager_schema["responses"]["400"]["content"]["application/json"]["examples"]
     assert error_examples["invalid-email"]["value"]["errors"][0]["field"] == "email"
 
+    manager_list_schema = schema["paths"]["/managers"]["get"]
+    assert manager_list_schema["summary"] == "List managers"
+    list_response_schema = manager_list_schema["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]
+    assert list_response_schema["$ref"] == "#/components/schemas/ManagerListResponse"
+    # Validate list endpoint documents request validation errors.
+    list_error_schema = manager_list_schema["responses"]["400"]["content"]["application/json"][
+        "schema"
+    ]
+    assert list_error_schema["$ref"] == "#/components/schemas/ErrorResponse"
+    list_parameters = {param["name"]: param for param in manager_list_schema["parameters"]}
+    assert list_parameters["limit"]["schema"]["default"] == 25
+    assert list_parameters["offset"]["schema"]["default"] == 0
+
+    manager_detail_schema = schema["paths"]["/managers/{id}"]["get"]
+    assert manager_detail_schema["summary"] == "Retrieve a manager"
+    detail_response_schema = manager_detail_schema["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
+    assert detail_response_schema["$ref"] == "#/components/schemas/ManagerResponse"
+    # Validate detail endpoint exposes path validation errors.
+    detail_error_schema = manager_detail_schema["responses"]["400"]["content"]["application/json"][
+        "schema"
+    ]
+    assert detail_error_schema["$ref"] == "#/components/schemas/ErrorResponse"
+    not_found_schema = manager_detail_schema["responses"]["404"]["content"]["application/json"][
+        "schema"
+    ]
+    assert not_found_schema["$ref"] == "#/components/schemas/NotFoundResponse"
+
 
 def test_openapi_health_db_schema():
     schema = _load_openapi_schema()
@@ -79,3 +110,17 @@ def test_openapi_health_db_schema():
         "timeout"
     ]
     assert timeout_example["value"]["healthy"] is False
+
+
+def test_docs_route_exposes_openapi():
+    # Ensure Swagger UI is available for the documented manager endpoints.
+    async def _fetch() -> str:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/docs")
+            assert response.status_code == 200
+            return response.text
+
+    docs_html = asyncio.run(_fetch())
+    assert "Swagger UI" in docs_html
+    assert "/openapi.json" in docs_html
