@@ -133,6 +133,26 @@ def test_manager_list_returns_paginated_results(tmp_path, monkeypatch):
     assert names == ["Ada Lovelace", "Mary Jackson"]
 
 
+def test_manager_list_limit_offset_zero_returns_all(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Grace Hopper", "email": "grace@example.com", "department": "Eng"},
+        {"name": "Ada Lovelace", "email": "ada@example.com", "department": "R&D"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"limit": 10, "offset": 0}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert body["limit"] == 10
+    assert body["offset"] == 0
+    assert [item["name"] for item in body["items"]] == ["Grace Hopper", "Ada Lovelace"]
+
+
 def test_manager_list_defaults_return_empty_page(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
