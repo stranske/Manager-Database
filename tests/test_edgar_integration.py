@@ -52,6 +52,25 @@ def sample_xml():
     )
 
 
+def sample_xml_multiple():
+    return (
+        "<edgarSubmission>"
+        "<infoTable>"
+        "<nameOfIssuer>Example Corp</nameOfIssuer>"
+        "<cusip>123456789</cusip>"
+        "<value>1000</value>"
+        "<shrsOrPrnAmt><sshPrnamt>100</sshPrnamt></shrsOrPrnAmt>"
+        "</infoTable>"
+        "<infoTable>"
+        "<nameOfIssuer>Missing Fields</nameOfIssuer>"
+        "<cusip></cusip>"
+        "<value></value>"
+        "<shrsOrPrnAmt><sshPrnamt></sshPrnamt></shrsOrPrnAmt>"
+        "</infoTable>"
+        "</edgarSubmission>"
+    )
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_edgar_flow_full_cycle(monkeypatch, tmp_path):
@@ -173,6 +192,27 @@ async def test_parse_step_with_mocked_input():
             "value": 1000,
             "sshPrnamt": 100,
         }
+    ]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_parse_step_with_mocked_input_multiple_rows():
+    # Include missing numeric fields to verify parser defaults to zero.
+    rows = await edgar.parse(sample_xml_multiple())
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        },
+        {
+            "nameOfIssuer": "Missing Fields",
+            "cusip": "",
+            "value": 0,
+            "sshPrnamt": 0,
+        },
     ]
 
 
