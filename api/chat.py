@@ -7,6 +7,7 @@ import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -32,6 +33,51 @@ def get_health_executor():
     if _HEALTH_EXECUTOR._shutdown:
         _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
     return _HEALTH_EXECUTOR
+
+
+class CircuitBreaker:
+    """Track consecutive failures and open after a threshold."""
+
+    def __init__(self, failure_threshold: int = 3, reset_timeout_s: float = 30.0) -> None:
+        self._failure_threshold = failure_threshold
+        self._reset_timeout_s = reset_timeout_s
+        self._consecutive_failures = 0
+        self._opened_at: float | None = None
+        self._lock = Lock()
+
+    def is_open(self) -> bool:
+        """Return True when the breaker is open and requests should be skipped."""
+        with self._lock:
+            if self._opened_at is None:
+                return False
+            if (time.monotonic() - self._opened_at) >= self._reset_timeout_s:
+                self._opened_at = None
+                self._consecutive_failures = 0
+                return False
+            return True
+
+    def record_success(self) -> None:
+        """Reset the breaker after a successful call."""
+        with self._lock:
+            self._consecutive_failures = 0
+            self._opened_at = None
+
+    def record_failure(self) -> None:
+        """Track a failure and open the breaker if needed."""
+        with self._lock:
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= self._failure_threshold:
+                if self._opened_at is None:
+                    self._opened_at = time.monotonic()
+
+
+def _circuit_breaker_reset_seconds() -> float:
+    """Return the circuit breaker reset timeout in seconds."""
+    return max(float(os.getenv("HEALTH_CIRCUIT_RESET_S", "30")), 1.0)
+
+
+_MINIO_CIRCUIT = CircuitBreaker(reset_timeout_s=_circuit_breaker_reset_seconds())
+_REDIS_CIRCUIT = CircuitBreaker(reset_timeout_s=_circuit_breaker_reset_seconds())
 
 
 # Keep APP_EXECUTOR for backwards compatibility
@@ -332,54 +378,74 @@ async def health_detailed():
     app_payload = _health_payload()
     db_response = await health_db()
     db_payload = json.loads(db_response.body)
-    minio_start = time.perf_counter()
-    minio_timeout_seconds = _minio_timeout_seconds()
-    try:
-        await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(
-                get_health_executor(), _ping_minio, minio_timeout_seconds
-            ),
-            timeout=minio_timeout_seconds,
-        )
-        minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
-        minio_payload = {"healthy": True, "latency_ms": minio_latency_ms}
-    except TimeoutError:
-        minio_latency_ms = int(minio_timeout_seconds * 1000)
-        minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
-    except Exception:
-        minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
-        minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
-    redis_url = os.getenv("REDIS_URL")
-    if redis_url:
-        redis_start = time.perf_counter()
-        redis_timeout_seconds = _redis_timeout_seconds()
+    if _MINIO_CIRCUIT.is_open():
+        minio_payload = {"healthy": False, "latency_ms": 0, "circuit_open": True}
+    else:
+        minio_start = time.perf_counter()
+        minio_timeout_seconds = _minio_timeout_seconds()
         try:
             await asyncio.wait_for(
                 asyncio.get_running_loop().run_in_executor(
-                    get_health_executor(), _ping_redis, redis_url, redis_timeout_seconds
+                    get_health_executor(), _ping_minio, minio_timeout_seconds
                 ),
-                timeout=redis_timeout_seconds,
+                timeout=minio_timeout_seconds,
             )
-            redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
-            redis_payload = {
-                "healthy": True,
-                "latency_ms": redis_latency_ms,
-                "enabled": True,
-            }
+            minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
+            _MINIO_CIRCUIT.record_success()
+            minio_payload = {"healthy": True, "latency_ms": minio_latency_ms}
         except TimeoutError:
-            redis_latency_ms = int(redis_timeout_seconds * 1000)
-            redis_payload = {
-                "healthy": False,
-                "latency_ms": redis_latency_ms,
-                "enabled": True,
-            }
+            minio_latency_ms = int(minio_timeout_seconds * 1000)
+            _MINIO_CIRCUIT.record_failure()
+            minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
         except Exception:
-            redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+            minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
+            _MINIO_CIRCUIT.record_failure()
+            minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        if _REDIS_CIRCUIT.is_open():
             redis_payload = {
                 "healthy": False,
-                "latency_ms": redis_latency_ms,
+                "latency_ms": 0,
                 "enabled": True,
+                "circuit_open": True,
             }
+        else:
+            redis_start = time.perf_counter()
+            redis_timeout_seconds = _redis_timeout_seconds()
+            try:
+                await asyncio.wait_for(
+                    asyncio.get_running_loop().run_in_executor(
+                        get_health_executor(),
+                        _ping_redis,
+                        redis_url,
+                        redis_timeout_seconds,
+                    ),
+                    timeout=redis_timeout_seconds,
+                )
+                redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+                _REDIS_CIRCUIT.record_success()
+                redis_payload = {
+                    "healthy": True,
+                    "latency_ms": redis_latency_ms,
+                    "enabled": True,
+                }
+            except TimeoutError:
+                redis_latency_ms = int(redis_timeout_seconds * 1000)
+                _REDIS_CIRCUIT.record_failure()
+                redis_payload = {
+                    "healthy": False,
+                    "latency_ms": redis_latency_ms,
+                    "enabled": True,
+                }
+            except Exception:
+                redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+                _REDIS_CIRCUIT.record_failure()
+                redis_payload = {
+                    "healthy": False,
+                    "latency_ms": redis_latency_ms,
+                    "enabled": True,
+                }
     else:
         # Skip cache probes when Redis isn't configured in this environment.
         redis_payload = {"healthy": True, "latency_ms": 0, "enabled": False}

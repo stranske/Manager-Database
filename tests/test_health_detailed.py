@@ -101,6 +101,61 @@ def test_health_detailed_redis_ok(tmp_path, monkeypatch):
     assert payload["components"]["redis"]["healthy"] is True
 
 
+def test_health_detailed_minio_circuit_breaker_opens(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
+    )
+
+    def _raise_minio(_timeout_seconds):
+        raise RuntimeError("minio down")
+
+    monkeypatch.setattr(chat, "_ping_minio", _raise_minio)
+    for _ in range(3):
+        resp = asyncio.run(chat.health_detailed())
+        assert resp.status_code == 503
+
+    def _unexpected_minio(_timeout_seconds):
+        raise AssertionError("minio should not be called when circuit is open")
+
+    monkeypatch.setattr(chat, "_ping_minio", _unexpected_minio)
+    resp = asyncio.run(chat.health_detailed())
+    payload = _payload_from_response(resp)
+    assert payload["components"]["minio"]["healthy"] is False
+    assert payload["components"]["minio"]["circuit_open"] is True
+
+
+def test_health_detailed_redis_circuit_breaker_opens(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setattr(chat, "_ping_minio", lambda _timeout_seconds: None)
+    monkeypatch.setattr(
+        chat, "_REDIS_CIRCUIT", chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
+    )
+
+    def _raise_redis(_redis_url, _timeout_seconds):
+        raise RuntimeError("redis down")
+
+    monkeypatch.setattr(chat, "_ping_redis", _raise_redis)
+    for _ in range(3):
+        resp = asyncio.run(chat.health_detailed())
+        assert resp.status_code == 503
+
+    def _unexpected_redis(_redis_url, _timeout_seconds):
+        raise AssertionError("redis should not be called when circuit is open")
+
+    monkeypatch.setattr(chat, "_ping_redis", _unexpected_redis)
+    resp = asyncio.run(chat.health_detailed())
+    payload = _payload_from_response(resp)
+    assert payload["components"]["redis"]["healthy"] is False
+    assert payload["components"]["redis"]["circuit_open"] is True
+
+
 # Commit-message checklist:
 # - [ ] type is accurate (feat, fix, test)
 # - [ ] scope is clear (health)
