@@ -99,6 +99,7 @@ def test_health_alert_validator_accepts_500ms_threshold(tmp_path: Path):
     )
     validate_health_alerts(config_path)
 
+
 # Commit-message checklist:
 # - [ ] type is accurate (feat, fix, test)
 # - [ ] scope is clear (health)
