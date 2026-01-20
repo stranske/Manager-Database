@@ -24,6 +24,32 @@ async def _post_manager(payload: dict):
         await app.router.shutdown()
 
 
+async def _get_managers(params: dict | None = None):
+    # Use the ASGI transport to exercise list behavior without a live server.
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.get("/managers", params=params)
+    finally:
+        await app.router.shutdown()
+
+
+async def _get_manager(manager_id: int):
+    # Use the ASGI transport to exercise detail behavior without a live server.
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.get(f"/managers/{manager_id}")
+    finally:
+        await app.router.shutdown()
+
+
 def test_manager_empty_name_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -83,3 +109,49 @@ def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     finally:
         conn.close()
     assert row == (payload["name"], payload["email"], payload["department"])
+
+
+def test_manager_list_returns_paginated_results(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Grace Hopper", "email": "grace@example.com", "department": "Eng"},
+        {"name": "Ada Lovelace", "email": "ada@example.com", "department": "R&D"},
+        {"name": "Mary Jackson", "email": "mary@example.com", "department": "Ops"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"limit": 2, "offset": 1}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3
+    assert body["limit"] == 2
+    assert body["offset"] == 1
+    names = [item["name"] for item in body["items"]]
+    assert names == ["Ada Lovelace", "Mary Jackson"]
+
+
+def test_manager_get_returns_single_manager(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payload = {"name": "Linus Torvalds", "email": "linus@example.com", "department": "Core"}
+    resp = asyncio.run(_post_manager(payload))
+    created = resp.json()
+
+    get_resp = asyncio.run(_get_manager(created["id"]))
+    assert get_resp.status_code == 200
+    fetched = get_resp.json()
+    assert fetched["id"] == created["id"]
+    assert fetched["name"] == payload["name"]
+    assert fetched["email"] == payload["email"]
+    assert fetched["department"] == payload["department"]
+
+
+def test_manager_get_returns_404_for_missing_id(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(_get_manager(999))
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Manager not found"
