@@ -140,11 +140,11 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 0/39 tasks complete, 39 remaining
+**Progress:** 9/39 tasks complete, 30 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
+The previous iteration changed **5 file(s)** but did not update task checkboxes.
 
 **Before continuing, you MUST:**
 1. Review the recent commits to understand what was changed
@@ -165,7 +165,7 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 
 - [x] Create a basic /health endpoint returning HTTP 200 when healthy.
 - [x] Implement a detailed /health/detailed endpoint checking database connectivity.
-- [ ] Add a check for MinIO storage availability.
+- [x] Add a check for MinIO storage availability.
 - [ ] Verify Redis cache connection (if applicable).
 - [ ] Add a circuit breaker for external service checks.
 - [ ] Implement retry logic with exponential backoff for flaky checks.
@@ -176,7 +176,7 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [ ] We need a complete health monitoring solution:
 - [x] Basic /health endpoint returning HTTP 200 when healthy
 - [x] Detailed /health/detailed endpoint checking database connectivity
-- [ ] Check MinIO storage availability
+- [x] Check MinIO storage availability
 - [ ] Verify Redis cache connection (if applicable)
 - [ ] Add circuit breaker for external service checks
 - [ ] Implement retry logic with exponential backoff for flaky checks
@@ -211,8 +211,9 @@ The PR is complete when ALL of these are satisfied:
 Avoid repeating these unless a task needs explicit follow-up:
 
 - Create a basic /health endpoint returning HTTP 200 when healthy.
+- Implement a detailed /health/detailed endpoint checking database connectivity.
 
 ### Suggested Next Task
-- Implement a detailed /health/detailed endpoint checking database connectivity.
+- Add a check for MinIO storage availability.
 
 ---

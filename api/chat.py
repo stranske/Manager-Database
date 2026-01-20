@@ -8,9 +8,11 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import boto3
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from botocore.config import Config as BotoConfig
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
@@ -76,6 +78,7 @@ class HealthDetailedResponse(BaseModel):
                     "components": {
                         "app": {"healthy": True, "uptime_s": 3600},
                         "database": {"healthy": True, "latency_ms": 42},
+                        "minio": {"healthy": True, "latency_ms": 58},
                     },
                 }
             ]
@@ -194,6 +197,34 @@ def _ping_db(timeout_seconds: float) -> None:
         conn.close()
 
 
+def _minio_timeout_seconds() -> float:
+    """Return the MinIO health timeout in seconds."""
+    return min(float(os.getenv("MINIO_HEALTH_TIMEOUT_S", "5")), 5.0)
+
+
+def _minio_client(timeout_seconds: float):
+    """Create a MinIO client with aggressive timeouts for health checks."""
+    config = BotoConfig(
+        connect_timeout=timeout_seconds,
+        read_timeout=timeout_seconds,
+        retries={"max_attempts": 0},
+    )
+    return boto3.client(
+        "s3",
+        endpoint_url=os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
+        aws_access_key_id=os.getenv("MINIO_ROOT_USER", "minio"),
+        aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD", "minio123"),
+        region_name=os.getenv("MINIO_REGION", "us-east-1"),
+        config=config,
+    )
+
+
+def _ping_minio(timeout_seconds: float) -> None:
+    """Run a lightweight MinIO API call to verify connectivity."""
+    client = _minio_client(timeout_seconds)
+    client.list_buckets()
+
+
 @app.get(
     "/health/db",
     response_model=HealthDbResponse,
@@ -286,14 +317,32 @@ async def health_detailed():
     app_payload = _health_payload()
     db_response = await health_db()
     db_payload = json.loads(db_response.body)
+    minio_start = time.perf_counter()
+    minio_timeout_seconds = _minio_timeout_seconds()
+    try:
+        await asyncio.wait_for(
+            asyncio.get_running_loop().run_in_executor(
+                get_health_executor(), _ping_minio, minio_timeout_seconds
+            ),
+            timeout=minio_timeout_seconds,
+        )
+        minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
+        minio_payload = {"healthy": True, "latency_ms": minio_latency_ms}
+    except TimeoutError:
+        minio_latency_ms = int(minio_timeout_seconds * 1000)
+        minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
+    except Exception:
+        minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
+        minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
     components = {
         "app": {"healthy": app_payload["healthy"], "uptime_s": app_payload["uptime_s"]},
         "database": {
             "healthy": db_payload["healthy"],
             "latency_ms": db_payload["latency_ms"],
         },
+        "minio": minio_payload,
     }
-    healthy = app_payload["healthy"] and db_payload["healthy"]
+    healthy = app_payload["healthy"] and db_payload["healthy"] and minio_payload["healthy"]
     payload = {
         "healthy": healthy,
         "uptime_s": app_payload["uptime_s"],
