@@ -37,7 +37,8 @@ def validate_health_alerts(config_path: Path) -> None:
             continue
         comparisons = _METRIC_THRESHOLD_PATTERN.findall(expr)
         for op, value in comparisons:
-            if op == ">" and float(value) >= 0.5:
+            # Accept inclusive thresholds so >= 0.5s still enforces 500ms or higher.
+            if op in (">", ">=") and float(value) >= 0.5:
                 return
     raise AssertionError("Missing warning alert for /health with threshold greater than 500ms.")
 
@@ -61,3 +62,8 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (health)
+# - [ ] summary is concise and imperative

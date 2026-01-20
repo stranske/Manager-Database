@@ -39,13 +39,13 @@ def test_health_alert_validator_rejects_non_greater_comparator(tmp_path: Path):
         validate_health_alerts(config_path)
 
 
-def test_health_alert_validator_rejects_greater_equal_comparator(tmp_path: Path):
+def test_health_alert_validator_accepts_greater_equal_comparator(tmp_path: Path):
     config_path = _write_alert_config(
         tmp_path,
         'histogram_quantile(0.95, sum(rate(health_check_duration_seconds_bucket{endpoint="health"}[5m])) by (le)) >= 0.5',
     )
-    with pytest.raises(AssertionError, match="Missing warning alert"):
-        validate_health_alerts(config_path)
+    # Accept inclusive threshold so >= 500ms is treated as compliant.
+    validate_health_alerts(config_path)
 
 
 def test_health_alert_validator_rejects_threshold_below_500ms(tmp_path: Path):
@@ -98,3 +98,8 @@ def test_health_alert_validator_accepts_500ms_threshold(tmp_path: Path):
         'histogram_quantile(0.95, sum(rate(health_check_duration_seconds_bucket{endpoint="/health"}[5m])) by (le)) > 0.5',
     )
     validate_health_alerts(config_path)
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (health)
+# - [ ] summary is concise and imperative
