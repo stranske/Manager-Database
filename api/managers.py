@@ -281,6 +281,30 @@ async def create_manager(
     response_model=ManagerListResponse,
     summary="List managers",
     description="Return a paginated list of managers with total count metadata.",
+    # Document query validation errors for OpenAPI consumers.
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": "Validation error",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid-limit": {
+                            "summary": "Invalid limit",
+                            "value": {
+                                "errors": [
+                                    {
+                                        "field": "limit",
+                                        "message": "ensure this value is greater than or equal to 1",
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                }
+            },
+        }
+    },
 )
 async def list_managers(
     limit: int = Query(25, ge=1, le=100, description="Maximum number of managers to return"),
@@ -304,7 +328,29 @@ async def list_managers(
     response_model=ManagerResponse,
     summary="Retrieve a manager",
     description="Return a single manager by id.",
+    # Surface path validation errors alongside the 404 response.
     responses={
+        400: {
+            "model": ErrorResponse,
+            "description": "Validation error",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid-id": {
+                            "summary": "Invalid id",
+                            "value": {
+                                "errors": [
+                                    {
+                                        "field": "id",
+                                        "message": "ensure this value is greater than or equal to 1",
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                }
+            },
+        },
         404: {
             "model": NotFoundResponse,
             "description": "Manager not found",

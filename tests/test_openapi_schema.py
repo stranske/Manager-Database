@@ -68,6 +68,11 @@ def test_openapi_managers_schema():
         "schema"
     ]
     assert list_response_schema["$ref"] == "#/components/schemas/ManagerListResponse"
+    # Validate list endpoint documents request validation errors.
+    list_error_schema = manager_list_schema["responses"]["400"]["content"]["application/json"][
+        "schema"
+    ]
+    assert list_error_schema["$ref"] == "#/components/schemas/ErrorResponse"
     list_parameters = {param["name"]: param for param in manager_list_schema["parameters"]}
     assert list_parameters["limit"]["schema"]["default"] == 25
     assert list_parameters["offset"]["schema"]["default"] == 0
@@ -78,6 +83,11 @@ def test_openapi_managers_schema():
         "application/json"
     ]["schema"]
     assert detail_response_schema["$ref"] == "#/components/schemas/ManagerResponse"
+    # Validate detail endpoint exposes path validation errors.
+    detail_error_schema = manager_detail_schema["responses"]["400"]["content"][
+        "application/json"
+    ]["schema"]
+    assert detail_error_schema["$ref"] == "#/components/schemas/ErrorResponse"
     not_found_schema = manager_detail_schema["responses"]["404"]["content"]["application/json"][
         "schema"
     ]
