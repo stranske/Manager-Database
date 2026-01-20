@@ -95,9 +95,7 @@ async def test_edgar_flow_full_cycle(monkeypatch, tmp_path):
     parsed_path = tmp_path / "parsed.json"
     assert json.loads(parsed_path.read_text()) == rows
     conn = sqlite3.connect(db_path)
-    row = conn.execute(
-        "SELECT cik, accession, cusip, value, sshPrnamt FROM holdings"
-    ).fetchone()
+    row = conn.execute("SELECT cik, accession, cusip, value, sshPrnamt FROM holdings").fetchone()
     conn.close()
     assert row == ("0000000000", "0000000000-24-000001", "123456789", 1000, 100)
 
