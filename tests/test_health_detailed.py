@@ -84,6 +84,7 @@ def test_health_detailed_minio_retries_with_backoff(tmp_path, monkeypatch):
     monkeypatch.setattr(
         chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
     )
+
     async def _healthy_db():
         return chat.JSONResponse(status_code=200, content={"healthy": True, "latency_ms": 0})
 

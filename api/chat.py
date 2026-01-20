@@ -287,10 +287,9 @@ def _ping_minio(timeout_seconds: float) -> None:
     client.list_buckets()
 
 
-async def _run_health_check_with_retries(
-    func, timeout_seconds: float, *args
-) -> None:
+async def _run_health_check_with_retries(func, timeout_seconds: float, *args) -> None:
     """Run a health check with exponential backoff for flaky dependencies."""
+
     def _run_with_retries_sync() -> None:
         deadline = time.perf_counter() + timeout_seconds
         for attempt, backoff in enumerate(_HEALTH_RETRY_BACKOFFS):
@@ -304,9 +303,7 @@ async def _run_health_check_with_retries(
         func(*args)
 
     await asyncio.wait_for(
-        asyncio.get_running_loop().run_in_executor(
-            get_health_executor(), _run_with_retries_sync
-        ),
+        asyncio.get_running_loop().run_in_executor(get_health_executor(), _run_with_retries_sync),
         timeout=timeout_seconds,
     )
 
