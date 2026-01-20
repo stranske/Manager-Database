@@ -25,6 +25,20 @@ def _shutdown_health_executor():
     chat._HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
 
 
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def perf_counter(self) -> float:
+        return self.now
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
 @pytest.mark.asyncio
 async def test_health_app_ok(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
@@ -80,6 +94,31 @@ async def test_health_app_responds_within_budget(tmp_path, monkeypatch, budget_s
     resp = await health_app()
     _shutdown_health_executor()
     elapsed = time.perf_counter() - start
+    assert resp.status_code == 200
+    assert elapsed < 0.2
+
+
+@pytest.mark.asyncio
+async def test_health_app_performance_with_mocked_timing(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    fake_clock = _FakeClock()
+
+    async def _fast_checks(*_args, **_kwargs):
+        fake_clock.advance(0.15)
+        return {
+            "database": ({"healthy": True, "latency_ms": 10}, None),
+            "minio": ({"healthy": True, "latency_ms": 12}, None),
+            "redis": ({"healthy": True, "latency_ms": 8, "enabled": False}, None),
+        }
+
+    monkeypatch.setattr(chat, "_run_health_summary_checks", _fast_checks)
+    monkeypatch.setattr(chat.time, "perf_counter", fake_clock.perf_counter)
+    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+
+    start = chat.time.perf_counter()
+    resp = await health_app()
+    _shutdown_health_executor()
+    elapsed = chat.time.perf_counter() - start
     assert resp.status_code == 200
     assert elapsed < 0.2
 
@@ -142,6 +181,30 @@ async def test_health_app_timeout_budget_caps_total_time(tmp_path, monkeypatch):
     assert payload["failed_checks"]["database"] == "timeout"
     assert payload["failed_checks"]["minio"] == "timeout"
     assert payload["failed_checks"]["redis"] == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_health_app_wait_timeout_respects_budget(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.05")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setattr(chat, "_ping_db", lambda _timeout_seconds: None)
+    monkeypatch.setattr(chat, "_ping_minio", lambda _timeout_seconds: None)
+    monkeypatch.setattr(chat, "_ping_redis", lambda _redis_url, _timeout_seconds: None)
+
+    captured = {}
+    original_wait = chat.asyncio.wait
+
+    async def _capture_wait(*args, **kwargs):
+        # Capture the timeout passed to asyncio.wait without changing behavior.
+        captured["timeout"] = kwargs.get("timeout")
+        return await original_wait(*args, **kwargs)
+
+    monkeypatch.setattr(chat.asyncio, "wait", _capture_wait)
+    resp = await health_app()
+    _shutdown_health_executor()
+    assert resp.status_code == 200
+    assert captured["timeout"] == pytest.approx(0.1)
 
 
 @pytest.mark.asyncio
@@ -266,6 +329,59 @@ def test_circuit_breaker_resets_after_timeout(monkeypatch):
 
     circuit.record_failure()
     assert circuit.is_open() is True
+
+
+def test_circuit_breaker_allows_calls_after_reset(monkeypatch):
+    fake_clock = _FakeClock()
+    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+    circuit = chat.CircuitBreaker(failure_threshold=2, reset_timeout_s=5.0)
+
+    circuit.record_failure()
+    circuit.record_failure()
+    assert circuit.is_open() is True
+
+    fake_clock.advance(6.0)
+    assert circuit.is_open() is False
+
+    circuit.record_failure()
+    assert circuit.is_open() is False
+    circuit.record_failure()
+    assert circuit.is_open() is True
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_allows_dependency_after_cooldown(monkeypatch):
+    fake_clock = _FakeClock()
+    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+    monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
+    calls = {"count": 0}
+
+    def _ok(_timeout_seconds):
+        calls["count"] += 1
+
+    circuit = chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=5.0)
+    circuit.record_failure()
+    payload, reason = await chat._run_dependency_check(
+        _ok,
+        0.01,
+        0.01,
+        circuit_breaker=circuit,
+    )
+    assert payload["circuit_open"] is True
+    assert reason == "circuit_open"
+    assert calls["count"] == 0
+
+    fake_clock.advance(5.1)
+    payload, reason = await chat._run_dependency_check(
+        _ok,
+        0.01,
+        0.01,
+        circuit_breaker=circuit,
+    )
+    assert payload["healthy"] is True
+    assert reason is None
+    assert calls["count"] == 1
+    _shutdown_health_executor()
 
 
 @pytest.mark.asyncio

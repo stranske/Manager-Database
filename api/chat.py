@@ -299,6 +299,7 @@ async def _run_health_summary_checks(
     }
     task_names = {task: name for name, task in tasks.items()}
     start = time.perf_counter()
+    # Allow a small buffer beyond the budget to avoid false timeouts in the executor.
     overall_timeout = min(timeout_budget + 0.05, 0.2)
     done, pending = await asyncio.wait(tasks.values(), timeout=overall_timeout)
     elapsed_ms = int(min(overall_timeout, time.perf_counter() - start) * 1000)

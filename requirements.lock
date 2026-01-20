@@ -21,8 +21,6 @@ apprise==1.9.6
     # via prefect
 asgi-lifespan==2.1.0
     # via prefect
-async-timeout==5.0.1 ; python_full_version < '3.11.3'
-    # via redis
 asyncpg==0.31.0
     # via prefect
 attrs==25.4.0
@@ -249,8 +247,6 @@ pathspec==1.0.3
     #   black
     #   mypy
     #   prefect
-pendulum==3.1.0 ; python_full_version < '3.13'
-    # via prefect
 pillow==12.1.0
     # via
     #   captcha
@@ -325,7 +321,6 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   dateparser
     #   pandas
-    #   pendulum
     #   prefect
 python-dotenv==1.2.1
     # via pydantic-settings
@@ -430,37 +425,31 @@ toml==0.10.2
     # via
     #   prefect
     #   streamlit
-tomli==2.4.0 ; python_full_version <= '3.11'
-    # via coverage
 tornado==6.5.4
     # via streamlit
 typer==0.20.1
     # via
     #   prefect
     #   pydocket
+types-pyyaml==6.0.12.20250915
+    # via manager-database (pyproject.toml)
 typing-extensions==4.15.0
     # via
     #   alembic
     #   altair
-    #   anyio
     #   beautifulsoup4
-    #   exceptiongroup
     #   fastapi
     #   mypy
     #   opentelemetry-api
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
     #   prefect
-    #   psycopg
     #   py-key-value-shared
     #   pydantic
     #   pydantic-core
     #   pydantic-extra-types
     #   pydocket
-    #   pytest-asyncio
-    #   referencing
     #   sqlalchemy
-    #   starlette
     #   streamlit
     #   typer
     #   typing-inspection
@@ -468,11 +457,12 @@ typing-inspection==0.4.2
     # via
     #   pydantic
     #   pydantic-settings
+types-pyyaml==6.0.12.20250915
+    # via manager-database (pyproject.toml)
 tzdata==2025.3
     # via
     #   apprise
     #   pandas
-    #   pendulum
     #   psycopg
     #   tzlocal
     #   whenever
@@ -495,7 +485,7 @@ watchdog==6.0.0 ; sys_platform != 'darwin'
     # via streamlit
 websockets==15.0.1
     # via prefect
-whenever==0.9.4 ; python_full_version >= '3.13'
+whenever==0.9.4
     # via prefect
 wrapt==1.17.3
     # via opentelemetry-instrumentation
