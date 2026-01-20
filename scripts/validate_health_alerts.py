@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-_THRESHOLD_PATTERN = re.compile(r">\s*([0-9]+(?:\.[0-9]+)?)")
+_THRESHOLD_PATTERN = re.compile(r"(>=|<=|>|<)\s*([0-9]+(?:\.[0-9]+)?)")
 
 
 def _iter_rules(config: dict) -> list[dict]:
@@ -31,8 +31,8 @@ def validate_health_alerts(config_path: Path) -> None:
             continue
         if 'endpoint="health"' not in expr:
             continue
-        thresholds = [float(match) for match in _THRESHOLD_PATTERN.findall(expr)]
-        if any(value >= 0.5 for value in thresholds):
+        comparisons = _THRESHOLD_PATTERN.findall(expr)
+        if any(op in (">", ">=") and float(value) >= 0.5 for op, value in comparisons):
             return
     raise AssertionError("Missing warning alert for /health with threshold greater than 500ms.")
 
