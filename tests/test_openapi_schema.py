@@ -100,3 +100,17 @@ def test_openapi_health_db_schema():
         "timeout"
     ]
     assert timeout_example["value"]["healthy"] is False
+
+
+def test_docs_route_exposes_openapi():
+    # Ensure Swagger UI is available for the documented manager endpoints.
+    async def _fetch() -> str:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/docs")
+            assert response.status_code == 200
+            return response.text
+
+    docs_html = asyncio.run(_fetch())
+    assert "Swagger UI" in docs_html
+    assert "/openapi.json" in docs_html

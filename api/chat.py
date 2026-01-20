@@ -17,8 +17,8 @@ from adapters.base import connect_db
 from api.managers import router as managers_router
 
 app = FastAPI()
-# Register the managers router to keep /managers definitions in its own module.
-app.include_router(managers_router)
+# Tag manager endpoints so they group clearly in the Swagger UI.
+app.include_router(managers_router, tags=["Managers"])
 _APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 APP_START_TIME = time.monotonic()
