@@ -364,9 +364,7 @@ async def health_db():
         return JSONResponse(status_code=503, content=payload)
     finally:
         # Record total DB check duration even when the ping fails.
-        HEALTH_CHECK_DURATION.labels(endpoint="health_db").observe(
-            time.perf_counter() - start
-        )
+        HEALTH_CHECK_DURATION.labels(endpoint="health_db").observe(time.perf_counter() - start)
 
 
 @app.get("/health/ready")
@@ -388,9 +386,7 @@ async def health_ready():
         return JSONResponse(status_code=status_code, content=payload)
     finally:
         # Capture readiness latency for alerting dashboards.
-        HEALTH_CHECK_DURATION.labels(endpoint="health_ready").observe(
-            time.perf_counter() - start
-        )
+        HEALTH_CHECK_DURATION.labels(endpoint="health_ready").observe(time.perf_counter() - start)
 
 
 @app.get("/readyz")
