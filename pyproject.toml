@@ -49,6 +49,7 @@ include = ["adapters*", "api*", "etl*", "ui*"]
 addopts = "-q"
 markers = [
     "nightly: nightly regression tests",
+    "integration: integration tests",
 ]
 
 [tool.black]
