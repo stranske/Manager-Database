@@ -87,6 +87,27 @@ async def test_health_app_ok(tmp_path, monkeypatch):
     assert payload["failed_checks"] == {}
 
 
+@pytest.mark.asyncio
+async def test_health_app_uptime_uses_injected_clock(tmp_path, monkeypatch):
+    _configure_health_env(monkeypatch, tmp_path)
+    fake_clock = _FakeClock()
+    _install_health_clock(monkeypatch, fake_clock)
+
+    async def _fast_checks(*_args, **_kwargs):
+        return {
+            "database": ({"healthy": True, "latency_ms": 10}, None),
+            "minio": ({"healthy": True, "latency_ms": 12}, None),
+            "redis": ({"healthy": True, "latency_ms": 0, "enabled": False}, None),
+        }
+
+    monkeypatch.setattr(chat, "_run_health_summary_checks", _fast_checks)
+    fake_clock.advance(12.3)
+    resp = await health_app()
+    _shutdown_health_executor()
+    payload = json.loads(resp.body)
+    assert payload["uptime_s"] == 12
+
+
 def test_health_live_ok():
     payload = health_live()
     assert payload["healthy"] is True
