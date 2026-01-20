@@ -319,8 +319,11 @@ async def list_managers(
         rows = _fetch_managers(conn, limit, offset)
     finally:
         conn.close()
-    items = [{"id": row[0], "name": row[1], "email": row[2], "department": row[3]} for row in rows]
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    items = [
+        ManagerResponse(id=row[0], name=row[1], email=row[2], department=row[3])
+        for row in rows
+    ]
+    return ManagerListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get(
@@ -380,4 +383,4 @@ async def get_manager(
         conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
-    return {"id": row[0], "name": row[1], "email": row[2], "department": row[3]}
+    return ManagerResponse(id=row[0], name=row[1], email=row[2], department=row[3])
