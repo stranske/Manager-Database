@@ -1,5 +1,6 @@
 import json
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -27,19 +28,23 @@ def _shutdown_health_executor():
 
 class _FakeClock:
     def __init__(self) -> None:
+        self._lock = threading.Lock()
         self.now = 0.0
 
     def perf_counter(self) -> float:
-        return self.now
+        with self._lock:
+            return self.now
 
     def monotonic(self) -> float:
-        return self.now
+        with self._lock:
+            return self.now
 
     def sleep(self, seconds: float) -> None:
         self.advance(seconds)
 
     def advance(self, seconds: float) -> None:
-        self.now += seconds
+        with self._lock:
+            self.now += seconds
 
 
 def _install_health_clock(monkeypatch, fake_clock: _FakeClock) -> chat.HealthClock:
@@ -52,6 +57,23 @@ def _install_health_clock(monkeypatch, fake_clock: _FakeClock) -> chat.HealthClo
     monkeypatch.setattr(chat, "HEALTH_CLOCK", clock)
     monkeypatch.setattr(chat, "APP_START_TIME", clock.monotonic())
     return clock
+
+
+def _install_timeout_wait(monkeypatch, fake_clock: _FakeClock) -> None:
+    async def _fake_wait(fs, timeout=None, return_when=chat.asyncio.ALL_COMPLETED):
+        if timeout:
+            fake_clock.advance(timeout)
+        return set(), set(fs)
+
+    monkeypatch.setattr(chat.asyncio, "wait", _fake_wait)
+
+
+def _install_immediate_wait(monkeypatch) -> None:
+    async def _fake_wait(fs, timeout=None, return_when=chat.asyncio.ALL_COMPLETED):
+        await chat.asyncio.gather(*fs, return_exceptions=True)
+        return set(fs), set()
+
+    monkeypatch.setattr(chat.asyncio, "wait", _fake_wait)
 
 
 @pytest.mark.asyncio
@@ -155,15 +177,17 @@ async def test_health_app_parallel_dependency_checks(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.18")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    fake_clock = _FakeClock()
+    health_clock = _install_health_clock(monkeypatch, fake_clock)
 
     def _slow_db(_timeout_seconds):
-        time.sleep(0.03)
+        fake_clock.sleep(0.03)
 
     def _slow_minio(_timeout_seconds):
-        time.sleep(0.03)
+        fake_clock.sleep(0.03)
 
     def _slow_redis(_redis_url, _timeout_seconds):
-        time.sleep(0.03)
+        fake_clock.sleep(0.03)
 
     monkeypatch.setattr(chat, "_ping_db", _slow_db)
     monkeypatch.setattr(chat, "_ping_minio", _slow_minio)
@@ -172,10 +196,10 @@ async def test_health_app_parallel_dependency_checks(tmp_path, monkeypatch):
     executor = chat.get_health_executor()
     for _ in range(3):
         executor.submit(lambda: None).result()
-    start = time.perf_counter()
+    start = health_clock.perf_counter()
     resp = await health_app()
     _shutdown_health_executor()
-    elapsed = time.perf_counter() - start
+    elapsed = health_clock.perf_counter() - start
     assert resp.status_code == 200
     assert elapsed < 0.2
 
@@ -185,23 +209,17 @@ async def test_health_app_timeout_budget_caps_total_time(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.05")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    fake_clock = _FakeClock()
+    health_clock = _install_health_clock(monkeypatch, fake_clock)
+    _install_timeout_wait(monkeypatch, fake_clock)
 
-    def _slow_db(_timeout_seconds):
-        time.sleep(0.2)
-
-    def _slow_minio(_timeout_seconds):
-        time.sleep(0.2)
-
-    def _slow_redis(_redis_url, _timeout_seconds):
-        time.sleep(0.2)
-
-    monkeypatch.setattr(chat, "_ping_db", _slow_db)
-    monkeypatch.setattr(chat, "_ping_minio", _slow_minio)
-    monkeypatch.setattr(chat, "_ping_redis", _slow_redis)
-    start = time.perf_counter()
+    monkeypatch.setattr(chat, "_ping_db", lambda _timeout_seconds: None)
+    monkeypatch.setattr(chat, "_ping_minio", lambda _timeout_seconds: None)
+    monkeypatch.setattr(chat, "_ping_redis", lambda _redis_url, _timeout_seconds: None)
+    start = health_clock.perf_counter()
     resp = await health_app()
     _shutdown_health_executor()
-    elapsed = time.perf_counter() - start
+    elapsed = health_clock.perf_counter() - start
     payload = json.loads(resp.body)
     assert resp.status_code == 503
     assert elapsed < 0.2
@@ -238,17 +256,18 @@ async def test_health_app_wait_timeout_respects_budget(tmp_path, monkeypatch):
 async def test_health_app_circuit_breaker_opens_after_summary_timeouts(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.05")
+    fake_clock = _FakeClock()
+    _install_health_clock(monkeypatch, fake_clock)
     monkeypatch.setattr(
         chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
     )
+    _install_timeout_wait(monkeypatch, fake_clock)
 
-    def _slow_minio(_timeout_seconds):
-        time.sleep(0.2)
-
-    monkeypatch.setattr(chat, "_ping_minio", _slow_minio)
     for _ in range(3):
         resp = await health_app()
         assert resp.status_code == 503
+
+    _install_immediate_wait(monkeypatch)
 
     def _unexpected_minio(_timeout_seconds):
         raise AssertionError("minio should not be called when circuit is open")
