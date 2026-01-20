@@ -4,12 +4,30 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import pytest
+import yaml
 
-from scripts.validate_health_alerts import validate_health_alerts
+from scripts.validate_health_alerts import (
+    _ENDPOINT_LABEL_PATTERN,
+    _METRIC_THRESHOLD_PATTERN,
+    validate_health_alerts,
+)
 
 
 def test_health_alert_warning_threshold_present():
-    validate_health_alerts(Path("monitoring/alerts/health-checks.yml"))
+    config_path = Path("monitoring/alerts/health-checks.yml")
+    data = yaml.safe_load(config_path.read_text()) or {}
+    rules = []
+    for group in data.get("groups", []):
+        rules.extend(group.get("rules", []))
+    rule = {rule.get("alert"): rule for rule in rules}.get("HealthCheckLatencyWarning")
+    assert rule is not None
+    assert rule.get("labels", {}).get("severity") == "warning"
+    expr = rule.get("expr", "")
+    assert "health_check_duration_seconds" in expr
+    assert _ENDPOINT_LABEL_PATTERN.search(expr)
+    comparisons = _METRIC_THRESHOLD_PATTERN.findall(expr)
+    assert any(op in (">", ">=") and float(value) >= 0.5 for op, value in comparisons)
+    validate_health_alerts(config_path)
 
 
 def _write_alert_config(tmp_path: Path, expr: str, *, severity: str = "warning") -> Path:

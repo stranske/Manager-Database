@@ -45,6 +45,7 @@ async def _request_with_retry(
                 extra={"url": url, "attempt": attempt, "max_retries": max_retries},
             )
             await asyncio.sleep(wait)
+    raise RuntimeError("EDGAR request retry loop ended unexpectedly")
 
 
 async def list_new_filings(cik: str, since: str) -> list[dict[str, str]]:

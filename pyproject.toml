@@ -36,6 +36,7 @@ dev = [
     "types-PyYAML",
     "coverage>=7.13.1",
     "referencing",
+    "PyYAML",
 ]
 
 [build-system]

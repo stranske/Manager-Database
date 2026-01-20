@@ -1,7 +1,6 @@
 import asyncio
 import json
 import sys
-import time
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -39,19 +38,18 @@ def test_health_db_unreachable(tmp_path, monkeypatch):
 
 
 def test_health_db_timeout(monkeypatch):
-    def slow_ping(_timeout_seconds: float) -> None:
-        # Sleep long enough to trip the timeout without touching the DB.
-        time.sleep(0.2)
+    def timeout_ping(_timeout_seconds: float) -> None:
+        raise TimeoutError("db timeout")
 
     # Avoid accidental Postgres connections if DB_URL is set in the environment.
     monkeypatch.delenv("DB_URL", raising=False)
     monkeypatch.setenv("DB_HEALTH_TIMEOUT_S", "0.05")
-    monkeypatch.setattr("api.chat._ping_db", slow_ping)
-    start = time.perf_counter()
+    monkeypatch.setattr("api.chat._HEALTH_RETRY_BACKOFFS", ())
+    monkeypatch.setattr("api.chat._ping_db", timeout_ping)
     resp = asyncio.run(health_db())
-    elapsed = time.perf_counter() - start
-    assert elapsed < 0.5
     assert resp.status_code == 503
+    payload = _payload_from_response(resp)
+    assert payload["healthy"] is False
 
 
 def test_health_db_timeout_cap(monkeypatch):

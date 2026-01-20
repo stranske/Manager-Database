@@ -6,8 +6,11 @@ import asyncio
 import json
 import os
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from threading import Lock
+from typing import Any, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -26,7 +29,19 @@ app.include_router(managers_router, tags=["Managers"])
 _APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 # Allow concurrent health checks without serializing every dependency probe.
 _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=3)
-APP_START_TIME = time.monotonic()
+
+
+@dataclass(frozen=True)
+class HealthClock:
+    """Centralize time sources to enable deterministic health check tests."""
+
+    perf_counter: Callable[[], float]
+    monotonic: Callable[[], float]
+    sleep: Callable[[float], None]
+
+
+HEALTH_CLOCK = HealthClock(time.perf_counter, time.monotonic, time.sleep)
+APP_START_TIME = HEALTH_CLOCK.monotonic()
 HEALTH_CHECK_DURATION = Histogram(
     "health_check_duration_seconds",
     "Health check latency by endpoint.",
@@ -45,11 +60,18 @@ def get_health_executor():
 class CircuitBreaker:
     """Track consecutive failures and open after a threshold."""
 
-    def __init__(self, failure_threshold: int = 3, reset_timeout_s: float = 30.0) -> None:
+    def __init__(
+        self,
+        failure_threshold: int = 3,
+        reset_timeout_s: float = 30.0,
+        monotonic_fn: Callable[[], float] | None = None,
+    ) -> None:
         self._failure_threshold = failure_threshold
         self._reset_timeout_s = reset_timeout_s
         self._consecutive_failures = 0
         self._opened_at: float | None = None
+        # Allow tests to inject a deterministic clock without patching globals.
+        self._monotonic = monotonic_fn or HEALTH_CLOCK.monotonic
         self._lock = Lock()
 
     def is_open(self) -> bool:
@@ -57,7 +79,7 @@ class CircuitBreaker:
         with self._lock:
             if self._opened_at is None:
                 return False
-            if (time.monotonic() - self._opened_at) >= self._reset_timeout_s:
+            if (self._monotonic() - self._opened_at) >= self._reset_timeout_s:
                 self._opened_at = None
                 self._consecutive_failures = 0
                 return False
@@ -75,7 +97,7 @@ class CircuitBreaker:
             self._consecutive_failures += 1
             if self._consecutive_failures >= self._failure_threshold:
                 if self._opened_at is None:
-                    self._opened_at = time.monotonic()
+                    self._opened_at = self._monotonic()
 
 
 def _circuit_breaker_reset_seconds() -> float:
@@ -178,12 +200,15 @@ def chat(
     q: str = Query(
         ...,
         description="User question",
-        examples={
-            "basic": {
-                "summary": "Holdings question",
-                "value": "What is the latest holdings update?",
-            }
-        },
+        examples=cast(
+            Any,
+            {
+                "basic": {
+                    "summary": "Holdings question",
+                    "value": "What is the latest holdings update?",
+                }
+            },
+        ),
     )
 ):
     """Return a naive answer built from stored documents."""
@@ -201,7 +226,7 @@ def chat(
 def _health_payload() -> dict[str, int | bool]:
     """Build the base app health payload."""
     # Use monotonic time to avoid issues if the system clock changes.
-    uptime_s = int(time.monotonic() - APP_START_TIME)
+    uptime_s = int(HEALTH_CLOCK.monotonic() - APP_START_TIME)
     return {"healthy": True, "uptime_s": uptime_s}
 
 
@@ -236,11 +261,11 @@ async def _run_dependency_check(
         if include_enabled:
             payload["enabled"] = True
         return payload, "circuit_open"
-    start = time.perf_counter()
+    start = HEALTH_CLOCK.perf_counter()
     try:
         # Keep retries inside the per-check timeout budget for responsiveness.
         await _run_health_check_with_retries(func, timeout_seconds, *args)
-        latency_ms = int((time.perf_counter() - start) * 1000)
+        latency_ms = int((HEALTH_CLOCK.perf_counter() - start) * 1000)
         if circuit_breaker:
             circuit_breaker.record_success()
         payload = {"healthy": True, "latency_ms": latency_ms}
@@ -248,7 +273,7 @@ async def _run_dependency_check(
             payload["enabled"] = True
         return payload, None
     except TimeoutError:
-        latency_ms = int(min(timeout_seconds, time.perf_counter() - start) * 1000)
+        latency_ms = int(min(timeout_seconds, HEALTH_CLOCK.perf_counter() - start) * 1000)
         if circuit_breaker:
             circuit_breaker.record_failure()
         payload = {"healthy": False, "latency_ms": latency_ms}
@@ -256,7 +281,7 @@ async def _run_dependency_check(
             payload["enabled"] = True
         return payload, "timeout"
     except Exception as exc:
-        latency_ms = int((time.perf_counter() - start) * 1000)
+        latency_ms = int((HEALTH_CLOCK.perf_counter() - start) * 1000)
         if circuit_breaker:
             circuit_breaker.record_failure()
         payload = {"healthy": False, "latency_ms": latency_ms}
@@ -298,11 +323,11 @@ async def _run_health_summary_checks(
         ),
     }
     task_names = {task: name for name, task in tasks.items()}
-    start = time.perf_counter()
+    start = HEALTH_CLOCK.perf_counter()
     # Allow a small buffer beyond the budget to avoid false timeouts in the executor.
     overall_timeout = min(timeout_budget + 0.05, 0.2)
     done, pending = await asyncio.wait(tasks.values(), timeout=overall_timeout)
-    elapsed_ms = int(min(overall_timeout, time.perf_counter() - start) * 1000)
+    elapsed_ms = int(min(overall_timeout, HEALTH_CLOCK.perf_counter() - start) * 1000)
     for task in pending:
         task.cancel()
         name = task_names.get(task)
@@ -327,7 +352,7 @@ async def _run_health_summary_checks(
 @app.get("/health")
 async def health_app():
     """Return application health and dependency status."""
-    start = time.perf_counter()
+    start = HEALTH_CLOCK.perf_counter()
     try:
         app_payload = _health_payload()
         timeout_budget = _health_summary_timeout_seconds()
@@ -375,7 +400,7 @@ async def health_app():
         return JSONResponse(status_code=status_code, content=payload)
     finally:
         # Track summary health latency for dashboards and alerts.
-        HEALTH_CHECK_DURATION.labels(endpoint="health").observe(time.perf_counter() - start)
+        HEALTH_CHECK_DURATION.labels(endpoint="health").observe(HEALTH_CLOCK.perf_counter() - start)
 
 
 @app.get("/health/live")
@@ -461,19 +486,28 @@ def _ping_minio(timeout_seconds: float) -> None:
     client.list_buckets()
 
 
-async def _run_health_check_with_retries(func, timeout_seconds: float, *args) -> None:
+async def _run_health_check_with_retries(
+    func,
+    timeout_seconds: float,
+    *args,
+    sleep_fn: Callable[[float], None] | None = None,
+    perf_counter_fn: Callable[[], float] | None = None,
+) -> None:
     """Run a health check with exponential backoff for flaky dependencies."""
 
     def _run_with_retries_sync() -> None:
-        deadline = time.perf_counter() + timeout_seconds
+        # Resolve injected timing functions once so retries stay consistent.
+        resolved_sleep = sleep_fn or HEALTH_CLOCK.sleep
+        resolved_perf_counter = perf_counter_fn or HEALTH_CLOCK.perf_counter
+        deadline = resolved_perf_counter() + timeout_seconds
         for backoff in _HEALTH_RETRY_BACKOFFS:
             try:
                 func(*args)
                 return
             except Exception:
-                if time.perf_counter() + backoff >= deadline:
+                if resolved_perf_counter() + backoff >= deadline:
                     raise
-                time.sleep(backoff)
+                resolved_sleep(backoff)
         func(*args)
 
     await asyncio.wait_for(
@@ -508,32 +542,34 @@ async def _run_health_check_with_retries(func, timeout_seconds: float, *args) ->
 )
 async def health_db():
     """Return database connectivity status and latency."""
-    start = time.perf_counter()
+    start = HEALTH_CLOCK.perf_counter()
     timeout_seconds = _db_timeout_seconds()
     try:
         # Use a dedicated executor to avoid relying on the loop default executor.
         await _run_health_check_with_retries(_ping_db, timeout_seconds, timeout_seconds)
-        latency_ms = int((time.perf_counter() - start) * 1000)
+        latency_ms = int((HEALTH_CLOCK.perf_counter() - start) * 1000)
         payload = {"healthy": True, "latency_ms": latency_ms}
         return JSONResponse(status_code=200, content=payload)
     except TimeoutError:
         # Fail fast to keep the endpoint under the timeout budget.
-        latency_ms = int(min(timeout_seconds, time.perf_counter() - start) * 1000)
+        latency_ms = int(min(timeout_seconds, HEALTH_CLOCK.perf_counter() - start) * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}
         return JSONResponse(status_code=503, content=payload)
     except Exception:
-        latency_ms = int((time.perf_counter() - start) * 1000)
+        latency_ms = int((HEALTH_CLOCK.perf_counter() - start) * 1000)
         payload = {"healthy": False, "latency_ms": latency_ms}
         return JSONResponse(status_code=503, content=payload)
     finally:
         # Record total DB check duration even when the ping fails.
-        HEALTH_CHECK_DURATION.labels(endpoint="health_db").observe(time.perf_counter() - start)
+        HEALTH_CHECK_DURATION.labels(endpoint="health_db").observe(
+            HEALTH_CLOCK.perf_counter() - start
+        )
 
 
 @app.get("/health/ready")
 async def health_ready():
     """Return readiness status combining app and database checks."""
-    start = time.perf_counter()
+    start = HEALTH_CLOCK.perf_counter()
     # Reuse the existing health endpoints to keep readiness logic consistent.
     app_payload = _health_payload()
     try:
@@ -549,7 +585,9 @@ async def health_ready():
         return JSONResponse(status_code=status_code, content=payload)
     finally:
         # Capture readiness latency for alerting dashboards.
-        HEALTH_CHECK_DURATION.labels(endpoint="health_ready").observe(time.perf_counter() - start)
+        HEALTH_CHECK_DURATION.labels(endpoint="health_ready").observe(
+            HEALTH_CLOCK.perf_counter() - start
+        )
 
 
 @app.get("/readyz")
@@ -573,7 +611,7 @@ async def health_readyz():
 )
 async def health_detailed():
     """Return detailed health status for app and database components."""
-    start = time.perf_counter()
+    start = HEALTH_CLOCK.perf_counter()
     # Reuse existing health payloads to keep liveness logic consistent.
     app_payload = _health_payload()
     try:
@@ -582,13 +620,13 @@ async def health_detailed():
         if _MINIO_CIRCUIT.is_open():
             minio_payload = {"healthy": False, "latency_ms": 0, "circuit_open": True}
         else:
-            minio_start = time.perf_counter()
+            minio_start = HEALTH_CLOCK.perf_counter()
             minio_timeout_seconds = _minio_timeout_seconds()
             try:
                 await _run_health_check_with_retries(
                     _ping_minio, minio_timeout_seconds, minio_timeout_seconds
                 )
-                minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
+                minio_latency_ms = int((HEALTH_CLOCK.perf_counter() - minio_start) * 1000)
                 _MINIO_CIRCUIT.record_success()
                 minio_payload = {"healthy": True, "latency_ms": minio_latency_ms}
             except TimeoutError:
@@ -596,7 +634,7 @@ async def health_detailed():
                 _MINIO_CIRCUIT.record_failure()
                 minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
             except Exception:
-                minio_latency_ms = int((time.perf_counter() - minio_start) * 1000)
+                minio_latency_ms = int((HEALTH_CLOCK.perf_counter() - minio_start) * 1000)
                 _MINIO_CIRCUIT.record_failure()
                 minio_payload = {"healthy": False, "latency_ms": minio_latency_ms}
         redis_url = os.getenv("REDIS_URL")
@@ -609,13 +647,13 @@ async def health_detailed():
                     "circuit_open": True,
                 }
             else:
-                redis_start = time.perf_counter()
+                redis_start = HEALTH_CLOCK.perf_counter()
                 redis_timeout_seconds = _redis_timeout_seconds()
                 try:
                     await _run_health_check_with_retries(
                         _ping_redis, redis_timeout_seconds, redis_url, redis_timeout_seconds
                     )
-                    redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+                    redis_latency_ms = int((HEALTH_CLOCK.perf_counter() - redis_start) * 1000)
                     _REDIS_CIRCUIT.record_success()
                     redis_payload = {
                         "healthy": True,
@@ -631,7 +669,7 @@ async def health_detailed():
                         "enabled": True,
                     }
                 except Exception:
-                    redis_latency_ms = int((time.perf_counter() - redis_start) * 1000)
+                    redis_latency_ms = int((HEALTH_CLOCK.perf_counter() - redis_start) * 1000)
                     _REDIS_CIRCUIT.record_failure()
                     redis_payload = {
                         "healthy": False,
@@ -667,7 +705,7 @@ async def health_detailed():
     finally:
         # Track full detailed health check latency for dashboards.
         HEALTH_CHECK_DURATION.labels(endpoint="health_detailed").observe(
-            time.perf_counter() - start
+            HEALTH_CLOCK.perf_counter() - start
         )
 
 
