@@ -326,6 +326,41 @@ def test_circuit_breaker_allows_calls_after_reset(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_circuit_breaker_allows_dependency_after_cooldown(monkeypatch):
+    fake_clock = _FakeClock()
+    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+    monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
+    calls = {"count": 0}
+
+    def _ok(_timeout_seconds):
+        calls["count"] += 1
+
+    circuit = chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=5.0)
+    circuit.record_failure()
+    payload, reason = await chat._run_dependency_check(
+        _ok,
+        0.01,
+        0.01,
+        circuit_breaker=circuit,
+    )
+    assert payload["circuit_open"] is True
+    assert reason == "circuit_open"
+    assert calls["count"] == 0
+
+    fake_clock.advance(5.1)
+    payload, reason = await chat._run_dependency_check(
+        _ok,
+        0.01,
+        0.01,
+        circuit_breaker=circuit,
+    )
+    assert payload["healthy"] is True
+    assert reason is None
+    assert calls["count"] == 1
+    _shutdown_health_executor()
+
+
+@pytest.mark.asyncio
 async def test_health_app_reports_circuit_breaker_open(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setattr(
