@@ -364,7 +364,7 @@ async def list_managers(
                     }
                 }
             },
-        }
+        },
     },
 )
 async def get_manager(

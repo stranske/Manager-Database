@@ -84,9 +84,9 @@ def test_openapi_managers_schema():
     ]["schema"]
     assert detail_response_schema["$ref"] == "#/components/schemas/ManagerResponse"
     # Validate detail endpoint exposes path validation errors.
-    detail_error_schema = manager_detail_schema["responses"]["400"]["content"][
-        "application/json"
-    ]["schema"]
+    detail_error_schema = manager_detail_schema["responses"]["400"]["content"]["application/json"][
+        "schema"
+    ]
     assert detail_error_schema["$ref"] == "#/components/schemas/ErrorResponse"
     not_found_schema = manager_detail_schema["responses"]["404"]["content"]["application/json"][
         "schema"
