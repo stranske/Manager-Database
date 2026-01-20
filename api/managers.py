@@ -316,7 +316,10 @@ async def list_managers(
         # Ensure the table exists so empty databases still return metadata.
         _ensure_manager_table(conn)
         total = _count_managers(conn)
-        rows = _fetch_managers(conn, limit, offset)
+        if offset >= total:
+            rows = []
+        else:
+            rows = _fetch_managers(conn, limit, offset)
     finally:
         conn.close()
     items = [
