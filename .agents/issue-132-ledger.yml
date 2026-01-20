@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Move credentials to environment variables (UI_USERNAME, UI_PASSWORD) in
       `ui/__init__.py`
-    status: doing
+    status: done
     started_at: '2026-01-20T00:33:10Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-20T00:33:18Z'
+    commit: 7e62580f53c70702f175d0f1f956314f4bf37722
     notes: []
   - id: task-02
     title: 'Move credentials to environment variables (UI_USERNAME (verify: confirm
