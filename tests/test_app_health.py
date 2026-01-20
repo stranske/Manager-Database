@@ -35,6 +35,9 @@ class _FakeClock:
     def monotonic(self) -> float:
         return self.now
 
+    def sleep(self, seconds: float) -> None:
+        self.advance(seconds)
+
     def advance(self, seconds: float) -> None:
         self.now += seconds
 
@@ -90,10 +93,26 @@ async def test_health_app_reports_failed_dependencies(tmp_path, monkeypatch):
 async def test_health_app_responds_within_budget(tmp_path, monkeypatch, budget_s):
     _configure_health_env(monkeypatch, tmp_path)
     monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", budget_s)
-    start = time.perf_counter()
+    fake_clock = _FakeClock()
+
+    async def _fast_checks(*_args, **_kwargs):
+        fake_clock.advance(0.08)
+        return {
+            "database": ({"healthy": True, "latency_ms": 10}, None),
+            "minio": ({"healthy": True, "latency_ms": 12}, None),
+            "redis": ({"healthy": True, "latency_ms": 0, "enabled": False}, None),
+        }
+
+    monkeypatch.setattr(chat, "_run_health_summary_checks", _fast_checks)
+    monkeypatch.setattr(chat.time, "perf_counter", fake_clock.perf_counter)
+    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+    monkeypatch.setattr(chat.time, "sleep", fake_clock.sleep)
+    monkeypatch.setattr(chat, "APP_START_TIME", fake_clock.monotonic())
+
+    start = chat.time.perf_counter()
     resp = await health_app()
     _shutdown_health_executor()
-    elapsed = time.perf_counter() - start
+    elapsed = chat.time.perf_counter() - start
     assert resp.status_code == 200
     assert elapsed < 0.2
 

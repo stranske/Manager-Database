@@ -15,6 +15,17 @@ def _payload_from_response(response):
     return json.loads(response.body)
 
 
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
 @pytest.fixture(autouse=True)
 def _fast_health_timeouts(monkeypatch):
     # Keep health checks fast in tests without changing production defaults.
@@ -99,11 +110,28 @@ def test_health_detailed_minio_retries_with_backoff(tmp_path, monkeypatch):
 
     sleep_calls = []
 
+    clock = {"now": 0.0}
+
+    def _fake_perf_counter():
+        return clock["now"]
+
     def _fake_sleep(duration):
         sleep_calls.append(duration)
+        clock["now"] += duration
+
+    original_run = chat._run_health_check_with_retries
+
+    async def _run_with_fake_sleep(func, timeout_seconds, *args):
+        return await original_run(
+            func,
+            timeout_seconds,
+            *args,
+            sleep_fn=_fake_sleep,
+            perf_counter_fn=_fake_perf_counter,
+        )
 
     monkeypatch.setattr(chat, "_ping_minio", _flaky_minio)
-    monkeypatch.setattr(chat.time, "sleep", _fake_sleep)
+    monkeypatch.setattr(chat, "_run_health_check_with_retries", _run_with_fake_sleep)
     resp = asyncio.run(chat.health_detailed())
     payload = _payload_from_response(resp)
     assert resp.status_code == 200
@@ -201,6 +229,52 @@ def test_health_detailed_redis_circuit_breaker_opens(tmp_path, monkeypatch):
     payload = _payload_from_response(resp)
     assert payload["components"]["redis"]["healthy"] is False
     assert payload["components"]["redis"]["circuit_open"] is True
+
+
+def test_health_detailed_minio_circuit_breaker_resets_after_cooldown(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
+    fake_clock = _FakeClock()
+    monkeypatch.setattr(chat.time, "monotonic", fake_clock.monotonic)
+    monkeypatch.setattr(chat, "APP_START_TIME", fake_clock.monotonic())
+    monkeypatch.setattr(
+        chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=5.0)
+    )
+
+    calls = {"count": 0}
+
+    def _flaky_minio(_timeout_seconds):
+        calls["count"] += 1
+        raise RuntimeError("minio down")
+
+    monkeypatch.setattr(chat, "_ping_minio", _flaky_minio)
+    resp = asyncio.run(chat.health_detailed())
+    assert resp.status_code == 503
+    payload = _payload_from_response(resp)
+    assert payload["components"]["minio"]["healthy"] is False
+
+    def _unexpected_minio(_timeout_seconds):
+        raise AssertionError("minio should not be called when circuit is open")
+
+    monkeypatch.setattr(chat, "_ping_minio", _unexpected_minio)
+    resp = asyncio.run(chat.health_detailed())
+    payload = _payload_from_response(resp)
+    assert payload["components"]["minio"]["circuit_open"] is True
+
+    fake_clock.advance(5.1)
+
+    def _healthy_minio(_timeout_seconds):
+        calls["count"] += 1
+
+    monkeypatch.setattr(chat, "_ping_minio", _healthy_minio)
+    resp = asyncio.run(chat.health_detailed())
+    payload = _payload_from_response(resp)
+    assert resp.status_code == 200
+    assert payload["components"]["minio"]["healthy"] is True
+    assert calls["count"] == 2
 
 
 # Commit-message checklist:

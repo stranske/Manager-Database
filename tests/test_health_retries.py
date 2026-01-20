@@ -9,7 +9,7 @@ from api import chat
 
 
 @pytest.mark.asyncio
-async def test_health_retry_backoff_timing(monkeypatch):
+async def test_health_retry_backoff_timing():
     attempts = []
     sleep_calls = []
     clock = {"now": 0.0}
@@ -26,9 +26,12 @@ async def test_health_retry_backoff_timing(monkeypatch):
         sleep_calls.append(duration)
         clock["now"] += duration
 
-    monkeypatch.setattr(chat.time, "perf_counter", _fake_perf_counter)
-    monkeypatch.setattr(chat.time, "sleep", _fake_sleep)
-    await chat._run_health_check_with_retries(_flaky, 1.0)
+    await chat._run_health_check_with_retries(
+        _flaky,
+        1.0,
+        sleep_fn=_fake_sleep,
+        perf_counter_fn=_fake_perf_counter,
+    )
     chat._HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
     assert attempts == ["call", "call", "call", "call"]
     assert sleep_calls == [0.1, 0.2, 0.4]
