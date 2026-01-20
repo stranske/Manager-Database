@@ -352,8 +352,10 @@ async def test_circuit_breaker_opens_after_three_timeouts(monkeypatch):
 
     circuit = chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
     monkeypatch.setattr(chat, "_run_health_check_with_retries", _timeout_run)
+
     def dependency(_timeout_seconds):
         return None
+
     for _ in range(2):
         payload, reason = await chat._run_dependency_check(
             dependency,
