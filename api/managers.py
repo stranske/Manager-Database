@@ -2,16 +2,26 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from functools import wraps
-from typing import Annotated
+from typing import Annotated, Any, Callable
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
+
+logger = logging.getLogger(__name__)
+
+# Import psycopg exceptions if available
+try:
+    import psycopg
+    DB_ERRORS = (psycopg.OperationalError, psycopg.Error, sqlite3.OperationalError)
+except ImportError:
+    DB_ERRORS = (sqlite3.OperationalError,)
 
 router = APIRouter()
 
@@ -213,6 +223,36 @@ def _require_valid_manager(handler):
     return wrapper
 
 
+def _handle_db_errors(handler: Callable) -> Callable:
+    """Decorator to catch database errors and return 503 Service Unavailable.
+    
+    Catches connection errors, timeouts, and other database-related exceptions
+    without exposing internal details to the client.
+    """
+
+    @wraps(handler)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return await handler(*args, **kwargs)
+        except (sqlite3.OperationalError, sqlite3.DatabaseError) as exc:
+            logger.error("Database error: %s", exc.__class__.__name__, exc_info=True)
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Database service temporarily unavailable"},
+            )
+        except Exception as exc:
+            # Catch psycopg errors if available
+            if exc.__class__.__name__ in ("OperationalError", "Error", "DatabaseError"):
+                logger.error("Database error: %s", exc.__class__.__name__, exc_info=True)
+                return JSONResponse(
+                    status_code=503,
+                    content={"detail": "Database service temporarily unavailable"},
+                )
+            raise
+
+    return wrapper
+
+
 @router.post(
     "/managers",
     status_code=201,
@@ -243,9 +283,18 @@ def _require_valid_manager(handler):
                     }
                 }
             },
-        }
+        },
+        503: {
+            "description": "Service unavailable - database error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Database service temporarily unavailable"}
+                }
+            },
+        },
     },
 )
+@_handle_db_errors
 @_require_valid_manager
 async def create_manager(
     payload: Annotated[
@@ -308,9 +357,18 @@ async def create_manager(
                     }
                 }
             },
-        }
+        },
+        503: {
+            "description": "Service unavailable - database error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Database service temporarily unavailable"}
+                }
+            },
+        },
     },
 )
+@_handle_db_errors
 async def list_managers(
     limit: int = Query(25, ge=1, le=100, description="Maximum number of managers to return"),
     offset: int = Query(0, ge=0, description="Number of managers to skip"),
@@ -378,8 +436,17 @@ async def list_managers(
                 }
             },
         },
+        503: {
+            "description": "Service unavailable - database error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Database service temporarily unavailable"}
+                }
+            },
+        },
     },
 )
+@_handle_db_errors
 async def get_manager(
     id: int = Path(..., ge=1, description="Manager identifier"),
 ):

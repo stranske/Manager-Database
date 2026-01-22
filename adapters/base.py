@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 import time
@@ -9,6 +10,8 @@ from contextlib import asynccontextmanager
 from importlib import import_module
 from types import ModuleType
 from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
 
 try:
     import psycopg as _psycopg
@@ -27,21 +30,123 @@ class AdapterProtocol(Protocol):
 
 
 def connect_db(db_path: str | None = None, *, connect_timeout: float | None = None):
-    """Return a database connection to SQLite or Postgres."""
+    """Return a database connection to SQLite or Postgres with automatic retry.
+    
+    Parameters
+    ----------
+    db_path : str | None
+        Path to SQLite database file. Ignored if DB_URL is set to Postgres.
+    connect_timeout : float | None
+        Connection timeout in seconds for health checks.
+    
+    Returns
+    -------
+    sqlite3.Connection | psycopg.Connection
+        An active database connection.
+    
+    Raises
+    ------
+    sqlite3.OperationalError
+        If SQLite connection fails after retries.
+    psycopg.OperationalError
+        If Postgres connection fails after retries.
+    """
     url = os.getenv("DB_URL")
     if url and psycopg and url.startswith("postgres"):
-        # psycopg connections require autocommit for DDL during tests
-        # Allow health checks to cap connection time.
-        connect_kwargs: dict[str, Any] = {"autocommit": True}
-        if connect_timeout is not None:
-            connect_kwargs["connect_timeout"] = connect_timeout
-        return psycopg.connect(url, **connect_kwargs)
+        return _connect_postgres_with_retry(url, connect_timeout)
+    return _connect_sqlite(db_path, connect_timeout)
+
+
+def _connect_postgres_with_retry(
+    url: str, connect_timeout: float | None = None, max_retries: int = 3
+):
+    """Connect to Postgres with exponential backoff retry logic.
+    
+    Parameters
+    ----------
+    url : str
+        Postgres connection string.
+    connect_timeout : float | None
+        Connection timeout in seconds.
+    max_retries : int
+        Maximum number of retry attempts.
+    
+    Returns
+    -------
+    psycopg.Connection
+        An active Postgres connection.
+    
+    Raises
+    ------
+    psycopg.OperationalError
+        If connection fails after all retry attempts.
+    """
+    if psycopg is None:
+        raise RuntimeError("psycopg is not available")
+    
+    connect_kwargs: dict[str, Any] = {"autocommit": True}
+    if connect_timeout is not None:
+        connect_kwargs["connect_timeout"] = connect_timeout
+    
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            return psycopg.connect(url, **connect_kwargs)
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                # Exponential backoff: 0.1s, 0.2s, 0.4s, etc.
+                backoff = 0.1 * (2 ** attempt)
+                logger.debug(
+                    "Postgres connection attempt %d failed, retrying in %.2fs: %s",
+                    attempt + 1,
+                    backoff,
+                    str(e),
+                )
+                time.sleep(backoff)
+            else:
+                logger.error(
+                    "Postgres connection failed after %d attempts: %s",
+                    max_retries,
+                    str(e),
+                )
+    
+    # Re-raise the last error if all retries exhausted
+    if last_error:
+        raise last_error
+    raise RuntimeError("Failed to connect to Postgres")
+
+
+def _connect_sqlite(db_path: str | None = None, connect_timeout: float | None = None):
+    """Connect to SQLite with timeout handling.
+    
+    Parameters
+    ----------
+    db_path : str | None
+        Path to SQLite database file. Defaults to DB_PATH env var or 'dev.db'.
+    connect_timeout : float | None
+        Connection timeout in seconds.
+    
+    Returns
+    -------
+    sqlite3.Connection
+        An active SQLite connection.
+    
+    Raises
+    ------
+    sqlite3.OperationalError
+        If connection fails.
+    """
     path = db_path or os.getenv("DB_PATH", "dev.db")
-    # SQLite timeout prevents long waits on locked files during health checks.
     sqlite_kwargs: dict[str, Any] = {}
     if connect_timeout is not None:
         sqlite_kwargs["timeout"] = connect_timeout
-    return sqlite3.connect(str(path), **sqlite_kwargs)
+    
+    try:
+        return sqlite3.connect(str(path), **sqlite_kwargs)
+    except sqlite3.OperationalError as e:
+        logger.error("SQLite connection failed: %s", str(e))
+        raise
 
 
 @asynccontextmanager
