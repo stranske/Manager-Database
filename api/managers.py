@@ -113,9 +113,7 @@ def _count_managers(conn, db_identity: str) -> int:
 
 
 @cache_query("managers.list", skip_args=1)
-def _fetch_managers(
-    conn, db_identity: str, limit: int, offset: int
-) -> list[tuple[int, str, str]]:
+def _fetch_managers(conn, db_identity: str, limit: int, offset: int) -> list[tuple[int, str, str]]:
     """Return managers ordered by id with pagination applied."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor = conn.execute(
