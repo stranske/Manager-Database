@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
+from api.cache import cache_query, invalidate_cache_prefix
 from api.models import ManagerListResponse, ManagerResponse
 
 router = APIRouter()
@@ -100,6 +101,7 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
     return int(row[0])
 
 
+@cache_query("managers.count", skip_args=1)
 def _count_managers(conn) -> int:
     """Return the total number of managers."""
     cursor = conn.execute("SELECT COUNT(*) FROM managers")
@@ -109,6 +111,7 @@ def _count_managers(conn) -> int:
     return int(row[0])
 
 
+@cache_query("managers.list", skip_args=1)
 def _fetch_managers(conn, limit: int, offset: int) -> list[tuple[int, str, str]]:
     """Return managers ordered by id with pagination applied."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
@@ -120,6 +123,7 @@ def _fetch_managers(conn, limit: int, offset: int) -> list[tuple[int, str, str]]
     return cursor.fetchall()
 
 
+@cache_query("managers.item", skip_args=1)
 def _fetch_manager(conn, manager_id: int) -> tuple[int, str, str] | None:
     """Return a single manager row by id."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
@@ -211,6 +215,7 @@ async def create_manager(
         # Ensure schema exists before storing the record.
         _ensure_manager_table(conn)
         manager_id = _insert_manager(conn, payload)
+        invalidate_cache_prefix("managers")
     finally:
         conn.close()
     return {
