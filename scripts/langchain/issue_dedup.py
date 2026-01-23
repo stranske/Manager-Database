@@ -191,7 +191,7 @@ def _has_text_overlap(query: str, issue: IssueRecord) -> bool:
     overlap = query_tokens & issue_tokens
     if not overlap:
         return False
-    if len(query_tokens) <= 2 and len(issue_tokens) <= 2:
+    if min(len(query_tokens), len(issue_tokens)) <= 1:
         return True
     return len(overlap) >= 2
 
