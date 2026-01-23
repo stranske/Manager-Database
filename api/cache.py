@@ -5,10 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
 from threading import Lock
-from typing import Any, Callable
+from typing import Any
 
 from cachetools import TTLCache
 from prometheus_client import Counter, Gauge
@@ -18,7 +19,7 @@ CACHE_MISSES = Counter("cache_misses_total", "Cache misses by namespace.", ("nam
 CACHE_HIT_RATIO = Gauge("cache_hit_ratio", "Cache hit ratio by namespace.", ("namespace",))
 
 _CACHE_LOCK = Lock()
-_CACHE_BACKEND: "_CacheBackend | None" = None
+_CACHE_BACKEND: _CacheBackend | None = None
 _METRICS_LOCK = Lock()
 _CACHE_METRICS: dict[str, dict[str, int]] = {}
 

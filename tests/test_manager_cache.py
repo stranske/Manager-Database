@@ -47,9 +47,7 @@ def test_manager_list_cache_hits(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     _configure_cache(monkeypatch)
-    resp = asyncio.run(
-        _post_manager({"name": "Grace Hopper", "role": "Engineering Director"})
-    )
+    resp = asyncio.run(_post_manager({"name": "Grace Hopper", "role": "Engineering Director"}))
     assert resp.status_code == 201
 
     params = {"limit": 10, "offset": 0}
@@ -68,9 +66,7 @@ def test_manager_cache_invalidation_on_write(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     _configure_cache(monkeypatch)
-    resp = asyncio.run(
-        _post_manager({"name": "Ada Lovelace", "role": "Research Lead"})
-    )
+    resp = asyncio.run(_post_manager({"name": "Ada Lovelace", "role": "Research Lead"}))
     assert resp.status_code == 201
 
     params = {"limit": 10, "offset": 0}
@@ -78,9 +74,7 @@ def test_manager_cache_invalidation_on_write(tmp_path, monkeypatch):
     asyncio.run(_get_managers(params))
     before = cache_module.get_cache_stats("managers.list")
 
-    resp = asyncio.run(
-        _post_manager({"name": "Mary Jackson", "role": "Operations Manager"})
-    )
+    resp = asyncio.run(_post_manager({"name": "Mary Jackson", "role": "Operations Manager"}))
     assert resp.status_code == 201
     asyncio.run(_get_managers(params))
 
