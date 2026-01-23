@@ -117,8 +117,7 @@ def _fetch_managers(conn, db_identity: str, limit: int, offset: int) -> list[tup
     """Return managers ordered by id with pagination applied."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor = conn.execute(
-        "SELECT id, name, role FROM managers ORDER BY id "
-        f"LIMIT {placeholder} OFFSET {placeholder}",
+        f"SELECT id, name, role FROM managers ORDER BY id LIMIT {placeholder} OFFSET {placeholder}",
         (limit, offset),
     )
     return cursor.fetchall()

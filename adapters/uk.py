@@ -33,7 +33,7 @@ async def list_new_filings(company_number: str, since: str):
 
 async def download(filing: dict[str, str]):
     """Download the filing document."""
-    url = f"{BASE_URL}/filing-history/{filing['transaction_id']}/document" "?format=pdf"
+    url = f"{BASE_URL}/filing-history/{filing['transaction_id']}/document?format=pdf"
     async with httpx.AsyncClient() as client:
         async with tracked_call("uk", url) as log:
             r = await client.get(url)
