@@ -11,15 +11,20 @@ import math
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Protocol, cast
 
 from tools.llm_provider import GITHUB_MODELS_BASE_URL
 
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 
 
+class EmbeddingClient(Protocol):
+    def embed_documents(self, texts: list[str]) -> list[list[float]]: ...
+
+
 @dataclass
 class EmbeddingClientInfo:
-    client: object
+    client: EmbeddingClient
     provider: str
     model: str
 
@@ -34,6 +39,7 @@ class EmbeddingResult:
 def get_embedding_client(model: str | None = None) -> EmbeddingClientInfo | None:
     try:
         from langchain_openai import OpenAIEmbeddings
+        from pydantic import SecretStr
     except ImportError:
         return None
 
@@ -46,7 +52,7 @@ def get_embedding_client(model: str | None = None) -> EmbeddingClientInfo | None
         return EmbeddingClientInfo(
             client=OpenAIEmbeddings(
                 model=embedding_model,
-                api_key=openai_token,
+                api_key=SecretStr(openai_token),
             ),
             provider="openai",
             model=embedding_model,
@@ -58,7 +64,7 @@ def get_embedding_client(model: str | None = None) -> EmbeddingClientInfo | None
             client=OpenAIEmbeddings(
                 model=embedding_model,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
+                api_key=SecretStr(github_token),
             ),
             provider="github-models",
             model=embedding_model,
@@ -81,7 +87,7 @@ def generate_embeddings(
     if resolved is None:
         return None
 
-    vectors = resolved.client.embed_documents(items)
+    vectors = resolved.client.embed_documents(cast(list[str], items))
     return EmbeddingResult(vectors=vectors, provider=resolved.provider, model=resolved.model)
 
 

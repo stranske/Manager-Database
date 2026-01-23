@@ -11,7 +11,7 @@ from functools import wraps
 from threading import Lock
 from typing import Any
 
-from cachetools import TTLCache
+from cachetools import TTLCache  # type: ignore[import-untyped]
 from prometheus_client import Counter, Gauge
 
 CACHE_HITS = Counter("cache_hits_total", "Cache hits by namespace.", ("namespace",))
