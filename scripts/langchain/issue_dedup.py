@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -47,6 +48,7 @@ class IssueMatch:
 DEFAULT_SIMILARITY_THRESHOLD = 0.8
 DEFAULT_SIMILARITY_K = 5
 SIMILAR_ISSUES_MARKER = "<!-- issue-dedup:similar-issues -->"
+_TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 
 
 def _coerce_issue(item: Any) -> IssueRecord | None:
@@ -160,6 +162,20 @@ def _issue_from_metadata(metadata: Mapping[str, Any], fallback_title: str | None
     )
 
 
+def _tokenize(text: str) -> set[str]:
+    return {token.lower() for token in _TOKEN_RE.findall(text) if len(token) > 2}
+
+
+def _has_text_overlap(query: str, issue: IssueRecord) -> bool:
+    query_tokens = _tokenize(query)
+    if not query_tokens:
+        return True
+    issue_tokens = _tokenize(_issue_text(issue))
+    if not issue_tokens:
+        return True
+    return bool(query_tokens & issue_tokens)
+
+
 def find_similar_issues(
     issue_store: IssueVectorStore,
     query: str,
@@ -193,13 +209,20 @@ def find_similar_issues(
         metadata = getattr(doc, "metadata", {}) or {}
         fallback_title = getattr(doc, "page_content", None)
         issue = _issue_from_metadata(metadata, fallback_title)
-        similarity = _similarity_from_score(float(raw_score), score_type)
+        raw_score_value = float(raw_score)
+        similarity = _similarity_from_score(raw_score_value, score_type)
+        if (
+            score_type == "distance"
+            and 0.0 <= raw_score_value <= 1.0
+            and not _has_text_overlap(query, issue)
+        ):
+            continue
         if similarity >= min_score:
             matches.append(
                 IssueMatch(
                     issue=issue,
                     score=similarity,
-                    raw_score=float(raw_score),
+                    raw_score=raw_score_value,
                     score_type=score_type,
                 )
             )
