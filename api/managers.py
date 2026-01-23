@@ -57,9 +57,7 @@ class ErrorResponse(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [
-                {"errors": [{"field": "role", "message": "Role is required."}]}
-            ]
+            "examples": [{"errors": [{"field": "role", "message": "Role is required."}]}]
         }
     )
     errors: list[ErrorDetail] = Field(..., description="List of validation errors")
