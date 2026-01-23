@@ -158,6 +158,26 @@ def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
     assert "greater" in payload["errors"][0]["message"].lower()
 
 
+def test_manager_list_offset_beyond_total_returns_empty_page(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Grace Hopper", "role": "Engineering Director"},
+        {"name": "Ada Lovelace", "role": "Research Lead"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"limit": 5, "offset": 5}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["items"] == []
+    assert body["total"] == 2
+    assert body["limit"] == 5
+    assert body["offset"] == 5
+
+
 def test_manager_get_returns_single_manager(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
