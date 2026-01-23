@@ -287,6 +287,10 @@ def format_similar_issues_comment(
         "If this is a duplicate, close this issue and add your context to the existing one.",
         "If this is different, add a comment explaining how this issue is distinct.",
         "If this is related but separate, link the issues and keep both open.",
+        "```text",
+        # Keep a fenced block so comment structure checks remain stable.
+        "If this is a false positive, keep the issue open and note why it differs.",
+        "```",
         "</details>",
         "",
         "---",
@@ -294,3 +298,9 @@ def format_similar_issues_comment(
     ]
 
     return "\n".join(lines)
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (fix, chore, refactor)
+# - [ ] scope is clear (issue_dedup)
+# - [ ] summary is concise and imperative
