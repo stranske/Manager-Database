@@ -49,6 +49,20 @@ DEFAULT_SIMILARITY_THRESHOLD = 0.8
 DEFAULT_SIMILARITY_K = 5
 SIMILAR_ISSUES_MARKER = "<!-- issue-dedup:similar-issues -->"
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
+_STOPWORDS = {
+    "add",
+    "adding",
+    "change",
+    "changes",
+    "feature",
+    "fix",
+    "issue",
+    "new",
+    "request",
+    "support",
+    "update",
+    "updates",
+}
 
 
 def _coerce_issue(item: Any) -> IssueRecord | None:
@@ -163,7 +177,8 @@ def _issue_from_metadata(metadata: Mapping[str, Any], fallback_title: str | None
 
 
 def _tokenize(text: str) -> set[str]:
-    return {token.lower() for token in _TOKEN_RE.findall(text) if len(token) > 2}
+    tokens = {token.lower() for token in _TOKEN_RE.findall(text) if len(token) > 2}
+    return tokens - _STOPWORDS
 
 
 def _has_text_overlap(query: str, issue: IssueRecord) -> bool:
