@@ -57,10 +57,10 @@ def test_openapi_managers_schema():
     response_schema = manager_schema["responses"]["201"]["content"]["application/json"]["schema"]
     assert response_schema["$ref"] == "#/components/schemas/ManagerResponse"
     manager_component = schema["components"]["schemas"]["ManagerResponse"]
-    assert manager_component["examples"][0]["department"] == "Engineering"
+    assert manager_component["examples"][0]["role"] == "Engineering Director"
 
     error_examples = manager_schema["responses"]["400"]["content"]["application/json"]["examples"]
-    assert error_examples["invalid-email"]["value"]["errors"][0]["field"] == "email"
+    assert error_examples["missing-role"]["value"]["errors"][0]["field"] == "role"
 
     manager_list_schema = schema["paths"]["/managers"]["get"]
     assert manager_list_schema["summary"] == "List managers"

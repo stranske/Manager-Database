@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import sqlite3
 from functools import wraps
 from typing import Annotated
@@ -12,16 +11,15 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
+from api.models import ManagerListResponse, ManagerResponse
 
 router = APIRouter()
 
-EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 # Keep validation rules centralized so API docs/tests stay in sync with behavior.
 REQUIRED_FIELD_ERRORS = {
     "name": "Name is required.",
-    "department": "Department is required.",
+    "role": "Role is required.",
 }
-EMAIL_ERROR_MESSAGE = "Email must be a valid address."
 
 
 class ManagerCreate(BaseModel):
@@ -32,64 +30,13 @@ class ManagerCreate(BaseModel):
             "examples": [
                 {
                     "name": "Grace Hopper",
-                    "email": "grace@example.com",
-                    "department": "Engineering",
+                    "role": "Engineering Director",
                 }
             ]
         }
     )
     name: str = Field(..., description="Manager name")
-    email: str = Field(..., description="Manager email address")
-    department: str = Field(..., description="Manager department")
-
-
-class ManagerResponse(BaseModel):
-    """Response payload for manager records."""
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [
-                {
-                    "id": 101,
-                    "name": "Grace Hopper",
-                    "email": "grace@example.com",
-                    "department": "Engineering",
-                }
-            ]
-        }
-    )
-    id: int = Field(..., description="Manager identifier")
-    name: str = Field(..., description="Manager name")
-    email: str = Field(..., description="Manager email address")
-    department: str = Field(..., description="Manager department")
-
-
-class ManagerListResponse(BaseModel):
-    """Response payload for manager list requests."""
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [
-                {
-                    "items": [
-                        {
-                            "id": 101,
-                            "name": "Grace Hopper",
-                            "email": "grace@example.com",
-                            "department": "Engineering",
-                        }
-                    ],
-                    "total": 1,
-                    "limit": 25,
-                    "offset": 0,
-                }
-            ]
-        }
-    )
-    items: list[ManagerResponse] = Field(..., description="Managers in the requested page")
-    total: int = Field(..., description="Total number of managers available")
-    limit: int = Field(..., description="Maximum managers returned per page")
-    offset: int = Field(..., description="Offset into the manager list")
+    role: str = Field(..., description="Manager role")
 
 
 class NotFoundResponse(BaseModel):
@@ -110,9 +57,7 @@ class ErrorResponse(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [
-                {"errors": [{"field": "email", "message": "Email must be a valid address."}]}
-            ]
+            "examples": [{"errors": [{"field": "role", "message": "Role is required."}]}]
         }
     )
     errors: list[ErrorDetail] = Field(..., description="List of validation errors")
@@ -125,15 +70,13 @@ def _ensure_manager_table(conn) -> None:
         conn.execute("""CREATE TABLE IF NOT EXISTS managers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                email TEXT NOT NULL,
-                department TEXT NOT NULL
+                role TEXT NOT NULL
             )""")
     else:
         conn.execute("""CREATE TABLE IF NOT EXISTS managers (
                 id bigserial PRIMARY KEY,
                 name text NOT NULL,
-                email text NOT NULL,
-                department text NOT NULL
+                role text NOT NULL
             )""")
 
 
@@ -141,15 +84,15 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
     """Insert a manager record and return the generated id."""
     if isinstance(conn, sqlite3.Connection):
         cursor = conn.execute(
-            "INSERT INTO managers(name, email, department) VALUES (?, ?, ?)",
-            (payload.name, payload.email, payload.department),
+            "INSERT INTO managers(name, role) VALUES (?, ?)",
+            (payload.name, payload.role),
         )
         conn.commit()
         lastrowid = cursor.lastrowid
         return int(lastrowid) if lastrowid is not None else 0
     cursor = conn.execute(
-        "INSERT INTO managers(name, email, department) VALUES (%s, %s, %s) RETURNING id",
-        (payload.name, payload.email, payload.department),
+        "INSERT INTO managers(name, role) VALUES (%s, %s) RETURNING id",
+        (payload.name, payload.role),
     )
     row = cursor.fetchone()
     if not row or row[0] is None:
@@ -166,36 +109,34 @@ def _count_managers(conn) -> int:
     return int(row[0])
 
 
-def _fetch_managers(conn, limit: int, offset: int) -> list[tuple[int, str, str, str]]:
+def _fetch_managers(conn, limit: int, offset: int) -> list[tuple[int, str, str]]:
     """Return managers ordered by id with pagination applied."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor = conn.execute(
-        "SELECT id, name, email, department FROM managers ORDER BY id "
+        "SELECT id, name, role FROM managers ORDER BY id "
         f"LIMIT {placeholder} OFFSET {placeholder}",
         (limit, offset),
     )
     return cursor.fetchall()
 
 
-def _fetch_manager(conn, manager_id: int) -> tuple[int, str, str, str] | None:
+def _fetch_manager(conn, manager_id: int) -> tuple[int, str, str] | None:
     """Return a single manager row by id."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor = conn.execute(
-        f"SELECT id, name, email, department FROM managers WHERE id = {placeholder}",
+        f"SELECT id, name, role FROM managers WHERE id = {placeholder}",
         (manager_id,),
     )
     return cursor.fetchone()
 
 
 def _validate_manager_payload(payload: ManagerCreate) -> list[dict[str, str]]:
-    """Apply required field and email format checks."""
+    """Apply required field checks."""
     errors: list[dict[str, str]] = []
     if not payload.name.strip():
         errors.append({"field": "name", "message": REQUIRED_FIELD_ERRORS["name"]})
-    if not payload.department.strip():
-        errors.append({"field": "department", "message": REQUIRED_FIELD_ERRORS["department"]})
-    if not EMAIL_PATTERN.match(payload.email.strip()):
-        errors.append({"field": "email", "message": EMAIL_ERROR_MESSAGE})
+    if not payload.role.strip():
+        errors.append({"field": "role", "message": REQUIRED_FIELD_ERRORS["role"]})
     return errors
 
 
@@ -229,13 +170,13 @@ def _require_valid_manager(handler):
             "content": {
                 "application/json": {
                     "examples": {
-                        "invalid-email": {
-                            "summary": "Invalid email",
+                        "missing-role": {
+                            "summary": "Missing role",
                             "value": {
                                 "errors": [
                                     {
-                                        "field": "email",
-                                        "message": "Email must be a valid address.",
+                                        "field": "role",
+                                        "message": "Role is required.",
                                     }
                                 ]
                             },
@@ -257,8 +198,7 @@ async def create_manager(
                     "summary": "New manager",
                     "value": {
                         "name": "Grace Hopper",
-                        "email": "grace@example.com",
-                        "department": "Engineering",
+                        "role": "Engineering Director",
                     },
                 }
             },
@@ -276,8 +216,7 @@ async def create_manager(
     return {
         "id": manager_id,
         "name": payload.name,
-        "email": payload.email,
-        "department": payload.department,
+        "role": payload.role,
     }
 
 
@@ -330,9 +269,7 @@ async def list_managers(
             rows = []
     finally:
         conn.close()
-    items = [
-        ManagerResponse(id=row[0], name=row[1], email=row[2], department=row[3]) for row in rows
-    ]
+    items = [ManagerResponse(id=row[0], name=row[1], role=row[2]) for row in rows]
     return ManagerListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -393,4 +330,4 @@ async def get_manager(
         conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
-    return ManagerResponse(id=row[0], name=row[1], email=row[2], department=row[3])
+    return ManagerResponse(id=row[0], name=row[1], role=row[2])

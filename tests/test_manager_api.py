@@ -53,37 +53,21 @@ async def _get_manager(manager_id: int):
 def test_manager_empty_name_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    resp = asyncio.run(
-        _post_manager({"name": "", "email": "owner@example.com", "department": "Ops"})
-    )
+    resp = asyncio.run(_post_manager({"name": "", "role": "Operations Lead"}))
     assert resp.status_code == 400
     payload = resp.json()
     assert payload["errors"][0]["field"] == "name"
     assert "required" in payload["errors"][0]["message"].lower()
 
 
-def test_manager_invalid_email_returns_400(tmp_path, monkeypatch):
+def test_manager_empty_role_returns_400(tmp_path, monkeypatch):
+    # Validate that required role values are enforced.
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    resp = asyncio.run(
-        _post_manager({"name": "Ada Lovelace", "email": "not-an-email", "department": "Ops"})
-    )
+    resp = asyncio.run(_post_manager({"name": "Ada Lovelace", "role": "   "}))
     assert resp.status_code == 400
     payload = resp.json()
-    assert payload["errors"][0]["field"] == "email"
-    assert "valid" in payload["errors"][0]["message"].lower()
-
-
-def test_manager_empty_department_returns_400(tmp_path, monkeypatch):
-    # Validate that required department values are enforced.
-    db_path = tmp_path / "dev.db"
-    monkeypatch.setenv("DB_PATH", str(db_path))
-    resp = asyncio.run(
-        _post_manager({"name": "Ada Lovelace", "email": "ada@example.com", "department": "   "})
-    )
-    assert resp.status_code == 400
-    payload = resp.json()
-    assert payload["errors"][0]["field"] == "department"
+    assert payload["errors"][0]["field"] == "role"
     assert "required" in payload["errors"][0]["message"].lower()
 
 
@@ -92,8 +76,7 @@ def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(db_path))
     payload = {
         "name": "Grace Hopper",
-        "email": "grace@example.com",
-        "department": "Eng",
+        "role": "Engineering Director",
     }
     resp = asyncio.run(_post_manager(payload))
     assert resp.status_code == 201
@@ -103,21 +86,21 @@ def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     try:
         # Verify the record was persisted with the expected values.
         row = conn.execute(
-            "SELECT name, email, department FROM managers WHERE id = ?",
+            "SELECT name, role FROM managers WHERE id = ?",
             (created["id"],),
         ).fetchone()
     finally:
         conn.close()
-    assert row == (payload["name"], payload["email"], payload["department"])
+    assert row == (payload["name"], payload["role"])
 
 
 def test_manager_list_returns_paginated_results(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payloads = [
-        {"name": "Grace Hopper", "email": "grace@example.com", "department": "Eng"},
-        {"name": "Ada Lovelace", "email": "ada@example.com", "department": "R&D"},
-        {"name": "Mary Jackson", "email": "mary@example.com", "department": "Ops"},
+        {"name": "Grace Hopper", "role": "Engineering Director"},
+        {"name": "Ada Lovelace", "role": "Research Lead"},
+        {"name": "Mary Jackson", "role": "Operations Manager"},
     ]
     for payload in payloads:
         resp = asyncio.run(_post_manager(payload))
@@ -137,8 +120,8 @@ def test_manager_list_limit_offset_zero_returns_all(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payloads = [
-        {"name": "Grace Hopper", "email": "grace@example.com", "department": "Eng"},
-        {"name": "Ada Lovelace", "email": "ada@example.com", "department": "R&D"},
+        {"name": "Grace Hopper", "role": "Engineering Director"},
+        {"name": "Ada Lovelace", "role": "Research Lead"},
     ]
     for payload in payloads:
         resp = asyncio.run(_post_manager(payload))
@@ -175,10 +158,41 @@ def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
     assert "greater" in payload["errors"][0]["message"].lower()
 
 
+def test_manager_list_limit_above_max_returns_400(tmp_path, monkeypatch):
+    # Upper-bound validation keeps pagination requests predictable.
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(_get_managers({"limit": 101}))
+    assert resp.status_code == 400
+    payload = resp.json()
+    assert payload["errors"][0]["field"] == "limit"
+    assert "less" in payload["errors"][0]["message"].lower()
+
+
+def test_manager_list_offset_beyond_total_returns_empty_page(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Grace Hopper", "role": "Engineering Director"},
+        {"name": "Ada Lovelace", "role": "Research Lead"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"limit": 5, "offset": 5}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["items"] == []
+    assert body["total"] == 2
+    assert body["limit"] == 5
+    assert body["offset"] == 5
+
+
 def test_manager_get_returns_single_manager(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    payload = {"name": "Linus Torvalds", "email": "linus@example.com", "department": "Core"}
+    payload = {"name": "Linus Torvalds", "role": "Chief Architect"}
     resp = asyncio.run(_post_manager(payload))
     created = resp.json()
 
@@ -187,8 +201,7 @@ def test_manager_get_returns_single_manager(tmp_path, monkeypatch):
     fetched = get_resp.json()
     assert fetched["id"] == created["id"]
     assert fetched["name"] == payload["name"]
-    assert fetched["email"] == payload["email"]
-    assert fetched["department"] == payload["department"]
+    assert fetched["role"] == payload["role"]
 
 
 def test_manager_get_returns_404_for_missing_id(tmp_path, monkeypatch):
