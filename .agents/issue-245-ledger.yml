@@ -5,10 +5,10 @@ branch: codex/issue-245
 tasks:
   - id: task-01
     title: Set up Redis connection
-    status: doing
+    status: done
     started_at: '2026-01-23T20:04:23Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-23T20:04:31Z'
+    commit: a4f06d3f87568cf510873b33c3b021ff1a3f98d6
     notes: []
   - id: task-02
     title: Add cache decorator for query functions
