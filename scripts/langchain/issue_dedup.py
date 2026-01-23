@@ -188,7 +188,11 @@ def _has_text_overlap(query: str, issue: IssueRecord) -> bool:
     issue_tokens = _tokenize(_issue_text(issue))
     if not issue_tokens:
         return False
-    return bool(query_tokens & issue_tokens)
+    overlap = query_tokens & issue_tokens
+    if not overlap:
+        return False
+    min_required = 1 if len(query_tokens) < 4 else 2
+    return len(overlap) >= min_required
 
 
 def find_similar_issues(
