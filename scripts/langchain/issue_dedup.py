@@ -212,10 +212,7 @@ def find_similar_issues(
         issue = _issue_from_metadata(metadata, fallback_title)
         raw_score_value = float(raw_score)
         similarity = _similarity_from_score(raw_score_value, score_type)
-        if not _has_text_overlap(query, issue) and (
-            (score_type == "distance" and 0.0 <= raw_score_value <= 1.0)
-            or (score_type == "relevance" and similarity < MIN_OVERLAP_SIMILARITY)
-        ):
+        if not _has_text_overlap(query, issue) and similarity < MIN_OVERLAP_SIMILARITY:
             continue
         if similarity >= min_score:
             matches.append(
