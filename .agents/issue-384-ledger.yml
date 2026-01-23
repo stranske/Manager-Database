@@ -5,10 +5,10 @@ branch: codex/issue-384
 tasks:
   - id: task-01
     title: Add endpoint to get all managers
-    status: doing
+    status: done
     started_at: '2026-01-23T19:15:18Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-23T19:15:28Z'
+    commit: baf14114ad54acdadd362f3d8d7428dbd13b02f2
     notes: []
   - id: task-02
     title: Add endpoint to get manager by ID
