@@ -184,10 +184,10 @@ def _tokenize(text: str) -> set[str]:
 def _has_text_overlap(query: str, issue: IssueRecord) -> bool:
     query_tokens = _tokenize(query)
     if not query_tokens:
-        return True
+        return False
     issue_tokens = _tokenize(_issue_text(issue))
     if not issue_tokens:
-        return True
+        return False
     return bool(query_tokens & issue_tokens)
 
 
