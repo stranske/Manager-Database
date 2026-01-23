@@ -47,7 +47,6 @@ class IssueMatch:
 
 DEFAULT_SIMILARITY_THRESHOLD = 0.8
 DEFAULT_SIMILARITY_K = 5
-MIN_OVERLAP_SIMILARITY = 0.9
 SIMILAR_ISSUES_MARKER = "<!-- issue-dedup:similar-issues -->"
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 
@@ -213,7 +212,7 @@ def find_similar_issues(
         raw_score_value = float(raw_score)
         similarity = _similarity_from_score(raw_score_value, score_type)
         has_overlap = _has_text_overlap(query, issue)
-        if not has_overlap and similarity < max(min_score, MIN_OVERLAP_SIMILARITY):
+        if not has_overlap:
             continue
         if similarity >= min_score:
             matches.append(
