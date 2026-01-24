@@ -1,0 +1,120 @@
+version: 1
+issue: 247
+base: main
+branch: codex/issue-247
+tasks:
+  - id: task-01
+    title: Add try/catch around database operations in the relevant service files.
+    status: doing
+    started_at: '2026-01-24T06:56:57Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: Implement logic to return a 503 Service Unavailable response on database
+      errors.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Add connection retry logic in the database connection module.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: Log error details for debugging in the application logs.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: Add try/catch around database operations
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: Return 503 Service Unavailable on DB errors
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: Add connection retry logic
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Log error details for debugging
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Application returns a 503 Service Unavailable response instead of crashing
+      when the database is unreachable.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Error message does not expose internal details in the response.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Application reconnects automatically when the database becomes available
+      again.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: Application returns 503 instead of crashing
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: Error message does not expose internal details
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: Reconnects automatically when DB is available
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: '---'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: '*Test expectation: Should be auto-labeled as ''bug'' - describes a defect/crash*'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
