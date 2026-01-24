@@ -458,7 +458,9 @@ def find_similar_labels(
 
     def _match_priority(match: LabelMatch) -> tuple[int, float]:
         # Ensure crash/defect bug keywords remain the top pick over semantic scores.
-        is_bug_keyword = match.score_type == "keyword" and "bug" in _normalize_label(match.label.name)
+        is_bug_keyword = match.score_type == "keyword" and "bug" in _normalize_label(
+            match.label.name
+        )
         return (1 if is_bug_keyword else 0, match.score)
 
     matches.sort(key=_match_priority, reverse=True)
