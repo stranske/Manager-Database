@@ -372,53 +372,7 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
     tasks = _extract_tasks_from_formatted(formatted)
     if not tasks:
         return formatted, None
-
-    try:
-        from scripts.langchain import task_validator
-    except ImportError:
-        try:
-            import task_validator
-        except ImportError:
-            return formatted, None
-
-    # Run validation
-    result = task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
-
-    # If no changes, return original
-    if set(result.tasks) == set(tasks) and len(result.tasks) == len(tasks):
-        return formatted, result.audit_summary
-
-    # Replace tasks section with validated tasks
-    lines = formatted.splitlines()
-    header = "## Tasks"
-    try:
-        header_idx = next(i for i, line in enumerate(lines) if line.strip() == header)
-    except StopIteration:
-        return formatted, result.audit_summary
-
-    # Find end of Tasks section
-    end_idx = next(
-        (
-            i
-            for i in range(header_idx + 1, len(lines))
-            if lines[i].startswith("## ") and lines[i].strip() != header
-        ),
-        len(lines),
-    )
-
-    # Build new tasks section
-    new_task_lines = [f"- [ ] {task}" for task in result.tasks]
-    if not new_task_lines:
-        new_task_lines = ["- [ ] _Not provided._"]
-
-    # Reconstruct formatted body
-    new_lines = lines[: header_idx + 1]
-    new_lines.append("")  # blank line after header
-    new_lines.extend(new_task_lines)
-    new_lines.append("")  # blank line before next section
-    new_lines.extend(lines[end_idx:])
-
-    return "\n".join(new_lines).strip(), result.audit_summary
+    return formatted, None
 
 
 def _is_github_models_auth_error(exc: Exception) -> bool:
