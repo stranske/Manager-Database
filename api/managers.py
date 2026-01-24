@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from functools import wraps
 from typing import Annotated
@@ -11,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
+from api.cache import cache_query, invalidate_cache_prefix
 from api.models import ManagerListResponse, ManagerResponse
 
 router = APIRouter()
@@ -100,7 +102,8 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
     return int(row[0])
 
 
-def _count_managers(conn) -> int:
+@cache_query("managers.count", skip_args=1)
+def _count_managers(conn, db_identity: str) -> int:
     """Return the total number of managers."""
     cursor = conn.execute("SELECT COUNT(*) FROM managers")
     row = cursor.fetchone()
@@ -109,18 +112,19 @@ def _count_managers(conn) -> int:
     return int(row[0])
 
 
-def _fetch_managers(conn, limit: int, offset: int) -> list[tuple[int, str, str]]:
+@cache_query("managers.list", skip_args=1)
+def _fetch_managers(conn, db_identity: str, limit: int, offset: int) -> list[tuple[int, str, str]]:
     """Return managers ordered by id with pagination applied."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor = conn.execute(
-        "SELECT id, name, role FROM managers ORDER BY id "
-        f"LIMIT {placeholder} OFFSET {placeholder}",
+        f"SELECT id, name, role FROM managers ORDER BY id LIMIT {placeholder} OFFSET {placeholder}",
         (limit, offset),
     )
     return cursor.fetchall()
 
 
-def _fetch_manager(conn, manager_id: int) -> tuple[int, str, str] | None:
+@cache_query("managers.item", skip_args=1)
+def _fetch_manager(conn, db_identity: str, manager_id: int) -> tuple[int, str, str] | None:
     """Return a single manager row by id."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor = conn.execute(
@@ -211,6 +215,7 @@ async def create_manager(
         # Ensure schema exists before storing the record.
         _ensure_manager_table(conn)
         manager_id = _insert_manager(conn, payload)
+        invalidate_cache_prefix("managers")
     finally:
         conn.close()
     return {
@@ -255,16 +260,17 @@ async def list_managers(
     offset: int = Query(0, ge=0, description="Number of managers to skip"),
 ):
     """Return a paginated list of managers."""
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
     conn = connect_db()
     try:
         # Ensure the table exists so empty databases still return metadata.
         _ensure_manager_table(conn)
-        total = _count_managers(conn)
+        total = _count_managers(conn, db_identity)
         # Cap pagination to remaining rows to avoid unnecessary DB work.
         remaining = max(total - offset, 0)
         page_limit = min(limit, remaining)
         if page_limit:
-            rows = _fetch_managers(conn, page_limit, offset)
+            rows = _fetch_managers(conn, db_identity, page_limit, offset)
         else:
             rows = []
     finally:
@@ -321,11 +327,12 @@ async def get_manager(
     id: int = Path(..., ge=1, description="Manager identifier"),
 ):
     """Return a manager by id or raise 404."""
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
     conn = connect_db()
     try:
         # Ensure the table exists before attempting the lookup.
         _ensure_manager_table(conn)
-        row = _fetch_manager(conn, id)
+        row = _fetch_manager(conn, db_identity, id)
     finally:
         conn.close()
     if row is None:

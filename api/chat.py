@@ -209,7 +209,7 @@ def chat(
                 }
             },
         ),
-    )
+    ),
 ):
     """Return a naive answer built from stored documents."""
     # Import here to avoid loading embedding models during unrelated endpoints/tests.
@@ -521,7 +521,7 @@ async def _run_health_check_with_retries(
     response_model=HealthDbResponse,
     summary="Check database connectivity",
     description=(
-        "Run a lightweight database ping and return the health status with " "observed latency."
+        "Run a lightweight database ping and return the health status with observed latency."
     ),
     responses={
         503: {
