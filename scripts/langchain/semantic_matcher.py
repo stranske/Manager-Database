@@ -87,7 +87,8 @@ def generate_embeddings(
     if resolved is None:
         return None
 
-    vectors = resolved.client.embed_documents(cast(list[str], items))
+    resolved_client = cast(EmbeddingClient, resolved.client)
+    vectors = resolved_client.embed_documents(cast(list[str], items))
     return EmbeddingResult(vectors=vectors, provider=resolved.provider, model=resolved.model)
 
 

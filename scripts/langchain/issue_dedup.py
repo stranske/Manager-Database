@@ -10,7 +10,7 @@ import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from scripts.langchain.semantic_matcher import EmbeddingClientInfo
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 try:
     semantic_matcher = importlib.import_module("scripts.langchain.semantic_matcher")
 except ModuleNotFoundError:
-    semantic_matcher = importlib.import_module("semantic_matcher")
+    semantic_matcher = importlib.import_module("semantic_matcher")  # type: ignore[no-redef]
 
 
 @dataclass(frozen=True)
@@ -131,7 +131,7 @@ def build_issue_vector_store(
     metadatas = [
         {"number": issue.number, "title": issue.title, "url": issue.url} for issue in issue_records
     ]
-    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
+    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
     return IssueVectorStore(
         store=store,
         provider=resolved.provider,
