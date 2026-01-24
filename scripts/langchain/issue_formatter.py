@@ -369,20 +369,8 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
     if not tasks:
         return formatted, None
 
-    try:
-        from scripts.langchain import task_validator
-    except ImportError:
-        try:
-            import task_validator
-        except ImportError:
-            return formatted, None
-
-    # Run validation
-    result = task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
-
-    # If no changes, return original
-    if set(result.tasks) == set(tasks) and len(result.tasks) == len(tasks):
-        return formatted, result.audit_summary
+    # Task validator removed - validation happens elsewhere
+    return formatted, None
 
     # Replace tasks section with validated tasks
     lines = formatted.splitlines()
