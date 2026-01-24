@@ -137,17 +137,20 @@ _COMMON_STOPWORDS = {
     "first",
 }
 _BUG_KEYWORDS = {
+    # Runtime failure terms should map to bug reports.
     "bug",
     "bugs",
     "buggy",
     "crash",
     "crashes",
     "crashed",
+    "exception",
     "error",
     "errors",
     "failure",
     "failures",
     "broken",
+    "panic",
     "regression",
     "defect",
 }

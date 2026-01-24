@@ -140,7 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 16/16 tasks complete, 0 remaining
+**Progress:** 18/18 tasks complete, 0 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
@@ -180,7 +180,10 @@ The PR is complete when ALL of these are satisfied:
 - [x] Application returns 503 instead of crashing
 - [x] Error message does not expose internal details
 - [x] Reconnects automatically when DB is available
+- [x] ---
 - [x] *Test expectation: Should be auto-labeled as 'bug' - describes a defect/crash*
+- [x] ````
+- [x] </details>
 
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:

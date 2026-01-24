@@ -103,6 +103,28 @@ def test_auto_label_marks_defect_as_bug(monkeypatch):
     assert issue.labels == ["bug"]
 
 
+def test_auto_label_marks_panics_as_bug(monkeypatch):
+    # Ensure panic/exception terminology is treated as a bug signal.
+    monkeypatch.setattr(
+        integration_layer.label_matcher,
+        "build_label_vector_store",
+        lambda _labels, **_kwargs: None,
+    )
+    labels = [
+        {"name": "bug", "description": "Something is broken or crashes"},
+        {"name": "feature", "description": "New functionality requests"},
+    ]
+    issue = integration_layer.IssueData(
+        title="App panic on startup",
+        body="Unhandled exception when the database is unreachable.",
+    )
+
+    selected = integration_layer.label_issue(issue, labels, max_labels=1)
+
+    assert selected == ["bug"]
+    assert issue.labels == ["bug"]
+
+
 # Commit-message checklist:
 # - [ ] type is accurate (test, fix, feat)
 # - [ ] scope is clear (labeling)
