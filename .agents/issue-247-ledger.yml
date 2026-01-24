@@ -5,10 +5,10 @@ branch: codex/issue-247
 tasks:
   - id: task-01
     title: Add try/catch around database operations in the relevant service files.
-    status: doing
+    status: done
     started_at: '2026-01-24T06:56:57Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-24T06:57:06Z'
+    commit: 2dc12b5525e58c4abd54e313aefa5bb72dee3405
     notes: []
   - id: task-02
     title: Implement logic to return a 503 Service Unavailable response on database
