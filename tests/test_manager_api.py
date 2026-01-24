@@ -167,9 +167,7 @@ def test_manager_list_defaults_return_first_page(tmp_path, monkeypatch):
     assert body["total"] == 30
     assert body["limit"] == 25
     assert body["offset"] == 0
-    assert [item["name"] for item in body["items"]] == [
-        f"Manager {idx}" for idx in range(25)
-    ]
+    assert [item["name"] for item in body["items"]] == [f"Manager {idx}" for idx in range(25)]
 
 
 def test_manager_list_filter_by_department_returns_subset(tmp_path, monkeypatch):
