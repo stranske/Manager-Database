@@ -33,12 +33,14 @@ class ManagerCreate(BaseModel):
                 {
                     "name": "Grace Hopper",
                     "role": "Engineering Director",
+                    "department": "Engineering",
                 }
             ]
         }
     )
     name: str = Field(..., description="Manager name")
     role: str = Field(..., description="Manager role")
+    department: str | None = Field(None, description="Manager department")
 
 
 class NotFoundResponse(BaseModel):
@@ -72,29 +74,53 @@ def _ensure_manager_table(conn) -> None:
         conn.execute("""CREATE TABLE IF NOT EXISTS managers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                role TEXT NOT NULL
+                role TEXT NOT NULL,
+                department TEXT
             )""")
     else:
         conn.execute("""CREATE TABLE IF NOT EXISTS managers (
                 id bigserial PRIMARY KEY,
                 name text NOT NULL,
-                role text NOT NULL
+                role text NOT NULL,
+                department text
             )""")
+    _ensure_manager_department_column(conn)
+
+
+def _ensure_manager_department_column(conn) -> None:
+    """Backfill the department column for existing manager tables."""
+    # Older databases may not include the department column yet.
+    if isinstance(conn, sqlite3.Connection):
+        cursor = conn.execute("PRAGMA table_info(managers)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if "department" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN department TEXT")
+            conn.commit()
+        return
+    cursor = conn.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = %s",
+        ("managers",),
+    )
+    columns = {row[0] for row in cursor.fetchall()}
+    if "department" not in columns:
+        conn.execute("ALTER TABLE managers ADD COLUMN department text")
 
 
 def _insert_manager(conn, payload: ManagerCreate) -> int:
     """Insert a manager record and return the generated id."""
+    # Normalize empty department values to NULL for consistent filtering.
+    department = payload.department.strip() if payload.department else None
     if isinstance(conn, sqlite3.Connection):
         cursor = conn.execute(
-            "INSERT INTO managers(name, role) VALUES (?, ?)",
-            (payload.name, payload.role),
+            "INSERT INTO managers(name, role, department) VALUES (?, ?, ?)",
+            (payload.name, payload.role, department),
         )
         conn.commit()
         lastrowid = cursor.lastrowid
         return int(lastrowid) if lastrowid is not None else 0
     cursor = conn.execute(
-        "INSERT INTO managers(name, role) VALUES (%s, %s) RETURNING id",
-        (payload.name, payload.role),
+        "INSERT INTO managers(name, role, department) VALUES (%s, %s, %s) RETURNING id",
+        (payload.name, payload.role, department),
     )
     row = cursor.fetchone()
     if not row or row[0] is None:
@@ -103,9 +129,16 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
 
 
 @cache_query("managers.count", skip_args=1)
-def _count_managers(conn, db_identity: str) -> int:
-    """Return the total number of managers."""
-    cursor = conn.execute("SELECT COUNT(*) FROM managers")
+def _count_managers(conn, db_identity: str, department: str | None) -> int:
+    """Return the total number of managers, optionally filtered by department."""
+    if department:
+        placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+        cursor = conn.execute(
+            f"SELECT COUNT(*) FROM managers WHERE department = {placeholder}",
+            (department,),
+        )
+    else:
+        cursor = conn.execute("SELECT COUNT(*) FROM managers")
     row = cursor.fetchone()
     if not row or row[0] is None:
         return 0
@@ -113,22 +146,75 @@ def _count_managers(conn, db_identity: str) -> int:
 
 
 @cache_query("managers.list", skip_args=1)
-def _fetch_managers(conn, db_identity: str, limit: int, offset: int) -> list[tuple[int, str, str]]:
+def _fetch_managers(
+    conn,
+    db_identity: str,
+    limit: int,
+    offset: int,
+    department: str | None,
+) -> list[tuple[int, str, str, str | None]]:
     """Return managers ordered by id with pagination applied."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    where_clause = ""
+    params: list[object] = []
+    if department:
+        where_clause = f"WHERE department = {placeholder}"
+        params.append(department)
+    params.extend([limit, offset])
     cursor = conn.execute(
-        f"SELECT id, name, role FROM managers ORDER BY id LIMIT {placeholder} OFFSET {placeholder}",
-        (limit, offset),
+        f"SELECT id, name, role, department FROM managers {where_clause} "
+        f"ORDER BY id LIMIT {placeholder} OFFSET {placeholder}",
+        params,
     )
     return cursor.fetchall()
 
 
+@cache_query("managers.list.all", skip_args=1)
+def _fetch_all_managers(
+    conn,
+    db_identity: str,
+    offset: int,
+    department: str | None,
+) -> list[tuple[int, str, str, str | None]]:
+    """Return all managers ordered by id, optionally filtered by department."""
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    where_clause = ""
+    params: list[object] = []
+    if department:
+        where_clause = f"WHERE department = {placeholder}"
+        params.append(department)
+    if isinstance(conn, sqlite3.Connection):
+        # SQLite requires a LIMIT when OFFSET is present; -1 means no limit.
+        params.append(offset)
+        cursor = conn.execute(
+            f"SELECT id, name, role, department FROM managers {where_clause} "
+            f"ORDER BY id LIMIT -1 OFFSET {placeholder}",
+            params,
+        )
+    else:
+        if offset:
+            params.append(offset)
+            cursor = conn.execute(
+                f"SELECT id, name, role, department FROM managers {where_clause} "
+                f"ORDER BY id OFFSET {placeholder}",
+                params,
+            )
+        else:
+            cursor = conn.execute(
+                f"SELECT id, name, role, department FROM managers {where_clause} ORDER BY id",
+                params,
+            )
+    return cursor.fetchall()
+
+
 @cache_query("managers.item", skip_args=1)
-def _fetch_manager(conn, db_identity: str, manager_id: int) -> tuple[int, str, str] | None:
+def _fetch_manager(
+    conn, db_identity: str, manager_id: int
+) -> tuple[int, str, str, str | None] | None:
     """Return a single manager row by id."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor = conn.execute(
-        f"SELECT id, name, role FROM managers WHERE id = {placeholder}",
+        f"SELECT id, name, role, department FROM managers WHERE id = {placeholder}",
         (manager_id,),
     )
     return cursor.fetchone()
@@ -203,6 +289,7 @@ async def create_manager(
                     "value": {
                         "name": "Grace Hopper",
                         "role": "Engineering Director",
+                        "department": "Engineering",
                     },
                 }
             },
@@ -222,6 +309,7 @@ async def create_manager(
         "id": manager_id,
         "name": payload.name,
         "role": payload.role,
+        "department": payload.department,
     }
 
 
@@ -256,8 +344,11 @@ async def create_manager(
     },
 )
 async def list_managers(
-    limit: int = Query(25, ge=1, le=100, description="Maximum number of managers to return"),
+    limit: int | None = Query(
+        None, ge=1, le=100, description="Maximum number of managers to return (omit for all)"
+    ),
     offset: int = Query(0, ge=0, description="Number of managers to skip"),
+    department: str | None = Query(None, description="Filter managers by department"),
 ):
     """Return a paginated list of managers."""
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
@@ -265,18 +356,27 @@ async def list_managers(
     try:
         # Ensure the table exists so empty databases still return metadata.
         _ensure_manager_table(conn)
-        total = _count_managers(conn, db_identity)
-        # Cap pagination to remaining rows to avoid unnecessary DB work.
-        remaining = max(total - offset, 0)
-        page_limit = min(limit, remaining)
-        if page_limit:
-            rows = _fetch_managers(conn, db_identity, page_limit, offset)
+        normalized_department = department.strip() if department else None
+        total = _count_managers(conn, db_identity, normalized_department)
+        if limit is None:
+            # When limit is omitted, return all remaining rows for duplicate detection checks.
+            rows = _fetch_all_managers(conn, db_identity, offset, normalized_department)
+            response_limit = total
         else:
-            rows = []
+            # Cap pagination to remaining rows to avoid unnecessary DB work.
+            remaining = max(total - offset, 0)
+            page_limit = min(limit, remaining)
+            if page_limit:
+                rows = _fetch_managers(conn, db_identity, page_limit, offset, normalized_department)
+            else:
+                rows = []
+            response_limit = limit
     finally:
         conn.close()
-    items = [ManagerResponse(id=row[0], name=row[1], role=row[2]) for row in rows]
-    return ManagerListResponse(items=items, total=total, limit=limit, offset=offset)
+    items = [
+        ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3]) for row in rows
+    ]
+    return ManagerListResponse(items=items, total=total, limit=response_limit, offset=offset)
 
 
 @router.get(
@@ -337,4 +437,4 @@ async def get_manager(
         conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
-    return ManagerResponse(id=row[0], name=row[1], role=row[2])
+    return ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3])

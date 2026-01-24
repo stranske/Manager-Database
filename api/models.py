@@ -22,6 +22,8 @@ class ManagerResponse(BaseModel):
     id: int = Field(..., description="Manager identifier")
     name: str = Field(..., description="Manager name")
     role: str = Field(..., description="Manager role")
+    # Optional to preserve legacy manager payloads without departments.
+    department: str | None = Field(None, description="Manager department")
 
 
 class ManagerListResponse(BaseModel):
@@ -36,10 +38,11 @@ class ManagerListResponse(BaseModel):
                             "id": 101,
                             "name": "Grace Hopper",
                             "role": "Engineering Director",
+                            "department": "Engineering",
                         }
                     ],
                     "total": 1,
-                    "limit": 25,
+                    "limit": 1,
                     "offset": 0,
                 }
             ]

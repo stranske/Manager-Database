@@ -144,12 +144,12 @@ def test_manager_list_defaults_return_empty_page(tmp_path, monkeypatch):
     body = resp.json()
     assert body["items"] == []
     assert body["total"] == 0
-    assert body["limit"] == 25
+    assert body["limit"] == 0
     assert body["offset"] == 0
 
 
 def test_manager_list_defaults_return_all_items(tmp_path, monkeypatch):
-    # The default pagination settings should include all rows when under limit.
+    # Default list behavior should return all managers when limit is omitted.
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payloads = [
@@ -164,9 +164,30 @@ def test_manager_list_defaults_return_all_items(tmp_path, monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 2
-    assert body["limit"] == 25
+    assert body["limit"] == 2
     assert body["offset"] == 0
     assert [item["name"] for item in body["items"]] == ["Grace Hopper", "Ada Lovelace"]
+
+
+def test_manager_list_filter_by_department_returns_subset(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    # Ensure list filtering includes only managers from the requested department.
+    payloads = [
+        {"name": "Grace Hopper", "role": "Engineering Director", "department": "Engineering"},
+        {"name": "Ada Lovelace", "role": "Research Lead", "department": "Engineering"},
+        {"name": "Mary Jackson", "role": "Operations Manager", "department": "Operations"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"department": "Engineering"}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert [item["name"] for item in body["items"]] == ["Grace Hopper", "Ada Lovelace"]
+    assert {item["department"] for item in body["items"]} == {"Engineering"}
 
 
 def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):

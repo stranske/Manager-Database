@@ -1,0 +1,90 @@
+version: 1
+issue: 390
+base: main
+branch: codex/issue-390
+tasks:
+  - id: task-01
+    title: Create a query to fetch all records from the `managers` table.
+    status: done
+    started_at: '2026-01-24T03:44:37Z'
+    finished_at: '2026-01-24T03:44:45Z'
+    commit: d807824c8caa08db66e0e9f3cb3666146dd1f594
+    notes: []
+  - id: task-02
+    title: Implement a function to return the query results as JSON.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Add support for filtering the results by department.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: Query managers table
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: Return results as JSON
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: Support filtering by department
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: All managers are returned in the JSON response.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Filtering by department returns only managers from the specified department.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: All managers returned in response
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Filter by department works
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: '---'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: '*Test expectation: Should be flagged as DUPLICATE of #133 or #243 - same
+      semantic intent*'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
