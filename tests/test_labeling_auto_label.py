@@ -29,6 +29,28 @@ def test_auto_label_marks_crash_reports_as_bug(monkeypatch):
     assert issue.labels == ["bug"]
 
 
+def test_auto_label_uses_body_keywords(monkeypatch):
+    # Ensure body-only crash keywords still trigger bug labeling.
+    monkeypatch.setattr(
+        integration_layer.label_matcher,
+        "build_label_vector_store",
+        lambda _labels, **_kwargs: None,
+    )
+    labels = [
+        {"name": "bug", "description": "Something is broken or crashes"},
+        {"name": "feature", "description": "New functionality requests"},
+    ]
+    issue = integration_layer.IssueData(
+        title="Service startup failure",
+        body="The service crashes when Postgres is down.",
+    )
+
+    selected = integration_layer.label_issue(issue, labels, max_labels=1)
+
+    assert selected == ["bug"]
+    assert issue.labels == ["bug"]
+
+
 def test_bug_keyword_beats_semantic_match(monkeypatch):
     class FakeDoc:
         def __init__(self, metadata):
