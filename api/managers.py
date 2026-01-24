@@ -169,44 +169,6 @@ def _fetch_managers(
     return cursor.fetchall()
 
 
-@cache_query("managers.list.all", skip_args=1)
-def _fetch_all_managers(
-    conn,
-    db_identity: str,
-    offset: int,
-    department: str | None,
-) -> list[tuple[int, str, str, str | None]]:
-    """Return all managers ordered by id, optionally filtered by department."""
-    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-    where_clause = ""
-    params: list[object] = []
-    if department:
-        where_clause = f"WHERE department = {placeholder}"
-        params.append(department)
-    if isinstance(conn, sqlite3.Connection):
-        # SQLite requires a LIMIT when OFFSET is present; -1 means no limit.
-        params.append(offset)
-        cursor = conn.execute(
-            f"SELECT id, name, role, department FROM managers {where_clause} "
-            f"ORDER BY id LIMIT -1 OFFSET {placeholder}",
-            params,
-        )
-    else:
-        if offset:
-            params.append(offset)
-            cursor = conn.execute(
-                f"SELECT id, name, role, department FROM managers {where_clause} "
-                f"ORDER BY id OFFSET {placeholder}",
-                params,
-            )
-        else:
-            cursor = conn.execute(
-                f"SELECT id, name, role, department FROM managers {where_clause} ORDER BY id",
-                params,
-            )
-    return cursor.fetchall()
-
-
 @cache_query("managers.item", skip_args=1)
 def _fetch_manager(
     conn, db_identity: str, manager_id: int
@@ -344,9 +306,7 @@ async def create_manager(
     },
 )
 async def list_managers(
-    limit: int | None = Query(
-        None, ge=1, le=100, description="Maximum number of managers to return (omit for all)"
-    ),
+    limit: int = Query(25, ge=1, le=100, description="Maximum number of managers to return"),
     offset: int = Query(0, ge=0, description="Number of managers to skip"),
     department: str | None = Query(None, description="Filter managers by department"),
 ):
@@ -358,19 +318,14 @@ async def list_managers(
         _ensure_manager_table(conn)
         normalized_department = department.strip() if department else None
         total = _count_managers(conn, db_identity, normalized_department)
-        if limit is None:
-            # When limit is omitted, return all remaining rows for duplicate detection checks.
-            rows = _fetch_all_managers(conn, db_identity, offset, normalized_department)
-            response_limit = total
+        # Default to a 25-row page while preserving the client-requested limit in metadata.
+        remaining = max(total - offset, 0)
+        page_limit = min(limit, remaining)
+        if page_limit:
+            rows = _fetch_managers(conn, db_identity, page_limit, offset, normalized_department)
         else:
-            # Cap pagination to remaining rows to avoid unnecessary DB work.
-            remaining = max(total - offset, 0)
-            page_limit = min(limit, remaining)
-            if page_limit:
-                rows = _fetch_managers(conn, db_identity, page_limit, offset, normalized_department)
-            else:
-                rows = []
-            response_limit = limit
+            rows = []
+        response_limit = limit
     finally:
         conn.close()
     items = [
