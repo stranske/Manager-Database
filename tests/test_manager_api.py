@@ -261,3 +261,39 @@ def test_manager_get_invalid_id_returns_400(tmp_path, monkeypatch):
     assert resp.status_code == 400
     payload = resp.json()
     assert payload["errors"][0]["field"] == "id"
+
+
+def test_manager_create_db_unavailable_returns_503(monkeypatch):
+    def _raise_db_error(*_args, **_kwargs):
+        raise sqlite3.OperationalError("db down")
+
+    monkeypatch.setattr("api.managers.connect_db", _raise_db_error)
+    resp = asyncio.run(_post_manager({"name": "Fail", "role": "Ops"}))
+    assert resp.status_code == 503
+    payload = resp.json()
+    assert payload["detail"] == "Database unavailable"
+    assert "down" not in payload["detail"].lower()
+
+
+def test_manager_list_db_unavailable_returns_503(monkeypatch):
+    def _raise_db_error(*_args, **_kwargs):
+        raise sqlite3.OperationalError("db down")
+
+    monkeypatch.setattr("api.managers.connect_db", _raise_db_error)
+    resp = asyncio.run(_get_managers())
+    assert resp.status_code == 503
+    payload = resp.json()
+    assert payload["detail"] == "Database unavailable"
+    assert "down" not in payload["detail"].lower()
+
+
+def test_manager_get_db_unavailable_returns_503(monkeypatch):
+    def _raise_db_error(*_args, **_kwargs):
+        raise sqlite3.OperationalError("db down")
+
+    monkeypatch.setattr("api.managers.connect_db", _raise_db_error)
+    resp = asyncio.run(_get_manager(1))
+    assert resp.status_code == 503
+    payload = resp.json()
+    assert payload["detail"] == "Database unavailable"
+    assert "down" not in payload["detail"].lower()
