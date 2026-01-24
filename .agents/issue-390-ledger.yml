@@ -5,10 +5,10 @@ branch: codex/issue-390
 tasks:
   - id: task-01
     title: Create a query to fetch all records from the `managers` table.
-    status: doing
+    status: done
     started_at: '2026-01-24T03:44:37Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-24T03:44:45Z'
+    commit: d807824c8caa08db66e0e9f3cb3666146dd1f594
     notes: []
   - id: task-02
     title: Implement a function to return the query results as JSON.
