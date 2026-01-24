@@ -210,3 +210,12 @@ def test_manager_get_returns_404_for_missing_id(tmp_path, monkeypatch):
     resp = asyncio.run(_get_manager(999))
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Manager not found"
+
+
+def test_manager_get_invalid_id_returns_400(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(_get_manager(0))
+    assert resp.status_code == 400
+    payload = resp.json()
+    assert payload["errors"][0]["field"] == "id"
