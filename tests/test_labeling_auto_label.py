@@ -82,6 +82,27 @@ def test_bug_keyword_beats_semantic_match(monkeypatch):
     assert matches[0].label.name == "bug"
 
 
+def test_auto_label_marks_defect_as_bug(monkeypatch):
+    monkeypatch.setattr(
+        integration_layer.label_matcher,
+        "build_label_vector_store",
+        lambda _labels, **_kwargs: None,
+    )
+    labels = [
+        {"name": "bug", "description": "Something is broken or crashes"},
+        {"name": "feature", "description": "New functionality requests"},
+    ]
+    issue = integration_layer.IssueData(
+        title="Database startup defect",
+        body="Observed a defect when the database is unreachable.",
+    )
+
+    selected = integration_layer.label_issue(issue, labels, max_labels=1)
+
+    assert selected == ["bug"]
+    assert issue.labels == ["bug"]
+
+
 # Commit-message checklist:
 # - [ ] type is accurate (test, fix, feat)
 # - [ ] scope is clear (labeling)
