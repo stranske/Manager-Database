@@ -64,7 +64,7 @@ jobs:
             const { paginateWithRetry } = retryHelpers;
 
             const runs = await paginateWithRetry(
-              github.rest.actions.listWorkflowRuns,
+              github, github.rest.actions.listWorkflowRuns,
               {
                 owner,
                 repo,

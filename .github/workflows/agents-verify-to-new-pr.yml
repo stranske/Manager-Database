@@ -111,7 +111,7 @@ jobs:
 
             // Get all PR comments (handle pagination)
             const comments = await paginateWithRetry(
-              github.rest.issues.listComments,
+              github, github.rest.issues.listComments,
               {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
