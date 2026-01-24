@@ -42,7 +42,8 @@ class LabelMatch:
 DEFAULT_LABEL_SIMILARITY_THRESHOLD = 0.8
 DEFAULT_LABEL_SIMILARITY_K = 5
 SHORT_LABEL_LENGTH = 4
-KEYWORD_BUG_SCORE = 0.91
+# Keep bug keyword matches ahead of semantic matches for crash/defect reports.
+KEYWORD_BUG_SCORE = 0.99
 KEYWORD_FEATURE_SCORE = 0.9
 KEYWORD_DOCS_SCORE = 0.9
 _IGNORED_LABEL_TOKENS = {"type", "kind"}
@@ -475,3 +476,9 @@ def resolve_label_match(
     if matches:
         return matches[0]
     return None
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (labeling)
+# - [ ] summary is concise and imperative
