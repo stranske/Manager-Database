@@ -17,6 +17,32 @@ def test_connect_db_respects_timeout(tmp_path):
         conn.close()
 
 
+def test_connect_db_retries_on_transient_error(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    attempts = {"count": 0}
+    real_connect = sqlite3.connect
+
+    def flaky_connect(path, **kwargs):
+        attempts["count"] += 1
+        # Simulate the database being unavailable for the first two attempts.
+        if attempts["count"] < 3:
+            raise sqlite3.OperationalError("temporary outage")
+        return real_connect(path, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", flaky_connect)
+    monkeypatch.setenv("DB_CONNECT_RETRIES", "3")
+    monkeypatch.setenv("DB_CONNECT_RETRY_DELAY", "0")
+    # Avoid real sleeps while validating retry behavior.
+    monkeypatch.setattr("adapters.base.time.sleep", lambda _delay: None)
+
+    conn = connect_db(str(db_path))
+    try:
+        assert attempts["count"] == 3
+        assert isinstance(conn, sqlite3.Connection)
+    finally:
+        conn.close()
+
+
 def test_get_adapter_caches_module():
     adapter = get_adapter("edgar")
     # The registry should return the same module instance on repeated calls.
