@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Implement the GET /managers endpoint to return a paginated list of managers,
       supporting 'limit' and 'offset' query parameters with a default limit of 25.
-    status: doing
+    status: done
     started_at: '2026-01-24T21:56:26Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-24T21:56:34Z'
+    commit: 6787ec303ef9d6dccdf8f05d4cedb1777a631a8e
     notes: []
   - id: task-02
     title: 'Define scope for: Implement the GET /managers endpoint to return a paginated
