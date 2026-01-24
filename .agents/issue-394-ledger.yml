@@ -1,0 +1,1633 @@
+version: 1
+issue: 394
+base: main
+branch: codex/issue-394
+tasks:
+  - id: task-01
+    title: Implement the GET /managers endpoint to return a paginated list of managers,
+      supporting 'limit' and 'offset' query parameters with a default limit of 25.
+    status: doing
+    started_at: '2026-01-24T21:56:26Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: 'Define scope for: Implement the GET /managers endpoint to return a paginated
+      list of managers (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Implement focused slice for: Implement the GET /managers endpoint to return
+      a paginated list of managers (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Validate focused slice for: Implement the GET /managers endpoint to return
+      a paginated list of managers (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'supporting ''limit'' (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Define scope for: ''offset'' query parameters with a default limit of
+      25. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Implement focused slice for: ''offset'' query parameters with a default
+      limit of 25. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Validate focused slice for: ''offset'' query parameters with a default
+      limit of 25. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Implement the GET /managers/{id} endpoint to retrieve a single manager
+      by its id, returning the manager's details (id, name, role) or a 404 error following
+      the specified error schema.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'Define scope for: Implement the GET /managers/{id} endpoint to retrieve
+      a single manager by its id (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Implement focused slice for: Implement the GET /managers/{id} endpoint
+      to retrieve a single manager by its id (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Validate focused slice for: Implement the GET /managers/{id} endpoint
+      to retrieve a single manager by its id (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'returning the manager''s details (id (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'name (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Define scope for: role) or a 404 error following the specified error schema.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Implement focused slice for: role) or a 404 error following the specified
+      error schema. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Validate focused slice for: role) or a 404 error following the specified
+      error schema. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'Update models.py to add a response model for manager objects that includes
+      the fields: id, name, and role.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Define scope for: Update models.py to add a response model for manager
+      objects that includes the fields: id (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: 'Implement focused slice for: Update models.py to add a response model
+      for manager objects that includes the fields: id (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: 'Validate focused slice for: Update models.py to add a response model for
+      manager objects that includes the fields: id (verify: confirm completion in
+      repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: 'name (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: '(verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: 'role. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: Add pagination logic to the GET /managers endpoint to handle 'limit' and
+      'offset' parameters, ensuring correct default behavior and ordering.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: 'Define scope for: Add pagination logic to the GET /managers endpoint to
+      handle ''limit'' (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: 'Implement focused slice for: Add pagination logic to the GET /managers
+      endpoint to handle ''limit'' (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: 'Validate focused slice for: Add pagination logic to the GET /managers
+      endpoint to handle ''limit'' (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: '''offset'' parameters (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: 'ensuring correct default behavior (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: 'ordering. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: Develop and add comprehensive tests for both endpoints, including tests
+      for default pagination behavior, parameter validation (e.g., 400 error when
+      id=0 with a specific error schema), and proper handling of not found cases.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-40
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-41
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-42
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-43
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-44
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-45
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-46
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-47
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-48
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-49
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-50
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-51
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-52
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-53
+    title: 'including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-54
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-55
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-56
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-57
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-58
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-59
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-60
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-61
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-62
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-63
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-64
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-65
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-66
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-67
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-68
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-69
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-70
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-71
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-72
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-73
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-74
+    title: 'including parameter validation (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-75
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-76
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-77
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-78
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-79
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-80
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-81
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-82
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-83
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-84
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-85
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-86
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-87
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-88
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-89
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-90
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-91
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-92
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-93
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-94
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-95
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-96
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-97
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-98
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-99
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-100
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-101
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-102
+    title: 'Define scope for: add comprehensive tests for both endpoints (verify:
+      tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-103
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-104
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-105
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-106
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-107
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-108
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-109
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-110
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints
+      (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-111
+    title: 'Define scope for: including 400 error when id=0 with a specific error
+      schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-112
+    title: 'Implement focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-113
+    title: 'Validate focused slice for: including 400 error when id=0 with a specific
+      error schema) (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-114
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-115
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-116
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-117
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-118
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-119
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-120
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-121
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-122
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-123
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-124
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-125
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-126
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-127
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-128
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-129
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-130
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-131
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-132
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-133
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-134
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-135
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-136
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-137
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-138
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-139
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-140
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-141
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-142
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-143
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-144
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-145
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-146
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-147
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-148
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-149
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-150
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-151
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-152
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-153
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-154
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-155
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-156
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-157
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-158
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-159
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-160
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-161
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for 400 error when id=0 with (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-162
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-163
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-164
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-165
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-166
+    title: 'Define scope for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-167
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for proper handling of not found cases. (verify: tests
+      pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-168
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for proper handling of not found cases. (verify:
+      tests pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-169
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for proper handling of not found cases. (verify:
+      tests pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-170
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-171
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-172
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-173
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-174
+    title: 'Implement focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-175
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for proper handling of not found cases. (verify: tests
+      pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-176
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for proper handling of not found cases. (verify:
+      tests pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-177
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for proper handling of not found cases. (verify:
+      tests pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-178
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-179
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-180
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-181
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including tests for default pagination behavior (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-182
+    title: 'Validate focused slice for: Develop (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-183
+    title: 'Define scope for: add comprehensive tests for both endpoints, including
+      parameter validation for proper handling of not found cases. (verify: tests
+      pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-184
+    title: 'Implement focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for proper handling of not found cases. (verify:
+      tests pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-185
+    title: 'Validate focused slice for: add comprehensive tests for both endpoints,
+      including parameter validation for proper handling of not found cases. (verify:
+      tests pass'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-186
+    title: Remove or refactor the .agents/issue-388-ledger.yml file to eliminate duplicate
+      tasks and process noise.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-187
+    title: 'Define scope for: Remove or refactor the .agents/issue-388-ledger.yml
+      file to eliminate duplicate tasks (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-188
+    title: 'Implement focused slice for: Remove or refactor the .agents/issue-388-ledger.yml
+      file to eliminate duplicate tasks (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-189
+    title: 'Validate focused slice for: Remove or refactor the .agents/issue-388-ledger.yml
+      file to eliminate duplicate tasks (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-190
+    title: 'process noise. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-191
+    title: The GET /managers endpoint returns a paginated list of managers with a
+      default limit of 25 and supports 'limit' and 'offset' query parameters.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-192
+    title: The GET /managers/{id} endpoint returns a manager's details (id, name,
+      role) if the manager exists, or a 404 error with a defined error schema if not
+      found.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-193
+    title: The manager listing endpoint handles invalid 'limit' and 'offset' parameters
+      by returning a 400 error with a specific error schema.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-194
+    title: The models.py file includes a response model for manager objects with 'id',
+      'name', and 'role' fields.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-195
+    title: Comprehensive tests are implemented for both GET /managers and GET /managers/{id}
+      endpoints, covering default pagination, parameter validation, and not found
+      cases.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-196
+    title: The .agents/issue-388-ledger.yml file is removed or refactored to eliminate
+      duplicate tasks and process noise.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-197
+    title: Implement the GET /managers endpoint to return a paginated list of managers,
+      supporting 'limit' and 'offset' query parameters with a default limit of 25.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-198
+    title: Implement the GET /managers/{id} endpoint to retrieve a single manager
+      by its id, returning the manager's details (id, name, role) or a 404 error following
+      the specified error schema.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-199
+    title: 'Update models.py to add a response model for manager objects that includes
+      the fields: id, name, and role.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-200
+    title: Add pagination logic to the GET /managers endpoint to handle 'limit' and
+      'offset' parameters, ensuring correct default behavior and ordering.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-201
+    title: Develop and add comprehensive tests for both endpoints, including tests
+      for default pagination behavior, parameter validation (e.g., 400 error when
+      id=0 with a specific error schema), and proper handling of not found cases.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-202
+    title: Remove or refactor the .agents/issue-388-ledger.yml file to eliminate duplicate
+      tasks and process noise.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-203
+    title: The GET /managers endpoint returns a paginated list of managers with a
+      default limit of 25 and supports 'limit' and 'offset' query parameters.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-204
+    title: The GET /managers/{id} endpoint returns a manager's details (id, name,
+      role) if the manager exists, or a 404 error with a defined error schema if not
+      found.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-205
+    title: The manager listing endpoint handles invalid 'limit' and 'offset' parameters
+      by returning a 400 error with a specific error schema.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-206
+    title: The models.py file includes a response model for manager objects with 'id',
+      'name', and 'role' fields.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-207
+    title: Comprehensive tests are implemented for both GET /managers and GET /managers/{id}
+      endpoints, covering default pagination, parameter validation, and not found
+      cases.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-208
+    title: The .agents/issue-388-ledger.yml file is removed or refactored to eliminate
+      duplicate tasks and process noise.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
