@@ -74,8 +74,9 @@ def test_openapi_managers_schema():
     ]
     assert list_error_schema["$ref"] == "#/components/schemas/ErrorResponse"
     list_parameters = {param["name"]: param for param in manager_list_schema["parameters"]}
-    assert list_parameters["limit"]["schema"]["default"] == 25
+    assert list_parameters["limit"]["schema"].get("default") is None
     assert list_parameters["offset"]["schema"]["default"] == 0
+    assert "department" in list_parameters
 
     manager_detail_schema = schema["paths"]["/managers/{id}"]["get"]
     assert manager_detail_schema["summary"] == "Retrieve a manager"
