@@ -5,20 +5,15 @@ Build FAISS vector stores for issue deduplication.
 
 from __future__ import annotations
 
-import importlib
 import os
-import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from scripts.langchain.semantic_matcher import EmbeddingClientInfo
+from typing import Any
 
 try:
-    semantic_matcher = importlib.import_module("scripts.langchain.semantic_matcher")
+    from scripts.langchain import semantic_matcher
 except ModuleNotFoundError:
-    semantic_matcher = importlib.import_module("semantic_matcher")
+    import semantic_matcher
 
 
 @dataclass(frozen=True)
@@ -48,21 +43,6 @@ class IssueMatch:
 DEFAULT_SIMILARITY_THRESHOLD = 0.8
 DEFAULT_SIMILARITY_K = 5
 SIMILAR_ISSUES_MARKER = "<!-- issue-dedup:similar-issues -->"
-_TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
-_STOPWORDS = {
-    "add",
-    "adding",
-    "change",
-    "changes",
-    "feature",
-    "fix",
-    "issue",
-    "new",
-    "request",
-    "support",
-    "update",
-    "updates",
-}
 
 
 def _coerce_issue(item: Any) -> IssueRecord | None:
@@ -106,7 +86,7 @@ def _issue_text(issue: IssueRecord) -> str:
 def build_issue_vector_store(
     issues: Iterable[Any],
     *,
-    client_info: EmbeddingClientInfo | None = None,
+    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
     model: str | None = None,
 ) -> IssueVectorStore | None:
     issue_records: list[IssueRecord] = []
@@ -176,29 +156,6 @@ def _issue_from_metadata(metadata: Mapping[str, Any], fallback_title: str | None
     )
 
 
-def _tokenize(text: str) -> set[str]:
-    tokens = {token.lower() for token in _TOKEN_RE.findall(text) if len(token) > 2}
-    return tokens - _STOPWORDS
-
-
-def _has_text_overlap(query: str, issue: IssueRecord) -> bool:
-    query_tokens = _tokenize(query)
-    if not query_tokens:
-        return False
-    issue_tokens = _tokenize(_issue_text(issue))
-    if not issue_tokens:
-        return False
-    overlap = query_tokens & issue_tokens
-    if not overlap:
-        return False
-    min_len = min(len(query_tokens), len(issue_tokens))
-    if min_len <= 2:
-        return len(overlap) >= min_len
-    if min_len >= 6:
-        return len(overlap) >= 3
-    return len(overlap) >= 2
-
-
 def find_similar_issues(
     issue_store: IssueVectorStore,
     query: str,
@@ -232,17 +189,13 @@ def find_similar_issues(
         metadata = getattr(doc, "metadata", {}) or {}
         fallback_title = getattr(doc, "page_content", None)
         issue = _issue_from_metadata(metadata, fallback_title)
-        raw_score_value = float(raw_score)
-        similarity = _similarity_from_score(raw_score_value, score_type)
-        has_overlap = _has_text_overlap(query, issue)
-        if not has_overlap:
-            continue
+        similarity = _similarity_from_score(float(raw_score), score_type)
         if similarity >= min_score:
             matches.append(
                 IssueMatch(
                     issue=issue,
                     score=similarity,
-                    raw_score=raw_score_value,
+                    raw_score=float(raw_score),
                     score_type=score_type,
                 )
             )
@@ -291,10 +244,6 @@ def format_similar_issues_comment(
         "If this is a duplicate, close this issue and add your context to the existing one.",
         "If this is different, add a comment explaining how this issue is distinct.",
         "If this is related but separate, link the issues and keep both open.",
-        "```text",
-        # Keep a fenced block so comment structure checks remain stable.
-        "If this is a false positive, keep the issue open and note why it differs.",
-        "```",
         "</details>",
         "",
         "---",
@@ -302,9 +251,3 @@ def format_similar_issues_comment(
     ]
 
     return "\n".join(lines)
-
-
-# Commit-message checklist:
-# - [ ] type is accurate (fix, chore, refactor)
-# - [ ] scope is clear (issue_dedup)
-# - [ ] summary is concise and imperative
