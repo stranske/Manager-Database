@@ -37,6 +37,7 @@ dev = [
     "coverage>=7.13.1",
     "referencing",
     "PyYAML",
+    "fakeredis",
 ]
 
 [build-system]
