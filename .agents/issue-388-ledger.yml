@@ -1,0 +1,119 @@
+version: 1
+issue: 388
+base: main
+branch: codex/issue-388
+tasks:
+  - id: task-01
+    title: Add endpoint to get all managers
+    status: doing
+    started_at: '2026-01-24T02:38:12Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: Add endpoint to get manager by ID
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Support pagination for list endpoint
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: Add response models for manager endpoints in `models.py` with fields for
+      ID, name, and role.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: GET /managers returns paginated list
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: GET /managers/{id} returns single manager or 404
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: Pagination supports limit and offset
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Tests added for new endpoints
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Add endpoint to get all managers
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Add endpoint to get manager by ID
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Support pagination for list endpoint
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: Add response models for manager endpoints in `models.py` with fields for
+      ID, name, and role.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: GET /managers returns paginated list
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: GET /managers/{id} returns single manager or 404
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: Pagination supports limit and offset
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: Tests added for new endpoints
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
