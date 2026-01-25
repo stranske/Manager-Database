@@ -7,3 +7,10 @@ def test_api_changes_document_default_limit_confirmation():
     assert "default pagination limit is now always set to 25" in content
     assert "Confirmation:" in content
     assert "docs/api_design_guidelines.md" in content
+
+
+def test_api_changes_confirmation_includes_review_date():
+    api_changes = Path(__file__).resolve().parents[1] / "docs" / "api_changes.md"
+    content = api_changes.read_text(encoding="utf-8")
+    assert "Reviewed against docs/api_design_guidelines.md" in content
+    assert "2026-01-25" in content
