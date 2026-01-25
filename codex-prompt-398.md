@@ -140,19 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 8/45 tasks complete, 37 remaining
-
-### ⚠️ IMPORTANT: Task Reconciliation Required
-
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
-
-**Before continuing, you MUST:**
-1. Review the recent commits to understand what was changed
-2. Determine which task checkboxes should be marked complete
-3. Update the PR body to check off completed tasks
-4. Then continue with remaining tasks
-
-_Failure to update checkboxes means progress is not being tracked properly._
+**Progress:** 34/45 tasks complete, 11 remaining
 
 ### Scope
 PR #395 addressed issue #394, but verification identified concerns. This follow-up addresses the remaining gaps with improved task structure to ensure full validation and documentation.
@@ -174,15 +162,15 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Define scope for: that the response body contains an 'error' field per the error schema. (verify: confirm completion in repo)
 - [x] Implement focused slice for: that the response body contains an 'error' field per the error schema. (verify: confirm completion in repo)
 - [x] Validate focused slice for: that the response body contains an 'error' field per the error schema. (verify: confirm completion in repo)
-- [ ] Review and update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0, negative numbers, values > 100) as well as invalid 'offset' values (negative numbers).
-- [ ] Review (verify: confirm completion in repo)
-- [ ] Define scope for: update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0 (verify: confirm completion in repo)
-- [ ] Implement focused slice for: update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0 (verify: confirm completion in repo)
-- [ ] Validate focused slice for: update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0 (verify: confirm completion in repo)
-- [ ] negative numbers (verify: confirm completion in repo)
-- [ ] Define scope for: values > 100) as well as invalid 'offset' values (negative numbers). (verify: confirm completion in repo)
-- [ ] Implement focused slice for: values > 100) as well as invalid 'offset' values (negative numbers). (verify: confirm completion in repo)
-- [ ] Validate focused slice for: values > 100) as well as invalid 'offset' values (negative numbers). (verify: confirm completion in repo)
+- [x] Review and update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0, negative numbers, values > 100) as well as invalid 'offset' values (negative numbers).
+- [x] Review (verify: confirm completion in repo)
+- [x] Define scope for: update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0 (verify: confirm completion in repo)
+- [x] Implement focused slice for: update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0 (verify: confirm completion in repo)
+- [x] Validate focused slice for: update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0 (verify: confirm completion in repo)
+- [x] negative numbers (verify: confirm completion in repo)
+- [x] Define scope for: values > 100) as well as invalid 'offset' values (negative numbers). (verify: confirm completion in repo)
+- [x] Implement focused slice for: values > 100) as well as invalid 'offset' values (negative numbers). (verify: confirm completion in repo)
+- [x] Validate focused slice for: values > 100) as well as invalid 'offset' values (negative numbers). (verify: confirm completion in repo)
 - [x] Refactor or remove the .agents/issue-388-ledger.yml and .agents/issue-394-ledger.yml files to eliminate duplicate tasks. Ensure that any remaining ledger documentation is consolidated, concise, and free from repetitive 'Define scope/Implement/Validate' tasks.
 - [x] Define scope for: Refactor or remove the .agents/issue-388-ledger.yml (verify: confirm completion in repo)
 - [x] Implement focused slice for: Refactor or remove the .agents/issue-388-ledger.yml (verify: confirm completion in repo)
@@ -215,9 +203,11 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Add explicit tests in the test suite for invalid 'limit' parameter values (e.g., limit=0, limit=-1, limit>100) on the GET /managers endpoint. The tests should verify a 400 status code and that the response body contains an 'error' field per the error schema.
+- limit=0 (verify: confirm completion in repo)
+- Review and update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0, negative numbers, values > 100) as well as invalid 'offset' values (negative numbers).
+- Review (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Review and update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0, negative numbers, values > 100) as well as invalid 'offset' values (negative numbers).
+- Define scope for: update the parameter validation logic in the GET /managers endpoint to properly reject invalid 'limit' values (0 (verify: confirm completion in repo)
 
 ---
