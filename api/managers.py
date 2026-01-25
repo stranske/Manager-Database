@@ -241,11 +241,21 @@ def _format_bulk_validation_errors(exc: ValidationError) -> list[dict[str, str]]
     return errors
 
 
-def _parse_bulk_csv_payloads(content: str) -> list[dict[str, object]]:
+def _parse_bulk_csv_payloads(content: str) -> tuple[list[dict[str, object]], list[str]]:
     """Parse CSV content into raw payload dictionaries."""
     reader = csv.DictReader(io.StringIO(content))
     if reader.fieldnames is None:
-        return []
+        return [], ["name", "role"]
+    normalized_fields = {
+        (field or "").strip().lower(): field for field in reader.fieldnames if field
+    }
+    required_headers = ["name", "role"]
+    missing_headers = [header for header in required_headers if header not in normalized_fields]
+    if missing_headers:
+        return [], missing_headers
+    name_key = normalized_fields["name"]
+    role_key = normalized_fields["role"]
+    department_key = normalized_fields.get("department")
     payloads: list[dict[str, object]] = []
     for row in reader:
         # Skip rows that are entirely empty to avoid noise in error reports.
@@ -253,12 +263,12 @@ def _parse_bulk_csv_payloads(content: str) -> list[dict[str, object]]:
             continue
         payloads.append(
             {
-                "name": row.get("name", "") or "",
-                "role": row.get("role", "") or "",
-                "department": row.get("department") or None,
+                "name": row.get(name_key, "") or "",
+                "role": row.get(role_key, "") or "",
+                "department": row.get(department_key) if department_key else None,
             }
         )
-    return payloads
+    return payloads, []
 
 
 def _validate_bulk_records(
@@ -483,7 +493,11 @@ async def bulk_import_managers(
             decoded = raw_bytes.decode("utf-8-sig")
         except UnicodeDecodeError:
             return _bulk_request_error("body", "CSV payload must be UTF-8 encoded.")
-        raw_records = _parse_bulk_csv_payloads(decoded)
+        raw_records, missing_headers = _parse_bulk_csv_payloads(decoded)
+        if missing_headers:
+            message = "CSV payload missing required headers: " + ", ".join(missing_headers)
+            logger.warning("Bulk import CSV missing required headers: %s", missing_headers)
+            return _bulk_request_error("body", message)
     else:
         try:
             body = await request.json()

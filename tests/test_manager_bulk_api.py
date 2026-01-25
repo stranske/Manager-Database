@@ -100,6 +100,26 @@ def test_bulk_csv_import_logs_invalid_rows(tmp_path, monkeypatch, caplog):
     assert rows == [("Grace Hopper", "Engineering Director")]
 
 
+def test_bulk_csv_import_rejects_missing_headers(tmp_path, monkeypatch, caplog):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    csv_payload = "\n".join(
+        [
+            "name,department",
+            "Grace Hopper,Engineering",
+        ]
+    )
+
+    with caplog.at_level(logging.WARNING, logger="api.managers"):
+        resp = asyncio.run(_post_bulk_csv(csv_payload))
+
+    assert resp.status_code == 400
+    payload = resp.json()
+    assert payload["errors"][0]["field"] == "body"
+    assert "missing required headers" in payload["errors"][0]["message"].lower()
+    assert "Bulk import CSV missing required headers" in caplog.text
+
+
 def test_bulk_json_import_handles_large_batch(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
