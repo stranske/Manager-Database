@@ -55,6 +55,49 @@ def test_default_output_path_uses_timestamp() -> None:
     assert output == "monitoring/memory_usage_20240102T030405Z.csv"
 
 
+def test_resolve_output_path_prefers_explicit_file(tmp_path) -> None:
+    now = dt.datetime(2024, 1, 2, 3, 4, 5)
+    explicit = tmp_path / "memory.csv"
+
+    output = collect_memory.resolve_output_path(
+        output=str(explicit),
+        output_dir=str(tmp_path),
+        now=now,
+    )
+
+    assert output == str(explicit)
+
+
+def test_resolve_output_path_accepts_directory(tmp_path) -> None:
+    now = dt.datetime(2024, 1, 2, 3, 4, 5)
+
+    output = collect_memory.resolve_output_path(
+        output=str(tmp_path),
+        output_dir="ignored",
+        now=now,
+    )
+
+    # Directory inputs should be expanded into timestamped filenames.
+    assert output == str(
+        tmp_path / "memory_usage_20240102T030405Z.csv"
+    )
+
+
+def test_resolve_output_path_accepts_trailing_separator(tmp_path) -> None:
+    now = dt.datetime(2024, 1, 2, 3, 4, 5)
+    output_dir = f"{tmp_path}{collect_memory.os.sep}"
+
+    output = collect_memory.resolve_output_path(
+        output=output_dir,
+        output_dir="ignored",
+        now=now,
+    )
+
+    assert output == str(
+        tmp_path / "memory_usage_20240102T030405Z.csv"
+    )
+
+
 def test_run_collection_calls_monitor(monkeypatch) -> None:
     captured = {}
 

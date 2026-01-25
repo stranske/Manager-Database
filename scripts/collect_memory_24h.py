@@ -73,6 +73,24 @@ def default_output_path(now: dt.datetime, output_dir: str) -> str:
     return os.path.join(output_dir, filename)
 
 
+def resolve_output_path(
+    *,
+    output: str | None,
+    output_dir: str,
+    now: dt.datetime,
+) -> str:
+    """Resolve the final output path, allowing directories as inputs."""
+    if output is None:
+        return default_output_path(now, output_dir)
+
+    expanded = os.path.expanduser(output)
+    # Allow passing a directory so operators can reuse a single flag.
+    if os.path.isdir(expanded) or expanded.endswith(os.sep):
+        normalized_dir = expanded.rstrip(os.sep)
+        return default_output_path(now, normalized_dir)
+    return expanded
+
+
 def run_collection(
     *,
     pid: int,
@@ -143,9 +161,11 @@ def main() -> None:
     args = parser.parse_args()
 
     pid = resolve_pid(args.pid, args.process_name)
-    output_path = args.output
-    if output_path is None:
-        output_path = default_output_path(dt.datetime.utcnow(), args.output_dir)
+    output_path = resolve_output_path(
+        output=args.output,
+        output_dir=args.output_dir,
+        now=dt.datetime.utcnow(),
+    )
 
     run_collection(
         pid=pid,
