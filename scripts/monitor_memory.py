@@ -7,12 +7,11 @@ import csv
 import datetime as dt
 import os
 import time
-from typing import Dict, Tuple
 
 PROC_STATUS_PATH = "/proc/{pid}/status"
 
 
-def parse_proc_status(text: str) -> Dict[str, int]:
+def parse_proc_status(text: str) -> dict[str, int]:
     """Parse VmRSS and VmSize values (in kB) from /proc/<pid>/status."""
     rss_kb = None
     vms_kb = None
@@ -33,11 +32,11 @@ def parse_proc_status(text: str) -> Dict[str, int]:
 def read_proc_status(pid: int) -> str:
     """Read the /proc status file for a PID."""
     status_path = PROC_STATUS_PATH.format(pid=pid)
-    with open(status_path, "r", encoding="utf-8") as handle:
+    with open(status_path, encoding="utf-8") as handle:
         return handle.read()
 
 
-def sample_memory(pid: int) -> Tuple[int, int]:
+def sample_memory(pid: int) -> tuple[int, int]:
     """Return (rss_kb, vms_kb) for the given PID using /proc."""
     payload = read_proc_status(pid)
     parsed = parse_proc_status(payload)
