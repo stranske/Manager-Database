@@ -80,8 +80,6 @@ SECTION_TITLES = {
 
 LIST_ITEM_REGEX = re.compile(r"^(\s*)([-*+]|\d+[.)]|[A-Za-z][.)])\s+(.*)$")
 CHECKBOX_REGEX = re.compile(r"^\[([ xX])\]\s*(.*)$")
-_STRUCTURAL_LINE_REGEX = re.compile(r"^[-*_]{3,}$")
-_DETAILS_TAG_REGEX = re.compile(r"^</?(?:details|summary)\b", re.IGNORECASE)
 
 
 def _load_prompt() -> str:
@@ -192,9 +190,7 @@ def _normalize_checklist_lines(lines: list[str]) -> list[str]:
             continue
         if not stripped:
             continue
-        if _STRUCTURAL_LINE_REGEX.fullmatch(stripped):
-            continue
-        if _DETAILS_TAG_REGEX.match(stripped):
+        if stripped in {"---", "<details>", "</details>"}:
             continue
         match = LIST_ITEM_REGEX.match(raw)
         if match:
@@ -372,6 +368,7 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
     tasks = _extract_tasks_from_formatted(formatted)
     if not tasks:
         return formatted, None
+    # Task validation runs elsewhere; keep formatter as a no-op.
     return formatted, None
 
 

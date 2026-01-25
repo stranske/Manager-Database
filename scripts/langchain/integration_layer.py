@@ -8,12 +8,15 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-try:
-    from scripts.langchain import label_matcher
-except ModuleNotFoundError:
-    import label_matcher  # type: ignore[no-redef]
+if TYPE_CHECKING:
+    from scripts.langchain import label_matcher as label_matcher
+else:
+    try:
+        from scripts.langchain import label_matcher as label_matcher
+    except ModuleNotFoundError:
+        import label_matcher as label_matcher
 
 
 @dataclass
