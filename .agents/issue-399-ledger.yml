@@ -1,0 +1,393 @@
+version: 1
+issue: 399
+base: main
+branch: codex/issue-399
+tasks:
+  - id: task-01
+    title: Add or update repository automation configuration to automatically apply
+      the 'enhancement' label when a PR includes the bulk manager import feature.
+    status: doing
+    started_at: '2026-01-25T04:43:33Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: 'Define approach for: Add or update repository automation configuration
+      to automatically apply the ''enhancement'' label when a PR includes the bulk
+      manager import feature. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Define scope for: Implement: Add or update repository automation configuration
+      to automatically apply the ''enhancement'' label when a PR includes the bulk
+      manager import feature. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Implement focused slice for: Implement: Add or update repository automation
+      configuration to automatically apply the ''enhancement'' label when a PR includes
+      the bulk manager import feature. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Validate focused slice for: Implement: Add or update repository automation
+      configuration to automatically apply the ''enhancement'' label when a PR includes
+      the bulk manager import feature. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Define scope for: Validate: Add or update repository automation configuration
+      to automatically apply the ''enhancement'' label when a PR includes the bulk
+      manager import feature. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Implement focused slice for: Validate: Add or update repository automation
+      configuration to automatically apply the ''enhancement'' label when a PR includes
+      the bulk manager import feature. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Validate focused slice for: Validate: Add or update repository automation
+      configuration to automatically apply the ''enhancement'' label when a PR includes
+      the bulk manager import feature. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Enhance CSV parsing logic to detect and report missing required headers
+      separately from missing values in individual rows.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'Enhance CSV parsing logic to detect (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Define scope for: report missing required headers separately from missing
+      values in individual rows. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Implement focused slice for: report missing required headers separately
+      from missing values in individual rows. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Validate focused slice for: report missing required headers separately
+      from missing values in individual rows. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: Implement a check for the maximum allowed payload size or use a streaming
+      approach in the CSV upload handler.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Define approach for: Implement a check for the maximum allowed payload
+      size or use a streaming approach in the CSV upload handler. (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Define scope for: Implement: Implement a check for the maximum allowed
+      payload size or use a streaming approach in the CSV upload handler. (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Implement focused slice for: Implement: Implement a check for the maximum
+      allowed payload size or use a streaming approach in the CSV upload handler.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'Validate focused slice for: Implement: Implement a check for the maximum
+      allowed payload size or use a streaming approach in the CSV upload handler.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Define scope for: Validate: Implement a check for the maximum allowed
+      payload size or use a streaming approach in the CSV upload handler. (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: 'Implement focused slice for: Validate: Implement a check for the maximum
+      allowed payload size or use a streaming approach in the CSV upload handler.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: 'Validate focused slice for: Validate: Implement a check for the maximum
+      allowed payload size or use a streaming approach in the CSV upload handler.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: Review and adjust the bulk import endpoint URL to align with other manager
+      routes or update API documentation.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: 'Review (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: 'Define scope for: adjust the bulk import endpoint URL to align with other
+      manager routes or update API documentation. (verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: 'Implement focused slice for: adjust the bulk import endpoint URL to align
+      with other manager routes or update API documentation. (verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: 'Validate focused slice for: adjust the bulk import endpoint URL to align
+      with other manager routes or update API documentation. (verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: Verify and document the transactional behavior of the bulk import through
+      detailed response reporting and unit tests.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: Verify
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: 'Define scope for: document the transactional behavior of the bulk import
+      through detailed response reporting (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: 'Implement focused slice for: document the transactional behavior of the
+      bulk import through detailed response reporting (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: 'Validate focused slice for: document the transactional behavior of the
+      bulk import through detailed response reporting (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: 'unit tests. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: The repository automation configuration automatically applies the 'enhancement'
+      label to any PR that includes changes to the bulk manager import feature.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: The CSV parsing logic differentiates between missing required headers and
+      missing values in individual rows, logging distinct error messages for each.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: The CSV upload handler prevents memory issues by either checking the maximum
+      allowed payload size or using a streaming approach.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: The bulk import API endpoint is implemented at `/api/managers/bulk` or
+      is clearly documented as an exception in the API documentation.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: The bulk import process logs detailed errors for invalid records and successfully
+      imports all valid records without interrupting the process.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: Add or update repository automation configuration to automatically apply
+      the 'enhancement' label when a PR includes the bulk manager import feature.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: Enhance CSV parsing logic to detect and report missing required headers
+      separately from missing values in individual rows.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-40
+    title: Implement a check for the maximum allowed payload size or use a streaming
+      approach in the CSV upload handler.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-41
+    title: Review and adjust the bulk import endpoint URL to align with other manager
+      routes or update API documentation.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-42
+    title: Verify and document the transactional behavior of the bulk import through
+      detailed response reporting and unit tests.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-43
+    title: The repository automation configuration automatically applies the 'enhancement'
+      label to any PR that includes changes to the bulk manager import feature.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-44
+    title: The CSV parsing logic differentiates between missing required headers and
+      missing values in individual rows, logging distinct error messages for each.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-45
+    title: The CSV upload handler prevents memory issues by either checking the maximum
+      allowed payload size or using a streaming approach.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-46
+    title: The bulk import API endpoint is implemented at `/api/managers/bulk` or
+      is clearly documented as an exception in the API documentation.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-47
+    title: The bulk import process logs detailed errors for invalid records and successfully
+      imports all valid records without interrupting the process.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
