@@ -1,0 +1,452 @@
+version: 1
+issue: 397
+base: main
+branch: codex/issue-397
+tasks:
+  - id: task-01
+    title: Add explicit tests in the test suite for invalid 'limit' parameter values
+      (e.g., limit=0, limit=-1, limit>100) on the GET /managers endpoint. The tests
+      should verify a 400 status code and that the response body contains an 'error'
+      field per the error schema.
+    status: done
+    started_at: '2026-01-25T04:32:30Z'
+    finished_at: '2026-01-25T04:32:38Z'
+    commit: 69c295731d4c73104284f4bd81a6dec148a2e2ac
+    notes: []
+  - id: task-02
+    title: 'Define scope for: Add explicit tests in the test suite for invalid ''limit''
+      parameter values (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Implement focused slice for: Add explicit tests in the test suite for
+      invalid ''limit'' parameter values (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Validate focused slice for: Add explicit tests in the test suite for invalid
+      ''limit'' parameter values (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'limit=0 (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'limit=-1 (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Define scope for: limit>100) on the GET /managers endpoint. The tests
+      should verify a 400 status code'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Implement focused slice for: limit>100) on the GET /managers endpoint.
+      The tests should verify a 400 status code'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: 'Validate focused slice for: limit>100) on the GET /managers endpoint.
+      The tests should verify a 400 status code'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'Define scope for: that the response body contains an ''error'' field per
+      the error schema. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Implement focused slice for: that the response body contains an ''error''
+      field per the error schema. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Validate focused slice for: that the response body contains an ''error''
+      field per the error schema. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: Review and update the parameter validation logic in the GET /managers endpoint
+      to properly reject invalid 'limit' values (0, negative numbers, values > 100)
+      as well as invalid 'offset' values (negative numbers).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Review (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Define scope for: update the parameter validation logic in the GET /managers
+      endpoint to properly reject invalid ''limit'' values (0 (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Implement focused slice for: update the parameter validation logic in
+      the GET /managers endpoint to properly reject invalid ''limit'' values (0 (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Validate focused slice for: update the parameter validation logic in the
+      GET /managers endpoint to properly reject invalid ''limit'' values (0 (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'negative numbers (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Define scope for: values > 100) as well as invalid ''offset'' values (negative
+      numbers). (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: 'Implement focused slice for: values > 100) as well as invalid ''offset''
+      values (negative numbers). (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: 'Validate focused slice for: values > 100) as well as invalid ''offset''
+      values (negative numbers). (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: Refactor or remove the .agents/issue-388-ledger.yml and .agents/issue-394-ledger.yml
+      files to eliminate duplicate tasks. Ensure that any remaining ledger documentation
+      is consolidated, concise, and free from repetitive 'Define scope/Implement/Validate'
+      tasks.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: 'Define scope for: Refactor or remove the .agents/issue-388-ledger.yml
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: 'Implement focused slice for: Refactor or remove the .agents/issue-388-ledger.yml
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: 'Validate focused slice for: Refactor or remove the .agents/issue-388-ledger.yml
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: 'Define scope for: .agents/issue-394-ledger.yml files to eliminate duplicate
+      tasks. Ensure that any remaining ledger documentation is consolidated (verify:
+      docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: 'Implement focused slice for: .agents/issue-394-ledger.yml files to eliminate
+      duplicate tasks. Ensure that any remaining ledger documentation is consolidated
+      (verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: 'Validate focused slice for: .agents/issue-394-ledger.yml files to eliminate
+      duplicate tasks. Ensure that any remaining ledger documentation is consolidated
+      (verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: 'concise (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: '(verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: 'Define scope for: free from repetitive ''Define scope/Implement/Validate''
+      tasks. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: 'Implement focused slice for: free from repetitive ''Define scope/Implement/Validate''
+      tasks. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: 'Validate focused slice for: free from repetitive ''Define scope/Implement/Validate''
+      tasks. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: Document the change in default pagination behavior for GET /managers (default
+      limit now always set to 25, even when omitted) and confirm with relevant API
+      design guidelines or stakeholders that this breaking change aligns with broader
+      API expectations.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: 'Define scope for: Document the change in default pagination behavior for
+      GET /managers (default limit now always set to 25 (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: 'Implement focused slice for: Document the change in default pagination
+      behavior for GET /managers (default limit now always set to 25 (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: 'Validate focused slice for: Document the change in default pagination
+      behavior for GET /managers (default limit now always set to 25 (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: 'even when omitted) (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: 'Define scope for: confirm with relevant API design guidelines or stakeholders
+      that this breaking change aligns with broader API expectations. (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-40
+    title: 'Implement focused slice for: confirm with relevant API design guidelines
+      or stakeholders that this breaking change aligns with broader API expectations.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-41
+    title: 'Validate focused slice for: confirm with relevant API design guidelines
+      or stakeholders that this breaking change aligns with broader API expectations.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-42
+    title: The GET /managers endpoint returns a 400 status code and a JSON response
+      containing an 'error' field when called with 'limit' parameter values of 0,
+      -1, and 101.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-43
+    title: The GET /managers endpoint returns a 400 status code and a JSON response
+      containing an 'error' field when called with a negative 'offset' parameter value.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-44
+    title: The file .agents/issue-388-ledger.yml is either removed or refactored to
+      contain only unique tasks, with no duplicate entries from .agents/issue-394-ledger.yml.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-45
+    title: The documentation in docs/api_changes.md clearly states the default pagination
+      behavior change for GET /managers, specifying that the default limit is now
+      set to 25.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-46
+    title: Add explicit tests in the test suite for invalid 'limit' parameter values
+      (e.g., limit=0, limit=-1, limit>100) on the GET /managers endpoint. The tests
+      should verify a 400 status code and that the response body contains an 'error'
+      field per the error schema.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-47
+    title: Review and update the parameter validation logic in the GET /managers endpoint
+      to properly reject invalid 'limit' values (0, negative numbers, values > 100)
+      as well as invalid 'offset' values (negative numbers).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-48
+    title: Refactor or remove the .agents/issue-388-ledger.yml and .agents/issue-394-ledger.yml
+      files to eliminate duplicate tasks. Ensure that any remaining ledger documentation
+      is consolidated, concise, and free from repetitive 'Define scope/Implement/Validate'
+      tasks.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-49
+    title: Document the change in default pagination behavior for GET /managers (default
+      limit now always set to 25, even when omitted) and confirm with relevant API
+      design guidelines or stakeholders that this breaking change aligns with broader
+      API expectations.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-50
+    title: The GET /managers endpoint returns a 400 status code and a JSON response
+      containing an 'error' field when called with 'limit' parameter values of 0,
+      -1, and 101.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-51
+    title: The GET /managers endpoint returns a 400 status code and a JSON response
+      containing an 'error' field when called with a negative 'offset' parameter value.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-52
+    title: The file .agents/issue-388-ledger.yml is either removed or refactored to
+      contain only unique tasks, with no duplicate entries from .agents/issue-394-ledger.yml.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-53
+    title: The documentation in docs/api_changes.md clearly states the default pagination
+      behavior change for GET /managers, specifying that the default limit is now
+      set to 25.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []

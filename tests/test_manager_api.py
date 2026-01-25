@@ -216,7 +216,21 @@ def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
     resp = asyncio.run(_get_managers({"limit": 0}))
     assert resp.status_code == 400
     payload = resp.json()
+    assert payload["error"][0]["field"] == "limit"
     assert payload["errors"][0]["field"] == "limit"
+    assert payload["error"] == payload["errors"]
+    assert "greater" in payload["errors"][0]["message"].lower()
+
+
+def test_manager_list_negative_limit_returns_400(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(_get_managers({"limit": -1}))
+    assert resp.status_code == 400
+    payload = resp.json()
+    assert payload["error"][0]["field"] == "limit"
+    assert payload["errors"][0]["field"] == "limit"
+    assert payload["error"] == payload["errors"]
     assert "greater" in payload["errors"][0]["message"].lower()
 
 
@@ -227,7 +241,9 @@ def test_manager_list_limit_above_max_returns_400(tmp_path, monkeypatch):
     resp = asyncio.run(_get_managers({"limit": 101}))
     assert resp.status_code == 400
     payload = resp.json()
+    assert payload["error"][0]["field"] == "limit"
     assert payload["errors"][0]["field"] == "limit"
+    assert payload["error"] == payload["errors"]
     assert "less" in payload["errors"][0]["message"].lower()
 
 
@@ -257,7 +273,20 @@ def test_manager_list_invalid_offset_returns_400(tmp_path, monkeypatch):
     resp = asyncio.run(_get_managers({"offset": -1}))
     assert resp.status_code == 400
     payload = resp.json()
+    assert payload["error"][0]["field"] == "offset"
     assert payload["errors"][0]["field"] == "offset"
+    assert payload["error"] == payload["errors"]
+
+
+def test_manager_list_invalid_limit_and_offset_returns_400(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(_get_managers({"limit": 0, "offset": -1}))
+    assert resp.status_code == 400
+    payload = resp.json()
+    fields = {entry["field"] for entry in payload["errors"]}
+    assert fields == {"limit", "offset"}
+    assert payload["error"] == payload["errors"]
 
 
 def test_manager_get_returns_single_manager(tmp_path, monkeypatch):

@@ -183,7 +183,8 @@ async def _validation_exception_handler(
     _request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     # Return 400s with field-level messages for API clients.
-    return JSONResponse(status_code=400, content={"errors": _format_validation_errors(exc)})
+    errors = _format_validation_errors(exc)
+    return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
 
 
 # OpenAPI metadata keeps /docs clear about chat behavior.

@@ -82,10 +82,16 @@ class ErrorResponse(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{"errors": [{"field": "role", "message": "Role is required."}]}]
+            "examples": [
+                {
+                    "errors": [{"field": "role", "message": "Role is required."}],
+                    "error": [{"field": "role", "message": "Role is required."}],
+                }
+            ]
         }
     )
     errors: list[ErrorDetail] = Field(..., description="List of validation errors")
+    error: list[ErrorDetail] | None = Field(None, description="Alias for validation errors")
 
 
 def _ensure_manager_table(conn) -> None:
@@ -221,7 +227,7 @@ def _require_valid_manager(handler):
         errors = _validate_manager_payload(payload)
         if errors:
             # Short-circuit invalid payloads before touching the database.
-            return JSONResponse(status_code=400, content={"errors": errors})
+            return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
         return await handler(payload, *args, **kwargs)
 
     return wrapper
@@ -323,7 +329,8 @@ def _validate_bulk_records(
 
 def _bulk_request_error(field: str, message: str) -> JSONResponse:
     """Return a consistent 400 payload for bulk requests."""
-    return JSONResponse(status_code=400, content={"errors": [{"field": field, "message": message}]})
+    errors = [{"field": field, "message": message}]
+    return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
 
 
 def _bulk_request_payload_too_large(max_bytes: int) -> JSONResponse:
@@ -445,8 +452,17 @@ async def create_manager(
     },
 )
 async def list_managers(
-    limit: int = Query(25, ge=1, le=100, description="Maximum number of managers to return"),
-    offset: int = Query(0, ge=0, description="Number of managers to skip"),
+    limit: int = Query(
+        25,
+        ge=1,
+        le=100,
+        description="Maximum number of managers to return",
+    ),
+    offset: int = Query(
+        0,
+        ge=0,
+        description="Number of managers to skip",
+    ),
     department: str | None = Query(None, description="Filter managers by department"),
 ):
     """Return a paginated list of managers."""
@@ -673,3 +689,9 @@ async def get_manager(
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
     return ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3])
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (fix, test, chore)
+# - [ ] scope is clear (managers)
+# - [ ] summary is concise and imperative
