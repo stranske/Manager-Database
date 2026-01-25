@@ -2,19 +2,28 @@
 
 from __future__ import annotations
 
+import csv
+import io
+import json
 import logging
 import os
 import sqlite3
 from functools import wraps
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, HTTPException, Path, Query
+from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from adapters.base import connect_db
 from api.cache import cache_query, invalidate_cache_prefix
-from api.models import ManagerListResponse, ManagerResponse
+from api.models import (
+    BulkImportFailure,
+    BulkImportResponse,
+    BulkImportSuccess,
+    ManagerListResponse,
+    ManagerResponse,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -260,6 +269,69 @@ def _raise_db_unavailable(exc: BaseException) -> None:
     raise HTTPException(status_code=503, detail="Database unavailable") from exc
 
 
+def _format_bulk_validation_errors(exc: ValidationError) -> list[dict[str, str]]:
+    """Normalize Pydantic validation errors for bulk responses."""
+    errors: list[dict[str, str]] = []
+    for err in exc.errors():
+        loc = [str(part) for part in err.get("loc", [])]
+        field = loc[-1] if loc else "unknown"
+        errors.append({"field": field, "message": err.get("msg", "Invalid value")})
+    return errors
+
+
+def _parse_bulk_csv_payloads(content: str) -> list[dict[str, object]]:
+    """Parse CSV content into raw payload dictionaries."""
+    reader = csv.DictReader(io.StringIO(content))
+    if reader.fieldnames is None:
+        return []
+    payloads: list[dict[str, object]] = []
+    for row in reader:
+        # Skip rows that are entirely empty to avoid noise in error reports.
+        if not any(value and str(value).strip() for value in row.values()):
+            continue
+        payloads.append(
+            {
+                "name": row.get("name", "") or "",
+                "role": row.get("role", "") or "",
+                "department": row.get("department") or None,
+            }
+        )
+    return payloads
+
+
+def _validate_bulk_records(
+    raw_records: list[Any],
+) -> tuple[list[tuple[int, ManagerCreate]], list[BulkImportFailure]]:
+    """Validate bulk manager records and return valid payloads with failures."""
+    valid_records: list[tuple[int, ManagerCreate]] = []
+    failures: list[BulkImportFailure] = []
+    for index, raw in enumerate(raw_records):
+        if not isinstance(raw, dict):
+            errors = [{"field": "record", "message": "Record must be an object."}]
+            failures.append(BulkImportFailure(index=index, errors=errors))
+            logger.warning("Bulk import validation failed for record %s: %s", index, errors)
+            continue
+        try:
+            payload = ManagerCreate(**raw)
+        except ValidationError as exc:
+            errors = _format_bulk_validation_errors(exc)
+            failures.append(BulkImportFailure(index=index, errors=errors))
+            logger.warning("Bulk import validation failed for record %s: %s", index, errors)
+            continue
+        errors = _validate_manager_payload(payload)
+        if errors:
+            failures.append(BulkImportFailure(index=index, errors=errors))
+            logger.warning("Bulk import validation failed for record %s: %s", index, errors)
+            continue
+        valid_records.append((index, payload))
+    return valid_records, failures
+
+
+def _bulk_request_error(field: str, message: str) -> JSONResponse:
+    """Return a consistent 400 payload for bulk requests."""
+    return JSONResponse(status_code=400, content={"errors": [{"field": field, "message": message}]})
+
+
 @router.post(
     "/managers",
     status_code=201,
@@ -401,6 +473,110 @@ async def list_managers(
         ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3]) for row in rows
     ]
     return ManagerListResponse(items=items, total=total, limit=response_limit, offset=offset)
+
+
+@router.post(
+    "/api/managers/bulk",
+    status_code=200,
+    response_model=BulkImportResponse,
+    summary="Bulk import managers",
+    description=(
+        "Import multiple managers in a single request, returning per-record successes "
+        "and validation failures."
+    ),
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/ManagerCreate"},
+                    },
+                    "examples": {
+                        "basic": {
+                            "value": [
+                                {
+                                    "name": "Grace Hopper",
+                                    "role": "Engineering Director",
+                                    "department": "Engineering",
+                                }
+                            ]
+                        }
+                    },
+                },
+                "text/csv": {"schema": {"type": "string", "format": "binary"}},
+                "application/csv": {"schema": {"type": "string", "format": "binary"}},
+            },
+        }
+    },
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": "Validation error",
+        }
+    },
+)
+async def bulk_import_managers(
+    request: Request,
+):
+    """Bulk import managers from JSON or CSV inputs."""
+    content_type = (request.headers.get("content-type") or "").lower()
+    if "csv" in content_type:
+        raw_bytes = await request.body()
+        try:
+            decoded = raw_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return _bulk_request_error("body", "CSV payload must be UTF-8 encoded.")
+        raw_records = _parse_bulk_csv_payloads(decoded)
+    else:
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            return _bulk_request_error("body", "Request body must be valid JSON.")
+        if not isinstance(body, list):
+            return _bulk_request_error("body", "Request body must be a JSON array.")
+        raw_records = body
+
+    if not raw_records:
+        return _bulk_request_error("body", "No manager records were provided.")
+
+    # Validate all records before inserting any to satisfy bulk import guarantees.
+    valid_records, failures = _validate_bulk_records(raw_records)
+
+    conn = None
+    successes: list[BulkImportSuccess] = []
+    try:
+        if valid_records:
+            conn = connect_db()
+            _ensure_manager_table(conn)
+            for index, payload in valid_records:
+                manager_id = _insert_manager(conn, payload)
+                successes.append(
+                    BulkImportSuccess(
+                        index=index,
+                        manager=ManagerResponse(
+                            id=manager_id,
+                            name=payload.name,
+                            role=payload.role,
+                            department=payload.department,
+                        ),
+                    )
+                )
+            invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return BulkImportResponse(
+        total=len(raw_records),
+        succeeded=len(successes),
+        failed=len(failures),
+        successes=successes,
+        failures=failures,
+    )
 
 
 @router.get(
