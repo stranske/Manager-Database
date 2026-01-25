@@ -1,4 +1,7 @@
-"""Collect memory usage samples for a running process."""
+"""Collect memory usage samples for a running process.
+
+Scope: Linux /proc-based RSS/VMS sampling for a single PID over a bounded window.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +12,10 @@ import os
 import time
 
 PROC_STATUS_PATH = "/proc/{pid}/status"
+DEFAULT_SAMPLE_INTERVAL_S = 60
+DEFAULT_DURATION_S = 24 * 60 * 60
+DEFAULT_OUTPUT_PATH = "monitoring/memory_usage.csv"
+DEFAULT_COLUMNS = ("timestamp", "rss_kb", "vms_kb", "pid")
 
 
 def parse_proc_status(text: str) -> dict[str, int]:
@@ -68,7 +75,8 @@ def write_samples(
     with open(output_path, "a", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         if not file_exists:
-            writer.writerow(["timestamp", "rss_kb", "vms_kb", "pid"])
+            # Keep the header consistent for downstream analysis scripts.
+            writer.writerow(DEFAULT_COLUMNS)
 
         while True:
             now = time.time()
@@ -100,13 +108,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--interval-seconds",
         type=int,
-        default=60,
+        default=DEFAULT_SAMPLE_INTERVAL_S,
         help="Sampling interval in seconds (default: 60).",
     )
     parser.add_argument(
         "--duration-seconds",
         type=int,
-        default=24 * 60 * 60,
+        default=DEFAULT_DURATION_S,
         help="Total sampling duration in seconds (default: 86400).",
     )
     parser.add_argument(
@@ -117,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output",
-        default="monitoring/memory_usage.csv",
+        default=DEFAULT_OUTPUT_PATH,
         help="CSV output path (default: monitoring/memory_usage.csv).",
     )
     return parser
@@ -138,3 +146,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (memory)
+# - [ ] summary is concise and imperative
