@@ -104,10 +104,7 @@ def rss_slope_kb_per_hour(samples: list[MemorySample]) -> float:
         return 0.0
     ordered = sorted(samples, key=lambda sample: sample.timestamp)
     start = ordered[0].timestamp
-    points = [
-        ((sample.timestamp - start).total_seconds(), sample.rss_kb)
-        for sample in ordered
-    ]
+    points = [((sample.timestamp - start).total_seconds(), sample.rss_kb) for sample in ordered]
     slope_kb_per_sec = linear_regression_slope(points)
     return slope_kb_per_sec * 3600
 
@@ -118,14 +115,8 @@ def format_summary(summary: MemorySummary, slope_kb_per_hour: float) -> str:
         [
             f"samples: {summary.count}",
             f"duration_seconds: {duration}",
-            (
-                "rss_kb: "
-                f"min={summary.rss_min} avg={summary.rss_avg:.1f} max={summary.rss_max}"
-            ),
-            (
-                "vms_kb: "
-                f"min={summary.vms_min} avg={summary.vms_avg:.1f} max={summary.vms_max}"
-            ),
+            ("rss_kb: " f"min={summary.rss_min} avg={summary.rss_avg:.1f} max={summary.rss_max}"),
+            ("vms_kb: " f"min={summary.vms_min} avg={summary.vms_avg:.1f} max={summary.vms_max}"),
             f"rss_slope_kb_per_hour: {slope_kb_per_hour:.2f}",
         ]
     )
