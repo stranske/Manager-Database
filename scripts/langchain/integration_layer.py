@@ -13,7 +13,7 @@ from typing import Any
 try:
     from scripts.langchain import label_matcher
 except ModuleNotFoundError:
-    import label_matcher  # type: ignore[no-redef]
+    import label_matcher
 
 
 @dataclass
