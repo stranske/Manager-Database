@@ -14,7 +14,7 @@ from typing import Any
 try:
     from scripts.langchain import semantic_matcher
 except ModuleNotFoundError:
-    import semantic_matcher
+    import semantic_matcher  # type: ignore[no-redef]
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,8 @@ class LabelMatch:
 DEFAULT_LABEL_SIMILARITY_THRESHOLD = 0.8
 DEFAULT_LABEL_SIMILARITY_K = 5
 SHORT_LABEL_LENGTH = 4
-KEYWORD_BUG_SCORE = 0.91
+# Keep bug keyword matches ahead of semantic matches for crash/defect reports.
+KEYWORD_BUG_SCORE = 0.99
 KEYWORD_FEATURE_SCORE = 0.9
 KEYWORD_DOCS_SCORE = 0.9
 _IGNORED_LABEL_TOKENS = {"type", "kind"}
@@ -136,17 +137,20 @@ _COMMON_STOPWORDS = {
     "first",
 }
 _BUG_KEYWORDS = {
+    # Runtime failure terms should map to bug reports.
     "bug",
     "bugs",
     "buggy",
     "crash",
     "crashes",
     "crashed",
+    "exception",
     "error",
     "errors",
     "failure",
     "failures",
     "broken",
+    "panic",
     "regression",
     "defect",
 }
@@ -419,9 +423,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        matches.sort(key=lambda match: match.score, reverse=True)
-        return matches
+        keyword_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
+        keyword_matches.sort(key=lambda match: match.score, reverse=True)
+        return keyword_matches
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:
@@ -455,7 +459,14 @@ def find_similar_labels(
                 matches.append(match)
                 seen.add(normalized)
 
-    matches.sort(key=lambda match: match.score, reverse=True)
+    def _match_priority(match: LabelMatch) -> tuple[int, float]:
+        # Ensure crash/defect bug keywords remain the top pick over semantic scores.
+        is_bug_keyword = match.score_type == "keyword" and "bug" in _normalize_label(
+            match.label.name
+        )
+        return (1 if is_bug_keyword else 0, match.score)
+
+    matches.sort(key=_match_priority, reverse=True)
     return matches
 
 
@@ -475,3 +486,9 @@ def resolve_label_match(
     if matches:
         return matches[0]
     return None
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (labeling)
+# - [ ] summary is concise and imperative

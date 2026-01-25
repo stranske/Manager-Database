@@ -11,6 +11,14 @@ import math
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from typing import Protocol
+
+    class EmbeddingClient(Protocol):
+        def embed_documents(self, texts: list[str]) -> list[list[float]]: ...
+
 
 from tools.llm_provider import GITHUB_MODELS_BASE_URL
 
@@ -81,7 +89,8 @@ def generate_embeddings(
     if resolved is None:
         return None
 
-    vectors = resolved.client.embed_documents(items)
+    resolved_client = cast("EmbeddingClient", resolved.client)
+    vectors = resolved_client.embed_documents(cast(list[str], items))
     return EmbeddingResult(vectors=vectors, provider=resolved.provider, model=resolved.model)
 
 

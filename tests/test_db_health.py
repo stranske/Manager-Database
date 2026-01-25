@@ -52,6 +52,22 @@ def test_health_db_timeout(monkeypatch):
     assert payload["healthy"] is False
 
 
+def test_health_db_errors_hide_exception_details(monkeypatch):
+    def error_ping(_timeout_seconds: float) -> None:
+        raise RuntimeError("connection refused")
+
+    # Keep the retry loop fast for deterministic testing.
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setattr("api.chat._HEALTH_RETRY_BACKOFFS", ())
+    monkeypatch.setattr("api.chat._ping_db", error_ping)
+    resp = asyncio.run(health_db())
+    payload = _payload_from_response(resp)
+    assert resp.status_code == 503
+    assert payload["healthy"] is False
+    assert "detail" not in payload
+    assert "refused" not in json.dumps(payload).lower()
+
+
 def test_health_db_timeout_cap(monkeypatch):
     # Ensure the helper never exceeds the 5s cap, even if env is larger.
     # Strip DB_URL to keep the health path on SQLite.
@@ -60,3 +76,9 @@ def test_health_db_timeout_cap(monkeypatch):
     from api.chat import _db_timeout_seconds
 
     assert _db_timeout_seconds() == 5.0
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (test, fix, feat)
+# - [ ] scope is clear (health)
+# - [ ] summary is concise and imperative
