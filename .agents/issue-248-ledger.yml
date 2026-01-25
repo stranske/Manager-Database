@@ -5,10 +5,10 @@ branch: codex/issue-248
 tasks:
   - id: task-01
     title: Create POST /api/managers/bulk endpoint
-    status: doing
+    status: done
     started_at: '2026-01-25T03:21:36Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-25T03:21:44Z'
+    commit: 139e188d6c2f30b6ae96d7daf63193e6046d8b97
     notes: []
   - id: task-02
     title: Accept CSV file upload
