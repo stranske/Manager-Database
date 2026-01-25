@@ -81,10 +81,18 @@ class ErrorResponse(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{"errors": [{"field": "role", "message": "Role is required."}]}]
+            "examples": [
+                {
+                    "errors": [{"field": "role", "message": "Role is required."}],
+                    "error": [{"field": "role", "message": "Role is required."}],
+                }
+            ]
         }
     )
     errors: list[ErrorDetail] = Field(..., description="List of validation errors")
+    error: list[ErrorDetail] | None = Field(
+        None, description="Alias for validation errors"
+    )
 
 
 def _ensure_manager_table(conn) -> None:
@@ -220,7 +228,7 @@ def _require_valid_manager(handler):
         errors = _validate_manager_payload(payload)
         if errors:
             # Short-circuit invalid payloads before touching the database.
-            return JSONResponse(status_code=400, content={"errors": errors})
+            return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
         return await handler(payload, *args, **kwargs)
 
     return wrapper
@@ -291,7 +299,8 @@ def _validate_bulk_records(
 
 def _bulk_request_error(field: str, message: str) -> JSONResponse:
     """Return a consistent 400 payload for bulk requests."""
-    return JSONResponse(status_code=400, content={"errors": [{"field": field, "message": message}]})
+    errors = [{"field": field, "message": message}]
+    return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
 
 
 @router.post(
