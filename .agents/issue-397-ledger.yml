@@ -8,10 +8,10 @@ tasks:
       (e.g., limit=0, limit=-1, limit>100) on the GET /managers endpoint. The tests
       should verify a 400 status code and that the response body contains an 'error'
       field per the error schema.
-    status: doing
+    status: done
     started_at: '2026-01-25T04:32:30Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-25T04:32:38Z'
+    commit: 69c295731d4c73104284f4bd81a6dec148a2e2ac
     notes: []
   - id: task-02
     title: 'Define scope for: Add explicit tests in the test suite for invalid ''limit''
