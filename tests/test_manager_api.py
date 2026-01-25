@@ -136,6 +136,27 @@ def test_manager_list_limit_offset_zero_returns_all(tmp_path, monkeypatch):
     assert [item["name"] for item in body["items"]] == ["Grace Hopper", "Ada Lovelace"]
 
 
+def test_manager_list_returns_ordered_by_id(tmp_path, monkeypatch):
+    # Keep ordering deterministic by asserting the list follows insertion order (id ascending).
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Zeta Manager", "role": "Ops Lead"},
+        {"name": "Alpha Manager", "role": "Research Lead"},
+        {"name": "Omega Manager", "role": "Engineering Director"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"limit": 3, "offset": 0}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [item["name"] for item in body["items"]] == [
+        payload["name"] for payload in payloads
+    ]
+
+
 def test_manager_list_defaults_return_empty_page(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
