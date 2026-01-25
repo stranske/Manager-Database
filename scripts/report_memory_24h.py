@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import importlib.util
 from pathlib import Path
 
@@ -32,9 +31,7 @@ def ensure_min_duration(samples: list[analyze_memory.MemorySample], min_hours: f
     window_hours = summary.duration_s / 3600
     # Guard rail to avoid mislabeling shorter runs as 24-hour investigations.
     if window_hours < min_hours:
-        raise ValueError(
-            f"Insufficient duration: {window_hours:.2f}h < {min_hours:.2f}h minimum"
-        )
+        raise ValueError(f"Insufficient duration: {window_hours:.2f}h < {min_hours:.2f}h minimum")
     return window_hours
 
 
