@@ -136,6 +136,25 @@ def test_manager_list_limit_offset_zero_returns_all(tmp_path, monkeypatch):
     assert [item["name"] for item in body["items"]] == ["Grace Hopper", "Ada Lovelace"]
 
 
+def test_manager_list_returns_ordered_by_id(tmp_path, monkeypatch):
+    # Keep ordering deterministic by asserting the list follows insertion order (id ascending).
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Zeta Manager", "role": "Ops Lead"},
+        {"name": "Alpha Manager", "role": "Research Lead"},
+        {"name": "Omega Manager", "role": "Engineering Director"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"limit": 3, "offset": 0}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [item["name"] for item in body["items"]] == [payload["name"] for payload in payloads]
+
+
 def test_manager_list_defaults_return_empty_page(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -144,29 +163,30 @@ def test_manager_list_defaults_return_empty_page(tmp_path, monkeypatch):
     body = resp.json()
     assert body["items"] == []
     assert body["total"] == 0
-    assert body["limit"] == 0
+    # Default limit should be reflected even when no data exists.
+    assert body["limit"] == 25
     assert body["offset"] == 0
 
 
-def test_manager_list_defaults_return_all_items(tmp_path, monkeypatch):
-    # Default list behavior should return all managers when limit is omitted.
+def test_manager_list_defaults_return_first_page(tmp_path, monkeypatch):
+    # Default list behavior should return a 25-item page when limit is omitted.
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    payloads = [
-        {"name": "Grace Hopper", "role": "Engineering Director"},
-        {"name": "Ada Lovelace", "role": "Research Lead"},
-    ]
-    for payload in payloads:
-        resp = asyncio.run(_post_manager(payload))
+    for idx in range(30):
+        resp = asyncio.run(
+            _post_manager(
+                {"name": f"Manager {idx}", "role": "Team Lead"},
+            )
+        )
         assert resp.status_code == 201
 
     resp = asyncio.run(_get_managers())
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total"] == 2
-    assert body["limit"] == 2
+    assert body["total"] == 30
+    assert body["limit"] == 25
     assert body["offset"] == 0
-    assert [item["name"] for item in body["items"]] == ["Grace Hopper", "Ada Lovelace"]
+    assert [item["name"] for item in body["items"]] == [f"Manager {idx}" for idx in range(25)]
 
 
 def test_manager_list_filter_by_department_returns_subset(tmp_path, monkeypatch):
@@ -229,6 +249,15 @@ def test_manager_list_offset_beyond_total_returns_empty_page(tmp_path, monkeypat
     assert body["total"] == 2
     assert body["limit"] == 5
     assert body["offset"] == 5
+
+
+def test_manager_list_invalid_offset_returns_400(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(_get_managers({"offset": -1}))
+    assert resp.status_code == 400
+    payload = resp.json()
+    assert payload["errors"][0]["field"] == "offset"
 
 
 def test_manager_get_returns_single_manager(tmp_path, monkeypatch):

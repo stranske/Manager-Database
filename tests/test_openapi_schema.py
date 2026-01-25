@@ -74,7 +74,8 @@ def test_openapi_managers_schema():
     ]
     assert list_error_schema["$ref"] == "#/components/schemas/ErrorResponse"
     list_parameters = {param["name"]: param for param in manager_list_schema["parameters"]}
-    assert list_parameters["limit"]["schema"].get("default") is None
+    # Default pagination should reflect the 25-row page size.
+    assert list_parameters["limit"]["schema"]["default"] == 25
     assert list_parameters["offset"]["schema"]["default"] == 0
     assert "department" in list_parameters
 
