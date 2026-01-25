@@ -50,12 +50,20 @@ def ensure_parent_dir(path: str) -> None:
         os.makedirs(parent, exist_ok=True)
 
 
-def write_samples(pid: int, interval_s: int, duration_s: int, output_path: str) -> None:
+def write_samples(
+    pid: int,
+    interval_s: int,
+    duration_s: int,
+    output_path: str,
+    *,
+    max_samples: int | None = None,
+) -> None:
     """Write timestamped memory samples to a CSV file."""
     ensure_parent_dir(output_path)
 
     file_exists = os.path.exists(output_path)
     end_time = time.time() + duration_s
+    samples_written = 0
 
     with open(output_path, "a", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
@@ -72,6 +80,10 @@ def write_samples(pid: int, interval_s: int, duration_s: int, output_path: str) 
             # Persist each sample immediately to reduce data loss risk.
             writer.writerow([timestamp, rss_kb, vms_kb, pid])
             handle.flush()
+            samples_written += 1
+            # Allow bounded sampling for quick validations and tests.
+            if max_samples is not None and samples_written >= max_samples:
+                break
             time.sleep(interval_s)
 
 
@@ -98,6 +110,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Total sampling duration in seconds (default: 86400).",
     )
     parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Stop after this many samples (default: unlimited).",
+    )
+    parser.add_argument(
         "--output",
         default="monitoring/memory_usage.csv",
         help="CSV output path (default: monitoring/memory_usage.csv).",
@@ -114,6 +132,7 @@ def main() -> None:
         interval_s=args.interval_seconds,
         duration_s=args.duration_seconds,
         output_path=args.output,
+        max_samples=args.max_samples,
     )
 
 

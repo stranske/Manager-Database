@@ -1,3 +1,4 @@
+import csv
 import importlib.util
 from pathlib import Path
 
@@ -39,3 +40,30 @@ def test_parse_proc_status_requires_fields() -> None:
 
     with pytest.raises(ValueError, match="VmRSS or VmSize"):
         monitor_memory.parse_proc_status(payload)
+
+
+def test_write_samples_respects_max_samples(tmp_path, monkeypatch) -> None:
+    samples = [(111, 222), (333, 444)]
+
+    def fake_sample_memory(pid: int) -> tuple[int, int]:
+        # Deterministic samples keep the CSV content predictable.
+        return samples.pop(0)
+
+    monkeypatch.setattr(monitor_memory, "sample_memory", fake_sample_memory)
+
+    output_path = tmp_path / "memory.csv"
+    monitor_memory.write_samples(
+        pid=123,
+        interval_s=0,
+        duration_s=60,
+        output_path=str(output_path),
+        max_samples=2,
+    )
+
+    with output_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.reader(handle))
+
+    assert rows[0] == ["timestamp", "rss_kb", "vms_kb", "pid"]
+    assert rows[1][1:] == ["111", "222", "123"]
+    assert rows[2][1:] == ["333", "444", "123"]
+    assert len(rows) == 3
