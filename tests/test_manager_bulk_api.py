@@ -90,7 +90,7 @@ def test_bulk_csv_import_logs_invalid_rows(tmp_path, monkeypatch, caplog):
     body = resp.json()
     assert body["succeeded"] == 1
     assert body["failed"] == 1
-    assert "Bulk import validation failed" in caplog.text
+    assert "Bulk import CSV record missing required values" in caplog.text
 
     conn = sqlite3.connect(db_path)
     try:
@@ -131,6 +131,20 @@ def test_bulk_json_import_handles_large_batch(tmp_path, monkeypatch):
     assert body["total"] == 105
     assert body["succeeded"] == 105
     assert body["failed"] == 0
+
+
+def test_bulk_import_rejects_large_payload(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("BULK_IMPORT_MAX_BYTES", "50")
+    payloads = [{"name": "X" * 100, "role": "Team Lead"}]
+
+    resp = asyncio.run(_post_bulk_json(payloads))
+
+    assert resp.status_code == 413
+    payload = resp.json()
+    assert payload["errors"][0]["field"] == "body"
+    assert "payload exceeds" in payload["errors"][0]["message"].lower()
 
 
 def test_bulk_import_requires_payload(tmp_path, monkeypatch):

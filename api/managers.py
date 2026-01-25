@@ -42,6 +42,7 @@ REQUIRED_FIELD_ERRORS = {
     "name": "Name is required.",
     "role": "Role is required.",
 }
+DEFAULT_BULK_IMPORT_MAX_BYTES = 2_000_000
 
 
 class ManagerCreate(BaseModel):
@@ -241,6 +242,19 @@ def _format_bulk_validation_errors(exc: ValidationError) -> list[dict[str, str]]
     return errors
 
 
+def _bulk_import_max_bytes() -> int:
+    """Return the maximum allowed bulk import payload size in bytes."""
+    raw_value = os.getenv("BULK_IMPORT_MAX_BYTES")
+    if raw_value is None:
+        return DEFAULT_BULK_IMPORT_MAX_BYTES
+    try:
+        value = int(raw_value)
+    except ValueError:
+        logger.warning("Invalid BULK_IMPORT_MAX_BYTES value: %s", raw_value)
+        return DEFAULT_BULK_IMPORT_MAX_BYTES
+    return max(value, 1)
+
+
 def _parse_bulk_csv_payloads(content: str) -> tuple[list[dict[str, object]], list[str]]:
     """Parse CSV content into raw payload dictionaries."""
     reader = csv.DictReader(io.StringIO(content))
@@ -273,6 +287,7 @@ def _parse_bulk_csv_payloads(content: str) -> tuple[list[dict[str, object]], lis
 
 def _validate_bulk_records(
     raw_records: list[Any],
+    source: str,
 ) -> tuple[list[tuple[int, ManagerCreate]], list[BulkImportFailure]]:
     """Validate bulk manager records and return valid payloads with failures."""
     valid_records: list[tuple[int, ManagerCreate]] = []
@@ -293,7 +308,14 @@ def _validate_bulk_records(
         errors = _validate_manager_payload(payload)
         if errors:
             failures.append(BulkImportFailure(index=index, errors=errors))
-            logger.warning("Bulk import validation failed for record %s: %s", index, errors)
+            if source == "csv":
+                logger.warning(
+                    "Bulk import CSV record missing required values for record %s: %s",
+                    index,
+                    errors,
+                )
+            else:
+                logger.warning("Bulk import validation failed for record %s: %s", index, errors)
             continue
         valid_records.append((index, payload))
     return valid_records, failures
@@ -302,6 +324,21 @@ def _validate_bulk_records(
 def _bulk_request_error(field: str, message: str) -> JSONResponse:
     """Return a consistent 400 payload for bulk requests."""
     return JSONResponse(status_code=400, content={"errors": [{"field": field, "message": message}]})
+
+
+def _bulk_request_payload_too_large(max_bytes: int) -> JSONResponse:
+    """Return a consistent 413 payload for bulk requests."""
+    return JSONResponse(
+        status_code=413,
+        content={
+            "errors": [
+                {
+                    "field": "body",
+                    "message": f"Bulk import payload exceeds {max_bytes} bytes.",
+                }
+            ]
+        },
+    )
 
 
 @router.post(
@@ -487,8 +524,33 @@ async def bulk_import_managers(
 ):
     """Bulk import managers from JSON or CSV inputs."""
     content_type = (request.headers.get("content-type") or "").lower()
+    max_bytes = _bulk_import_max_bytes()
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError:
+            declared_length = None
+        # Check declared size up front to avoid loading oversized bodies into memory.
+        if declared_length is not None and declared_length > max_bytes:
+            logger.warning(
+                "Bulk import payload too large: %s bytes (max %s).",
+                declared_length,
+                max_bytes,
+            )
+            return _bulk_request_payload_too_large(max_bytes)
+
+    raw_bytes = await request.body()
+    if len(raw_bytes) > max_bytes:
+        logger.warning(
+            "Bulk import payload too large: %s bytes (max %s).",
+            len(raw_bytes),
+            max_bytes,
+        )
+        return _bulk_request_payload_too_large(max_bytes)
+
+    source = "csv" if "csv" in content_type else "json"
     if "csv" in content_type:
-        raw_bytes = await request.body()
         try:
             decoded = raw_bytes.decode("utf-8-sig")
         except UnicodeDecodeError:
@@ -500,7 +562,7 @@ async def bulk_import_managers(
             return _bulk_request_error("body", message)
     else:
         try:
-            body = await request.json()
+            body = json.loads(raw_bytes)
         except json.JSONDecodeError:
             return _bulk_request_error("body", "Request body must be valid JSON.")
         if not isinstance(body, list):
@@ -511,7 +573,7 @@ async def bulk_import_managers(
         return _bulk_request_error("body", "No manager records were provided.")
 
     # Validate all records before inserting any to satisfy bulk import guarantees.
-    valid_records, failures = _validate_bulk_records(raw_records)
+    valid_records, failures = _validate_bulk_records(raw_records, source)
 
     conn = None
     successes: list[BulkImportSuccess] = []
