@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Update `parseResponse` function in `src/api/parser.js` to handle malformed
       JSON gracefully.
-    status: doing
+    status: done
     started_at: '2026-01-25T20:58:47Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-25T20:58:54Z'
+    commit: 4c8f5228a6284322fc1c8fc616bc9eb01d39d81f
     notes: []
   - id: task-02
     title: Add error handling in `handleRequest` function in `src/api/handler.js`
