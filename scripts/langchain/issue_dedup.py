@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from scripts.langchain.semantic_matcher import EmbeddingClientInfo
+    pass
 
 try:
     from scripts.langchain import semantic_matcher

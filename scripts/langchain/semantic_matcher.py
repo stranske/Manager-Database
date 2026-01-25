@@ -11,13 +11,14 @@ import math
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import Protocol
 
     class EmbeddingClient(Protocol):
         def embed_documents(self, texts: list[str]) -> list[list[float]]: ...
+
 
 from tools.llm_provider import GITHUB_MODELS_BASE_URL
 
