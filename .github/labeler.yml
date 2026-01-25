@@ -1,0 +1,8 @@
+# Label PRs touching bulk manager import endpoints as enhancements.
+enhancement:
+  - changed-files:
+      - any-glob-to-any-file:
+          - api/managers.py
+          - api/models.py
+          - tests/test_manager_bulk_api.py
+          - tests/test_openapi_schema.py
