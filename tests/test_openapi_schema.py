@@ -95,6 +95,16 @@ def test_openapi_managers_schema():
     ]
     assert not_found_schema["$ref"] == "#/components/schemas/NotFoundResponse"
 
+    bulk_schema = schema["paths"]["/api/managers/bulk"]["post"]
+    assert bulk_schema["summary"] == "Bulk import managers"
+    bulk_response_schema = bulk_schema["responses"]["200"]["content"]["application/json"]["schema"]
+    assert bulk_response_schema["$ref"] == "#/components/schemas/BulkImportResponse"
+    bulk_error_schema = bulk_schema["responses"]["400"]["content"]["application/json"]["schema"]
+    assert bulk_error_schema["$ref"] == "#/components/schemas/ErrorResponse"
+    request_body = bulk_schema["requestBody"]["content"]
+    assert "application/json" in request_body
+    assert "text/csv" in request_body
+
 
 def test_openapi_health_db_schema():
     schema = _load_openapi_schema()
