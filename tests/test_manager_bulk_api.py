@@ -103,9 +103,7 @@ def test_bulk_csv_import_logs_invalid_rows(tmp_path, monkeypatch, caplog):
 def test_bulk_json_import_handles_large_batch(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    payloads = [
-        {"name": f"Manager {idx}", "role": "Team Lead"} for idx in range(105)
-    ]
+    payloads = [{"name": f"Manager {idx}", "role": "Team Lead"} for idx in range(105)]
 
     resp = asyncio.run(_post_bulk_json(payloads))
     assert resp.status_code == 200

@@ -101,9 +101,7 @@ class BulkImportResponse(BaseModel):
                     "failures": [
                         {
                             "index": 2,
-                            "errors": [
-                                {"field": "role", "message": "Role is required."}
-                            ],
+                            "errors": [{"field": "role", "message": "Role is required."}],
                         }
                     ],
                 }
