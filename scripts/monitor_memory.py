@@ -1,0 +1,122 @@
+"""Collect memory usage samples for a running process."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import datetime as dt
+import os
+import time
+from typing import Dict, Tuple
+
+PROC_STATUS_PATH = "/proc/{pid}/status"
+
+
+def parse_proc_status(text: str) -> Dict[str, int]:
+    """Parse VmRSS and VmSize values (in kB) from /proc/<pid>/status."""
+    rss_kb = None
+    vms_kb = None
+    for line in text.splitlines():
+        if line.startswith("VmRSS:"):
+            # Expected format: "VmRSS:   12345 kB".
+            rss_kb = int(line.split()[1])
+        elif line.startswith("VmSize:"):
+            # VmSize captures virtual memory size, complementary to RSS.
+            vms_kb = int(line.split()[1])
+
+    if rss_kb is None or vms_kb is None:
+        raise ValueError("Missing VmRSS or VmSize in /proc status payload")
+
+    return {"rss_kb": rss_kb, "vms_kb": vms_kb}
+
+
+def read_proc_status(pid: int) -> str:
+    """Read the /proc status file for a PID."""
+    status_path = PROC_STATUS_PATH.format(pid=pid)
+    with open(status_path, "r", encoding="utf-8") as handle:
+        return handle.read()
+
+
+def sample_memory(pid: int) -> Tuple[int, int]:
+    """Return (rss_kb, vms_kb) for the given PID using /proc."""
+    payload = read_proc_status(pid)
+    parsed = parse_proc_status(payload)
+    return parsed["rss_kb"], parsed["vms_kb"]
+
+
+def ensure_parent_dir(path: str) -> None:
+    """Create the parent directory for a file path if needed."""
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+
+def write_samples(pid: int, interval_s: int, duration_s: int, output_path: str) -> None:
+    """Write timestamped memory samples to a CSV file."""
+    ensure_parent_dir(output_path)
+
+    file_exists = os.path.exists(output_path)
+    end_time = time.time() + duration_s
+
+    with open(output_path, "a", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        if not file_exists:
+            writer.writerow(["timestamp", "rss_kb", "vms_kb", "pid"])
+
+        while True:
+            now = time.time()
+            if now > end_time:
+                break
+
+            rss_kb, vms_kb = sample_memory(pid)
+            timestamp = dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            # Persist each sample immediately to reduce data loss risk.
+            writer.writerow([timestamp, rss_kb, vms_kb, pid])
+            handle.flush()
+            time.sleep(interval_s)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Record memory usage for a running process to CSV."
+    )
+    parser.add_argument(
+        "--pid",
+        type=int,
+        default=os.getpid(),
+        help="Process ID to monitor (default: current process).",
+    )
+    parser.add_argument(
+        "--interval-seconds",
+        type=int,
+        default=60,
+        help="Sampling interval in seconds (default: 60).",
+    )
+    parser.add_argument(
+        "--duration-seconds",
+        type=int,
+        default=24 * 60 * 60,
+        help="Total sampling duration in seconds (default: 86400).",
+    )
+    parser.add_argument(
+        "--output",
+        default="monitoring/memory_usage.csv",
+        help="CSV output path (default: monitoring/memory_usage.csv).",
+    )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    write_samples(
+        pid=args.pid,
+        interval_s=args.interval_seconds,
+        duration_s=args.duration_seconds,
+        output_path=args.output,
+    )
+
+
+if __name__ == "__main__":
+    main()
