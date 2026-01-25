@@ -43,9 +43,7 @@ def test_resolve_pid_prefers_explicit(monkeypatch) -> None:
 
 
 def test_resolve_pid_from_process_name(monkeypatch) -> None:
-    monkeypatch.setattr(
-        collect_memory, "list_process_cmdlines", lambda: {42: "uvicorn api.chat"}
-    )
+    monkeypatch.setattr(collect_memory, "list_process_cmdlines", lambda: {42: "uvicorn api.chat"})
 
     assert collect_memory.resolve_pid(None, "api.chat") == 42
 
