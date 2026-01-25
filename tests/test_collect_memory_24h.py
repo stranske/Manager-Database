@@ -78,9 +78,7 @@ def test_resolve_output_path_accepts_directory(tmp_path) -> None:
     )
 
     # Directory inputs should be expanded into timestamped filenames.
-    assert output == str(
-        tmp_path / "memory_usage_20240102T030405Z.csv"
-    )
+    assert output == str(tmp_path / "memory_usage_20240102T030405Z.csv")
 
 
 def test_resolve_output_path_accepts_trailing_separator(tmp_path) -> None:
@@ -93,9 +91,7 @@ def test_resolve_output_path_accepts_trailing_separator(tmp_path) -> None:
         now=now,
     )
 
-    assert output == str(
-        tmp_path / "memory_usage_20240102T030405Z.csv"
-    )
+    assert output == str(tmp_path / "memory_usage_20240102T030405Z.csv")
 
 
 def test_run_collection_calls_monitor(monkeypatch) -> None:
