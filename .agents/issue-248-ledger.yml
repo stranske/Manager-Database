@@ -1,0 +1,125 @@
+version: 1
+issue: 248
+base: main
+branch: codex/issue-248
+tasks:
+  - id: task-01
+    title: Create POST /api/managers/bulk endpoint
+    status: doing
+    started_at: '2026-01-25T03:21:36Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: Accept CSV file upload
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Accept JSON array in request body
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: Validate all records before import
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: Return import summary with success/failure counts
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: Create POST /api/managers/bulk endpoint
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: Accept CSV file upload
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Accept JSON array in request body
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Validate all records before import
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Return import summary with success/failure counts
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Can import 100+ managers in single request
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: Invalid records logged but don't block valid ones
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: Response includes detailed import report
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: Can import 100+ managers in single request
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: Invalid records logged but don't block valid ones
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: Response includes detailed import report
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: '*Test expectation: Should be auto-labeled as ''enhancement'' - new feature
+      request*'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
