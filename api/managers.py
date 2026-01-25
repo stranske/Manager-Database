@@ -90,9 +90,7 @@ class ErrorResponse(BaseModel):
         }
     )
     errors: list[ErrorDetail] = Field(..., description="List of validation errors")
-    error: list[ErrorDetail] | None = Field(
-        None, description="Alias for validation errors"
-    )
+    error: list[ErrorDetail] | None = Field(None, description="Alias for validation errors")
 
 
 def _ensure_manager_table(conn) -> None:
