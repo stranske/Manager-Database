@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Add or update repository automation configuration to automatically apply
       the 'enhancement' label when a PR includes the bulk manager import feature.
-    status: doing
+    status: done
     started_at: '2026-01-25T04:43:33Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-25T04:43:39Z'
+    commit: ba79efc7d5c0bfb1a471cdaa0e1aac43f13f8f39
     notes: []
   - id: task-02
     title: 'Define approach for: Add or update repository automation configuration
