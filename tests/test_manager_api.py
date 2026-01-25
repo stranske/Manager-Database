@@ -152,9 +152,7 @@ def test_manager_list_returns_ordered_by_id(tmp_path, monkeypatch):
     resp = asyncio.run(_get_managers({"limit": 3, "offset": 0}))
     assert resp.status_code == 200
     body = resp.json()
-    assert [item["name"] for item in body["items"]] == [
-        payload["name"] for payload in payloads
-    ]
+    assert [item["name"] for item in body["items"]] == [payload["name"] for payload in payloads]
 
 
 def test_manager_list_defaults_return_empty_page(tmp_path, monkeypatch):
