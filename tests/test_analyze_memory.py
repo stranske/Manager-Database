@@ -100,3 +100,46 @@ def test_rss_slope_kb_per_hour_constant_usage() -> None:
     slope = analyze_memory.rss_slope_kb_per_hour(samples)
 
     assert slope == 0
+
+
+def test_detect_anomalies_flags_spike_and_jump() -> None:
+    base_time = dt.datetime(2026, 1, 25, 0, 0, tzinfo=dt.UTC)
+    samples = [
+        analyze_memory.MemorySample(
+            timestamp=base_time,
+            rss_kb=1000,
+            vms_kb=3000,
+            pid=7,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(minutes=5),
+            rss_kb=1050,
+            vms_kb=3100,
+            pid=7,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(minutes=10),
+            rss_kb=1100,
+            vms_kb=3200,
+            pid=7,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(minutes=15),
+            rss_kb=6000,
+            vms_kb=8000,
+            pid=7,
+        ),
+    ]
+
+    # Use a low sigma to make the spike deterministic for the test.
+    anomalies = analyze_memory.detect_anomalies(samples, rss_sigma=1.0, delta_sigma=1.0)
+
+    reasons = {anomaly.reason for anomaly in anomalies}
+    assert "rss_spike" in reasons
+    assert "rss_jump" in reasons
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (memory)
+# - [ ] summary is concise and imperative

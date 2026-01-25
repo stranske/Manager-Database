@@ -30,6 +30,13 @@ class MemorySummary:
     vms_max: int
 
 
+@dataclass(frozen=True)
+class MemoryAnomaly:
+    sample: MemorySample
+    reason: str
+    delta_kb: int | None = None
+
+
 def parse_timestamp(value: str) -> dt.datetime:
     """Parse ISO-8601 timestamps produced by the monitor script."""
     if value.endswith("Z"):
@@ -109,6 +116,46 @@ def rss_slope_kb_per_hour(samples: list[MemorySample]) -> float:
     return slope_kb_per_sec * 3600
 
 
+def detect_anomalies(
+    samples: list[MemorySample],
+    *,
+    rss_sigma: float = 3.0,
+    delta_sigma: float = 3.0,
+    min_delta_kb: int = 1024,
+) -> list[MemoryAnomaly]:
+    if len(samples) < 3:
+        return []
+
+    ordered = sorted(samples, key=lambda sample: sample.timestamp)
+    rss_values = [sample.rss_kb for sample in ordered]
+    rss_mean = statistics.fmean(rss_values)
+    rss_stdev = statistics.pstdev(rss_values)
+    deltas = [curr.rss_kb - prev.rss_kb for prev, curr in zip(ordered, ordered[1:])]
+    delta_mean = statistics.fmean(deltas)
+    delta_stdev = statistics.pstdev(deltas)
+
+    anomalies: list[MemoryAnomaly] = []
+
+    # Flag extreme RSS spikes that exceed a configurable sigma threshold.
+    if rss_stdev > 0:
+        rss_threshold = rss_mean + rss_sigma * rss_stdev
+        for sample in ordered:
+            if sample.rss_kb >= rss_threshold:
+                anomalies.append(MemoryAnomaly(sample=sample, reason="rss_spike"))
+
+    # Flag large consecutive jumps that exceed both sigma and absolute thresholds.
+    if delta_stdev > 0:
+        delta_threshold = delta_mean + delta_sigma * delta_stdev
+        for prev, curr in zip(ordered, ordered[1:]):
+            delta = curr.rss_kb - prev.rss_kb
+            if delta >= min_delta_kb and delta >= delta_threshold:
+                anomalies.append(
+                    MemoryAnomaly(sample=curr, reason="rss_jump", delta_kb=delta)
+                )
+
+    return anomalies
+
+
 def format_summary(summary: MemorySummary, slope_kb_per_hour: float) -> str:
     duration = int(summary.duration_s)
     return "\n".join(
@@ -137,6 +184,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional PID to filter on (default: analyze all).",
     )
+    parser.add_argument(
+        "--anomalies",
+        action="store_true",
+        help="Include detected RSS anomalies in the output.",
+    )
     return parser
 
 
@@ -153,7 +205,29 @@ def main() -> None:
     summary = summarize_samples(samples)
     slope = rss_slope_kb_per_hour(samples)
     print(format_summary(summary, slope))
+    if args.anomalies:
+        anomalies = detect_anomalies(samples)
+        if not anomalies:
+            print("anomalies: none")
+        else:
+            for anomaly in anomalies:
+                timestamp = anomaly.sample.timestamp.isoformat()
+                details = (
+                    f"delta_kb={anomaly.delta_kb}"
+                    if anomaly.delta_kb is not None
+                    else "delta_kb=n/a"
+                )
+                print(
+                    "anomaly: "
+                    f"timestamp={timestamp} rss_kb={anomaly.sample.rss_kb} "
+                    f"pid={anomaly.sample.pid} reason={anomaly.reason} {details}"
+                )
 
 
 if __name__ == "__main__":
     main()
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (memory)
+# - [ ] summary is concise and imperative
