@@ -149,9 +149,7 @@ def detect_anomalies(
         for prev, curr in zip(ordered, ordered[1:]):
             delta = curr.rss_kb - prev.rss_kb
             if delta >= min_delta_kb and delta >= delta_threshold:
-                anomalies.append(
-                    MemoryAnomaly(sample=curr, reason="rss_jump", delta_kb=delta)
-                )
+                anomalies.append(MemoryAnomaly(sample=curr, reason="rss_jump", delta_kb=delta))
 
     return anomalies
 
