@@ -26,22 +26,57 @@ class AdapterProtocol(Protocol):
     async def parse(self, *args, **kwargs): ...
 
 
-def connect_db(db_path: str | None = None, *, connect_timeout: float | None = None):
+def _db_retry_config(
+    retries: int | None,
+    retry_delay: float | None,
+) -> tuple[int, float]:
+    if retries is None:
+        retries = int(os.getenv("DB_CONNECT_RETRIES", "3"))
+    if retry_delay is None:
+        retry_delay = float(os.getenv("DB_CONNECT_RETRY_DELAY", "0.5"))
+    return max(0, retries), max(0.0, retry_delay)
+
+
+def connect_db(
+    db_path: str | None = None,
+    *,
+    connect_timeout: float | None = None,
+    retries: int | None = None,
+    retry_delay: float | None = None,
+):
     """Return a database connection to SQLite or Postgres."""
     url = os.getenv("DB_URL")
+    retries, retry_delay = _db_retry_config(retries, retry_delay)
+    attempt = 0
     if url and psycopg and url.startswith("postgres"):
-        # psycopg connections require autocommit for DDL during tests
+        # psycopg connections require autocommit for DDL during tests.
         # Allow health checks to cap connection time.
         connect_kwargs: dict[str, Any] = {"autocommit": True}
         if connect_timeout is not None:
             connect_kwargs["connect_timeout"] = connect_timeout
-        return psycopg.connect(url, **connect_kwargs)
+        while True:
+            try:
+                return psycopg.connect(url, **connect_kwargs)
+            except psycopg.Error:
+                # Retry a few times to let the database recover before failing.
+                if attempt >= retries:
+                    raise
+                time.sleep(retry_delay * (2**attempt))
+                attempt += 1
     path = db_path or os.getenv("DB_PATH", "dev.db")
     # SQLite timeout prevents long waits on locked files during health checks.
     sqlite_kwargs: dict[str, Any] = {}
     if connect_timeout is not None:
         sqlite_kwargs["timeout"] = connect_timeout
-    return sqlite3.connect(str(path), **sqlite_kwargs)
+    while True:
+        try:
+            return sqlite3.connect(str(path), **sqlite_kwargs)
+        except sqlite3.Error:
+            # Retry a few times to allow transient filesystem/db startup issues.
+            if attempt >= retries:
+                raise
+            time.sleep(retry_delay * (2**attempt))
+            attempt += 1
 
 
 @asynccontextmanager

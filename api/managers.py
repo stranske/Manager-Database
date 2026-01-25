@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 from functools import wraps
@@ -16,6 +17,16 @@ from api.cache import cache_query, invalidate_cache_prefix
 from api.models import ManagerListResponse, ManagerResponse
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+try:  # pragma: no cover - optional dependency
+    import psycopg
+except ImportError:  # pragma: no cover - psycopg not installed for SQLite-only tests
+    psycopg = None
+
+DB_ERROR_TYPES: tuple[type[BaseException], ...] = (sqlite3.Error,)
+if psycopg is not None:
+    DB_ERROR_TYPES = DB_ERROR_TYPES + (psycopg.Error,)
 
 # Keep validation rules centralized so API docs/tests stay in sync with behavior.
 REQUIRED_FIELD_ERRORS = {
@@ -206,6 +217,11 @@ def _require_valid_manager(handler):
     return wrapper
 
 
+def _raise_db_unavailable(exc: BaseException) -> None:
+    logger.exception("Database error in managers API.", exc_info=exc)
+    raise HTTPException(status_code=503, detail="Database unavailable") from exc
+
+
 @router.post(
     "/managers",
     status_code=201,
@@ -259,14 +275,18 @@ async def create_manager(
     ],
 ):
     """Create a manager record after validating required fields."""
-    conn = connect_db()
+    conn = None
     try:
+        conn = connect_db()
         # Ensure schema exists before storing the record.
         _ensure_manager_table(conn)
         manager_id = _insert_manager(conn, payload)
         invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
     return {
         "id": manager_id,
         "name": payload.name,
@@ -312,8 +332,9 @@ async def list_managers(
 ):
     """Return a paginated list of managers."""
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
-    conn = connect_db()
+    conn = None
     try:
+        conn = connect_db()
         # Ensure the table exists so empty databases still return metadata.
         _ensure_manager_table(conn)
         normalized_department = department.strip() if department else None
@@ -326,8 +347,11 @@ async def list_managers(
         else:
             rows = []
         response_limit = limit
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
     items = [
         ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3]) for row in rows
     ]
@@ -383,13 +407,17 @@ async def get_manager(
 ):
     """Return a manager by id or raise 404."""
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
-    conn = connect_db()
+    conn = None
     try:
+        conn = connect_db()
         # Ensure the table exists before attempting the lookup.
         _ensure_manager_table(conn)
         row = _fetch_manager(conn, db_identity, id)
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
     return ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3])
