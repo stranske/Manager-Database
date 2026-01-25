@@ -93,6 +93,33 @@ class ErrorResponse(BaseModel):
     error: list[ErrorDetail] | None = Field(None, description="Alias for validation errors")
 
 
+def _validate_pagination_params(limit: int, offset: int) -> list[dict[str, str]]:
+    """Validate pagination query parameters for the managers list endpoint."""
+    errors: list[dict[str, str]] = []
+    if limit < 1:
+        errors.append(
+            {
+                "field": "limit",
+                "message": "ensure this value is greater than or equal to 1",
+            }
+        )
+    elif limit > 100:
+        errors.append(
+            {
+                "field": "limit",
+                "message": "ensure this value is less than or equal to 100",
+            }
+        )
+    if offset < 0:
+        errors.append(
+            {
+                "field": "offset",
+                "message": "ensure this value is greater than or equal to 0",
+            }
+        )
+    return errors
+
+
 def _ensure_manager_table(conn) -> None:
     """Create the managers table if it does not exist."""
     # Use dialect-specific schema to keep SQLite and Postgres aligned.
@@ -405,11 +432,23 @@ async def create_manager(
     },
 )
 async def list_managers(
-    limit: int = Query(25, ge=1, le=100, description="Maximum number of managers to return"),
-    offset: int = Query(0, ge=0, description="Number of managers to skip"),
+    limit: int = Query(
+        25,
+        description="Maximum number of managers to return",
+        json_schema_extra={"minimum": 1, "maximum": 100},
+    ),
+    offset: int = Query(
+        0,
+        description="Number of managers to skip",
+        json_schema_extra={"minimum": 0},
+    ),
     department: str | None = Query(None, description="Filter managers by department"),
 ):
     """Return a paginated list of managers."""
+    # Normalize pagination validation to the API's 400 error schema instead of 422.
+    errors = _validate_pagination_params(limit, offset)
+    if errors:
+        return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
     conn = None
     try:
@@ -604,3 +643,9 @@ async def get_manager(
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
     return ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3])
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (fix, test, chore)
+# - [ ] scope is clear (managers)
+# - [ ] summary is concise and imperative
