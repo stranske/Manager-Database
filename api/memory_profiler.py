@@ -215,6 +215,7 @@ async def stop_memory_profiler(app: FastAPI) -> None:
     await asyncio.gather(task, return_exceptions=True)
     app.state.memory_profiler_task = None
 
+
 # Commit-message checklist:
 # - [ ] type is accurate (feat, fix, test)
 # - [ ] scope is clear (memory)
