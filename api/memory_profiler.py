@@ -1,4 +1,8 @@
-"""Optional tracemalloc-based profiler to surface memory leak sources."""
+"""Optional tracemalloc-based profiler to surface memory leak sources.
+
+Scope: Focus on repo-owned modules by default to reduce noise while debugging.
+Override the include/exclude scope with MEMORY_PROFILE_INCLUDE/EXCLUDE as needed.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +17,17 @@ from typing import Any
 from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
+DEFAULT_SCOPE_INCLUDE = (
+    "*/api/*.py",
+    "*/etl/*.py",
+    "*/adapters/*.py",
+    "*/scripts/*.py",
+)
+DEFAULT_SCOPE_EXCLUDE = (
+    "*/site-packages/*",
+    "*/dist-packages/*",
+    "*/python*/lib/*",
+)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -47,6 +62,11 @@ def _normalize_match_value(value: str) -> str:
     return value.replace("\\", "/")
 
 
+def _default_scope_patterns() -> tuple[list[str], list[str]]:
+    """Return default include/exclude patterns for memory profiling."""
+    return list(DEFAULT_SCOPE_INCLUDE), list(DEFAULT_SCOPE_EXCLUDE)
+
+
 @dataclass(frozen=True)
 class MemoryDiff:
     filename: str
@@ -70,6 +90,12 @@ class MemoryLeakProfiler:
         self._top_n = max(1, top_n)
         self._min_kb = max(0.0, min_kb)
         self._frame_limit = max(1, frame_limit)
+        default_includes, default_excludes = _default_scope_patterns()
+        if include_patterns is None:
+            # Fall back to repo-focused defaults for targeted leak debugging.
+            include_patterns = default_includes
+        if exclude_patterns is None:
+            exclude_patterns = default_excludes
         self._include_patterns = [
             _normalize_match_value(pattern) for pattern in (include_patterns or []) if pattern
         ]
@@ -152,6 +178,11 @@ async def start_memory_profiler(app: FastAPI) -> None:
     frame_limit = _env_int("MEMORY_PROFILE_FRAMES", 25)
     include_patterns = _env_csv("MEMORY_PROFILE_INCLUDE")
     exclude_patterns = _env_csv("MEMORY_PROFILE_EXCLUDE")
+    if not include_patterns:
+        # Keep defaults if the env var is unset or empty.
+        include_patterns = None
+    if not exclude_patterns:
+        exclude_patterns = None
     profiler = MemoryLeakProfiler(
         top_n=top_n,
         min_kb=min_kb,
@@ -183,3 +214,8 @@ async def stop_memory_profiler(app: FastAPI) -> None:
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
     app.state.memory_profiler_task = None
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (memory)
+# - [ ] summary is concise and imperative

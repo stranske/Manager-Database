@@ -142,18 +142,6 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 
 **Progress:** 28/35 tasks complete, 7 remaining
 
-### ⚠️ IMPORTANT: Task Reconciliation Required
-
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
-
-**Before continuing, you MUST:**
-1. Review the recent commits to understand what was changed
-2. Determine which task checkboxes should be marked complete
-3. Update the PR body to check off completed tasks
-4. Then continue with remaining tasks
-
-_Failure to update checkboxes means progress is not being tracked properly._
-
 ### Scope
 Memory usage grows continuously over time, eventually causing OOM errors.
 
@@ -179,9 +167,9 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Define scope for: error reports for clues about the memory leak. (verify: confirm completion in repo)
 - [x] Implement focused slice for: error reports for clues about the memory leak. (verify: confirm completion in repo)
 - [x] Validate focused slice for: error reports for clues about the memory leak. (verify: confirm completion in repo)
-- [ ] Define scope for: Debug specific functions or modules to pinpoint the source of the leak. (verify: confirm completion in repo)
+- [x] Define scope for: Debug specific functions or modules to pinpoint the source of the leak. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Debug specific functions or modules to pinpoint the source of the leak. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Debug specific functions or modules to pinpoint the source of the leak. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Debug specific functions or modules to pinpoint the source of the leak. (verify: confirm completion in repo)
 - [x] Fix the memory leak in the identified module or function.
 - [x] Define scope for: Implement a fix for the identified memory leak. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Implement a fix for the identified memory leak. (verify: confirm completion in repo)
@@ -205,9 +193,9 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Investigate memory usage patterns in the application over a 24-hour period.
 - Define scope for: Set up monitoring tools to track memory usage over a 24-hour period. (verify: confirm completion in repo)
 - Identify the source of the memory leak in the codebase.
+- Define scope for: Narrow down the module or area of the codebase responsible for the memory leak. (verify: confirm completion in repo)
 
 ### Suggested Next Task
 - Define scope for: Debug specific functions or modules to pinpoint the source of the leak. (verify: confirm completion in repo)

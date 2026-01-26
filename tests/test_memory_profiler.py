@@ -40,7 +40,14 @@ def test_memory_profiler_filters_and_limits(monkeypatch) -> None:
         lambda: snapshots.pop(0),
     )
 
-    profiler = memory_profiler.MemoryLeakProfiler(top_n=2, min_kb=16.0, frame_limit=5)
+    # Disable default scope filters to focus on limit/min_kb behavior.
+    profiler = memory_profiler.MemoryLeakProfiler(
+        top_n=2,
+        min_kb=16.0,
+        frame_limit=5,
+        include_patterns=[],
+        exclude_patterns=[],
+    )
     assert profiler.capture_diff() == []
 
     diffs = profiler.capture_diff()
@@ -75,3 +82,39 @@ def test_memory_profiler_scope_filters(monkeypatch) -> None:
     diffs = profiler.capture_diff()
     assert len(diffs) == 1
     assert diffs[0].filename == "a.py"
+
+
+def test_memory_profiler_default_scope(monkeypatch) -> None:
+    stats = [
+        _FakeStat(
+            size_diff=128 * 1024,
+            count_diff=2,
+            traceback=[_FakeFrame("/srv/app/api/chat.py", 10)],
+        ),
+        _FakeStat(
+            size_diff=128 * 1024,
+            count_diff=2,
+            traceback=[_FakeFrame("/usr/lib/python3.12/site-packages/foo.py", 20)],
+        ),
+    ]
+    snapshots = [_FakeSnapshot([]), _FakeSnapshot(stats)]
+    monkeypatch.setattr(memory_profiler.tracemalloc, "is_tracing", lambda: True)
+    monkeypatch.setattr(
+        memory_profiler.tracemalloc,
+        "take_snapshot",
+        lambda: snapshots.pop(0),
+    )
+
+    # Defaults should keep focus on repo-owned modules and ignore site-packages.
+    profiler = memory_profiler.MemoryLeakProfiler(top_n=5, min_kb=1.0, frame_limit=5)
+    assert profiler.capture_diff() == []
+
+    diffs = profiler.capture_diff()
+    assert len(diffs) == 1
+    assert diffs[0].filename.endswith("api/chat.py")
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (memory)
+# - [ ] summary is concise and imperative
