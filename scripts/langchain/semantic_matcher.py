@@ -11,20 +11,15 @@ import math
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Protocol
 
 from tools.llm_provider import GITHUB_MODELS_BASE_URL
 
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 
 
-class EmbeddingClient(Protocol):
-    def embed_documents(self, texts: list[str]) -> list[list[float]]: ...
-
-
 @dataclass
 class EmbeddingClientInfo:
-    client: EmbeddingClient
+    client: object
     provider: str
     model: str
 

@@ -8,15 +8,12 @@ from __future__ import annotations
 import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from scripts.langchain import semantic_matcher as semantic_matcher
-else:
-    try:
-        from scripts.langchain import semantic_matcher as semantic_matcher
-    except ModuleNotFoundError:
-        import semantic_matcher as semantic_matcher
+try:
+    from scripts.langchain import semantic_matcher
+except ModuleNotFoundError:
+    import semantic_matcher
 
 
 @dataclass(frozen=True)
