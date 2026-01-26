@@ -15,6 +15,8 @@ try:
 except ModuleNotFoundError:
     import label_matcher as label_matcher_module  # type: ignore[no-redef]
 
+label_matcher = label_matcher_module
+
 
 @dataclass
 class IssueData:
