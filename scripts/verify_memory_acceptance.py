@@ -250,9 +250,7 @@ def main() -> None:
     if not samples:
         raise SystemExit("No samples found for the requested filters")
 
-    oom_log_paths = resolve_oom_log_paths(
-        args.oom_log, args.oom_log_dir, args.oom_log_pattern
-    )
+    oom_log_paths = resolve_oom_log_paths(args.oom_log, args.oom_log_dir, args.oom_log_pattern)
 
     status = evaluate_acceptance(
         samples,

@@ -161,9 +161,7 @@ def test_resolve_oom_log_paths_from_dir(tmp_path: Path) -> None:
     log_a.write_text("INFO ok\n", encoding="utf-8")
     log_b.write_text("OOM warning\n", encoding="utf-8")
 
-    resolved = verify_memory_acceptance.resolve_oom_log_paths(
-        [], [str(log_dir)], "*.log"
-    )
+    resolved = verify_memory_acceptance.resolve_oom_log_paths([], [str(log_dir)], "*.log")
 
     assert [path.name for path in resolved] == ["app.log"]
 
