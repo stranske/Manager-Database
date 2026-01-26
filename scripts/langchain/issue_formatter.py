@@ -185,12 +185,16 @@ def _normalize_checklist_lines(lines: list[str]) -> list[str]:
         stripped = raw.strip()
         if stripped.startswith("```"):
             in_fence = not in_fence
-            cleaned.append(raw)
             continue
         if in_fence:
-            cleaned.append(raw)
             continue
         if not stripped:
+            continue
+        if re.fullmatch(r"-{3,}", stripped):
+            continue
+        if stripped.startswith("<details") or stripped.startswith("</details"):
+            continue
+        if stripped.startswith("<summary"):
             continue
         match = LIST_ITEM_REGEX.match(raw)
         if match:
