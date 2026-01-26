@@ -9,7 +9,7 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib import import_module
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from scripts.langchain import label_matcher as label_matcher_types
@@ -75,7 +75,7 @@ def _build_issue_text(issue: IssueData) -> str:
     return "\n\n".join(parts)
 
 
-def _build_label_store(labels: Iterable[Any]) -> "label_matcher_types.LabelVectorStore" | None:
+def _build_label_store(labels: Iterable[Any]) -> label_matcher_types.LabelVectorStore | None:
     label_records = _collect_label_records(labels)
     if not label_records:
         return None
@@ -92,7 +92,7 @@ def _build_label_store(labels: Iterable[Any]) -> "label_matcher_types.LabelVecto
     )
 
 
-def _collect_label_records(labels: Iterable[Any]) -> list["label_matcher_types.LabelRecord"]:
+def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher_types.LabelRecord]:
     if labels is None:
         raise ValueError("labels must be an iterable of label records, not None.")
     if isinstance(labels, (str, bytes)):
@@ -100,7 +100,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list["label_matcher_types.L
     if not isinstance(labels, Iterable):
         raise ValueError("labels must be an iterable of label records.")
 
-    records: list["label_matcher_types.LabelRecord"] = []
+    records: list[label_matcher_types.LabelRecord] = []
     for index, item in enumerate(labels):
         record = _coerce_label_record(item)
         if record is not None:
@@ -114,7 +114,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list["label_matcher_types.L
     return records
 
 
-def _coerce_label_record(item: Any) -> "label_matcher_types.LabelRecord" | None:
+def _coerce_label_record(item: Any) -> label_matcher_types.LabelRecord | None:
     if isinstance(item, label_matcher.LabelRecord):
         return item
     if isinstance(item, (str, bytes)):
@@ -143,7 +143,7 @@ def _coerce_label_record(item: Any) -> "label_matcher_types.LabelRecord" | None:
 
 
 def _select_label_names(
-    matches: Sequence["label_matcher_types.LabelMatch"],
+    matches: Sequence[label_matcher_types.LabelMatch],
     *,
     max_labels: int | None = None,
 ) -> list[str]:

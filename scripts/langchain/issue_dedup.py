@@ -9,7 +9,7 @@ import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from scripts.langchain import semantic_matcher as semantic_matcher_types
@@ -95,7 +95,7 @@ def _issue_text(issue: IssueRecord) -> str:
 def build_issue_vector_store(
     issues: Iterable[Any],
     *,
-    client_info: "semantic_matcher_types.EmbeddingClientInfo" | None = None,
+    client_info: semantic_matcher_types.EmbeddingClientInfo | None = None,
     model: str | None = None,
 ) -> IssueVectorStore | None:
     issue_records: list[IssueRecord] = []

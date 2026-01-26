@@ -9,7 +9,6 @@ import logging
 import os
 import sqlite3
 from functools import wraps
-from types import ModuleType
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
