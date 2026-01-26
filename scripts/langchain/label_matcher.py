@@ -9,15 +9,12 @@ import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
-if TYPE_CHECKING:
-    from scripts.langchain import semantic_matcher as semantic_matcher
-else:
-    try:
-        from scripts.langchain import semantic_matcher as semantic_matcher
-    except ModuleNotFoundError:
-        import semantic_matcher as semantic_matcher
+try:
+    from scripts.langchain import semantic_matcher as semantic_matcher_module
+except ModuleNotFoundError:
+    import semantic_matcher as semantic_matcher_module  # type: ignore[no-redef]
 
 
 @dataclass(frozen=True)
@@ -250,7 +247,7 @@ def _label_text(label: LabelRecord) -> str:
 def build_label_vector_store(
     labels: Iterable[Any],
     *,
-    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
+    client_info: semantic_matcher_module.EmbeddingClientInfo | None = None,
     model: str | None = None,
 ) -> LabelVectorStore | None:
     label_records: list[LabelRecord] = []
@@ -268,7 +265,7 @@ def build_label_vector_store(
     if not label_records:
         return None
 
-    resolved = client_info or semantic_matcher.get_embedding_client(model=model)
+    resolved = client_info or semantic_matcher_module.get_embedding_client(model=model)
     if resolved is None:
         return None
 
@@ -279,7 +276,7 @@ def build_label_vector_store(
 
     texts = [_label_text(label) for label in label_records]
     metadatas = [{"name": label.name, "description": label.description} for label in label_records]
-    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
+    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
     return LabelVectorStore(
         store=store,
         provider=resolved.provider,
@@ -462,10 +459,14 @@ def find_similar_labels(
                 matches.append(match)
                 seen.add(normalized)
 
-    matches.sort(
-        key=lambda match: (match.score_type == "keyword", match.score),
-        reverse=True,
-    )
+    def _match_priority(match: LabelMatch) -> int:
+        if match.score_type == "exact":
+            return 0
+        if match.score_type == "keyword":
+            return 1
+        return 2
+
+    matches.sort(key=lambda match: (_match_priority(match), -match.score))
     return matches
 
 

@@ -15,7 +15,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Maximum issue body size to prevent OpenAI rate limit errors (30k TPM limit)
 # ~4 chars per token, so 50k chars ≈ 12.5k tokens, leaving headroom for prompt + output
@@ -105,6 +105,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
     try:
         # Keep imports contiguous; consumer repos treat both as third-party
         from langchain_openai import ChatOpenAI  # noqa: I001
+        from pydantic import SecretStr
         from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
     except ImportError:
         return None
@@ -120,7 +121,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
             ChatOpenAI(
                 model=DEFAULT_MODEL,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
+                api_key=SecretStr(github_token),
                 temperature=0.1,
             ),
             "github-models",
@@ -129,7 +130,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
         return (
             ChatOpenAI(
                 model=DEFAULT_MODEL,
-                api_key=openai_token,
+                api_key=SecretStr(openai_token),
                 temperature=0.1,
             ),
             "openai",
@@ -188,9 +189,9 @@ def _normalize_checklist_lines(lines: list[str]) -> list[str]:
             continue
         if in_fence:
             continue
-        if not stripped:
-            continue
         if stripped in {"---", "<details>", "</details>"}:
+            continue
+        if not stripped:
             continue
         match = LIST_ITEM_REGEX.match(raw)
         if match:
@@ -368,8 +369,55 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
     tasks = _extract_tasks_from_formatted(formatted)
     if not tasks:
         return formatted, None
-    # Task validation runs elsewhere; keep formatter as a no-op.
-    return formatted, None
+
+    try:
+        import importlib
+
+        try:
+            task_validator_module = importlib.import_module("scripts.langchain.task_validator")
+        except ModuleNotFoundError:
+            task_validator_module = importlib.import_module("task_validator")
+    except ModuleNotFoundError:
+        return formatted, None
+
+    # Run validation
+    result = task_validator_module.validate_tasks(tasks, context=formatted, use_llm=use_llm)
+
+    # If no changes, return original
+    if set(result.tasks) == set(tasks) and len(result.tasks) == len(tasks):
+        return formatted, result.audit_summary
+
+    # Replace tasks section with validated tasks
+    lines = formatted.splitlines()
+    header = "## Tasks"
+    try:
+        header_idx = next(i for i, line in enumerate(lines) if line.strip() == header)
+    except StopIteration:
+        return formatted, result.audit_summary
+
+    # Find end of Tasks section
+    end_idx = next(
+        (
+            i
+            for i in range(header_idx + 1, len(lines))
+            if lines[i].startswith("## ") and lines[i].strip() != header
+        ),
+        len(lines),
+    )
+
+    # Build new tasks section
+    new_task_lines = [f"- [ ] {task}" for task in result.tasks]
+    if not new_task_lines:
+        new_task_lines = ["- [ ] _Not provided._"]
+
+    # Reconstruct formatted body
+    new_lines = lines[: header_idx + 1]
+    new_lines.append("")  # blank line after header
+    new_lines.extend(new_task_lines)
+    new_lines.append("")  # blank line before next section
+    new_lines.extend(lines[end_idx:])
+
+    return "\n".join(new_lines).strip(), result.audit_summary
 
 
 def _is_github_models_auth_error(exc: Exception) -> bool:
@@ -405,7 +453,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
 
                 prompt = _load_prompt()
                 template = ChatPromptTemplate.from_template(prompt)
-                chain = template | client
+                chain: Any = cast(Any, template) | client
                 try:
                     response = chain.invoke({"issue_body": issue_body})
                 except Exception as e:
@@ -414,7 +462,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
                         fallback_info = _get_llm_client(force_openai=True)
                         if fallback_info:
                             client, provider = fallback_info
-                            chain = template | client
+                            chain = cast(Any, template) | client
                             response = chain.invoke({"issue_body": issue_body})
                         else:
                             raise
