@@ -19,6 +19,7 @@ from adapters.base import connect_db
 from api.cache import cache_query, invalidate_cache_prefix
 from api.models import (
     BulkImportFailure,
+    BulkImportItemError,
     BulkImportResponse,
     BulkImportSuccess,
     ManagerListResponse,
@@ -29,9 +30,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover - optional dependency
-    import psycopg
+    import psycopg as psycopg
 except ImportError:  # pragma: no cover - psycopg not installed for SQLite-only tests
-    psycopg = None
+    psycopg = None  # type: ignore[assignment]
 
 DB_ERROR_TYPES: tuple[type[BaseException], ...] = (sqlite3.Error,)
 if psycopg is not None:
@@ -248,6 +249,10 @@ def _format_bulk_validation_errors(exc: ValidationError) -> list[dict[str, str]]
     return errors
 
 
+def _as_bulk_item_errors(errors: list[dict[str, str]]) -> list[BulkImportItemError]:
+    return [BulkImportItemError(**error) for error in errors]
+
+
 def _bulk_import_max_bytes() -> int:
     """Return the maximum allowed bulk import payload size in bytes."""
     raw_value = os.getenv("BULK_IMPORT_MAX_BYTES")
@@ -301,19 +306,19 @@ def _validate_bulk_records(
     for index, raw in enumerate(raw_records):
         if not isinstance(raw, dict):
             errors = [{"field": "record", "message": "Record must be an object."}]
-            failures.append(BulkImportFailure(index=index, errors=errors))
+            failures.append(BulkImportFailure(index=index, errors=_as_bulk_item_errors(errors)))
             logger.warning("Bulk import validation failed for record %s: %s", index, errors)
             continue
         try:
             payload = ManagerCreate(**raw)
         except ValidationError as exc:
             errors = _format_bulk_validation_errors(exc)
-            failures.append(BulkImportFailure(index=index, errors=errors))
+            failures.append(BulkImportFailure(index=index, errors=_as_bulk_item_errors(errors)))
             logger.warning("Bulk import validation failed for record %s: %s", index, errors)
             continue
         errors = _validate_manager_payload(payload)
         if errors:
-            failures.append(BulkImportFailure(index=index, errors=errors))
+            failures.append(BulkImportFailure(index=index, errors=_as_bulk_item_errors(errors)))
             if source == "csv":
                 logger.warning(
                     "Bulk import CSV record missing required values for record %s: %s",

@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import pytest
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from scripts.validate_health_alerts import (
     _ENDPOINT_LABEL_PATTERN,

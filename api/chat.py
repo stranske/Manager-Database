@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from adapters.base import connect_db
 from api.data import router as data_router
 from api.managers import router as managers_router
+from api.memory_profiler import start_memory_profiler, stop_memory_profiler
 
 app = FastAPI()
 # Tag manager endpoints so they group clearly in the Swagger UI.
@@ -429,6 +430,7 @@ def health_livez():
 async def _configure_default_executor() -> None:
     """Install a known-good default executor for sync endpoints."""
     asyncio.get_running_loop().set_default_executor(_APP_EXECUTOR)
+    await start_memory_profiler(app)
 
 
 def _db_timeout_seconds() -> float:
@@ -724,6 +726,12 @@ def _shutdown_executors() -> None:
     """Release the health check executors on app shutdown."""
     _APP_EXECUTOR.shutdown(wait=False, cancel_futures=True)
     _HEALTH_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+
+
+@app.on_event("shutdown")
+async def _shutdown_memory_profiler() -> None:
+    """Stop the optional memory profiler task."""
+    await stop_memory_profiler(app)
 
 
 # Commit-message checklist:

@@ -5,19 +5,19 @@ Semantic label matching helpers for issue intake.
 
 from __future__ import annotations
 
+import importlib
 import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
-if TYPE_CHECKING:
-    from scripts.langchain import semantic_matcher as semantic_matcher
-else:
-    try:
-        from scripts.langchain import semantic_matcher as semantic_matcher
-    except ModuleNotFoundError:
-        import semantic_matcher as semantic_matcher
+try:
+    from scripts.langchain import semantic_matcher as _semantic_matcher
+except ModuleNotFoundError:
+    _semantic_matcher = importlib.import_module("semantic_matcher")
+
+semantic_matcher = _semantic_matcher
 
 
 @dataclass(frozen=True)
@@ -279,7 +279,7 @@ def build_label_vector_store(
 
     texts = [_label_text(label) for label in label_records]
     metadatas = [{"name": label.name, "description": label.description} for label in label_records]
-    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
+    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
     return LabelVectorStore(
         store=store,
         provider=resolved.provider,
@@ -462,10 +462,7 @@ def find_similar_labels(
                 matches.append(match)
                 seen.add(normalized)
 
-    matches.sort(
-        key=lambda match: (match.score_type == "keyword", match.score),
-        reverse=True,
-    )
+    matches.sort(key=lambda match: (match.score_type != "keyword", -match.score, match.label.name))
     return matches
 
 
