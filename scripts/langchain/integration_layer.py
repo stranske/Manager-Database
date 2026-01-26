@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from importlib import import_module
 from typing import Any, TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from scripts.langchain import label_matcher as label_matcher_types
 

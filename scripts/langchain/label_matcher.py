@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from importlib import import_module
 from typing import Any, TYPE_CHECKING, cast
 
-
 if TYPE_CHECKING:
     from scripts.langchain import semantic_matcher as semantic_matcher_types
 
@@ -433,9 +432,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        keyword_only_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        keyword_only_matches.sort(key=lambda match: match.score, reverse=True)
-        return keyword_only_matches
+        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
+        matches.sort(key=lambda match: match.score, reverse=True)
+        return matches
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:

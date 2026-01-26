@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from importlib import import_module
 from typing import Any, TYPE_CHECKING, cast
 
-
 if TYPE_CHECKING:
     from scripts.langchain import semantic_matcher as semantic_matcher_types
 
