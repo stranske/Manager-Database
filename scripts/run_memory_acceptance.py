@@ -57,10 +57,10 @@ def run_acceptance_check(
     min_hours: float,
     warmup_hours: float,
     max_slope_kb_per_hour: float,
-    min_coverage_ratio: float,
-    oom_log_paths: list[str],
-    oom_log_dirs: list[str],
-    oom_log_pattern: str,
+    min_coverage_ratio: float = 0.9,
+    oom_log_paths: list[str] | None = None,
+    oom_log_dirs: list[str] | None = None,
+    oom_log_pattern: str = "*.log*",
     oom_min_hours: float,
 ) -> verify_memory_acceptance.AcceptanceStatus:
     samples = verify_memory_acceptance.load_samples_from_inputs(sample_paths)
@@ -68,6 +68,8 @@ def run_acceptance_check(
     if not samples:
         raise SystemExit("No samples found for the requested filters")
 
+    oom_log_paths = list(oom_log_paths or [])
+    oom_log_dirs = list(oom_log_dirs or [])
     resolved_oom_logs = verify_memory_acceptance.resolve_oom_log_paths(
         oom_log_paths, oom_log_dirs, oom_log_pattern
     )
