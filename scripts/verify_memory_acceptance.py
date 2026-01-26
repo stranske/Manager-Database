@@ -36,9 +36,11 @@ class AcceptanceStatus:
     coverage_ratio: float
     stable_ready: bool
     stable_after_warmup: bool
+    stable_remaining_hours: float
     oom_ready: bool | None
     oom_events_total: int
     oom_check_passed: bool | None
+    oom_remaining_hours: float | None
     acceptance_met: bool
 
 
@@ -66,6 +68,7 @@ def evaluate_acceptance(
         max_slope_kb_per_hour=max_slope_kb_per_hour,
     )
     stable_ready = observed_hours >= min_hours
+    stable_remaining_hours = max(0.0, min_hours - observed_hours)
     stable_after_warmup = stable_ready and stable
 
     if oom_log_paths:
@@ -73,10 +76,12 @@ def evaluate_acceptance(
         oom_events_total = sum(counts.values())
         oom_ready = observed_hours >= oom_min_hours
         oom_check_passed = oom_ready and oom_events_total == 0
+        oom_remaining_hours = max(0.0, oom_min_hours - observed_hours)
     else:
         oom_events_total = 0
         oom_ready = None
         oom_check_passed = None
+        oom_remaining_hours = None
 
     acceptance_met = stable_after_warmup and oom_check_passed is True
 
@@ -86,9 +91,11 @@ def evaluate_acceptance(
         coverage_ratio=coverage_ratio,
         stable_ready=stable_ready,
         stable_after_warmup=stable_after_warmup,
+        stable_remaining_hours=stable_remaining_hours,
         oom_ready=oom_ready,
         oom_events_total=oom_events_total,
         oom_check_passed=oom_check_passed,
+        oom_remaining_hours=oom_remaining_hours,
         acceptance_met=acceptance_met,
     )
 
@@ -99,6 +106,11 @@ def render_report(status: AcceptanceStatus) -> str:
             return "skipped"
         return str(value).lower()
 
+    def _format_optional_hours(value: float | None) -> str:
+        if value is None:
+            return "skipped"
+        return f"{value:.2f}"
+
     return "\n".join(
         [
             "# Memory Acceptance Check",
@@ -107,12 +119,48 @@ def render_report(status: AcceptanceStatus) -> str:
             f"coverage_ratio: {status.coverage_ratio:.2f}",
             f"stable_ready_24h: {str(status.stable_ready).lower()}",
             f"stable_after_warmup: {str(status.stable_after_warmup).lower()}",
+            f"stable_remaining_hours: {status.stable_remaining_hours:.2f}",
             f"oom_ready_48h: {_format_optional(status.oom_ready)}",
             f"oom_events_total: {status.oom_events_total}",
             f"oom_check_passed: {_format_optional(status.oom_check_passed)}",
+            f"oom_remaining_hours: {_format_optional_hours(status.oom_remaining_hours)}",
             f"acceptance_criteria_met: {str(status.acceptance_met).lower()}",
         ]
     )
+
+
+def resolve_oom_log_paths(
+    log_paths: Sequence[str],
+    log_dirs: Sequence[str],
+    pattern: str,
+) -> list[Path]:
+    resolved: list[Path] = []
+    seen: set[Path] = set()
+
+    def _add(path: Path) -> None:
+        key = path.resolve() if path.exists() else path
+        if key in seen:
+            return
+        seen.add(key)
+        resolved.append(path)
+
+    for raw_path in log_paths:
+        _add(Path(raw_path))
+
+    if log_dirs:
+        if not pattern:
+            raise ValueError("OOM log pattern cannot be empty.")
+        for raw_dir in log_dirs:
+            directory = Path(raw_dir).expanduser()
+            if not directory.exists():
+                raise ValueError(f"OOM log directory does not exist: {directory}")
+            if not directory.is_dir():
+                raise ValueError(f"OOM log directory is not a directory: {directory}")
+            for entry in sorted(directory.glob(pattern)):
+                if entry.is_file():
+                    _add(entry)
+
+    return resolved
 
 
 def resolve_input_paths(raw_inputs: Sequence[str]) -> list[Path]:
@@ -169,6 +217,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Log file path to scan for OOM markers (repeatable).",
     )
     parser.add_argument(
+        "--oom-log-dir",
+        action="append",
+        default=[],
+        help="Directory to scan for OOM logs (repeatable).",
+    )
+    parser.add_argument(
+        "--oom-log-pattern",
+        default="*.log*",
+        help="Glob pattern for --oom-log-dir entries (default: *.log*).",
+    )
+    parser.add_argument(
         "--oom-min-hours",
         type=float,
         default=48.0,
@@ -191,12 +250,16 @@ def main() -> None:
     if not samples:
         raise SystemExit("No samples found for the requested filters")
 
+    oom_log_paths = resolve_oom_log_paths(
+        args.oom_log, args.oom_log_dir, args.oom_log_pattern
+    )
+
     status = evaluate_acceptance(
         samples,
         min_hours=args.min_hours,
         warmup_hours=args.warmup_hours,
         max_slope_kb_per_hour=args.max_slope_kb_per_hour,
-        oom_log_paths=[Path(path) for path in args.oom_log],
+        oom_log_paths=oom_log_paths,
         oom_min_hours=args.oom_min_hours,
     )
 

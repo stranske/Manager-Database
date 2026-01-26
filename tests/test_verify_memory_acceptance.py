@@ -56,7 +56,9 @@ def test_acceptance_passes_with_stable_50h_and_no_oom(tmp_path: Path) -> None:
     )
 
     assert status.stable_after_warmup is True
+    assert status.stable_remaining_hours == 0.0
     assert status.oom_check_passed is True
+    assert status.oom_remaining_hours == 0.0
     assert status.acceptance_met is True
 
 
@@ -75,7 +77,9 @@ def test_acceptance_fails_when_window_too_short(tmp_path: Path) -> None:
     )
 
     assert status.stable_ready is False
+    assert status.stable_remaining_hours > 0.0
     assert status.oom_ready is False
+    assert status.oom_remaining_hours > 0.0
     assert status.acceptance_met is False
 
 
@@ -123,6 +127,7 @@ def test_acceptance_fails_with_oom_event(tmp_path: Path) -> None:
     )
 
     assert status.oom_check_passed is False
+    assert status.oom_remaining_hours == 0.0
     assert status.acceptance_met is False
 
 
@@ -146,6 +151,21 @@ def test_load_samples_from_inputs_merges_files(tmp_path: Path) -> None:
 
     assert len(samples) == 2
     assert {sample.rss_kb for sample in samples} == {120, 130}
+
+
+def test_resolve_oom_log_paths_from_dir(tmp_path: Path) -> None:
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    log_a = log_dir / "app.log"
+    log_b = log_dir / "notes.txt"
+    log_a.write_text("INFO ok\n", encoding="utf-8")
+    log_b.write_text("OOM warning\n", encoding="utf-8")
+
+    resolved = verify_memory_acceptance.resolve_oom_log_paths(
+        [], [str(log_dir)], "*.log"
+    )
+
+    assert [path.name for path in resolved] == ["app.log"]
 
 
 # Commit-message checklist:

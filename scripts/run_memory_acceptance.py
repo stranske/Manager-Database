@@ -58,6 +58,8 @@ def run_acceptance_check(
     warmup_hours: float,
     max_slope_kb_per_hour: float,
     oom_log_paths: list[str],
+    oom_log_dirs: list[str],
+    oom_log_pattern: str,
     oom_min_hours: float,
 ) -> verify_memory_acceptance.AcceptanceStatus:
     samples = verify_memory_acceptance.load_samples_from_inputs(sample_paths)
@@ -65,12 +67,16 @@ def run_acceptance_check(
     if not samples:
         raise SystemExit("No samples found for the requested filters")
 
+    resolved_oom_logs = verify_memory_acceptance.resolve_oom_log_paths(
+        oom_log_paths, oom_log_dirs, oom_log_pattern
+    )
+
     return verify_memory_acceptance.evaluate_acceptance(
         samples,
         min_hours=min_hours,
         warmup_hours=warmup_hours,
         max_slope_kb_per_hour=max_slope_kb_per_hour,
-        oom_log_paths=[Path(path) for path in oom_log_paths],
+        oom_log_paths=resolved_oom_logs,
         oom_min_hours=oom_min_hours,
     )
 
@@ -162,6 +168,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Log file path to scan for OOM markers (repeatable).",
     )
     parser.add_argument(
+        "--oom-log-dir",
+        action="append",
+        default=[],
+        help="Directory to scan for OOM logs (repeatable).",
+    )
+    parser.add_argument(
+        "--oom-log-pattern",
+        default="*.log*",
+        help="Glob pattern for --oom-log-dir entries (default: *.log*).",
+    )
+    parser.add_argument(
         "--oom-min-hours",
         type=float,
         default=48.0,
@@ -212,6 +229,8 @@ def main() -> None:
         warmup_hours=args.warmup_hours,
         max_slope_kb_per_hour=args.max_slope_kb_per_hour,
         oom_log_paths=list(args.oom_log),
+        oom_log_dirs=list(args.oom_log_dir),
+        oom_log_pattern=args.oom_log_pattern,
         oom_min_hours=args.oom_min_hours,
     )
 
