@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+from collections.abc import Sequence
 from pathlib import Path
 
 _ANALYZE_MEMORY_PATH = Path(__file__).resolve().parent / "analyze_memory.py"
@@ -24,6 +25,8 @@ def load_analyze_memory():
 
 analyze_memory = load_analyze_memory()
 
+_DEFAULT_OOM_PATTERNS = ("oom", "out of memory", "out-of-memory", "outofmemory")
+
 
 def ensure_min_duration(samples: list[analyze_memory.MemorySample], min_hours: float) -> float:
     """Ensure the dataset covers at least the requested window."""
@@ -42,6 +45,8 @@ def build_review(
     warmup_hours: float,
     max_slope_kb_per_hour: float,
     pid: int | None,
+    oom_log_paths: Sequence[Path],
+    oom_min_hours: float,
 ) -> str:
     if not samples:
         raise ValueError("No memory samples available for review")
@@ -98,6 +103,8 @@ def build_review(
         for reason, count in sorted(counts.items()):
             lines.append(f"- anomalies_{reason}: {count}")
 
+    lines.extend(build_oom_section(window_hours, oom_log_paths, oom_min_hours))
+
     lines.extend(
         [
             "",
@@ -109,6 +116,60 @@ def build_review(
     )
 
     return "\n".join(lines)
+
+
+def build_oom_section(
+    window_hours: float,
+    oom_log_paths: Sequence[Path],
+    oom_min_hours: float,
+) -> list[str]:
+    if not oom_log_paths:
+        return [
+            "",
+            "## OOM Scan",
+            "- oom_scan: skipped",
+            "- oom_log_paths: none",
+            "- oom_check_passed: skipped",
+        ]
+
+    counts = scan_oom_logs(oom_log_paths)
+    total_events = sum(counts.values())
+    ready = window_hours >= oom_min_hours
+    passed = ready and total_events == 0
+
+    lines = [
+        "",
+        "## OOM Scan",
+        f"- oom_log_paths: {len(oom_log_paths)}",
+        f"- oom_min_hours: {oom_min_hours:.2f}",
+        f"- oom_window_hours: {window_hours:.2f}",
+        f"- oom_ready: {str(ready).lower()}",
+        f"- oom_events_total: {total_events}",
+        f"- oom_check_passed: {str(passed).lower()}",
+    ]
+    for path in oom_log_paths:
+        count = counts.get(path, 0)
+        if count:
+            lines.append(f"- oom_events_in_{path.name}: {count}")
+    return lines
+
+
+def scan_oom_logs(log_paths: Sequence[Path]) -> dict[Path, int]:
+    counts: dict[Path, int] = {}
+    patterns = tuple(pattern.lower() for pattern in _DEFAULT_OOM_PATTERNS)
+    for path in log_paths:
+        if not path.exists():
+            raise ValueError(f"OOM log path does not exist: {path}")
+        if path.is_dir():
+            raise ValueError(f"OOM log path is a directory, expected a file: {path}")
+        matches = 0
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                lowered = line.lower()
+                if any(pattern in lowered for pattern in patterns):
+                    matches += 1
+        counts[path] = matches
+    return counts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -145,6 +206,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum post-warmup RSS slope to treat as stable (default: 5).",
     )
     parser.add_argument(
+        "--oom-log",
+        action="append",
+        default=[],
+        help="Log file path to scan for OOM markers (repeatable).",
+    )
+    parser.add_argument(
+        "--oom-min-hours",
+        type=float,
+        default=48.0,
+        help="Minimum hours required to mark the OOM scan ready (default: 48).",
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help="Optional path to write the report (default: stdout only).",
@@ -167,6 +240,8 @@ def main() -> None:
         warmup_hours=args.warmup_hours,
         max_slope_kb_per_hour=args.max_slope_kb_per_hour,
         pid=args.pid,
+        oom_log_paths=[Path(path) for path in args.oom_log],
+        oom_min_hours=args.oom_min_hours,
     )
     print(report)
 
