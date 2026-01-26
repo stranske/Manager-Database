@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from api import memory_profiler
+
+
+@dataclass(frozen=True)
+class _FakeFrame:
+    filename: str
+    lineno: int
+
+
+@dataclass(frozen=True)
+class _FakeStat:
+    size_diff: int
+    count_diff: int
+    traceback: list[_FakeFrame]
+
+
+class _FakeSnapshot:
+    def __init__(self, stats: list[_FakeStat]) -> None:
+        self._stats = stats
+
+    def compare_to(self, _other: object, _key_type: str) -> list[_FakeStat]:
+        return self._stats
+
+
+def test_memory_profiler_filters_and_limits(monkeypatch) -> None:
+    stats = [
+        _FakeStat(size_diff=256 * 1024, count_diff=3, traceback=[_FakeFrame("a.py", 10)]),
+        _FakeStat(size_diff=64 * 1024, count_diff=1, traceback=[_FakeFrame("b.py", 20)]),
+        _FakeStat(size_diff=8 * 1024, count_diff=-2, traceback=[_FakeFrame("c.py", 30)]),
+    ]
+    snapshots = [_FakeSnapshot([]), _FakeSnapshot(stats)]
+    monkeypatch.setattr(memory_profiler.tracemalloc, "is_tracing", lambda: True)
+    monkeypatch.setattr(
+        memory_profiler.tracemalloc,
+        "take_snapshot",
+        lambda: snapshots.pop(0),
+    )
+
+    profiler = memory_profiler.MemoryLeakProfiler(top_n=2, min_kb=16.0, frame_limit=5)
+    assert profiler.capture_diff() == []
+
+    diffs = profiler.capture_diff()
+    assert len(diffs) == 2
+    assert diffs[0].filename == "a.py"
+    assert diffs[1].filename == "b.py"
+    assert all(diff.size_diff_kb >= 16.0 for diff in diffs)
