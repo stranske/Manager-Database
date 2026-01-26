@@ -67,12 +67,46 @@ def test_summarize_samples_calculates_stats() -> None:
 
     assert summary.count == 2
     assert summary.duration_s == 3600
+    assert summary.observed_duration_s == 3600
+    assert summary.sample_interval_s == 3600
+    assert summary.gap_count == 0
     assert summary.rss_min == 100
     assert summary.rss_max == 200
     assert summary.rss_avg == 150
     assert summary.vms_min == 300
     assert summary.vms_max == 500
     assert summary.vms_avg == 400
+
+
+def test_summarize_samples_reports_gaps() -> None:
+    base_time = dt.datetime(2026, 1, 25, 0, 0, tzinfo=dt.UTC)
+    samples = [
+        analyze_memory.MemorySample(
+            timestamp=base_time,
+            rss_kb=100,
+            vms_kb=300,
+            pid=1,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(minutes=1),
+            rss_kb=120,
+            vms_kb=320,
+            pid=1,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(hours=2),
+            rss_kb=140,
+            vms_kb=340,
+            pid=1,
+        ),
+    ]
+
+    summary = analyze_memory.summarize_samples(samples)
+
+    assert summary.duration_s == 7200
+    assert summary.observed_duration_s == 60
+    assert summary.sample_interval_s == 60
+    assert summary.gap_count == 1
 
 
 def test_rss_slope_kb_per_hour_constant_usage() -> None:

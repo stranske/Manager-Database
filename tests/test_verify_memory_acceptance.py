@@ -79,6 +79,35 @@ def test_acceptance_fails_when_window_too_short(tmp_path: Path) -> None:
     assert status.acceptance_met is False
 
 
+def test_acceptance_requires_observed_duration(tmp_path: Path) -> None:
+    base_time = dt.datetime(2024, 1, 2, tzinfo=dt.UTC)
+    hours = [0, 1, 2, 3, 33, 34]
+    samples = [
+        verify_memory_acceptance.analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(hours=hour),
+            rss_kb=200,
+            vms_kb=400,
+            pid=11,
+        )
+        for hour in hours
+    ]
+    log_path = tmp_path / "app.log"
+    log_path.write_text("INFO ok\n", encoding="utf-8")
+
+    status = verify_memory_acceptance.evaluate_acceptance(
+        samples,
+        min_hours=24.0,
+        warmup_hours=1.0,
+        max_slope_kb_per_hour=1.0,
+        oom_log_paths=[log_path],
+        oom_min_hours=48.0,
+    )
+
+    assert status.window_hours > 24
+    assert status.observed_hours < 24
+    assert status.stable_ready is False
+
+
 def test_acceptance_fails_with_oom_event(tmp_path: Path) -> None:
     samples = _build_samples(50)
     log_path = tmp_path / "app.log"

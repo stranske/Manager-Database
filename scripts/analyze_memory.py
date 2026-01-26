@@ -23,6 +23,9 @@ class MemorySample:
 class MemorySummary:
     count: int
     duration_s: float
+    observed_duration_s: float
+    sample_interval_s: float
+    gap_count: int
     rss_min: int
     rss_avg: float
     rss_max: int
@@ -87,10 +90,14 @@ def summarize_samples(samples: list[MemorySample]) -> MemorySummary:
     rss_values = [sample.rss_kb for sample in ordered]
     vms_values = [sample.vms_kb for sample in ordered]
     duration_s = (ordered[-1].timestamp - ordered[0].timestamp).total_seconds()
+    sample_interval_s, observed_duration_s, gap_count = summarize_intervals(ordered)
 
     return MemorySummary(
         count=len(ordered),
         duration_s=duration_s,
+        observed_duration_s=observed_duration_s,
+        sample_interval_s=sample_interval_s,
+        gap_count=gap_count,
         rss_min=min(rss_values),
         rss_avg=statistics.fmean(rss_values),
         rss_max=max(rss_values),
@@ -181,15 +188,42 @@ def detect_anomalies(
 
 def format_summary(summary: MemorySummary, slope_kb_per_hour: float) -> str:
     duration = int(summary.duration_s)
+    observed = int(summary.observed_duration_s)
+    coverage_ratio = summary.observed_duration_s / summary.duration_s if summary.duration_s > 0 else 0.0
     return "\n".join(
         [
             f"samples: {summary.count}",
             f"duration_seconds: {duration}",
+            f"observed_duration_seconds: {observed}",
+            f"sample_interval_seconds: {summary.sample_interval_s:.0f}",
+            f"gap_count: {summary.gap_count}",
+            f"coverage_ratio: {coverage_ratio:.2f}",
             ("rss_kb: " f"min={summary.rss_min} avg={summary.rss_avg:.1f} max={summary.rss_max}"),
             ("vms_kb: " f"min={summary.vms_min} avg={summary.vms_avg:.1f} max={summary.vms_max}"),
             f"rss_slope_kb_per_hour: {slope_kb_per_hour:.2f}",
         ]
     )
+
+
+def summarize_intervals(samples: list[MemorySample]) -> tuple[float, float, int]:
+    """Return (sample_interval_s, observed_duration_s, gap_count)."""
+    if len(samples) < 2:
+        return 0.0, 0.0, 0
+
+    ordered = sorted(samples, key=lambda sample: sample.timestamp)
+    deltas = [
+        (curr.timestamp - prev.timestamp).total_seconds()
+        for prev, curr in pairwise(ordered)
+    ]
+    positive_deltas = [delta for delta in deltas if delta > 0]
+    if not positive_deltas:
+        return 0.0, 0.0, 0
+
+    sample_interval_s = max(1.0, statistics.median_low(positive_deltas))
+    max_gap_s = sample_interval_s * 2.5
+    observed_duration_s = sum(delta for delta in positive_deltas if delta <= max_gap_s)
+    gap_count = sum(1 for delta in positive_deltas if delta > max_gap_s)
+    return sample_interval_s, observed_duration_s, gap_count
 
 
 def build_parser() -> argparse.ArgumentParser:

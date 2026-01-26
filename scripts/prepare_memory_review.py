@@ -46,7 +46,7 @@ class ReviewOutcome:
 def ensure_min_duration(samples: list[analyze_memory.MemorySample], min_hours: float) -> float:
     """Ensure the dataset covers at least the requested window."""
     summary = analyze_memory.summarize_samples(samples)
-    window_hours = summary.duration_s / 3600
+    window_hours = summary.observed_duration_s / 3600
     # Guard rail to avoid mislabeling shorter runs as review-ready windows.
     if window_hours < min_hours:
         raise ValueError(f"Insufficient duration: {window_hours:.2f}h < {min_hours:.2f}h minimum")
@@ -90,7 +90,11 @@ def build_review_result(
     summary = analyze_memory.summarize_samples(samples)
     slope = analyze_memory.rss_slope_kb_per_hour(samples)
     anomalies = analyze_memory.detect_anomalies(samples)
-    window_hours = ensure_min_duration(samples, min_hours)
+    window_hours = summary.duration_s / 3600
+    observed_hours = ensure_min_duration(samples, min_hours)
+    coverage_ratio = (
+        summary.observed_duration_s / summary.duration_s if summary.duration_s > 0 else 0.0
+    )
     ordered = sorted(samples, key=lambda sample: sample.timestamp)
     window_start = ordered[0].timestamp.isoformat()
     window_end = ordered[-1].timestamp.isoformat()
@@ -103,7 +107,7 @@ def build_review_result(
         max_slope_kb_per_hour=max_slope_kb_per_hour,
     )
     # Keep acceptance criteria signals explicit for optional strict mode.
-    stability_check_passed = window_hours >= min_hours and stable
+    stability_check_passed = observed_hours >= min_hours and stable
 
     lines = [
         "# Memory Leak Fix Review",
@@ -113,6 +117,10 @@ def build_review_result(
         f"- window_start: {window_start}",
         f"- window_end: {window_end}",
         f"- window_hours: {window_hours:.2f}",
+        f"- observed_hours: {observed_hours:.2f}",
+        f"- sample_interval_seconds: {summary.sample_interval_s:.0f}",
+        f"- gap_count: {summary.gap_count}",
+        f"- coverage_ratio: {coverage_ratio:.2f}",
         "",
         "## Summary",
         f"- samples: {summary.count}",
@@ -142,7 +150,7 @@ def build_review_result(
         for reason, count in sorted(counts.items()):
             lines.append(f"- anomalies_{reason}: {count}")
 
-    oom_lines, oom_outcome = build_oom_section(window_hours, oom_log_paths, oom_min_hours)
+    oom_lines, oom_outcome = build_oom_section(observed_hours, oom_log_paths, oom_min_hours)
     lines.extend(oom_lines)
 
     lines.extend(
@@ -163,7 +171,7 @@ def build_review_result(
 
 
 def build_oom_section(
-    window_hours: float,
+    observed_hours: float,
     oom_log_paths: Sequence[Path],
     oom_min_hours: float,
 ) -> tuple[list[str], OomScanOutcome]:
@@ -178,7 +186,7 @@ def build_oom_section(
 
     counts = scan_oom_logs(oom_log_paths)
     total_events = sum(counts.values())
-    ready = window_hours >= oom_min_hours
+    ready = observed_hours >= oom_min_hours
     passed = ready and total_events == 0
 
     lines = [
@@ -186,7 +194,7 @@ def build_oom_section(
         "## OOM Scan",
         f"- oom_log_paths: {len(oom_log_paths)}",
         f"- oom_min_hours: {oom_min_hours:.2f}",
-        f"- oom_window_hours: {window_hours:.2f}",
+        f"- oom_observed_hours: {observed_hours:.2f}",
         f"- oom_ready: {str(ready).lower()}",
         f"- oom_events_total: {total_events}",
         f"- oom_check_passed: {str(passed).lower()}",

@@ -32,6 +32,8 @@ prepare_memory_review = _load_module("prepare_memory_review", _PREPARE_REVIEW_PA
 @dataclass(frozen=True)
 class AcceptanceStatus:
     window_hours: float
+    observed_hours: float
+    coverage_ratio: float
     stable_ready: bool
     stable_after_warmup: bool
     oom_ready: bool | None
@@ -54,18 +56,22 @@ def evaluate_acceptance(
 
     summary = analyze_memory.summarize_samples(samples)
     window_hours = summary.duration_s / 3600
+    observed_hours = summary.observed_duration_s / 3600
+    coverage_ratio = (
+        summary.observed_duration_s / summary.duration_s if summary.duration_s > 0 else 0.0
+    )
     stable, _, _ = analyze_memory.evaluate_stability(
         samples,
         warmup_hours=warmup_hours,
         max_slope_kb_per_hour=max_slope_kb_per_hour,
     )
-    stable_ready = window_hours >= min_hours
+    stable_ready = observed_hours >= min_hours
     stable_after_warmup = stable_ready and stable
 
     if oom_log_paths:
         counts = prepare_memory_review.scan_oom_logs(oom_log_paths)
         oom_events_total = sum(counts.values())
-        oom_ready = window_hours >= oom_min_hours
+        oom_ready = observed_hours >= oom_min_hours
         oom_check_passed = oom_ready and oom_events_total == 0
     else:
         oom_events_total = 0
@@ -76,6 +82,8 @@ def evaluate_acceptance(
 
     return AcceptanceStatus(
         window_hours=window_hours,
+        observed_hours=observed_hours,
+        coverage_ratio=coverage_ratio,
         stable_ready=stable_ready,
         stable_after_warmup=stable_after_warmup,
         oom_ready=oom_ready,
@@ -95,6 +103,8 @@ def render_report(status: AcceptanceStatus) -> str:
         [
             "# Memory Acceptance Check",
             f"window_hours: {status.window_hours:.2f}",
+            f"observed_hours: {status.observed_hours:.2f}",
+            f"coverage_ratio: {status.coverage_ratio:.2f}",
             f"stable_ready_24h: {str(status.stable_ready).lower()}",
             f"stable_after_warmup: {str(status.stable_after_warmup).lower()}",
             f"oom_ready_48h: {_format_optional(status.oom_ready)}",
