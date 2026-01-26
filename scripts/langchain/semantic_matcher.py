@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from pydantic import SecretStr
+
 from tools.llm_provider import GITHUB_MODELS_BASE_URL
 
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"

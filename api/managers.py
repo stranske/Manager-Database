@@ -19,8 +19,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from adapters.base import connect_db
 from api.cache import cache_query, invalidate_cache_prefix
 from api.models import (
-    BulkImportItemError,
     BulkImportFailure,
+    BulkImportItemError,
     BulkImportResponse,
     BulkImportSuccess,
     ManagerListResponse,

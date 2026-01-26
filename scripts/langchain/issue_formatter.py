@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import SecretStr
+
 # Maximum issue body size to prevent OpenAI rate limit errors (30k TPM limit)
 # ~4 chars per token, so 50k chars ≈ 12.5k tokens, leaving headroom for prompt + output
 MAX_ISSUE_BODY_SIZE = 50000
