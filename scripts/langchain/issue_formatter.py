@@ -15,7 +15,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Maximum issue body size to prevent OpenAI rate limit errors (30k TPM limit)
 # ~4 chars per token, so 50k chars ≈ 12.5k tokens, leaving headroom for prompt + output
@@ -120,7 +120,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
             ChatOpenAI(
                 model=DEFAULT_MODEL,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
+                api_key=github_token,  # type: ignore[arg-type]
                 temperature=0.1,
             ),
             "github-models",
@@ -129,7 +129,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
         return (
             ChatOpenAI(
                 model=DEFAULT_MODEL,
-                api_key=openai_token,
+                api_key=openai_token,  # type: ignore[arg-type]
                 temperature=0.1,
             ),
             "openai",
@@ -373,13 +373,19 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
     if not tasks:
         return formatted, None
 
-    try:
-        from scripts.langchain import task_validator
-    except ImportError:
+    def _load_task_validator():
         try:
-            import task_validator
+            from scripts.langchain import task_validator as module
         except ImportError:
-            return formatted, None
+            try:
+                import task_validator as module
+            except ImportError:
+                return None
+        return module
+
+    task_validator = _load_task_validator()
+    if task_validator is None:
+        return formatted, None
 
     # Run validation
     result = task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
@@ -454,7 +460,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
 
                 prompt = _load_prompt()
                 template = ChatPromptTemplate.from_template(prompt)
-                chain = template | client
+                chain: Any = cast(Any, template) | cast(Any, client)
                 try:
                     response = chain.invoke({"issue_body": issue_body})
                 except Exception as e:
@@ -463,7 +469,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
                         fallback_info = _get_llm_client(force_openai=True)
                         if fallback_info:
                             client, provider = fallback_info
-                            chain = template | client
+                            chain = cast(Any, template) | cast(Any, client)
                             response = chain.invoke({"issue_body": issue_body})
                         else:
                             raise
