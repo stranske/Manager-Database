@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 _ANALYZE_MEMORY_PATH = Path(__file__).resolve().parent / "analyze_memory.py"
@@ -28,6 +29,20 @@ analyze_memory = load_analyze_memory()
 _DEFAULT_OOM_PATTERNS = ("oom", "out of memory", "out-of-memory", "outofmemory")
 
 
+@dataclass(frozen=True)
+class OomScanOutcome:
+    ready: bool | None
+    passed: bool | None
+    events_total: int
+
+
+@dataclass(frozen=True)
+class ReviewOutcome:
+    report: str
+    stable_after_warmup: bool
+    oom_scan: OomScanOutcome
+
+
 def ensure_min_duration(samples: list[analyze_memory.MemorySample], min_hours: float) -> float:
     """Ensure the dataset covers at least the requested window."""
     summary = analyze_memory.summarize_samples(samples)
@@ -48,6 +63,27 @@ def build_review(
     oom_log_paths: Sequence[Path],
     oom_min_hours: float,
 ) -> str:
+    return build_review_result(
+        samples,
+        min_hours=min_hours,
+        warmup_hours=warmup_hours,
+        max_slope_kb_per_hour=max_slope_kb_per_hour,
+        pid=pid,
+        oom_log_paths=oom_log_paths,
+        oom_min_hours=oom_min_hours,
+    ).report
+
+
+def build_review_result(
+    samples: list[analyze_memory.MemorySample],
+    *,
+    min_hours: float,
+    warmup_hours: float,
+    max_slope_kb_per_hour: float,
+    pid: int | None,
+    oom_log_paths: Sequence[Path],
+    oom_min_hours: float,
+) -> ReviewOutcome:
     if not samples:
         raise ValueError("No memory samples available for review")
 
@@ -66,6 +102,8 @@ def build_review(
         warmup_hours=warmup_hours,
         max_slope_kb_per_hour=max_slope_kb_per_hour,
     )
+    # Keep acceptance criteria signals explicit for optional strict mode.
+    stability_check_passed = window_hours >= min_hours and stable
 
     lines = [
         "# Memory Leak Fix Review",
@@ -92,6 +130,7 @@ def build_review(
         f"- post_warmup_rss_slope_kb_per_hour: {post_warmup_slope:.2f}",
         f"- max_slope_kb_per_hour: {max_slope_kb_per_hour:.2f}",
         f"- stable_after_warmup: {str(stable).lower()}",
+        f"- stability_check_passed: {str(stability_check_passed).lower()}",
         "",
         "## Anomalies",
         f"- anomalies_total: {len(anomalies)}",
@@ -103,7 +142,8 @@ def build_review(
         for reason, count in sorted(counts.items()):
             lines.append(f"- anomalies_{reason}: {count}")
 
-    lines.extend(build_oom_section(window_hours, oom_log_paths, oom_min_hours))
+    oom_lines, oom_outcome = build_oom_section(window_hours, oom_log_paths, oom_min_hours)
+    lines.extend(oom_lines)
 
     lines.extend(
         [
@@ -115,14 +155,18 @@ def build_review(
         ]
     )
 
-    return "\n".join(lines)
+    return ReviewOutcome(
+        report="\n".join(lines),
+        stable_after_warmup=stable,
+        oom_scan=oom_outcome,
+    )
 
 
 def build_oom_section(
     window_hours: float,
     oom_log_paths: Sequence[Path],
     oom_min_hours: float,
-) -> list[str]:
+) -> tuple[list[str], OomScanOutcome]:
     if not oom_log_paths:
         return [
             "",
@@ -130,7 +174,7 @@ def build_oom_section(
             "- oom_scan: skipped",
             "- oom_log_paths: none",
             "- oom_check_passed: skipped",
-        ]
+        ], OomScanOutcome(ready=None, passed=None, events_total=0)
 
     counts = scan_oom_logs(oom_log_paths)
     total_events = sum(counts.values())
@@ -151,7 +195,7 @@ def build_oom_section(
         count = counts.get(path, 0)
         if count:
             lines.append(f"- oom_events_in_{path.name}: {count}")
-    return lines
+    return lines, OomScanOutcome(ready=ready, passed=passed, events_total=total_events)
 
 
 def scan_oom_logs(log_paths: Sequence[Path]) -> dict[Path, int]:
@@ -218,6 +262,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Minimum hours required to mark the OOM scan ready (default: 48).",
     )
     parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero if stability or OOM acceptance checks fail.",
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help="Optional path to write the report (default: stdout only).",
@@ -234,7 +283,7 @@ def main() -> None:
     if not samples:
         raise SystemExit("No samples found for the requested filters")
 
-    report = build_review(
+    result = build_review_result(
         samples,
         min_hours=args.min_hours,
         warmup_hours=args.warmup_hours,
@@ -243,13 +292,24 @@ def main() -> None:
         oom_log_paths=[Path(path) for path in args.oom_log],
         oom_min_hours=args.oom_min_hours,
     )
-    print(report)
+    print(result.report)
 
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(report + "\n", encoding="utf-8")
+        output_path.write_text(result.report + "\n", encoding="utf-8")
         print(f"review_written: {output_path}")
+
+    if args.strict:
+        failures = []
+        if not result.stable_after_warmup:
+            failures.append("memory is not stable after warmup")
+        if result.oom_scan.ready is False:
+            failures.append("OOM scan window below minimum duration")
+        if result.oom_scan.ready and result.oom_scan.passed is False:
+            failures.append("OOM events detected")
+        if failures:
+            raise SystemExit("Strict review failed: " + "; ".join(failures))
 
 
 if __name__ == "__main__":

@@ -48,6 +48,7 @@ def test_build_review_includes_stability_and_checklist():
 
     assert "# Memory Leak Fix Review" in report
     assert "stable_after_warmup: true" in report
+    assert "stability_check_passed: true" in report
     assert "## Review Checklist" in report
     assert "## OOM Scan" in report
     assert "oom_scan: skipped" in report
@@ -104,6 +105,34 @@ def test_build_review_flags_oom_events(tmp_path: Path) -> None:
 
     assert "oom_events_total: 1" in report
     assert "oom_check_passed: false" in report
+
+
+def test_review_result_tracks_oom_readiness(tmp_path: Path) -> None:
+    base_time = dt.datetime(2024, 1, 2, tzinfo=dt.UTC)
+    samples = [
+        prepare_memory_review.analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(hours=hour),
+            rss_kb=100,
+            vms_kb=200,
+            pid=5,
+        )
+        for hour in range(10)
+    ]
+    log_path = tmp_path / "app.log"
+    # Keep log content empty so readiness drives the outcome.
+    log_path.write_text("INFO ok\n", encoding="utf-8")
+
+    result = prepare_memory_review.build_review_result(
+        samples,
+        min_hours=8.0,
+        warmup_hours=1.0,
+        max_slope_kb_per_hour=5.0,
+        pid=5,
+        oom_log_paths=[log_path],
+        oom_min_hours=48.0,
+    )
+
+    assert result.oom_scan.ready is False
 
 
 # Commit-message checklist:
