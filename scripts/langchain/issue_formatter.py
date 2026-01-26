@@ -188,6 +188,8 @@ def _normalize_checklist_lines(lines: list[str]) -> list[str]:
             continue
         if in_fence:
             continue
+        if stripped in {"---", "<details>", "</details>"}:
+            continue
         if not stripped:
             continue
         if re.fullmatch(r"-{3,}", stripped):
