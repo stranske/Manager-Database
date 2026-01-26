@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sys
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -384,15 +385,15 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
         return formatted, None
 
     try:
-        from scripts.langchain import task_validator
-    except ImportError:
+        task_validator_module = import_module("scripts.langchain.task_validator")
+    except ModuleNotFoundError:
         try:
-            import task_validator
-        except ImportError:
+            task_validator_module = import_module("task_validator")
+        except ModuleNotFoundError:
             return formatted, None
 
     # Run validation
-    result = task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
+    result = task_validator_module.validate_tasks(tasks, context=formatted, use_llm=use_llm)
 
     # If no changes, return original
     if set(result.tasks) == set(tasks) and len(result.tasks) == len(tasks):

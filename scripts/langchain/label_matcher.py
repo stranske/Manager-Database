@@ -432,9 +432,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        matches.sort(key=lambda match: match.score, reverse=True)
-        return matches
+        keyword_only_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
+        keyword_only_matches.sort(key=lambda match: match.score, reverse=True)
+        return keyword_only_matches
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:

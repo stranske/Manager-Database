@@ -20,6 +20,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from pydantic import SecretStr
+
 # ---------------------------------------------------------------------------
 # Constants for heuristic detection
 # ---------------------------------------------------------------------------
@@ -275,7 +277,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
             ChatOpenAI(
                 model=DEFAULT_MODEL,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
+                api_key=SecretStr(github_token),
                 temperature=0.1,
             ),
             "github-models",
@@ -285,7 +287,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
         return (
             ChatOpenAI(
                 model=DEFAULT_MODEL,
-                api_key=openai_token,
+                api_key=SecretStr(openai_token),
                 temperature=0.1,
             ),
             "openai",
@@ -461,7 +463,7 @@ def refine_flagged_tasks(
     # Build and invoke prompt
     prompt_template = _load_refinement_prompt()
     template = ChatPromptTemplate.from_template(prompt_template)
-    chain = template | client
+    chain: Any = template | client  # type: ignore[operator]
 
     try:
         response = chain.invoke({"flagged_items": flagged_text, "context": context or "None"})
@@ -471,7 +473,7 @@ def refine_flagged_tasks(
             fallback_info = _get_llm_client(force_openai=True)
             if fallback_info:
                 client, provider = fallback_info
-                chain = template | client
+                chain = template | client  # type: ignore[operator]
                 response = chain.invoke(
                     {"flagged_items": flagged_text, "context": context or "None"}
                 )
