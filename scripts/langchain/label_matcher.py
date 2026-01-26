@@ -5,19 +5,24 @@ Semantic label matching helpers for issue intake.
 
 from __future__ import annotations
 
-import importlib
 import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
-try:
-    from scripts.langchain import semantic_matcher as _semantic_matcher
-except ModuleNotFoundError:
-    _semantic_matcher = importlib.import_module("semantic_matcher")
 
-semantic_matcher = _semantic_matcher
+def _load_semantic_matcher() -> Any:
+    try:
+        from scripts.langchain import semantic_matcher as semantic_module
+    except ModuleNotFoundError:
+        import semantic_matcher as fallback_module
+
+        return fallback_module
+    return semantic_module
+
+
+semantic_matcher: Any = _load_semantic_matcher()
 
 
 @dataclass(frozen=True)
@@ -250,7 +255,7 @@ def _label_text(label: LabelRecord) -> str:
 def build_label_vector_store(
     labels: Iterable[Any],
     *,
-    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
+    client_info: Any | None = None,
     model: str | None = None,
 ) -> LabelVectorStore | None:
     label_records: list[LabelRecord] = []
@@ -279,7 +284,7 @@ def build_label_vector_store(
 
     texts = [_label_text(label) for label in label_records]
     metadatas = [{"name": label.name, "description": label.description} for label in label_records]
-    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
+    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
     return LabelVectorStore(
         store=store,
         provider=resolved.provider,
@@ -462,7 +467,12 @@ def find_similar_labels(
                 matches.append(match)
                 seen.add(normalized)
 
-    matches.sort(key=lambda match: (match.score_type != "keyword", -match.score, match.label.name))
+    matches.sort(
+        key=lambda match: (
+            match.score_type != "keyword",
+            -match.score,
+        )
+    )
     return matches
 
 
