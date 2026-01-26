@@ -41,7 +41,9 @@ def _build_samples(hours: int) -> list[verify_memory_acceptance.analyze_memory.M
     ]
 
 
-def _build_samples_with_gap(hours: list[int]) -> list[verify_memory_acceptance.analyze_memory.MemorySample]:
+def _build_samples_with_gap(
+    hours: list[int],
+) -> list[verify_memory_acceptance.analyze_memory.MemorySample]:
     base_time = dt.datetime(2024, 1, 2, tzinfo=dt.UTC)
     return [
         verify_memory_acceptance.analyze_memory.MemorySample(
