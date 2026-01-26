@@ -57,6 +57,7 @@ def run_acceptance_check(
     min_hours: float,
     warmup_hours: float,
     max_slope_kb_per_hour: float,
+    min_coverage_ratio: float,
     oom_log_paths: list[str],
     oom_log_dirs: list[str],
     oom_log_pattern: str,
@@ -76,6 +77,7 @@ def run_acceptance_check(
         min_hours=min_hours,
         warmup_hours=warmup_hours,
         max_slope_kb_per_hour=max_slope_kb_per_hour,
+        min_coverage_ratio=min_coverage_ratio,
         oom_log_paths=resolved_oom_logs,
         oom_min_hours=oom_min_hours,
     )
@@ -162,6 +164,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum post-warmup RSS slope to treat as stable (default: 5).",
     )
     parser.add_argument(
+        "--min-coverage-ratio",
+        type=float,
+        default=0.9,
+        help="Minimum coverage ratio required (default: 0.9).",
+    )
+    parser.add_argument(
         "--oom-log",
         action="append",
         default=[],
@@ -228,6 +236,7 @@ def main() -> None:
         min_hours=args.min_hours,
         warmup_hours=args.warmup_hours,
         max_slope_kb_per_hour=args.max_slope_kb_per_hour,
+        min_coverage_ratio=args.min_coverage_ratio,
         oom_log_paths=list(args.oom_log),
         oom_log_dirs=list(args.oom_log_dir),
         oom_log_pattern=args.oom_log_pattern,

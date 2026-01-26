@@ -34,6 +34,8 @@ class AcceptanceStatus:
     window_hours: float
     observed_hours: float
     coverage_ratio: float
+    coverage_min_ratio: float
+    coverage_ready: bool
     stable_ready: bool
     stable_after_warmup: bool
     stable_remaining_hours: float
@@ -50,6 +52,7 @@ def evaluate_acceptance(
     min_hours: float,
     warmup_hours: float,
     max_slope_kb_per_hour: float,
+    min_coverage_ratio: float,
     oom_log_paths: Sequence[Path],
     oom_min_hours: float,
 ) -> AcceptanceStatus:
@@ -62,19 +65,20 @@ def evaluate_acceptance(
     coverage_ratio = (
         summary.observed_duration_s / summary.duration_s if summary.duration_s > 0 else 0.0
     )
+    coverage_ready = coverage_ratio >= min_coverage_ratio
     stable, _, _ = analyze_memory.evaluate_stability(
         samples,
         warmup_hours=warmup_hours,
         max_slope_kb_per_hour=max_slope_kb_per_hour,
     )
-    stable_ready = observed_hours >= min_hours
+    stable_ready = observed_hours >= min_hours and coverage_ready
     stable_remaining_hours = max(0.0, min_hours - observed_hours)
     stable_after_warmup = stable_ready and stable
 
     if oom_log_paths:
         counts = prepare_memory_review.scan_oom_logs(oom_log_paths)
         oom_events_total = sum(counts.values())
-        oom_ready = observed_hours >= oom_min_hours
+        oom_ready = observed_hours >= oom_min_hours and coverage_ready
         oom_check_passed = oom_ready and oom_events_total == 0
         oom_remaining_hours = max(0.0, oom_min_hours - observed_hours)
     else:
@@ -89,6 +93,8 @@ def evaluate_acceptance(
         window_hours=window_hours,
         observed_hours=observed_hours,
         coverage_ratio=coverage_ratio,
+        coverage_min_ratio=min_coverage_ratio,
+        coverage_ready=coverage_ready,
         stable_ready=stable_ready,
         stable_after_warmup=stable_after_warmup,
         stable_remaining_hours=stable_remaining_hours,
@@ -117,6 +123,8 @@ def render_report(status: AcceptanceStatus) -> str:
             f"window_hours: {status.window_hours:.2f}",
             f"observed_hours: {status.observed_hours:.2f}",
             f"coverage_ratio: {status.coverage_ratio:.2f}",
+            f"coverage_min_ratio: {status.coverage_min_ratio:.2f}",
+            f"coverage_ready: {str(status.coverage_ready).lower()}",
             f"stable_ready_24h: {str(status.stable_ready).lower()}",
             f"stable_after_warmup: {str(status.stable_after_warmup).lower()}",
             f"stable_remaining_hours: {status.stable_remaining_hours:.2f}",
@@ -211,6 +219,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum post-warmup RSS slope to treat as stable (default: 5).",
     )
     parser.add_argument(
+        "--min-coverage-ratio",
+        type=float,
+        default=0.9,
+        help="Minimum coverage ratio required (default: 0.9).",
+    )
+    parser.add_argument(
         "--oom-log",
         action="append",
         default=[],
@@ -257,6 +271,7 @@ def main() -> None:
         min_hours=args.min_hours,
         warmup_hours=args.warmup_hours,
         max_slope_kb_per_hour=args.max_slope_kb_per_hour,
+        min_coverage_ratio=args.min_coverage_ratio,
         oom_log_paths=oom_log_paths,
         oom_min_hours=args.oom_min_hours,
     )
@@ -265,6 +280,8 @@ def main() -> None:
 
     if args.strict:
         failures = []
+        if not status.coverage_ready:
+            failures.append("insufficient sample coverage for acceptance")
         if not status.stable_ready:
             failures.append("insufficient duration for 24-hour stability")
         if not status.stable_after_warmup:
