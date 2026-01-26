@@ -99,7 +99,7 @@ def linear_regression_slope(points: list[tuple[float, float]]) -> float:
     ys = [point[1] for point in points]
     mean_x = statistics.fmean(xs)
     mean_y = statistics.fmean(ys)
-    numerator = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+    numerator = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True))
     denominator = sum((x - mean_x) ** 2 for x in xs)
     if denominator == 0:
         return 0.0
@@ -130,7 +130,7 @@ def detect_anomalies(
     rss_values = [sample.rss_kb for sample in ordered]
     rss_mean = statistics.fmean(rss_values)
     rss_stdev = statistics.pstdev(rss_values)
-    deltas = [curr.rss_kb - prev.rss_kb for prev, curr in zip(ordered, ordered[1:])]
+    deltas = [curr.rss_kb - prev.rss_kb for prev, curr in zip(ordered, ordered[1:], strict=True)]
     delta_mean = statistics.fmean(deltas)
     delta_stdev = statistics.pstdev(deltas)
 
@@ -146,7 +146,7 @@ def detect_anomalies(
     # Flag large consecutive jumps that exceed both sigma and absolute thresholds.
     if delta_stdev > 0:
         delta_threshold = delta_mean + delta_sigma * delta_stdev
-        for prev, curr in zip(ordered, ordered[1:]):
+        for prev, curr in zip(ordered, ordered[1:], strict=True):
             delta = curr.rss_kb - prev.rss_kb
             if delta >= min_delta_kb and delta >= delta_threshold:
                 anomalies.append(MemoryAnomaly(sample=curr, reason="rss_jump", delta_kb=delta))
