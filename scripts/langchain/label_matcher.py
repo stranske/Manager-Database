@@ -9,12 +9,12 @@ import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 try:
-    from scripts.langchain import semantic_matcher as semantic_matcher_module
+    from scripts.langchain import semantic_matcher
 except ModuleNotFoundError:
-    import semantic_matcher as semantic_matcher_module  # type: ignore[no-redef]
+    import semantic_matcher
 
 
 @dataclass(frozen=True)
@@ -142,10 +142,6 @@ _BUG_KEYWORDS = {
     "crash",
     "crashes",
     "crashed",
-    "panic",
-    "panics",
-    "exception",
-    "exceptions",
     "error",
     "errors",
     "failure",
@@ -247,7 +243,7 @@ def _label_text(label: LabelRecord) -> str:
 def build_label_vector_store(
     labels: Iterable[Any],
     *,
-    client_info: semantic_matcher_module.EmbeddingClientInfo | None = None,
+    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
     model: str | None = None,
 ) -> LabelVectorStore | None:
     label_records: list[LabelRecord] = []
@@ -265,7 +261,7 @@ def build_label_vector_store(
     if not label_records:
         return None
 
-    resolved = client_info or semantic_matcher_module.get_embedding_client(model=model)
+    resolved = client_info or semantic_matcher.get_embedding_client(model=model)
     if resolved is None:
         return None
 
@@ -276,7 +272,7 @@ def build_label_vector_store(
 
     texts = [_label_text(label) for label in label_records]
     metadatas = [{"name": label.name, "description": label.description} for label in label_records]
-    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
+    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
     return LabelVectorStore(
         store=store,
         provider=resolved.provider,
@@ -423,9 +419,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        keyword_only_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        keyword_only_matches.sort(key=lambda match: match.score, reverse=True)
-        return keyword_only_matches
+        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
+        matches.sort(key=lambda match: match.score, reverse=True)
+        return matches
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:
@@ -459,14 +455,7 @@ def find_similar_labels(
                 matches.append(match)
                 seen.add(normalized)
 
-    def _match_priority(match: LabelMatch) -> int:
-        if match.score_type == "exact":
-            return 0
-        if match.score_type == "keyword":
-            return 1
-        return 2
-
-    matches.sort(key=lambda match: (_match_priority(match), -match.score))
+    matches.sort(key=lambda match: match.score, reverse=True)
     return matches
 
 
