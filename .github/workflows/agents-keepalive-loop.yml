@@ -605,13 +605,10 @@ jobs:
     needs:
       - evaluate
       - run-codex
-    # Run always if PR exists, handle skipped agent jobs gracefully
+    # Run if PR exists, handle skipped/failed agent jobs gracefully
+    # run-codex will be skipped when action != run/fix/conflict, which is expected
     if: |
-      !cancelled() &&
-      needs.evaluate.result != 'failure' &&
-      needs.evaluate.result != 'cancelled' &&
-      needs.run-codex.result != 'failure' &&
-      needs.run-codex.result != 'cancelled' &&
+      always() &&
       needs.evaluate.outputs.pr_number != '' &&
       needs.evaluate.outputs.pr_number != '0'
     runs-on: ubuntu-latest
