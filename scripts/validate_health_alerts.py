@@ -7,7 +7,7 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 _METRIC_THRESHOLD_PATTERN = re.compile(
     r"health_check_duration_seconds[^<>]*?(>=|<=|>|<)\s*([0-9]+(?:\.[0-9]+)?)",
