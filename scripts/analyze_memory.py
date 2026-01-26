@@ -6,8 +6,8 @@ import argparse
 import csv
 import datetime as dt
 import statistics
-from itertools import pairwise
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
 
