@@ -2,6 +2,8 @@ import datetime as dt
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "verify_memory_acceptance.py"
 
@@ -205,6 +207,22 @@ def test_resolve_oom_log_paths_from_dir(tmp_path: Path) -> None:
     resolved = verify_memory_acceptance.resolve_oom_log_paths([], [str(log_dir)], "*.log")
 
     assert [path.name for path in resolved] == ["app.log"]
+
+
+def test_resolve_oom_log_paths_defaults_when_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitoring_dir = tmp_path / "monitoring"
+    monitoring_dir.mkdir()
+    log_path = monitoring_dir / "oom_scan.log"
+    log_path.write_text("INFO ok\n", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    resolved = verify_memory_acceptance.resolve_oom_log_paths([], [], "*.log")
+
+    assert len(resolved) == 1
+    assert resolved[0].resolve() == log_path.resolve()
 
 
 # Commit-message checklist:

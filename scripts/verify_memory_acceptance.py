@@ -11,6 +11,10 @@ from pathlib import Path
 _ANALYZE_MEMORY_PATH = Path(__file__).resolve().parent / "analyze_memory.py"
 _PREPARE_REVIEW_PATH = Path(__file__).resolve().parent / "prepare_memory_review.py"
 _DEFAULT_INPUT_PATH = Path("monitoring/memory_usage.csv")
+_DEFAULT_OOM_LOG_PATHS = (
+    Path("monitoring/oom_scan.log"),
+    Path("monitoring/oom.log"),
+)
 
 
 def _load_module(name: str, path: Path):
@@ -155,6 +159,12 @@ def resolve_oom_log_paths(
     for raw_path in log_paths:
         _add(Path(raw_path))
 
+    if not log_paths and not log_dirs:
+        for default_path in _DEFAULT_OOM_LOG_PATHS:
+            if default_path.exists() and default_path.is_file():
+                _add(default_path)
+        return resolved
+
     if log_dirs:
         if not pattern:
             raise ValueError("OOM log pattern cannot be empty.")
@@ -228,7 +238,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--oom-log",
         action="append",
         default=[],
-        help="Log file path to scan for OOM markers (repeatable).",
+        help=(
+            "Log file path to scan for OOM markers (repeatable, default: "
+            "monitoring/oom_scan.log or monitoring/oom.log if present)."
+        ),
     )
     parser.add_argument(
         "--oom-log-dir",

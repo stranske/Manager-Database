@@ -173,7 +173,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--oom-log",
         action="append",
         default=[],
-        help="Log file path to scan for OOM markers (repeatable).",
+        help=(
+            "Log file path to scan for OOM markers (repeatable, default: "
+            "monitoring/oom_scan.log or monitoring/oom.log if present)."
+        ),
     )
     parser.add_argument(
         "--oom-log-dir",
