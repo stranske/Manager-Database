@@ -48,3 +48,30 @@ def test_memory_profiler_filters_and_limits(monkeypatch) -> None:
     assert diffs[0].filename == "a.py"
     assert diffs[1].filename == "b.py"
     assert all(diff.size_diff_kb >= 16.0 for diff in diffs)
+
+
+def test_memory_profiler_scope_filters(monkeypatch) -> None:
+    stats = [
+        _FakeStat(size_diff=128 * 1024, count_diff=2, traceback=[_FakeFrame("a.py", 10)]),
+        _FakeStat(size_diff=128 * 1024, count_diff=2, traceback=[_FakeFrame("b.py", 20)]),
+    ]
+    snapshots = [_FakeSnapshot([]), _FakeSnapshot(stats)]
+    monkeypatch.setattr(memory_profiler.tracemalloc, "is_tracing", lambda: True)
+    monkeypatch.setattr(
+        memory_profiler.tracemalloc,
+        "take_snapshot",
+        lambda: snapshots.pop(0),
+    )
+
+    profiler = memory_profiler.MemoryLeakProfiler(
+        top_n=5,
+        min_kb=1.0,
+        frame_limit=5,
+        include_patterns=["a.py", "b.py"],
+        exclude_patterns=["b.py"],
+    )
+    assert profiler.capture_diff() == []
+
+    diffs = profiler.capture_diff()
+    assert len(diffs) == 1
+    assert diffs[0].filename == "a.py"
