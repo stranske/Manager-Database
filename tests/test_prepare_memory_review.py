@@ -24,7 +24,7 @@ prepare_memory_review = _load_prepare_memory_review()
 
 
 def test_build_review_includes_stability_and_checklist():
-    base_time = dt.datetime(2024, 1, 2, tzinfo=dt.timezone.utc)
+    base_time = dt.datetime(2024, 1, 2, tzinfo=dt.UTC)
     # Build a flat RSS series after warmup to confirm stability output.
     samples = [
         prepare_memory_review.analyze_memory.MemorySample(
@@ -50,7 +50,7 @@ def test_build_review_includes_stability_and_checklist():
 
 
 def test_build_review_requires_minimum_duration():
-    base_time = dt.datetime(2024, 1, 2, tzinfo=dt.timezone.utc)
+    base_time = dt.datetime(2024, 1, 2, tzinfo=dt.UTC)
     samples = [
         prepare_memory_review.analyze_memory.MemorySample(
             timestamp=base_time + dt.timedelta(hours=hour),
