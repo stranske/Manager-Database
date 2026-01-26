@@ -1,0 +1,198 @@
+version: 1
+issue: 259
+base: main
+branch: codex/issue-259
+tasks:
+  - id: task-01
+    title: Update `parseResponse` function in `src/api/parser.js` to handle malformed
+      JSON gracefully.
+    status: done
+    started_at: '2026-01-25T20:58:47Z'
+    finished_at: '2026-01-25T20:58:54Z'
+    commit: 4c8f5228a6284322fc1c8fc616bc9eb01d39d81f
+    notes: []
+  - id: task-02
+    title: Add error handling in `handleRequest` function in `src/api/handler.js`
+      to catch and process errors from `parseResponse`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Define scope for: Add error catching logic in `handleRequest` for errors
+      thrown by `parseResponse`. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Implement focused slice for: Add error catching logic in `handleRequest`
+      for errors thrown by `parseResponse`. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Validate focused slice for: Add error catching logic in `handleRequest`
+      for errors thrown by `parseResponse`. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Define scope for: Implement error processing logic in `handleRequest`
+      to return appropriate error responses. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Implement focused slice for: Implement error processing logic in `handleRequest`
+      to return appropriate error responses. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Validate focused slice for: Implement error processing logic in `handleRequest`
+      to return appropriate error responses. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Write a unit test for `parseResponse` to verify it handles malformed JSON
+      without throwing errors.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Write an integration test for the `/api/data` endpoint to ensure it returns
+      an appropriate error message when the external API sends malformed JSON.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Define scope for: Write an integration test for `/api/data` to handle
+      a specific malformed JSON scenario. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Implement focused slice for: Write an integration test for `/api/data`
+      to handle a specific malformed JSON scenario. (verify: confirm completion in
+      repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Validate focused slice for: Write an integration test for `/api/data`
+      to handle a specific malformed JSON scenario. (verify: confirm completion in
+      repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Define scope for: Write additional integration tests for `/api/data` to
+      handle other malformed JSON scenarios (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Implement focused slice for: Write additional integration tests for `/api/data`
+      to handle other malformed JSON scenarios (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Validate focused slice for: Write additional integration tests for `/api/data`
+      to handle other malformed JSON scenarios (e.g. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'empty response (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'invalid structure). (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: '`parseResponse` function does not throw a `TypeError` when given malformed
+      JSON.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: '`/api/data` endpoint returns a 400 status code with an appropriate error
+      message when the external API sends malformed JSON.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: All new and existing tests pass.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: Code passes linting and formatting checks.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: Code passes linting and formatting checks. (The agent cannot directly run
+      or verify linting and formatting checks due to AGENT_LIMITATIONS. | Ensure that
+      the development team runs linting and formatting checks locally or through CI
+      pipelines.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: All new and existing tests pass. (The agent cannot execute or verify test
+      results due to AGENT_LIMITATIONS. | Ensure that the development team runs the
+      test suite locally or through CI pipelines to verify this criterion.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
