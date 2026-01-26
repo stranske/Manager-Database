@@ -11,7 +11,7 @@ import math
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 
 from pydantic import SecretStr
 
@@ -88,7 +88,8 @@ def generate_embeddings(
     if resolved is None:
         return None
 
-    vectors = resolved.client.embed_documents(items)
+    client = cast(EmbeddingClient, resolved.client)
+    vectors = client.embed_documents(items)
     return EmbeddingResult(vectors=vectors, provider=resolved.provider, model=resolved.model)
 
 

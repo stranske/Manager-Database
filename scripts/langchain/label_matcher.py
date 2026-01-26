@@ -9,15 +9,22 @@ import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from importlib import import_module
+from typing import Any, TYPE_CHECKING, cast
+
 
 if TYPE_CHECKING:
-    from scripts.langchain import semantic_matcher as semantic_matcher
-else:
+    from scripts.langchain import semantic_matcher as semantic_matcher_types
+
+
+def _load_semantic_matcher() -> Any:
     try:
-        from scripts.langchain import semantic_matcher as semantic_matcher
+        return import_module("scripts.langchain.semantic_matcher")
     except ModuleNotFoundError:
-        import semantic_matcher as semantic_matcher
+        return import_module("semantic_matcher")
+
+
+semantic_matcher = _load_semantic_matcher()
 
 
 @dataclass(frozen=True)
@@ -250,7 +257,7 @@ def _label_text(label: LabelRecord) -> str:
 def build_label_vector_store(
     labels: Iterable[Any],
     *,
-    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
+    client_info: "semantic_matcher_types.EmbeddingClientInfo" | None = None,
     model: str | None = None,
 ) -> LabelVectorStore | None:
     label_records: list[LabelRecord] = []
@@ -279,7 +286,7 @@ def build_label_vector_store(
 
     texts = [_label_text(label) for label in label_records]
     metadatas = [{"name": label.name, "description": label.description} for label in label_records]
-    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
+    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
     return LabelVectorStore(
         store=store,
         provider=resolved.provider,
@@ -456,16 +463,22 @@ def find_similar_labels(
     keyword_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
     if keyword_matches:
         seen = {_normalize_label(match.label.name) for match in matches}
+        filtered_keywords: list[LabelMatch] = []
         for match in keyword_matches:
             normalized = _normalize_label(match.label.name)
             if normalized and normalized not in seen:
-                matches.append(match)
+                filtered_keywords.append(match)
                 seen.add(normalized)
+        keyword_matches = filtered_keywords
 
-    matches.sort(
-        key=lambda match: (match.score_type == "keyword", match.score),
-        reverse=True,
-    )
+    if not matches and keyword_matches:
+        keyword_matches.sort(key=lambda match: match.score, reverse=True)
+        return keyword_matches
+
+    matches.sort(key=lambda match: match.score, reverse=True)
+    if keyword_matches:
+        keyword_matches.sort(key=lambda match: match.score, reverse=True)
+        return keyword_matches + matches
     return matches
 
 

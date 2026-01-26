@@ -30,11 +30,10 @@ from api.models import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-psycopg: ModuleType | None
 try:  # pragma: no cover - optional dependency
     import psycopg as psycopg
 except ImportError:  # pragma: no cover - psycopg not installed for SQLite-only tests
-    psycopg = None
+    psycopg = None  # type: ignore[assignment]
 
 DB_ERROR_TYPES: tuple[type[BaseException], ...] = (sqlite3.Error,)
 if psycopg is not None:

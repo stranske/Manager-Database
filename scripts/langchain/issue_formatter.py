@@ -254,6 +254,18 @@ def _format_issue_fallback(issue_body: str) -> str:
 
     tasks_lines = _normalize_checklist_lines(sections["tasks"])
     acceptance_lines = _normalize_checklist_lines(sections["acceptance"])
+    tasks_lines = [
+        line
+        for line in tasks_lines
+        if not line.strip().startswith("```")
+        and line.strip() not in {"---", "<details>", "</details>"}
+    ]
+    acceptance_lines = [
+        line
+        for line in acceptance_lines
+        if not line.strip().startswith("```")
+        and line.strip() not in {"---", "<details>", "</details>"}
+    ]
 
     def join_or_placeholder(lines: list[str], placeholder: str) -> str:
         content = "\n".join(line for line in lines).strip()

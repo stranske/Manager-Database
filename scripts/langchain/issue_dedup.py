@@ -8,15 +8,22 @@ from __future__ import annotations
 import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from importlib import import_module
+from typing import Any, TYPE_CHECKING, cast
+
 
 if TYPE_CHECKING:
-    from scripts.langchain import semantic_matcher as semantic_matcher
-else:
+    from scripts.langchain import semantic_matcher as semantic_matcher_types
+
+
+def _load_semantic_matcher() -> Any:
     try:
-        from scripts.langchain import semantic_matcher as semantic_matcher
+        return import_module("scripts.langchain.semantic_matcher")
     except ModuleNotFoundError:
-        import semantic_matcher as semantic_matcher
+        return import_module("semantic_matcher")
+
+
+semantic_matcher = _load_semantic_matcher()
 
 
 @dataclass(frozen=True)
@@ -89,7 +96,7 @@ def _issue_text(issue: IssueRecord) -> str:
 def build_issue_vector_store(
     issues: Iterable[Any],
     *,
-    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
+    client_info: "semantic_matcher_types.EmbeddingClientInfo" | None = None,
     model: str | None = None,
 ) -> IssueVectorStore | None:
     issue_records: list[IssueRecord] = []
@@ -114,7 +121,7 @@ def build_issue_vector_store(
     metadatas = [
         {"number": issue.number, "title": issue.title, "url": issue.url} for issue in issue_records
     ]
-    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
+    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
     return IssueVectorStore(
         store=store,
         provider=resolved.provider,
