@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 _ANALYZE_MEMORY_PATH = Path(__file__).resolve().parent / "analyze_memory.py"
 _PREPARE_REVIEW_PATH = Path(__file__).resolve().parent / "prepare_memory_review.py"

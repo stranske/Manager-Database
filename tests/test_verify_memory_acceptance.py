@@ -2,8 +2,6 @@ import datetime as dt
 import importlib.util
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "verify_memory_acceptance.py"
 
