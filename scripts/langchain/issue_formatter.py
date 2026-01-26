@@ -371,10 +371,10 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
         return formatted, None
 
     try:
-        from scripts.langchain import (
-            task_validator as task_validator_module,  # type: ignore[attr-defined]
-        )
-    except ImportError:
+        import importlib
+
+        task_validator_module = importlib.import_module("scripts.langchain.task_validator")
+    except ModuleNotFoundError:
         try:
             import task_validator as task_validator_module
         except ImportError:
