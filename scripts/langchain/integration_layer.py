@@ -16,6 +16,7 @@ def _load_label_matcher() -> Any:
         from scripts.langchain import label_matcher as label_module
     except ModuleNotFoundError:
         import label_matcher as fallback_module
+
         return fallback_module
     return label_module
 

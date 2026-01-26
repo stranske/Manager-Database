@@ -16,6 +16,7 @@ def _load_semantic_matcher() -> Any:
         from scripts.langchain import semantic_matcher as semantic_module
     except ModuleNotFoundError:
         import semantic_matcher as fallback_module
+
         return fallback_module
     return semantic_module
 
