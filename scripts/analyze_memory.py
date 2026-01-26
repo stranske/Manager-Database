@@ -189,7 +189,9 @@ def detect_anomalies(
 def format_summary(summary: MemorySummary, slope_kb_per_hour: float) -> str:
     duration = int(summary.duration_s)
     observed = int(summary.observed_duration_s)
-    coverage_ratio = summary.observed_duration_s / summary.duration_s if summary.duration_s > 0 else 0.0
+    coverage_ratio = (
+        summary.observed_duration_s / summary.duration_s if summary.duration_s > 0 else 0.0
+    )
     return "\n".join(
         [
             f"samples: {summary.count}",
@@ -211,10 +213,7 @@ def summarize_intervals(samples: list[MemorySample]) -> tuple[float, float, int]
         return 0.0, 0.0, 0
 
     ordered = sorted(samples, key=lambda sample: sample.timestamp)
-    deltas = [
-        (curr.timestamp - prev.timestamp).total_seconds()
-        for prev, curr in pairwise(ordered)
-    ]
+    deltas = [(curr.timestamp - prev.timestamp).total_seconds() for prev, curr in pairwise(ordered)]
     positive_deltas = [delta for delta in deltas if delta > 0]
     if not positive_deltas:
         return 0.0, 0.0, 0
