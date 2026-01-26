@@ -5,15 +5,18 @@ Build FAISS vector stores for issue deduplication.
 
 from __future__ import annotations
 
+import importlib
 import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 try:
-    from scripts.langchain import semantic_matcher
+    from scripts.langchain import semantic_matcher as _semantic_matcher
 except ModuleNotFoundError:
-    import semantic_matcher
+    _semantic_matcher = importlib.import_module("semantic_matcher")
+
+semantic_matcher = _semantic_matcher
 
 
 @dataclass(frozen=True)
@@ -111,7 +114,7 @@ def build_issue_vector_store(
     metadatas = [
         {"number": issue.number, "title": issue.title, "url": issue.url} for issue in issue_records
     ]
-    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
+    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
     return IssueVectorStore(
         store=store,
         provider=resolved.provider,
