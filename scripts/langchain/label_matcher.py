@@ -142,6 +142,10 @@ _BUG_KEYWORDS = {
     "crash",
     "crashes",
     "crashed",
+    "panic",
+    "panics",
+    "exception",
+    "exceptions",
     "error",
     "errors",
     "failure",
@@ -455,7 +459,14 @@ def find_similar_labels(
                 matches.append(match)
                 seen.add(normalized)
 
-    matches.sort(key=lambda match: match.score, reverse=True)
+    def _match_priority(match: LabelMatch) -> int:
+        if match.score_type == "exact":
+            return 0
+        if match.score_type == "keyword":
+            return 1
+        return 2
+
+    matches.sort(key=lambda match: (_match_priority(match), -match.score))
     return matches
 
 
