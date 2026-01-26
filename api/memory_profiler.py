@@ -71,14 +71,10 @@ class MemoryLeakProfiler:
         self._min_kb = max(0.0, min_kb)
         self._frame_limit = max(1, frame_limit)
         self._include_patterns = [
-            _normalize_match_value(pattern)
-            for pattern in (include_patterns or [])
-            if pattern
+            _normalize_match_value(pattern) for pattern in (include_patterns or []) if pattern
         ]
         self._exclude_patterns = [
-            _normalize_match_value(pattern)
-            for pattern in (exclude_patterns or [])
-            if pattern
+            _normalize_match_value(pattern) for pattern in (exclude_patterns or []) if pattern
         ]
         self._previous_snapshot: tracemalloc.Snapshot | None = None
 
