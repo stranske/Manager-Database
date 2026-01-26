@@ -11,22 +11,16 @@ import math
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Protocol
-
-from pydantic import SecretStr
+from typing import Any
 
 from tools.llm_provider import GITHUB_MODELS_BASE_URL
 
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 
 
-class EmbeddingClient(Protocol):
-    def embed_documents(self, texts: list[str]) -> list[list[float]]: ...
-
-
 @dataclass
 class EmbeddingClientInfo:
-    client: EmbeddingClient
+    client: Any
     provider: str
     model: str
 
@@ -53,7 +47,7 @@ def get_embedding_client(model: str | None = None) -> EmbeddingClientInfo | None
         return EmbeddingClientInfo(
             client=OpenAIEmbeddings(
                 model=embedding_model,
-                api_key=SecretStr(openai_token),
+                api_key=openai_token,  # type: ignore[arg-type]
             ),
             provider="openai",
             model=embedding_model,
@@ -65,7 +59,7 @@ def get_embedding_client(model: str | None = None) -> EmbeddingClientInfo | None
             client=OpenAIEmbeddings(
                 model=embedding_model,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=SecretStr(github_token),
+                api_key=github_token,  # type: ignore[arg-type]
             ),
             provider="github-models",
             model=embedding_model,

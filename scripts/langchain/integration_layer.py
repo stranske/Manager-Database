@@ -5,18 +5,23 @@ Integration helpers for applying semantic labels to issues.
 
 from __future__ import annotations
 
-import importlib
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-try:
-    from scripts.langchain import label_matcher as _label_matcher
-except ModuleNotFoundError:
-    _label_matcher = importlib.import_module("label_matcher")
 
-label_matcher = _label_matcher
+def _load_label_matcher() -> Any:
+    try:
+        from scripts.langchain import label_matcher as label_module
+    except ModuleNotFoundError:
+        import label_matcher as fallback_module
+
+        return fallback_module
+    return label_module
+
+
+label_matcher: Any = _load_label_matcher()
 
 
 @dataclass
@@ -69,7 +74,7 @@ def _build_issue_text(issue: IssueData) -> str:
     return "\n\n".join(parts)
 
 
-def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore | None:
+def _build_label_store(labels: Iterable[Any]) -> Any | None:
     label_records = _collect_label_records(labels)
     if not label_records:
         return None
@@ -86,7 +91,7 @@ def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore 
     )
 
 
-def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRecord]:
+def _collect_label_records(labels: Iterable[Any]) -> list[Any]:
     if labels is None:
         raise ValueError("labels must be an iterable of label records, not None.")
     if isinstance(labels, (str, bytes)):
@@ -108,7 +113,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRec
     return records
 
 
-def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
+def _coerce_label_record(item: Any) -> Any | None:
     if isinstance(item, label_matcher.LabelRecord):
         return item
     if isinstance(item, (str, bytes)):
@@ -137,7 +142,7 @@ def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
 
 
 def _select_label_names(
-    matches: Sequence[label_matcher.LabelMatch],
+    matches: Sequence[Any],
     *,
     max_labels: int | None = None,
 ) -> list[str]:
