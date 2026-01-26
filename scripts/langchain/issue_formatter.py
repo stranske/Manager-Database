@@ -10,7 +10,6 @@ Run with:
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import os
 import re
@@ -106,7 +105,6 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
     try:
         # Keep imports contiguous; consumer repos treat both as third-party
         from langchain_openai import ChatOpenAI  # noqa: I001
-        from pydantic import SecretStr
         from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
     except ImportError:
         return None
@@ -122,7 +120,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
             ChatOpenAI(
                 model=DEFAULT_MODEL,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=SecretStr(github_token),
+                api_key=github_token,
                 temperature=0.1,
             ),
             "github-models",
@@ -131,7 +129,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
         return (
             ChatOpenAI(
                 model=DEFAULT_MODEL,
-                api_key=SecretStr(openai_token),
+                api_key=openai_token,
                 temperature=0.1,
             ),
             "openai",
@@ -187,12 +185,12 @@ def _normalize_checklist_lines(lines: list[str]) -> list[str]:
         stripped = raw.strip()
         if stripped.startswith("```"):
             in_fence = not in_fence
+            cleaned.append(raw)
             continue
         if in_fence:
+            cleaned.append(raw)
             continue
         if not stripped:
-            continue
-        if stripped in {"---", "<details>", "</details>"}:
             continue
         match = LIST_ITEM_REGEX.match(raw)
         if match:
@@ -372,14 +370,12 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
         return formatted, None
 
     try:
-        from scripts.langchain import task_validator as _task_validator
+        from scripts.langchain import task_validator
     except ImportError:
         try:
-            _task_validator = importlib.import_module("task_validator")
+            import task_validator
         except ImportError:
             return formatted, None
-
-    task_validator = _task_validator
 
     # Run validation
     result = task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
@@ -454,7 +450,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
 
                 prompt = _load_prompt()
                 template = ChatPromptTemplate.from_template(prompt)
-                chain: Any = template | client  # type: ignore[operator]
+                chain = template | client
                 try:
                     response = chain.invoke({"issue_body": issue_body})
                 except Exception as e:
@@ -463,7 +459,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
                         fallback_info = _get_llm_client(force_openai=True)
                         if fallback_info:
                             client, provider = fallback_info
-                            chain = template | client  # type: ignore[operator]
+                            chain = template | client
                             response = chain.invoke({"issue_body": issue_body})
                         else:
                             raise

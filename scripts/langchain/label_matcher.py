@@ -5,19 +5,16 @@ Semantic label matching helpers for issue intake.
 
 from __future__ import annotations
 
-import importlib
 import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 try:
-    from scripts.langchain import semantic_matcher as _semantic_matcher
+    from scripts.langchain import semantic_matcher
 except ModuleNotFoundError:
-    _semantic_matcher = importlib.import_module("semantic_matcher")
-
-semantic_matcher = _semantic_matcher
+    import semantic_matcher
 
 
 @dataclass(frozen=True)
@@ -145,10 +142,6 @@ _BUG_KEYWORDS = {
     "crash",
     "crashes",
     "crashed",
-    "panic",
-    "panics",
-    "exception",
-    "exceptions",
     "error",
     "errors",
     "failure",
@@ -279,7 +272,7 @@ def build_label_vector_store(
 
     texts = [_label_text(label) for label in label_records]
     metadatas = [{"name": label.name, "description": label.description} for label in label_records]
-    store = FAISS.from_texts(texts, cast(Any, resolved.client), metadatas=metadatas)
+    store = FAISS.from_texts(texts, resolved.client, metadatas=metadatas)
     return LabelVectorStore(
         store=store,
         provider=resolved.provider,
@@ -426,9 +419,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        keyword_only_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        keyword_only_matches.sort(key=lambda match: match.score, reverse=True)
-        return keyword_only_matches
+        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
+        matches.sort(key=lambda match: match.score, reverse=True)
+        return matches
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:
@@ -462,7 +455,7 @@ def find_similar_labels(
                 matches.append(match)
                 seen.add(normalized)
 
-    matches.sort(key=lambda match: (match.score_type != "keyword", -match.score, match.label.name))
+    matches.sort(key=lambda match: match.score, reverse=True)
     return matches
 
 
