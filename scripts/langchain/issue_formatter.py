@@ -14,8 +14,11 @@ import json
 import os
 import re
 import sys
+from importlib import import_module
 from pathlib import Path
 from typing import Any
+
+from pydantic import SecretStr
 
 # Maximum issue body size to prevent OpenAI rate limit errors (30k TPM limit)
 # ~4 chars per token, so 50k chars ≈ 12.5k tokens, leaving headroom for prompt + output
@@ -120,7 +123,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
             ChatOpenAI(
                 model=DEFAULT_MODEL,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
+                api_key=SecretStr(github_token),
                 temperature=0.1,
             ),
             "github-models",
@@ -129,7 +132,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
         return (
             ChatOpenAI(
                 model=DEFAULT_MODEL,
-                api_key=openai_token,
+                api_key=SecretStr(openai_token),
                 temperature=0.1,
             ),
             "openai",
@@ -252,6 +255,18 @@ def _format_issue_fallback(issue_body: str) -> str:
 
     tasks_lines = _normalize_checklist_lines(sections["tasks"])
     acceptance_lines = _normalize_checklist_lines(sections["acceptance"])
+    tasks_lines = [
+        line
+        for line in tasks_lines
+        if not line.strip().startswith("```")
+        and line.strip() not in {"---", "<details>", "</details>"}
+    ]
+    acceptance_lines = [
+        line
+        for line in acceptance_lines
+        if not line.strip().startswith("```")
+        and line.strip() not in {"---", "<details>", "</details>"}
+    ]
 
     def join_or_placeholder(lines: list[str], placeholder: str) -> str:
         content = "\n".join(line for line in lines).strip()
@@ -370,15 +385,15 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
         return formatted, None
 
     try:
-        from scripts.langchain import task_validator
-    except ImportError:
+        task_validator_module = import_module("scripts.langchain.task_validator")
+    except ModuleNotFoundError:
         try:
-            import task_validator
-        except ImportError:
+            task_validator_module = import_module("task_validator")
+        except ModuleNotFoundError:
             return formatted, None
 
     # Run validation
-    result = task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
+    result = task_validator_module.validate_tasks(tasks, context=formatted, use_llm=use_llm)
 
     # If no changes, return original
     if set(result.tasks) == set(tasks) and len(result.tasks) == len(tasks):
@@ -450,7 +465,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
 
                 prompt = _load_prompt()
                 template = ChatPromptTemplate.from_template(prompt)
-                chain = template | client
+                chain: Any = template | client  # type: ignore[operator]
                 try:
                     response = chain.invoke({"issue_body": issue_body})
                 except Exception as e:
@@ -459,7 +474,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
                         fallback_info = _get_llm_client(force_openai=True)
                         if fallback_info:
                             client, provider = fallback_info
-                            chain = template | client
+                            chain = template | client  # type: ignore[operator]
                             response = chain.invoke({"issue_body": issue_body})
                         else:
                             raise

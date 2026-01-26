@@ -8,12 +8,21 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
-try:
-    from scripts.langchain import label_matcher
-except ModuleNotFoundError:
-    import label_matcher
+if TYPE_CHECKING:
+    from scripts.langchain import label_matcher as label_matcher_types
+
+
+def _load_label_matcher() -> Any:
+    try:
+        return import_module("scripts.langchain.label_matcher")
+    except ModuleNotFoundError:
+        return import_module("label_matcher")
+
+
+label_matcher = _load_label_matcher()
 
 
 @dataclass
@@ -66,7 +75,7 @@ def _build_issue_text(issue: IssueData) -> str:
     return "\n\n".join(parts)
 
 
-def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore | None:
+def _build_label_store(labels: Iterable[Any]) -> label_matcher_types.LabelVectorStore | None:
     label_records = _collect_label_records(labels)
     if not label_records:
         return None
@@ -83,7 +92,7 @@ def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore 
     )
 
 
-def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRecord]:
+def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher_types.LabelRecord]:
     if labels is None:
         raise ValueError("labels must be an iterable of label records, not None.")
     if isinstance(labels, (str, bytes)):
@@ -91,7 +100,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRec
     if not isinstance(labels, Iterable):
         raise ValueError("labels must be an iterable of label records.")
 
-    records: list[label_matcher.LabelRecord] = []
+    records: list[label_matcher_types.LabelRecord] = []
     for index, item in enumerate(labels):
         record = _coerce_label_record(item)
         if record is not None:
@@ -105,7 +114,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRec
     return records
 
 
-def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
+def _coerce_label_record(item: Any) -> label_matcher_types.LabelRecord | None:
     if isinstance(item, label_matcher.LabelRecord):
         return item
     if isinstance(item, (str, bytes)):
@@ -134,7 +143,7 @@ def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
 
 
 def _select_label_names(
-    matches: Sequence[label_matcher.LabelMatch],
+    matches: Sequence[label_matcher_types.LabelMatch],
     *,
     max_labels: int | None = None,
 ) -> list[str]:
