@@ -6,6 +6,7 @@ import argparse
 import csv
 import datetime as dt
 import statistics
+from itertools import pairwise
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -130,7 +131,7 @@ def detect_anomalies(
     rss_values = [sample.rss_kb for sample in ordered]
     rss_mean = statistics.fmean(rss_values)
     rss_stdev = statistics.pstdev(rss_values)
-    deltas = [curr.rss_kb - prev.rss_kb for prev, curr in zip(ordered, ordered[1:], strict=True)]
+    deltas = [curr.rss_kb - prev.rss_kb for prev, curr in pairwise(ordered)]
     delta_mean = statistics.fmean(deltas)
     delta_stdev = statistics.pstdev(deltas)
 
@@ -146,7 +147,7 @@ def detect_anomalies(
     # Flag large consecutive jumps that exceed both sigma and absolute thresholds.
     if delta_stdev > 0:
         delta_threshold = delta_mean + delta_sigma * delta_stdev
-        for prev, curr in zip(ordered, ordered[1:], strict=True):
+        for prev, curr in pairwise(ordered):
             delta = curr.rss_kb - prev.rss_kb
             if delta >= min_delta_kb and delta >= delta_threshold:
                 anomalies.append(MemoryAnomaly(sample=curr, reason="rss_jump", delta_kb=delta))
