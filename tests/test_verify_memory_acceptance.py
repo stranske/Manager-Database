@@ -21,6 +21,13 @@ def _load_verify_memory_acceptance():
 verify_memory_acceptance = _load_verify_memory_acceptance()
 
 
+def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:
+    content = ["timestamp,rss_kb,vms_kb,pid"]
+    for timestamp, rss, vms, pid in rows:
+        content.append(f"{timestamp},{rss},{vms},{pid}")
+    path.write_text("\n".join(content) + "\n", encoding="utf-8")
+
+
 def _build_samples(hours: int) -> list[verify_memory_acceptance.analyze_memory.MemorySample]:
     base_time = dt.datetime(2024, 1, 2, tzinfo=dt.UTC)
     return [
@@ -88,6 +95,30 @@ def test_acceptance_fails_with_oom_event(tmp_path: Path) -> None:
 
     assert status.oom_check_passed is False
     assert status.acceptance_met is False
+
+
+def test_load_samples_from_inputs_merges_files(tmp_path: Path) -> None:
+    csv_a = tmp_path / "memory_a.csv"
+    csv_b = tmp_path / "memory_b.csv"
+    _write_csv(
+        csv_a,
+        [
+            ("2026-01-25T00:00:00Z", 120, 240, 3),
+        ],
+    )
+    _write_csv(
+        csv_b,
+        [
+            ("2026-01-25T01:00:00Z", 130, 260, 3),
+        ],
+    )
+
+    samples = verify_memory_acceptance.load_samples_from_inputs(
+        [str(csv_a), str(csv_b)]
+    )
+
+    assert len(samples) == 2
+    assert {sample.rss_kb for sample in samples} == {120, 130}
 
 
 # Commit-message checklist:

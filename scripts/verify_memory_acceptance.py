@@ -10,6 +10,7 @@ from pathlib import Path
 
 _ANALYZE_MEMORY_PATH = Path(__file__).resolve().parent / "analyze_memory.py"
 _PREPARE_REVIEW_PATH = Path(__file__).resolve().parent / "prepare_memory_review.py"
+_DEFAULT_INPUT_PATH = Path("monitoring/memory_usage.csv")
 
 
 def _load_module(name: str, path: Path):
@@ -104,14 +105,30 @@ def render_report(status: AcceptanceStatus) -> str:
     )
 
 
+def resolve_input_paths(raw_inputs: Sequence[str]) -> list[Path]:
+    if not raw_inputs:
+        return [_DEFAULT_INPUT_PATH]
+    return [Path(path) for path in raw_inputs]
+
+
+def load_samples_from_inputs(raw_inputs: Sequence[str]) -> list[analyze_memory.MemorySample]:
+    samples: list[analyze_memory.MemorySample] = []
+    for path in resolve_input_paths(raw_inputs):
+        samples.extend(analyze_memory.load_samples(str(path)))
+    return samples
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Verify memory stability and OOM-free acceptance criteria."
     )
     parser.add_argument(
         "--input",
-        default="monitoring/memory_usage.csv",
-        help="CSV path to analyze (default: monitoring/memory_usage.csv).",
+        action="append",
+        default=[],
+        help=(
+            "CSV path to analyze (repeatable, default: monitoring/memory_usage.csv)."
+        ),
     )
     parser.add_argument(
         "--pid",
@@ -161,7 +178,7 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    samples = analyze_memory.load_samples(args.input)
+    samples = load_samples_from_inputs(args.input)
     samples = analyze_memory.filter_samples(samples, args.pid)
     if not samples:
         raise SystemExit("No samples found for the requested filters")
