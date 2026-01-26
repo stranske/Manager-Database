@@ -10,4 +10,3 @@ def test_parse_response_handles_malformed_json():
     result = parseResponse("{not-json")
     assert result.ok is False
     assert "Malformed JSON" in (result.error or "")
-

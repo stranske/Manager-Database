@@ -24,4 +24,3 @@ def handleRequest(raw: str | bytes | None) -> JSONResponse:  # noqa: N802
     if not result.ok:
         return JSONResponse(status_code=400, content=_error_payload(result.error or "Error"))
     return JSONResponse(status_code=200, content={"data": result.data})
-

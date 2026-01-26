@@ -44,4 +44,3 @@ async def data_endpoint() -> JSONResponse:
             content={"error": "Upstream API request failed."},
         )
     return handleRequest(raw)
-

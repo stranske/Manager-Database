@@ -24,6 +24,7 @@ async def _get_data():
 
 def _patch_upstream(monkeypatch, text: str) -> None:
     monkeypatch.setenv("DATA_API_URL", "http://upstream.test/data")
+
     async def _fake_fetch(_url: str) -> str:
         return text
 

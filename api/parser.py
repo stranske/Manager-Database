@@ -48,4 +48,3 @@ def parse_response(raw: str | bytes | None) -> ParseResult:
 # Alias for parity with task naming.
 def parseResponse(raw: str | bytes | None) -> ParseResult:  # noqa: N802
     return parse_response(raw)
-
