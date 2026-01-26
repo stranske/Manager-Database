@@ -11,18 +11,10 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-
-def _load_semantic_matcher() -> Any:
-    try:
-        from scripts.langchain import semantic_matcher as semantic_module
-    except ModuleNotFoundError:
-        import semantic_matcher as fallback_module
-
-        return fallback_module
-    return semantic_module
-
-
-semantic_matcher: Any = _load_semantic_matcher()
+try:
+    from scripts.langchain import semantic_matcher
+except ModuleNotFoundError:
+    import semantic_matcher
 
 
 @dataclass(frozen=True)
@@ -150,10 +142,6 @@ _BUG_KEYWORDS = {
     "crash",
     "crashes",
     "crashed",
-    "panic",
-    "panics",
-    "exception",
-    "exceptions",
     "error",
     "errors",
     "failure",
@@ -255,7 +243,7 @@ def _label_text(label: LabelRecord) -> str:
 def build_label_vector_store(
     labels: Iterable[Any],
     *,
-    client_info: Any | None = None,
+    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
     model: str | None = None,
 ) -> LabelVectorStore | None:
     label_records: list[LabelRecord] = []
@@ -431,9 +419,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        keyword_only_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        keyword_only_matches.sort(key=lambda match: match.score, reverse=True)
-        return keyword_only_matches
+        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
+        matches.sort(key=lambda match: match.score, reverse=True)
+        return matches
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:
@@ -467,12 +455,7 @@ def find_similar_labels(
                 matches.append(match)
                 seen.add(normalized)
 
-    matches.sort(
-        key=lambda match: (
-            match.score_type != "keyword",
-            -match.score,
-        )
-    )
+    matches.sort(key=lambda match: match.score, reverse=True)
     return matches
 
 
