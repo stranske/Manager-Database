@@ -15,7 +15,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 # Maximum issue body size to prevent OpenAI rate limit errors (30k TPM limit)
 # ~4 chars per token, so 50k chars ≈ 12.5k tokens, leaving headroom for prompt + output
@@ -105,7 +105,6 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
     try:
         # Keep imports contiguous; consumer repos treat both as third-party
         from langchain_openai import ChatOpenAI  # noqa: I001
-        from pydantic import SecretStr
         from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
     except ImportError:
         return None
@@ -121,7 +120,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
             ChatOpenAI(
                 model=DEFAULT_MODEL,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=SecretStr(github_token),
+                api_key=github_token,
                 temperature=0.1,
             ),
             "github-models",
@@ -130,7 +129,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
         return (
             ChatOpenAI(
                 model=DEFAULT_MODEL,
-                api_key=SecretStr(openai_token),
+                api_key=openai_token,
                 temperature=0.1,
             ),
             "openai",
@@ -186,10 +185,10 @@ def _normalize_checklist_lines(lines: list[str]) -> list[str]:
         stripped = raw.strip()
         if stripped.startswith("```"):
             in_fence = not in_fence
+            cleaned.append(raw)
             continue
         if in_fence:
-            continue
-        if stripped in {"---", "<details>", "</details>"}:
+            cleaned.append(raw)
             continue
         if not stripped:
             continue
@@ -371,17 +370,15 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
         return formatted, None
 
     try:
-        import importlib
-
+        from scripts.langchain import task_validator
+    except ImportError:
         try:
-            task_validator_module = importlib.import_module("scripts.langchain.task_validator")
-        except ModuleNotFoundError:
-            task_validator_module = importlib.import_module("task_validator")
-    except ModuleNotFoundError:
-        return formatted, None
+            import task_validator
+        except ImportError:
+            return formatted, None
 
     # Run validation
-    result = task_validator_module.validate_tasks(tasks, context=formatted, use_llm=use_llm)
+    result = task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
 
     # If no changes, return original
     if set(result.tasks) == set(tasks) and len(result.tasks) == len(tasks):
@@ -453,7 +450,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
 
                 prompt = _load_prompt()
                 template = ChatPromptTemplate.from_template(prompt)
-                chain: Any = cast(Any, template) | client
+                chain = template | client
                 try:
                     response = chain.invoke({"issue_body": issue_body})
                 except Exception as e:
@@ -462,7 +459,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
                         fallback_info = _get_llm_client(force_openai=True)
                         if fallback_info:
                             client, provider = fallback_info
-                            chain = cast(Any, template) | client
+                            chain = template | client
                             response = chain.invoke({"issue_body": issue_body})
                         else:
                             raise
