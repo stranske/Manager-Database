@@ -1,6 +1,7 @@
 import datetime as dt
 import importlib.util
 from pathlib import Path
+from typing import Any, TypeAlias
 
 import pytest
 
@@ -21,6 +22,7 @@ def _load_verify_memory_acceptance():
 
 
 verify_memory_acceptance = _load_verify_memory_acceptance()
+MemorySample: TypeAlias = Any
 
 
 def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:
@@ -30,7 +32,7 @@ def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:
     path.write_text("\n".join(content) + "\n", encoding="utf-8")
 
 
-def _build_samples(hours: int) -> list[verify_memory_acceptance.analyze_memory.MemorySample]:
+def _build_samples(hours: int) -> list[MemorySample]:
     base_time = dt.datetime(2024, 1, 2, tzinfo=dt.UTC)
     return [
         verify_memory_acceptance.analyze_memory.MemorySample(
@@ -43,9 +45,7 @@ def _build_samples(hours: int) -> list[verify_memory_acceptance.analyze_memory.M
     ]
 
 
-def _build_samples_with_gap(
-    hours: list[int],
-) -> list[verify_memory_acceptance.analyze_memory.MemorySample]:
+def _build_samples_with_gap(hours: list[int]) -> list[MemorySample]:
     base_time = dt.datetime(2024, 1, 2, tzinfo=dt.UTC)
     return [
         verify_memory_acceptance.analyze_memory.MemorySample(

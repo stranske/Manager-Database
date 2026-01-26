@@ -176,8 +176,8 @@ async def start_memory_profiler(app: FastAPI) -> None:
     top_n = _env_int("MEMORY_PROFILE_TOP_N", 10)
     min_kb = _env_float("MEMORY_PROFILE_MIN_KB", 64.0)
     frame_limit = _env_int("MEMORY_PROFILE_FRAMES", 25)
-    include_patterns = _env_csv("MEMORY_PROFILE_INCLUDE")
-    exclude_patterns = _env_csv("MEMORY_PROFILE_EXCLUDE")
+    include_patterns: list[str] | None = _env_csv("MEMORY_PROFILE_INCLUDE")
+    exclude_patterns: list[str] | None = _env_csv("MEMORY_PROFILE_EXCLUDE")
     if not include_patterns:
         # Keep defaults if the env var is unset or empty.
         include_patterns = None

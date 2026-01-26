@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from pydantic import SecretStr
 # Maximum issue body size to prevent OpenAI rate limit errors (30k TPM limit)
 # ~4 chars per token, so 50k chars ≈ 12.5k tokens, leaving headroom for prompt + output
 MAX_ISSUE_BODY_SIZE = 50000
@@ -120,7 +121,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
             ChatOpenAI(
                 model=DEFAULT_MODEL,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
+                api_key=SecretStr(github_token),
                 temperature=0.1,
             ),
             "github-models",
@@ -129,7 +130,7 @@ def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
         return (
             ChatOpenAI(
                 model=DEFAULT_MODEL,
-                api_key=openai_token,
+                api_key=SecretStr(openai_token),
                 temperature=0.1,
             ),
             "openai",
@@ -405,7 +406,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
 
                 prompt = _load_prompt()
                 template = ChatPromptTemplate.from_template(prompt)
-                chain = template | client
+                chain: Any = template | client  # type: ignore[operator]
                 try:
                     response = chain.invoke({"issue_body": issue_body})
                 except Exception as e:
@@ -414,7 +415,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
                         fallback_info = _get_llm_client(force_openai=True)
                         if fallback_info:
                             client, provider = fallback_info
-                            chain = template | client
+                            chain = template | client  # type: ignore[operator]
                             response = chain.invoke({"issue_body": issue_body})
                         else:
                             raise
