@@ -126,9 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         action="append",
         default=[],
-        help=(
-            "CSV path to analyze (repeatable, default: monitoring/memory_usage.csv)."
-        ),
+        help=("CSV path to analyze (repeatable, default: monitoring/memory_usage.csv)."),
     )
     parser.add_argument(
         "--pid",

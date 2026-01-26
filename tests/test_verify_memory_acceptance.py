@@ -113,9 +113,7 @@ def test_load_samples_from_inputs_merges_files(tmp_path: Path) -> None:
         ],
     )
 
-    samples = verify_memory_acceptance.load_samples_from_inputs(
-        [str(csv_a), str(csv_b)]
-    )
+    samples = verify_memory_acceptance.load_samples_from_inputs([str(csv_a), str(csv_b)])
 
     assert len(samples) == 2
     assert {sample.rss_kb for sample in samples} == {120, 130}
