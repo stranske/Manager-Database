@@ -140,7 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 28/35 tasks complete, 7 remaining
+**Progress:** 30/35 tasks complete, 5 remaining
 
 ### Scope
 Memory usage grows continuously over time, eventually causing OOM errors.
@@ -176,7 +176,7 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Validate focused slice for: Implement a fix for the identified memory leak. (verify: confirm completion in repo)
 - [x] Define scope for: Test the fix locally to ensure it resolves the issue. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Test the fix locally to ensure it resolves the issue. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Test the fix locally to ensure it resolves the issue. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Test the fix locally to ensure it resolves the issue. (verify: confirm completion in repo)
 - [ ] Prepare the fix for code review (verify: confirm completion in repo)
 - [ ] submit a pull request. (verify: confirm completion in repo)
 - [x] Write a unit test to verify memory usage stabilizes after initial warmup.
@@ -193,11 +193,11 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Define scope for: Set up monitoring tools to track memory usage over a 24-hour period. (verify: confirm completion in repo)
 - Identify the source of the memory leak in the codebase.
 - Define scope for: Narrow down the module or area of the codebase responsible for the memory leak. (verify: confirm completion in repo)
+- Define scope for: Debug specific functions or modules to pinpoint the source of the leak. (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Define scope for: Debug specific functions or modules to pinpoint the source of the leak. (verify: confirm completion in repo)
+- Prepare the fix for code review (verify: confirm completion in repo)
 
 ---

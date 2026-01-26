@@ -139,6 +139,76 @@ def test_detect_anomalies_flags_spike_and_jump() -> None:
     assert "rss_jump" in reasons
 
 
+def test_filter_after_warmup_discards_initial_window() -> None:
+    base_time = dt.datetime(2026, 1, 25, 0, 0, tzinfo=dt.UTC)
+    samples = [
+        analyze_memory.MemorySample(
+            timestamp=base_time,
+            rss_kb=100,
+            vms_kb=300,
+            pid=1,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(hours=1),
+            rss_kb=150,
+            vms_kb=320,
+            pid=1,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(hours=2),
+            rss_kb=150,
+            vms_kb=340,
+            pid=1,
+        ),
+    ]
+
+    # Warmup window should drop the first two samples (0h and 1h).
+    filtered = analyze_memory.filter_after_warmup(samples, warmup_hours=1.5)
+
+    assert len(filtered) == 1
+    assert filtered[0].timestamp == base_time + dt.timedelta(hours=2)
+
+
+def test_evaluate_stability_checks_post_warmup_slope() -> None:
+    base_time = dt.datetime(2026, 1, 25, 0, 0, tzinfo=dt.UTC)
+    samples = [
+        analyze_memory.MemorySample(
+            timestamp=base_time,
+            rss_kb=100,
+            vms_kb=300,
+            pid=1,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(hours=1),
+            rss_kb=200,
+            vms_kb=320,
+            pid=1,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(hours=2),
+            rss_kb=200,
+            vms_kb=340,
+            pid=1,
+        ),
+        analyze_memory.MemorySample(
+            timestamp=base_time + dt.timedelta(hours=3),
+            rss_kb=200,
+            vms_kb=360,
+            pid=1,
+        ),
+    ]
+
+    stable, slope, count = analyze_memory.evaluate_stability(
+        samples,
+        warmup_hours=1.5,
+        max_slope_kb_per_hour=5.0,
+    )
+
+    assert count == 2
+    assert slope == 0.0
+    assert stable is True
+
+
 # Commit-message checklist:
 # - [ ] type is accurate (feat, fix, test)
 # - [ ] scope is clear (memory)

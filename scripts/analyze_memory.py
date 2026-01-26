@@ -70,6 +70,15 @@ def filter_samples(samples: list[MemorySample], pid: int | None) -> list[MemoryS
     return [sample for sample in samples if sample.pid == pid]
 
 
+def filter_after_warmup(samples: list[MemorySample], warmup_hours: float) -> list[MemorySample]:
+    """Drop initial warmup samples to assess steady-state memory trends."""
+    if warmup_hours <= 0 or not samples:
+        return samples
+    ordered = sorted(samples, key=lambda sample: sample.timestamp)
+    cutoff = ordered[0].timestamp + dt.timedelta(hours=warmup_hours)
+    return [sample for sample in ordered if sample.timestamp >= cutoff]
+
+
 def summarize_samples(samples: list[MemorySample]) -> MemorySummary:
     if not samples:
         raise ValueError("No samples available to summarize")
@@ -115,6 +124,21 @@ def rss_slope_kb_per_hour(samples: list[MemorySample]) -> float:
     points = [((sample.timestamp - start).total_seconds(), sample.rss_kb) for sample in ordered]
     slope_kb_per_sec = linear_regression_slope(points)
     return slope_kb_per_sec * 3600
+
+
+def evaluate_stability(
+    samples: list[MemorySample],
+    *,
+    warmup_hours: float,
+    max_slope_kb_per_hour: float,
+) -> tuple[bool, float, int]:
+    """Return (stable, slope, sample_count) for post-warmup samples."""
+    filtered = filter_after_warmup(samples, warmup_hours)
+    slope = rss_slope_kb_per_hour(filtered)
+    if len(filtered) < 2:
+        return False, slope, len(filtered)
+    stable = abs(slope) <= max_slope_kb_per_hour
+    return stable, slope, len(filtered)
 
 
 def detect_anomalies(
@@ -188,6 +212,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include detected RSS anomalies in the output.",
     )
+    parser.add_argument(
+        "--warmup-hours",
+        type=float,
+        default=0.0,
+        help="Discard this many initial hours before stability checks (default: 0).",
+    )
+    parser.add_argument(
+        "--max-slope-kb-per-hour",
+        type=float,
+        default=None,
+        help="If set, report whether RSS slope stays within this limit after warmup.",
+    )
     return parser
 
 
@@ -204,6 +240,20 @@ def main() -> None:
     summary = summarize_samples(samples)
     slope = rss_slope_kb_per_hour(samples)
     print(format_summary(summary, slope))
+
+    if args.warmup_hours > 0 or args.max_slope_kb_per_hour is not None:
+        post_warmup = filter_after_warmup(samples, args.warmup_hours)
+        post_warmup_slope = rss_slope_kb_per_hour(post_warmup)
+        print(f"post_warmup_samples: {len(post_warmup)}")
+        print(f"rss_slope_kb_per_hour_after_warmup: {post_warmup_slope:.2f}")
+        if args.max_slope_kb_per_hour is not None:
+            stable, _, _ = evaluate_stability(
+                samples,
+                warmup_hours=args.warmup_hours,
+                max_slope_kb_per_hour=args.max_slope_kb_per_hour,
+            )
+            print(f"stable_after_warmup: {str(stable).lower()}")
+
     if args.anomalies:
         anomalies = detect_anomalies(samples)
         if not anomalies:
