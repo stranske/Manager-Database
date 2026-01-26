@@ -140,19 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 32/35 tasks complete, 3 remaining
-
-### ⚠️ IMPORTANT: Task Reconciliation Required
-
-The previous iteration changed **5 file(s)** but did not update task checkboxes.
-
-**Before continuing, you MUST:**
-1. Review the recent commits to understand what was changed
-2. Determine which task checkboxes should be marked complete
-3. Update the PR body to check off completed tasks
-4. Then continue with remaining tasks
-
-_Failure to update checkboxes means progress is not being tracked properly._
+**Progress:** 31/31 tasks complete, 0 remaining
 
 ### Scope
 Memory usage grows continuously over time, eventually causing OOM errors.
@@ -207,8 +195,6 @@ Avoid repeating these unless a task needs explicit follow-up:
 
 - Validate focused slice for: Test the fix locally to ensure it resolves the issue. (verify: confirm completion in repo)
 - Prepare the fix for code review (verify: confirm completion in repo)
-
-### Suggested Next Task
-- Confirm acceptance criteria with 24+ hour stability data and 48-hour OOM-free logs. (verify: confirm completion in repo)
+- submit a pull request. (verify: confirm completion in repo)
 
 ---
