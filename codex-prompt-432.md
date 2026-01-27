@@ -140,11 +140,11 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 10/28 tasks complete, 18 remaining
+**Progress:** 12/28 tasks complete, 16 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
+The previous iteration changed **5 file(s)** but did not update task checkboxes.
 
 **Before continuing, you MUST:**
 1. Review the recent commits to understand what was changed
@@ -171,7 +171,7 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Validate focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
 - [x] Refactor the verification logic in `run_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
 - [x] Refactor the verification logic in `verify_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
-- [ ] Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally disabled or throttled.
+- [x] Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally disabled or throttled.
 - [ ] Update the existing monitoring dataset to cover at least a 48-hour period with variable memory usage values.
 - [ ] Define scope for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
 - [ ] Implement focused slice for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
@@ -191,18 +191,18 @@ The PR is complete when ALL of these are satisfied:
 
 - [x] The memory stabilization unit test simulates a 24+ hour runtime and verifies that memory usage variance is below 5% after the initial warmup period.
 - [x] The scripts `run_memory_acceptance.py` and `verify_memory_acceptance.py` correctly interpret the absence of OOM logs as a success condition.
-- [ ] The `_run_profiler_loop` function handles `CancelledError` without crashing and allows logging/tracemalloc snapshots to be conditionally disabled or throttled.
+- [x] The `_run_profiler_loop` function handles `CancelledError` without crashing and allows logging/tracemalloc snapshots to be conditionally disabled or throttled.
 - [ ] Unrelated changes are removed from the memory leak fix PR, ensuring only relevant files are modified.
 - [ ] The monitoring dataset is updated to cover at least 48 hours with variable memory usage values.
 
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Define scope for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
 - Implement focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
 - Validate focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
+- Refactor the verification logic in `run_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
 
 ### Suggested Next Task
-- Refactor the verification logic in `run_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
+- Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally disabled or throttled.
 
 ---

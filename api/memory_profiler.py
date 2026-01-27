@@ -163,10 +163,32 @@ class MemoryLeakProfiler:
             )
 
 
-async def _run_profiler_loop(profiler: MemoryLeakProfiler, interval_s: float) -> None:
+async def _run_profiler_loop(
+    profiler: MemoryLeakProfiler,
+    interval_s: float,
+    *,
+    log_enabled: bool = True,
+    snapshot_enabled: bool = True,
+    log_every_n: int = 1,
+    snapshot_every_n: int = 1,
+) -> None:
+    iteration = 0
+    log_every_n = max(1, log_every_n)
+    snapshot_every_n = max(1, snapshot_every_n)
     while True:
-        await asyncio.sleep(interval_s)
-        profiler.log_diff()
+        try:
+            await asyncio.sleep(interval_s)
+        except asyncio.CancelledError:
+            logger.info("memory_profiler: profiler loop cancelled")
+            break
+        if not snapshot_enabled:
+            continue
+        iteration += 1
+        if log_enabled and iteration % log_every_n == 0:
+            profiler.log_diff()
+            continue
+        if iteration % snapshot_every_n == 0:
+            profiler.capture_diff()
 
 
 async def start_memory_profiler(app: FastAPI) -> None:
@@ -176,6 +198,10 @@ async def start_memory_profiler(app: FastAPI) -> None:
     top_n = _env_int("MEMORY_PROFILE_TOP_N", 10)
     min_kb = _env_float("MEMORY_PROFILE_MIN_KB", 64.0)
     frame_limit = _env_int("MEMORY_PROFILE_FRAMES", 25)
+    log_enabled = _env_bool("MEMORY_PROFILE_LOG_ENABLED", True)
+    snapshot_enabled = _env_bool("MEMORY_PROFILE_SNAPSHOT_ENABLED", True)
+    log_every_n = _env_int("MEMORY_PROFILE_LOG_EVERY_N", 1)
+    snapshot_every_n = _env_int("MEMORY_PROFILE_SNAPSHOT_EVERY_N", 1)
     include_patterns: list[str] | None = _env_csv("MEMORY_PROFILE_INCLUDE")
     exclude_patterns: list[str] | None = _env_csv("MEMORY_PROFILE_EXCLUDE")
     if not include_patterns:
@@ -183,6 +209,11 @@ async def start_memory_profiler(app: FastAPI) -> None:
         include_patterns = None
     if not exclude_patterns:
         exclude_patterns = None
+    if not snapshot_enabled:
+        log_enabled = False
+    if not snapshot_enabled and not log_enabled:
+        logger.info("memory_profiler: enabled but snapshots/logging disabled")
+        return
     profiler = MemoryLeakProfiler(
         top_n=top_n,
         min_kb=min_kb,
@@ -190,13 +221,22 @@ async def start_memory_profiler(app: FastAPI) -> None:
         include_patterns=include_patterns,
         exclude_patterns=exclude_patterns,
     )
-    task = asyncio.create_task(_run_profiler_loop(profiler, interval_s))
+    task = asyncio.create_task(
+        _run_profiler_loop(
+            profiler,
+            interval_s,
+            log_enabled=log_enabled,
+            snapshot_enabled=snapshot_enabled,
+            log_every_n=log_every_n,
+            snapshot_every_n=snapshot_every_n,
+        )
+    )
     app.state.memory_profiler = profiler
     app.state.memory_profiler_task = task
     logger.info(
         (
             "memory_profiler: enabled interval=%ss top_n=%d min_kb=%0.1f frames=%d"
-            " include=%s exclude=%s"
+            " include=%s exclude=%s log=%s snapshots=%s log_every_n=%d snapshot_every_n=%d"
         ),
         interval_s,
         top_n,
@@ -204,6 +244,10 @@ async def start_memory_profiler(app: FastAPI) -> None:
         frame_limit,
         include_patterns or "-",
         exclude_patterns or "-",
+        "on" if log_enabled else "off",
+        "on" if snapshot_enabled else "off",
+        max(1, log_every_n),
+        max(1, snapshot_every_n),
     )
 
 
