@@ -294,6 +294,8 @@ def test_memory_stabilization_over_24h_variance_below_threshold() -> None:
     rss_avg = sum(rss_values) / len(rss_values)
     variance_ratio = (max(rss_values) - min(rss_values)) / rss_avg
 
+    # Stabilized data should still exhibit some deterministic movement.
+    assert len(set(rss_values)) > 1
     assert variance_ratio <= 0.05
 
 
