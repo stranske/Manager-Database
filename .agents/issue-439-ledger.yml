@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Modify the memory stabilization unit test to assert that the monitored
       duration (after any warmup period) is at least 24 hours.
-    status: doing
+    status: done
     started_at: '2026-01-27T20:32:34Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-27T20:32:43Z'
+    commit: 5b74d9b4e32cc1db0614fe58acc12372fb2765c1
     notes: []
   - id: task-02
     title: 'Define scope for: Update the memory stabilization unit test to calculate
