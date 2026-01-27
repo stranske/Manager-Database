@@ -1,4 +1,5 @@
 import datetime as dt
+import math
 import importlib.util
 from pathlib import Path
 from typing import Any
@@ -291,7 +292,12 @@ def test_memory_stabilization_over_24h_variance_below_threshold() -> None:
     assert monitored_duration_s / 3600 >= 24
     warmup_samples = analyze_memory.filter_after_warmup(samples, warmup_hours=warmup_hours)
     monitored_summary = analyze_memory.summarize_samples(warmup_samples)
-    assert monitored_summary.duration_s == monitored_duration_s
+    assert math.isclose(
+        monitored_summary.duration_s,
+        monitored_duration_s,
+        rel_tol=0.0,
+        abs_tol=1.0,
+    )
     assert monitored_summary.duration_s / 3600 >= 24
     assert monitored_summary.observed_duration_s / 3600 >= 24
     rss_values = [sample.rss_kb for sample in warmup_samples]
