@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Strip unrelated modifications from the PR to maintain focus on memory leak
       stabilization and profiling.
-    status: doing
+    status: done
     started_at: '2026-01-27T21:50:43Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-27T21:50:50Z'
+    commit: be4b07a78941dce374332fca3a7010d2a7bdf028
     notes: []
   - id: task-02
     title: Review and update `etl/edgar_flow.py` to ensure that if `os.getenv` is
