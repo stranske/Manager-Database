@@ -238,6 +238,8 @@ async def start_background_profiler(app: FastAPI, *, interval_s: float | None = 
         include_patterns=include_patterns,
         exclude_patterns=exclude_patterns,
     )
+    # Record the effective interval for diagnostics and tests.
+    app.state.memory_profiler_interval_s = interval_s
     task = asyncio.create_task(
         _run_profiler_loop(
             profiler,

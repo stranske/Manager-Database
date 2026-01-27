@@ -314,6 +314,8 @@ async def test_start_background_profiler_passes_interval(monkeypatch: Any) -> No
     await app.state.memory_profiler_task
 
     assert captured["interval_s"] == 12.5
+    # Ensure the effective interval is stored for diagnostics.
+    assert app.state.memory_profiler_interval_s == 12.5
     await memory_profiler.stop_memory_profiler(app)
 
 
