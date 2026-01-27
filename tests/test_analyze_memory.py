@@ -47,15 +47,19 @@ def _build_stabilization_samples(
     stable_rss_base = 1600
     stable_vms_base = 3400
     jitter_pattern = [0, 20, -15, 10, -5, 15, -10, 5]
-    # Use deterministic jitter with mild dampening to simulate stabilization without randomness.
+    day_cycle = [12, 18, 8, -6, -12, -4, 6, 14]
+    # Deterministic jitter + a small day-cycle keeps the data dynamic while settling.
     for index, hour in enumerate(range(warmup_hours, 32)):
-        scale = 1.0 - min(index, 10) * 0.03
+        scale = 1.0 - min(index, 12) * 0.025
         jitter = int(jitter_pattern[index % len(jitter_pattern)] * scale)
+        cycle = day_cycle[index % len(day_cycle)]
+        rss_value = stable_rss_base + jitter + cycle
+        vms_value = stable_vms_base + jitter * 2 + cycle
         samples.append(
             analyze_memory.MemorySample(
                 timestamp=base_time + dt.timedelta(hours=hour),
-                rss_kb=stable_rss_base + jitter,
-                vms_kb=stable_vms_base + jitter * 2,
+                rss_kb=rss_value,
+                vms_kb=vms_value,
                 pid=pid,
             )
         )
