@@ -53,7 +53,7 @@ All API responses include rate limit information in the following headers:
 ```
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 87
-X-RateLimit-Reset: 1706389200
+X-RateLimit-Reset: 1738095600
 ```
 
 | Header | Description |
@@ -70,7 +70,7 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 87
-X-RateLimit-Reset: 1706389200
+X-RateLimit-Reset: 1738095600
 
 {
   "data": [...]
@@ -83,7 +83,7 @@ HTTP/1.1 429 Too Many Requests
 Content-Type: application/json
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 0
-X-RateLimit-Reset: 1706389200
+X-RateLimit-Reset: 1738095600
 Retry-After: 45
 
 {
@@ -109,28 +109,26 @@ import httpx
 
 def fetch_with_retry(url: str, max_retries: int = 3) -> dict:
     """Fetch data with automatic retry on rate limit."""
-    client = httpx.Client()
-    
-    for attempt in range(max_retries):
-        response = client.get(url)
-        
-        if response.status_code == 200:
-            return response.json()
-        
-        if response.status_code == 429:
-            # Get retry delay from header or response body
-            retry_after = int(response.headers.get("Retry-After", 60))
+    with httpx.Client() as client:
+        for attempt in range(max_retries):
+            response = client.get(url)
             
-            if attempt < max_retries - 1:
-                print(f"Rate limited. Waiting {retry_after} seconds...")
-                time.sleep(retry_after)
-                continue
-            else:
-                raise Exception("Max retries exceeded")
-        
-        response.raise_for_status()
-    
-    raise Exception("Request failed after retries")
+            if response.status_code == 200:
+                return response.json()
+            
+            if response.status_code == 429:
+                # Get retry delay from header or response body
+                retry_after = int(response.headers.get("Retry-After", 60))
+                
+                if attempt < max_retries - 1:
+                    print(f"Rate limited. Waiting {retry_after} seconds...")
+                    time.sleep(retry_after)
+                    continue
+                else:
+                    raise Exception("Max retries exceeded")
+            
+            # For other errors, raise immediately
+            response.raise_for_status()
 
 # Usage
 try:
@@ -151,32 +149,30 @@ import httpx
 
 def fetch_with_backoff(url: str, max_retries: int = 5) -> dict:
     """Fetch data with exponential backoff on rate limit."""
-    client = httpx.Client()
-    
-    for attempt in range(max_retries):
-        response = client.get(url)
-        
-        if response.status_code == 200:
-            return response.json()
-        
-        if response.status_code == 429:
-            if attempt < max_retries - 1:
-                # Use Retry-After if provided, otherwise exponential backoff
-                if "Retry-After" in response.headers:
-                    delay = int(response.headers["Retry-After"])
+    with httpx.Client() as client:
+        for attempt in range(max_retries):
+            response = client.get(url)
+            
+            if response.status_code == 200:
+                return response.json()
+            
+            if response.status_code == 429:
+                if attempt < max_retries - 1:
+                    # Use Retry-After if provided, otherwise exponential backoff
+                    if "Retry-After" in response.headers:
+                        delay = int(response.headers["Retry-After"])
+                    else:
+                        # Exponential backoff with jitter
+                        delay = (2 ** attempt) + random.uniform(0, 1)
+                    
+                    print(f"Rate limited. Backing off for {delay:.2f} seconds...")
+                    time.sleep(delay)
+                    continue
                 else:
-                    # Exponential backoff with jitter
-                    delay = (2 ** attempt) + random.uniform(0, 1)
-                
-                print(f"Rate limited. Backing off for {delay:.2f} seconds...")
-                time.sleep(delay)
-                continue
-            else:
-                raise Exception("Max retries exceeded")
-        
-        response.raise_for_status()
-    
-    raise Exception("Request failed after retries")
+                    raise Exception("Max retries exceeded")
+            
+            # For other errors, raise immediately
+            response.raise_for_status()
 ```
 
 ### 3. Monitor Rate Limit Headers
@@ -194,6 +190,18 @@ class RateLimitAwareClient:
         self.client = httpx.Client()
         self.rate_limit_remaining = None
         self.rate_limit_reset = None
+    
+    def close(self):
+        """Close the HTTP client."""
+        self.client.close()
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
     
     def get(self, path: str) -> dict:
         """Make GET request and track rate limit headers."""
@@ -223,14 +231,13 @@ class RateLimitAwareClient:
         """Get number of requests remaining in current window."""
         return self.rate_limit_remaining or 0
 
-# Usage
-client = RateLimitAwareClient("http://localhost:8000")
-
-try:
-    data = client.get("/managers")
-    print(f"Requests remaining: {client.requests_remaining()}")
-except Exception as e:
-    print(f"Error: {e}")
+# Usage with context manager (recommended)
+with RateLimitAwareClient("http://localhost:8000") as client:
+    try:
+        data = client.get("/managers")
+        print(f"Requests remaining: {client.requests_remaining()}")
+    except Exception as e:
+        print(f"Error: {e}")
 ```
 
 ### 4. JavaScript/TypeScript Example
@@ -376,8 +383,15 @@ Use bulk endpoints when available to reduce request count:
 ```python
 import httpx
 
+# Assuming you have a list of managers to create
+managers_list = [
+    {"name": "Alice Smith", "role": "Director", "department": "Engineering"},
+    {"name": "Bob Jones", "role": "Manager", "department": "Sales"},
+    # ... more managers
+]
+
 # Instead of multiple individual POST requests
-# BAD - Uses 10 requests
+# BAD - Uses 10 requests (if managers_list has 10 items)
 for manager in managers_list:
     httpx.post("http://localhost:8000/managers", json=manager)
 
