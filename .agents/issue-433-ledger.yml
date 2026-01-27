@@ -5,10 +5,10 @@ branch: codex/issue-433
 tasks:
   - id: task-01
     title: Add `interval_s` parameter to `start_background_profiler()` in `api/memory_profiler.py`
-    status: doing
+    status: done
     started_at: '2026-01-27T21:32:07Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-27T21:32:15Z'
+    commit: 070bbdd9ad5be9dcc61e86b042284ae77cea1911
     notes: []
   - id: task-02
     title: 'Define scope for: Expose `interval_s` parameter in `start_background_profiler()`.
