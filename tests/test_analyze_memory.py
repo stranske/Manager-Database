@@ -28,6 +28,36 @@ def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:
     path.write_text("\n".join(content) + "\n", encoding="utf-8")
 
 
+def _build_stabilization_samples(
+    base_time: dt.datetime, *, pid: int = 42
+) -> list[analyze_memory.MemorySample]:
+    # Scope: 6h warmup growth, then 24+ hours of stabilized memory with small variance.
+    samples: list[analyze_memory.MemorySample] = []
+    for hour in range(6):
+        samples.append(
+            analyze_memory.MemorySample(
+                timestamp=base_time + dt.timedelta(hours=hour),
+                rss_kb=1000 + hour * 100,
+                vms_kb=3000 + hour * 150,
+                pid=pid,
+            )
+        )
+
+    stable_rss_values = [1600, 1620, 1590, 1610, 1605]
+    stable_vms_values = [3400, 3420, 3390, 3410, 3405]
+    for index, hour in enumerate(range(6, 32)):
+        samples.append(
+            analyze_memory.MemorySample(
+                timestamp=base_time + dt.timedelta(hours=hour),
+                rss_kb=stable_rss_values[index % len(stable_rss_values)],
+                vms_kb=stable_vms_values[index % len(stable_vms_values)],
+                pid=pid,
+            )
+        )
+
+    return samples
+
+
 def test_load_samples_parses_csv(tmp_path: Path) -> None:
     csv_path = tmp_path / "memory.csv"
     _write_csv(
@@ -245,31 +275,7 @@ def test_evaluate_stability_checks_post_warmup_slope() -> None:
 
 def test_memory_stabilization_over_24h_variance_below_threshold() -> None:
     base_time = dt.datetime(2026, 1, 25, 0, 0, tzinfo=dt.UTC)
-    samples: list[analyze_memory.MemorySample] = []
-
-    # Warmup period with growth over 6 hours.
-    for hour in range(6):
-        samples.append(
-            analyze_memory.MemorySample(
-                timestamp=base_time + dt.timedelta(hours=hour),
-                rss_kb=1000 + hour * 100,
-                vms_kb=3000 + hour * 150,
-                pid=42,
-            )
-        )
-
-    # Post-warmup stabilization over 24+ hours with small fluctuations.
-    stable_rss_values = [1600, 1620, 1590, 1610, 1605]
-    stable_vms_values = [3400, 3420, 3390, 3410, 3405]
-    for index, hour in enumerate(range(6, 32)):
-        samples.append(
-            analyze_memory.MemorySample(
-                timestamp=base_time + dt.timedelta(hours=hour),
-                rss_kb=stable_rss_values[index % len(stable_rss_values)],
-                vms_kb=stable_vms_values[index % len(stable_vms_values)],
-                pid=42,
-            )
-        )
+    samples = _build_stabilization_samples(base_time)
 
     summary = analyze_memory.summarize_samples(samples)
     assert summary.duration_s / 3600 >= 24
