@@ -186,6 +186,60 @@ async def test_run_profiler_loop_skips_when_snapshots_disabled(monkeypatch: Any)
 
 
 @pytest.mark.asyncio
+async def test_run_profiler_loop_handles_cancelled_log_diff(monkeypatch: Any) -> None:
+    class _CancelledLogProfiler(_LoopProfiler):
+        def log_diff(self) -> None:
+            raise asyncio.CancelledError
+
+    profiler = _CancelledLogProfiler()
+    sleep_calls: list[int] = []
+
+    async def fake_sleep(_interval: float) -> None:
+        sleep_calls.append(1)
+
+    monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
+
+    await memory_profiler._run_profiler_loop(
+        profiler,  # type: ignore[arg-type]
+        0.1,
+        log_enabled=True,
+        snapshot_enabled=True,
+        log_every_n=1,
+        snapshot_every_n=1,
+    )
+
+    assert sleep_calls == [1]
+    assert profiler.snapshot_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_handles_cancelled_capture(monkeypatch: Any) -> None:
+    class _CancelledCaptureProfiler(_LoopProfiler):
+        def capture_diff(self) -> list[memory_profiler.MemoryDiff]:
+            raise asyncio.CancelledError
+
+    profiler = _CancelledCaptureProfiler()
+    sleep_calls: list[int] = []
+
+    async def fake_sleep(_interval: float) -> None:
+        sleep_calls.append(1)
+
+    monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
+
+    await memory_profiler._run_profiler_loop(
+        profiler,  # type: ignore[arg-type]
+        0.1,
+        log_enabled=False,
+        snapshot_enabled=True,
+        log_every_n=1,
+        snapshot_every_n=1,
+    )
+
+    assert sleep_calls == [1]
+    assert profiler.log_calls == 0
+
+
+@pytest.mark.asyncio
 async def test_start_background_profiler_passes_interval(monkeypatch: Any) -> None:
     app = FastAPI()
     captured: dict[str, float] = {}
