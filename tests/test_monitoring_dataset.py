@@ -12,8 +12,7 @@ def test_monitoring_dataset_has_additional_samples() -> None:
     assert len(rows) >= 55
 
     timestamps = [
-        dt.datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
-        for row in rows
+        dt.datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")) for row in rows
     ]
     assert timestamps == sorted(timestamps)
     assert (timestamps[-1] - timestamps[0]) >= dt.timedelta(hours=48)
