@@ -87,3 +87,7 @@ show_missing = true
 [[tool.mypy.overrides]]
 module = ["adapters.*", "api.*", "etl.*", "embeddings"]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["scripts.langchain.*"]
+ignore_errors = true

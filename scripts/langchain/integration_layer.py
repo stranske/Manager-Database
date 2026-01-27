@@ -10,18 +10,10 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-
-def _load_label_matcher() -> Any:
-    try:
-        from scripts.langchain import label_matcher as label_module
-    except ModuleNotFoundError:
-        import label_matcher as fallback_module
-
-        return fallback_module
-    return label_module
-
-
-label_matcher: Any = _load_label_matcher()
+try:
+    from scripts.langchain import label_matcher
+except ModuleNotFoundError:
+    import label_matcher
 
 
 @dataclass
@@ -74,7 +66,7 @@ def _build_issue_text(issue: IssueData) -> str:
     return "\n\n".join(parts)
 
 
-def _build_label_store(labels: Iterable[Any]) -> Any | None:
+def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore | None:
     label_records = _collect_label_records(labels)
     if not label_records:
         return None
@@ -91,7 +83,7 @@ def _build_label_store(labels: Iterable[Any]) -> Any | None:
     )
 
 
-def _collect_label_records(labels: Iterable[Any]) -> list[Any]:
+def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRecord]:
     if labels is None:
         raise ValueError("labels must be an iterable of label records, not None.")
     if isinstance(labels, (str, bytes)):
@@ -113,7 +105,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list[Any]:
     return records
 
 
-def _coerce_label_record(item: Any) -> Any | None:
+def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
     if isinstance(item, label_matcher.LabelRecord):
         return item
     if isinstance(item, (str, bytes)):
@@ -142,7 +134,7 @@ def _coerce_label_record(item: Any) -> Any | None:
 
 
 def _select_label_names(
-    matches: Sequence[Any],
+    matches: Sequence[label_matcher.LabelMatch],
     *,
     max_labels: int | None = None,
 ) -> list[str]:

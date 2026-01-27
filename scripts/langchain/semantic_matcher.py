@@ -11,7 +11,6 @@ import math
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
 
 from tools.llm_provider import GITHUB_MODELS_BASE_URL
 
@@ -20,7 +19,7 @@ DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 
 @dataclass
 class EmbeddingClientInfo:
-    client: Any
+    client: object
     provider: str
     model: str
 
@@ -47,7 +46,7 @@ def get_embedding_client(model: str | None = None) -> EmbeddingClientInfo | None
         return EmbeddingClientInfo(
             client=OpenAIEmbeddings(
                 model=embedding_model,
-                api_key=openai_token,  # type: ignore[arg-type]
+                api_key=openai_token,
             ),
             provider="openai",
             model=embedding_model,
@@ -59,7 +58,7 @@ def get_embedding_client(model: str | None = None) -> EmbeddingClientInfo | None
             client=OpenAIEmbeddings(
                 model=embedding_model,
                 base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,  # type: ignore[arg-type]
+                api_key=github_token,
             ),
             provider="github-models",
             model=embedding_model,
