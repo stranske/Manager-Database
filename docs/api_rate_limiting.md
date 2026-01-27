@@ -125,10 +125,13 @@ def fetch_with_retry(url: str, max_retries: int = 3) -> dict:
                     time.sleep(retry_after)
                     continue
                 else:
-                    raise Exception("Max retries exceeded")
+                    raise Exception("Rate limit exceeded: max retries reached")
             
             # For other errors, raise immediately
             response.raise_for_status()
+        
+        # If we've exhausted all retries without success
+        raise Exception("Request failed after all retries")
 
 # Usage
 try:
@@ -169,10 +172,13 @@ def fetch_with_backoff(url: str, max_retries: int = 5) -> dict:
                     time.sleep(delay)
                     continue
                 else:
-                    raise Exception("Max retries exceeded")
+                    raise Exception("Rate limit exceeded: max retries reached")
             
             # For other errors, raise immediately
             response.raise_for_status()
+        
+        # If we've exhausted all retries without success
+        raise Exception("Request failed after all retries")
 ```
 
 ### 3. Monitor Rate Limit Headers
@@ -267,7 +273,7 @@ async function fetchWithRetry(url, maxRetries = 3) {
           continue;
         }
         
-        throw new Error('Max retries exceeded');
+        throw new Error('Rate limit exceeded: max retries reached');
       }
       
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -277,6 +283,9 @@ async function fetchWithRetry(url, maxRetries = 3) {
       }
     }
   }
+  
+  // If we've exhausted all retries without success
+  throw new Error('Request failed after all retries');
 }
 
 // Usage
@@ -303,6 +312,19 @@ class CachedAPIClient:
         self.base_url = base_url
         self.cache_ttl = cache_ttl
         self._cache = {}
+        self._client = httpx.Client()
+    
+    def close(self):
+        """Close the HTTP client."""
+        self._client.close()
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
     
     def get(self, path: str, use_cache: bool = True) -> dict:
         """Make GET request with optional caching."""
@@ -316,13 +338,19 @@ class CachedAPIClient:
                 return data
         
         # Make request
-        response = httpx.get(f"{self.base_url}{path}")
+        response = self._client.get(f"{self.base_url}{path}")
         response.raise_for_status()
         data = response.json()
         
         # Update cache
         self._cache[cache_key] = (data, time.time())
         return data
+
+# Usage with context manager (recommended)
+with CachedAPIClient("http://localhost:8000") as client:
+    data = client.get("/managers")
+    # Subsequent call returns cached data
+    data2 = client.get("/managers")
 ```
 
 ### 2. Implement Request Queuing
@@ -340,6 +368,19 @@ class RateLimitedQueue:
     def __init__(self, requests_per_minute: int):
         self.requests_per_minute = requests_per_minute
         self.request_times = deque()
+        self._client = httpx.Client()
+    
+    def close(self):
+        """Close the HTTP client."""
+        self._client.close()
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
     
     def _wait_if_needed(self):
         """Wait if necessary to respect rate limit."""
@@ -361,19 +402,18 @@ class RateLimitedQueue:
         """Make rate-limited request."""
         self._wait_if_needed()
         
-        response = httpx.get(url)
+        response = self._client.get(url)
         self.request_times.append(time.time())
         
         response.raise_for_status()
         return response.json()
 
-# Usage
-queue = RateLimitedQueue(requests_per_minute=60)
-
-# These requests will be automatically throttled
-for i in range(100):
-    data = queue.request("http://localhost:8000/managers")
-    print(f"Request {i+1} completed")
+# Usage with context manager (recommended)
+with RateLimitedQueue(requests_per_minute=60) as queue:
+    # These requests will be automatically throttled
+    for i in range(100):
+        data = queue.request("http://localhost:8000/managers")
+        print(f"Request {i+1} completed")
 ```
 
 ### 3. Batch Operations
@@ -381,8 +421,6 @@ for i in range(100):
 Use bulk endpoints when available to reduce request count:
 
 ```python
-import httpx
-
 # Assuming you have a list of managers to create
 managers_list = [
     {"name": "Alice Smith", "role": "Director", "department": "Engineering"},
@@ -392,14 +430,17 @@ managers_list = [
 
 # Instead of multiple individual POST requests
 # BAD - Uses 10 requests (if managers_list has 10 items)
-for manager in managers_list:
-    httpx.post("http://localhost:8000/managers", json=manager)
+# Note: In production, use context manager for proper resource management
+with httpx.Client() as client:
+    for manager in managers_list:
+        client.post("http://localhost:8000/managers", json=manager)
 
 # GOOD - Uses 1 request
-httpx.post(
-    "http://localhost:8000/managers/bulk",
-    json={"managers": managers_list}
-)
+with httpx.Client() as client:
+    client.post(
+        "http://localhost:8000/managers/bulk",
+        json={"managers": managers_list}
+    )
 ```
 
 ### 4. Monitor and Log Rate Limits
