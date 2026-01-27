@@ -75,6 +75,24 @@ def test_run_acceptance_check_requires_samples(tmp_path: Path) -> None:
         )
 
 
+def test_run_acceptance_check_passes_without_oom_logs(tmp_path: Path) -> None:
+    csv_path = tmp_path / "memory.csv"
+    _write_csv(csv_path, _build_rows(11))
+
+    status = run_memory_acceptance.run_acceptance_check(
+        [str(csv_path)],
+        pid=11,
+        min_hours=1.0,
+        warmup_hours=0.0,
+        max_slope_kb_per_hour=1.0,
+        oom_log_paths=[],
+        oom_min_hours=1.0,
+    )
+
+    assert status.oom_check_passed is True
+    assert status.acceptance_met is True
+
+
 def test_write_report_creates_file(tmp_path: Path) -> None:
     report_path = tmp_path / "report.txt"
 

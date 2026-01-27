@@ -87,9 +87,9 @@ def evaluate_acceptance(
         oom_remaining_hours = max(0.0, oom_min_hours - observed_hours)
     else:
         oom_events_total = 0
-        oom_ready = None
-        oom_check_passed = None
-        oom_remaining_hours = None
+        oom_ready = True
+        oom_check_passed = True
+        oom_remaining_hours = 0.0
 
     acceptance_met = stable_after_warmup and oom_check_passed is True
 

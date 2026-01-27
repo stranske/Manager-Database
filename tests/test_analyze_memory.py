@@ -1,6 +1,7 @@
 import datetime as dt
 import importlib.util
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "analyze_memory.py"
@@ -26,6 +27,43 @@ def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:
     for timestamp, rss, vms, pid in rows:
         content.append(f"{timestamp},{rss},{vms},{pid}")
     path.write_text("\n".join(content) + "\n", encoding="utf-8")
+
+
+def _build_stabilization_samples(base_time: dt.datetime, *, pid: int = 42) -> list[Any]:
+    # Scope: 6h warmup growth, then 24+ hours of stabilized memory with dynamic jitter.
+    samples: list[Any] = []
+    warmup_hours = 6
+    for hour in range(warmup_hours):
+        samples.append(
+            analyze_memory.MemorySample(
+                timestamp=base_time + dt.timedelta(hours=hour),
+                rss_kb=1000 + hour * 100,
+                vms_kb=3000 + hour * 150,
+                pid=pid,
+            )
+        )
+
+    stable_rss_base = 1600
+    stable_vms_base = 3400
+    jitter_pattern = [0, 20, -15, 10, -5, 15, -10, 5]
+    day_cycle = [12, 18, 8, -6, -12, -4, 6, 14]
+    # Deterministic jitter + a small day-cycle keeps the data dynamic while settling.
+    for index, hour in enumerate(range(warmup_hours, 32)):
+        scale = 1.0 - min(index, 12) * 0.025
+        jitter = int(jitter_pattern[index % len(jitter_pattern)] * scale)
+        cycle = day_cycle[index % len(day_cycle)]
+        rss_value = stable_rss_base + jitter + cycle
+        vms_value = stable_vms_base + jitter * 2 + cycle
+        samples.append(
+            analyze_memory.MemorySample(
+                timestamp=base_time + dt.timedelta(hours=hour),
+                rss_kb=rss_value,
+                vms_kb=vms_value,
+                pid=pid,
+            )
+        )
+
+    return samples
 
 
 def test_load_samples_parses_csv(tmp_path: Path) -> None:
@@ -241,6 +279,23 @@ def test_evaluate_stability_checks_post_warmup_slope() -> None:
     assert count == 2
     assert slope == 0.0
     assert stable is True
+
+
+def test_memory_stabilization_over_24h_variance_below_threshold() -> None:
+    base_time = dt.datetime(2026, 1, 25, 0, 0, tzinfo=dt.UTC)
+    samples = _build_stabilization_samples(base_time)
+
+    summary = analyze_memory.summarize_samples(samples)
+    assert summary.duration_s / 3600 >= 24
+
+    warmup_samples = analyze_memory.filter_after_warmup(samples, warmup_hours=6.0)
+    rss_values = [sample.rss_kb for sample in warmup_samples]
+    rss_avg = sum(rss_values) / len(rss_values)
+    variance_ratio = (max(rss_values) - min(rss_values)) / rss_avg
+
+    # Stabilized data should still exhibit some deterministic movement.
+    assert len(set(rss_values)) > 1
+    assert variance_ratio <= 0.05
 
 
 # Commit-message checklist:

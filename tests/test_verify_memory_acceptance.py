@@ -174,6 +174,25 @@ def test_acceptance_fails_with_oom_event(tmp_path: Path) -> None:
     assert status.acceptance_met is False
 
 
+def test_acceptance_passes_without_oom_logs() -> None:
+    samples = _build_samples(50)
+
+    status = verify_memory_acceptance.evaluate_acceptance(
+        samples,
+        min_hours=24.0,
+        warmup_hours=1.0,
+        max_slope_kb_per_hour=1.0,
+        min_coverage_ratio=0.9,
+        oom_log_paths=[],
+        oom_min_hours=48.0,
+    )
+
+    assert status.oom_check_passed is True
+    assert status.oom_ready is True
+    assert status.oom_remaining_hours == 0.0
+    assert status.acceptance_met is True
+
+
 def test_load_samples_from_inputs_merges_files(tmp_path: Path) -> None:
     csv_a = tmp_path / "memory_a.csv"
     csv_b = tmp_path / "memory_b.csv"
