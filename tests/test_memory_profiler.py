@@ -261,6 +261,7 @@ async def test_run_profiler_loop_handles_cancelled_log_diff(monkeypatch: Any) ->
     assert sleep_calls == [1]
     assert profiler.snapshot_calls == 0
 
+
 @pytest.mark.asyncio
 async def test_run_profiler_loop_handles_cancelled_capture(monkeypatch: Any) -> None:
     class _CancelledCaptureProfiler(_LoopProfiler):
