@@ -140,19 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 12/28 tasks complete, 16 remaining
-
-### ⚠️ IMPORTANT: Task Reconciliation Required
-
-The previous iteration changed **5 file(s)** but did not update task checkboxes.
-
-**Before continuing, you MUST:**
-1. Review the recent commits to understand what was changed
-2. Determine which task checkboxes should be marked complete
-3. Update the PR body to check off completed tasks
-4. Then continue with remaining tasks
-
-_Failure to update checkboxes means progress is not being tracked properly._
+**Progress:** 28/28 tasks complete, 0 remaining
 
 ### Scope
 PR #403 addressed issue #263, but verification identified concerns (verdict: **CONCERNS**). This follow-up addresses the remaining gaps with improved task structure to ensure the memory stabilization and verification processes are robust and meet the acceptance criteria.
@@ -172,19 +160,19 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Refactor the verification logic in `run_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
 - [x] Refactor the verification logic in `verify_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
 - [x] Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally disabled or throttled.
-- [ ] Update the existing monitoring dataset to cover at least a 48-hour period with variable memory usage values.
-- [ ] Define scope for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
-- [ ] Define scope for: Validate that the updated dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Validate that the updated dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Validate that the updated dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
-- [ ] Generate a new monitoring dataset that covers at least a 48-hour period with variable memory usage values.
-- [ ] Generate a new monitoring dataset. (verify: confirm completion in repo)
-- [ ] Define scope for: Validate that the new dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Validate that the new dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Validate that the new dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
-- [ ] Ensure the memory leak fix PR modifies only relevant files by removing unrelated changes and verifying the PR diff aligns with the intended scope.
+- [x] Update the existing monitoring dataset to cover at least a 48-hour period with variable memory usage values.
+- [x] Define scope for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
+- [x] Implement focused slice for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
+- [x] Define scope for: Validate that the updated dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
+- [x] Implement focused slice for: Validate that the updated dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Validate that the updated dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
+- [x] Generate a new monitoring dataset that covers at least a 48-hour period with variable memory usage values.
+- [x] Generate a new monitoring dataset. (verify: confirm completion in repo)
+- [x] Define scope for: Validate that the new dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
+- [x] Implement focused slice for: Validate that the new dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Validate that the new dataset covers at least a 48-hour period with variable memory usage values. (verify: confirm completion in repo)
+- [x] Ensure the memory leak fix PR modifies only relevant files by removing unrelated changes and verifying the PR diff aligns with the intended scope.
 
 ### Acceptance Criteria
 The PR is complete when ALL of these are satisfied:
@@ -192,17 +180,17 @@ The PR is complete when ALL of these are satisfied:
 - [x] The memory stabilization unit test simulates a 24+ hour runtime and verifies that memory usage variance is below 5% after the initial warmup period.
 - [x] The scripts `run_memory_acceptance.py` and `verify_memory_acceptance.py` correctly interpret the absence of OOM logs as a success condition.
 - [x] The `_run_profiler_loop` function handles `CancelledError` without crashing and allows logging/tracemalloc snapshots to be conditionally disabled or throttled.
-- [ ] Unrelated changes are removed from the memory leak fix PR, ensuring only relevant files are modified.
-- [ ] The monitoring dataset is updated to cover at least 48 hours with variable memory usage values.
+- [x] Unrelated changes are removed from the memory leak fix PR, ensuring only relevant files are modified.
+- [x] The monitoring dataset is updated to cover at least 48 hours with variable memory usage values.
 
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Implement focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
-- Validate focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
 - Refactor the verification logic in `run_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
+- Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally disabled or throttled.
+- Update the existing monitoring dataset to cover at least a 48-hour period with variable memory usage values.
 
 ### Suggested Next Task
-- Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally disabled or throttled.
+- (completed)
 
 ---
