@@ -50,6 +50,9 @@ async def fetch_and_store(cik: str, since: str):
         )
         """)
     results = []
+    row_count = 0
+    # Memory optimization: limit results accumulation for large datasets
+    max_results = int(os.getenv("MAX_RESULTS_IN_MEMORY", "100000"))
     for filing in filings:
         raw = await ADAPTER.download(filing)
         S3.put_object(
@@ -73,12 +76,16 @@ async def fetch_and_store(cik: str, since: str):
                     row["sshPrnamt"],
                 ),
             )
-        results.extend(parsed)
+            # Only accumulate results if under the memory threshold
+            if row_count < max_results:
+                results.append(row)
+            row_count += 1
+        # Commit after each filing to free transaction memory
+        conn.commit()
     logger.info(
         "Stored filings",
-        extra={"cik": cik, "filings": len(filings), "rows": len(results)},
+        extra={"cik": cik, "filings": len(filings), "rows": row_count},
     )
-    conn.commit()
     conn.close()
     return results
 

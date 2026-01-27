@@ -13,13 +13,15 @@ def _fetch_latest_sets(cik: str, db_path: str):
         "SELECT filed, cusip FROM holdings WHERE cik=? ORDER BY filed DESC",
         (cik,),
     )
-    rows = cur.fetchall()
-    conn.close()
-    if not rows:
-        raise SystemExit("CIK not found")
+    # Process rows one at a time to avoid loading entire dataset into memory
     grouped: dict[str, set[str]] = {}
-    for filed, cusip in rows:
+    row_count = 0
+    for filed, cusip in cur:
         grouped.setdefault(filed, set()).add(cusip)
+        row_count += 1
+    conn.close()
+    if row_count == 0:
+        raise SystemExit("CIK not found")
     dates = sorted(grouped.keys(), reverse=True)[:2]
     if len(dates) < 2:
         raise SystemExit("Need at least two filings")

@@ -89,13 +89,14 @@ def search_documents(query: str, db_path: str | None = None, k: int = 3) -> list
         ).fetchall()
         conn.close()
         return [{"content": content, "distance": dist} for content, dist in rows]
-    rows = conn.execute("SELECT content, embedding FROM documents").fetchall()
-    conn.close()
+    # Process documents one at a time to avoid loading entire dataset into memory
+    cur = conn.execute("SELECT content, embedding FROM documents")
     qvec = embed_text(query)
     results = []
-    for content, emb_json in rows:
+    for content, emb_json in cur:
         emb = json.loads(emb_json)
         dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(qvec, emb, strict=False)))
         results.append({"content": content, "distance": dist})
+    conn.close()
     results.sort(key=lambda r: r["distance"])
     return results[:k]
