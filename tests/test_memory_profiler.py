@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
+from fastapi import FastAPI
 
 from api import memory_profiler
 
@@ -182,6 +183,34 @@ async def test_run_profiler_loop_skips_when_snapshots_disabled(monkeypatch: Any)
 
     assert profiler.log_calls == 0
     assert profiler.snapshot_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_start_background_profiler_passes_interval(monkeypatch: Any) -> None:
+    app = FastAPI()
+    captured: dict[str, float] = {}
+
+    async def fake_run_profiler_loop(
+        _profiler: memory_profiler.MemoryLeakProfiler,
+        interval_s: float,
+        **_kwargs: object,
+    ) -> None:
+        captured["interval_s"] = interval_s
+
+    real_create_task = memory_profiler.asyncio.create_task
+
+    def passthrough_create_task(coro: object) -> asyncio.Task[object]:
+        return real_create_task(coro)  # type: ignore[arg-type]
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "true")
+    monkeypatch.setattr(memory_profiler, "_run_profiler_loop", fake_run_profiler_loop)
+    monkeypatch.setattr(memory_profiler.asyncio, "create_task", passthrough_create_task)
+
+    await memory_profiler.start_background_profiler(app, interval_s=12.5)
+    await app.state.memory_profiler_task
+
+    assert captured["interval_s"] == 12.5
+    await memory_profiler.stop_memory_profiler(app)
 
 
 # Commit-message checklist:
