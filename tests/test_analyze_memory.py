@@ -1,6 +1,7 @@
 import datetime as dt
 import importlib.util
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "analyze_memory.py"
@@ -30,9 +31,9 @@ def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:
 
 def _build_stabilization_samples(
     base_time: dt.datetime, *, pid: int = 42
-) -> list[analyze_memory.MemorySample]:
+) -> list[Any]:
     # Scope: 6h warmup growth, then 24+ hours of stabilized memory with dynamic jitter.
-    samples: list[analyze_memory.MemorySample] = []
+    samples: list[Any] = []
     warmup_hours = 6
     for hour in range(warmup_hours):
         samples.append(

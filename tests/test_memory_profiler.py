@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import pytest
 
 from api import memory_profiler
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 @dataclass(frozen=True)
@@ -29,7 +33,7 @@ class _FakeSnapshot:
         return self._stats
 
 
-def test_memory_profiler_filters_and_limits(monkeypatch) -> None:
+def test_memory_profiler_filters_and_limits(monkeypatch: Any) -> None:
     stats = [
         _FakeStat(size_diff=256 * 1024, count_diff=3, traceback=[_FakeFrame("a.py", 10)]),
         _FakeStat(size_diff=64 * 1024, count_diff=1, traceback=[_FakeFrame("b.py", 20)]),
@@ -60,7 +64,7 @@ def test_memory_profiler_filters_and_limits(monkeypatch) -> None:
     assert all(diff.size_diff_kb >= 16.0 for diff in diffs)
 
 
-def test_memory_profiler_scope_filters(monkeypatch) -> None:
+def test_memory_profiler_scope_filters(monkeypatch: Any) -> None:
     stats = [
         _FakeStat(size_diff=128 * 1024, count_diff=2, traceback=[_FakeFrame("a.py", 10)]),
         _FakeStat(size_diff=128 * 1024, count_diff=2, traceback=[_FakeFrame("b.py", 20)]),
@@ -87,7 +91,7 @@ def test_memory_profiler_scope_filters(monkeypatch) -> None:
     assert diffs[0].filename == "a.py"
 
 
-def test_memory_profiler_default_scope(monkeypatch) -> None:
+def test_memory_profiler_default_scope(monkeypatch: Any) -> None:
     stats = [
         _FakeStat(
             size_diff=128 * 1024,
@@ -131,7 +135,7 @@ class _LoopProfiler:
 
 
 @pytest.mark.asyncio
-async def test_run_profiler_loop_throttles(monkeypatch) -> None:
+async def test_run_profiler_loop_throttles(monkeypatch: Any) -> None:
     profiler = _LoopProfiler()
     sleep_calls: list[int] = []
 
@@ -143,7 +147,7 @@ async def test_run_profiler_loop_throttles(monkeypatch) -> None:
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
     await memory_profiler._run_profiler_loop(
-        profiler,
+        profiler,  # type: ignore[arg-type]
         0.1,
         log_enabled=True,
         snapshot_enabled=True,
@@ -156,7 +160,7 @@ async def test_run_profiler_loop_throttles(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_profiler_loop_skips_when_snapshots_disabled(monkeypatch) -> None:
+async def test_run_profiler_loop_skips_when_snapshots_disabled(monkeypatch: Any) -> None:
     profiler = _LoopProfiler()
     sleep_calls: list[int] = []
 
@@ -168,7 +172,7 @@ async def test_run_profiler_loop_skips_when_snapshots_disabled(monkeypatch) -> N
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
     await memory_profiler._run_profiler_loop(
-        profiler,
+        profiler,  # type: ignore[arg-type]
         0.1,
         log_enabled=True,
         snapshot_enabled=False,
