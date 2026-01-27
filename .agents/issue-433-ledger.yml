@@ -1,0 +1,306 @@
+version: 1
+issue: 433
+base: main
+branch: codex/issue-433
+tasks:
+  - id: task-01
+    title: Add `interval_s` parameter to `start_background_profiler()` in `api/memory_profiler.py`
+    status: doing
+    started_at: '2026-01-27T21:32:07Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: 'Define scope for: Expose `interval_s` parameter in `start_background_profiler()`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Implement focused slice for: Expose `interval_s` parameter in `start_background_profiler()`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Validate focused slice for: Expose `interval_s` parameter in `start_background_profiler()`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Define scope for: Ensure `_run_profiler_loop` correctly handles the `interval_s`
+      parameter. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Implement focused slice for: Ensure `_run_profiler_loop` correctly handles
+      the `interval_s` parameter. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Validate focused slice for: Ensure `_run_profiler_loop` correctly handles
+      the `interval_s` parameter. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Document the new parameter in the function docstring
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Add a unit test verifying the interval parameter is respected
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'Define scope for: Write a unit test to verify the default behavior when
+      `interval_s` is not provided.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Implement focused slice for: Write a unit test to verify the default behavior
+      when `interval_s` is not provided.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Validate focused slice for: Write a unit test to verify the default behavior
+      when `interval_s` is not provided.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Define scope for: Write a unit test to verify the profiler loop respects
+      a custom `interval_s` value.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Implement focused slice for: Write a unit test to verify the profiler
+      loop respects a custom `interval_s` value.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Validate focused slice for: Write a unit test to verify the profiler loop
+      respects a custom `interval_s` value.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: Add `interval_s` parameter to `start_background_profiler()` in `api/memory_profiler.py`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Define scope for: Expose `interval_s` parameter in `start_background_profiler()`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'Implement focused slice for: Expose `interval_s` parameter in `start_background_profiler()`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Validate focused slice for: Expose `interval_s` parameter in `start_background_profiler()`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: 'Define scope for: Ensure `_run_profiler_loop` correctly handles the `interval_s`
+      parameter. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: 'Implement focused slice for: Ensure `_run_profiler_loop` correctly handles
+      the `interval_s` parameter. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: 'Validate focused slice for: Ensure `_run_profiler_loop` correctly handles
+      the `interval_s` parameter. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: Document the new parameter in the function docstring
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: Add a unit test verifying the interval parameter is respected
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: 'Define scope for: Write a unit test to verify the default behavior when
+      `interval_s` is not provided.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: 'Implement focused slice for: Write a unit test to verify the default behavior
+      when `interval_s` is not provided.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: 'Validate focused slice for: Write a unit test to verify the default behavior
+      when `interval_s` is not provided.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: 'Define scope for: Write a unit test to verify the profiler loop respects
+      a custom `interval_s` value.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: 'Implement focused slice for: Write a unit test to verify the profiler
+      loop respects a custom `interval_s` value.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: 'Validate focused slice for: Write a unit test to verify the profiler loop
+      respects a custom `interval_s` value.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: '`start_background_profiler()` accepts an optional `interval_s` parameter
+      (default: current behavior)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: The profiler loop uses the provided interval between snapshots
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: A unit test confirms the interval parameter works correctly
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: All existing tests continue to pass
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: '`start_background_profiler()` accepts an optional `interval_s` parameter
+      (default: current behavior)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: The profiler loop uses the provided interval between snapshots
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: A unit test confirms the interval parameter works correctly
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: All existing tests continue to pass
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: All existing tests continue to pass (The agent cannot guarantee specific
+      test coverage or outcomes due to AGENT_LIMITATIONS. | Ensure test coverage is
+      verified manually or through CI pipelines.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
