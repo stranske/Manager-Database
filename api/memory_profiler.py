@@ -191,10 +191,17 @@ async def _run_profiler_loop(
             profiler.capture_diff()
 
 
-async def start_memory_profiler(app: FastAPI) -> None:
+async def start_background_profiler(app: FastAPI, *, interval_s: float | None = None) -> None:
+    """Start the background tracemalloc profiler.
+
+    Args:
+        interval_s: Optional interval (seconds) between snapshots. If unset, uses
+            MEMORY_PROFILE_INTERVAL_S (default 300.0s), clamped to a 10s minimum.
+    """
     if not _env_bool("MEMORY_PROFILE_ENABLED", False):
         return
-    interval_s = max(_env_float("MEMORY_PROFILE_INTERVAL_S", 300.0), 10.0)
+    env_interval_s = max(_env_float("MEMORY_PROFILE_INTERVAL_S", 300.0), 10.0)
+    interval_s = max(interval_s if interval_s is not None else env_interval_s, 10.0)
     top_n = _env_int("MEMORY_PROFILE_TOP_N", 10)
     min_kb = _env_float("MEMORY_PROFILE_MIN_KB", 64.0)
     frame_limit = _env_int("MEMORY_PROFILE_FRAMES", 25)
@@ -249,6 +256,10 @@ async def start_memory_profiler(app: FastAPI) -> None:
         max(1, log_every_n),
         max(1, snapshot_every_n),
     )
+
+
+async def start_memory_profiler(app: FastAPI, *, interval_s: float | None = None) -> None:
+    await start_background_profiler(app, interval_s=interval_s)
 
 
 async def stop_memory_profiler(app: FastAPI) -> None:
