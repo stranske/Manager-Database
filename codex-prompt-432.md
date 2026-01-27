@@ -140,7 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 4/28 tasks complete, 24 remaining
+**Progress:** 10/28 tasks complete, 18 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
@@ -166,11 +166,11 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Define scope for: Simulate a 24+ hour runtime scenario in the memory stabilization unit test. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Simulate a 24+ hour runtime scenario in the memory stabilization unit test. (verify: confirm completion in repo)
 - [x] Validate focused slice for: Simulate a 24+ hour runtime scenario in the memory stabilization unit test. (verify: confirm completion in repo)
-- [ ] Define scope for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
-- [ ] Refactor the verification logic in `run_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
-- [ ] Refactor the verification logic in `verify_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
+- [x] Define scope for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
+- [x] Implement focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
+- [x] Refactor the verification logic in `run_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
+- [x] Refactor the verification logic in `verify_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
 - [ ] Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally disabled or throttled.
 - [ ] Update the existing monitoring dataset to cover at least a 48-hour period with variable memory usage values.
 - [ ] Define scope for: Update the existing monitoring dataset to include additional data points. (verify: confirm completion in repo)
@@ -190,7 +190,7 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 The PR is complete when ALL of these are satisfied:
 
 - [x] The memory stabilization unit test simulates a 24+ hour runtime and verifies that memory usage variance is below 5% after the initial warmup period.
-- [ ] The scripts `run_memory_acceptance.py` and `verify_memory_acceptance.py` correctly interpret the absence of OOM logs as a success condition.
+- [x] The scripts `run_memory_acceptance.py` and `verify_memory_acceptance.py` correctly interpret the absence of OOM logs as a success condition.
 - [ ] The `_run_profiler_loop` function handles `CancelledError` without crashing and allows logging/tracemalloc snapshots to be conditionally disabled or throttled.
 - [ ] Unrelated changes are removed from the memory leak fix PR, ensuring only relevant files are modified.
 - [ ] The monitoring dataset is updated to cover at least 48 hours with variable memory usage values.
@@ -198,9 +198,11 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Update the memory stabilization unit test to simulate a 24+ hour runtime scenario with dynamic memory usage data that reflects stabilization.
+- Define scope for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
+- Implement focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
+- Validate focused slice for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Define scope for: Generate dynamic memory usage data that reflects stabilization for the test. (verify: confirm completion in repo)
+- Refactor the verification logic in `run_memory_acceptance.py` to interpret an absence of OOM logs as a success condition.
 
 ---
