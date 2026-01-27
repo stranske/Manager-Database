@@ -1,0 +1,342 @@
+version: 1
+issue: 429
+base: main
+branch: codex/issue-429
+tasks:
+  - id: task-01
+    title: Update the memory stabilization unit test to simulate a 24+ hour runtime
+      scenario with dynamic memory usage data that reflects stabilization.
+    status: doing
+    started_at: '2026-01-27T05:13:54Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: 'Define scope for: Simulate a 24+ hour runtime scenario in the memory stabilization
+      unit test. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Implement focused slice for: Simulate a 24+ hour runtime scenario in the
+      memory stabilization unit test. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Validate focused slice for: Simulate a 24+ hour runtime scenario in the
+      memory stabilization unit test. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Define scope for: Generate dynamic memory usage data that reflects stabilization
+      for the test. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Implement focused slice for: Generate dynamic memory usage data that reflects
+      stabilization for the test. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Validate focused slice for: Generate dynamic memory usage data that reflects
+      stabilization for the test. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Refactor the verification logic in `run_memory_acceptance.py` to interpret
+      an absence of OOM logs as a success condition.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Refactor the verification logic in `verify_memory_acceptance.py` to interpret
+      an absence of OOM logs as a success condition.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to
+      handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally
+      disabled or throttled.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Update the existing monitoring dataset to cover at least a 48-hour period
+      with variable memory usage values.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Define scope for: Update the existing monitoring dataset to include additional
+      data points. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Implement focused slice for: Update the existing monitoring dataset to
+      include additional data points. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Validate focused slice for: Update the existing monitoring dataset to
+      include additional data points. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Define scope for: Validate that the updated dataset covers at least a
+      48-hour period with variable memory usage values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Implement focused slice for: Validate that the updated dataset covers
+      at least a 48-hour period with variable memory usage values. (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Validate focused slice for: Validate that the updated dataset covers at
+      least a 48-hour period with variable memory usage values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: Generate a new monitoring dataset that covers at least a 48-hour period
+      with variable memory usage values.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Generate a new monitoring dataset. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: 'Define scope for: Validate that the new dataset covers at least a 48-hour
+      period with variable memory usage values. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: 'Implement focused slice for: Validate that the new dataset covers at least
+      a 48-hour period with variable memory usage values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: 'Validate focused slice for: Validate that the new dataset covers at least
+      a 48-hour period with variable memory usage values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: Ensure the memory leak fix PR modifies only relevant files by removing
+      unrelated changes and verifying the PR diff aligns with the intended scope.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: The memory stabilization unit test simulates a 24+ hour runtime and verifies
+      that memory usage variance is below 5% after the initial warmup period.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: The scripts `run_memory_acceptance.py` and `verify_memory_acceptance.py`
+      correctly interpret the absence of OOM logs as a success condition.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: The `_run_profiler_loop` function handles `CancelledError` without crashing
+      and allows logging/tracemalloc snapshots to be conditionally disabled or throttled.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: Unrelated changes are removed from the memory leak fix PR, ensuring only
+      relevant files are modified.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: The monitoring dataset is updated to cover at least 48 hours with variable
+      memory usage values.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: Update the memory stabilization unit test to simulate a 24+ hour runtime
+      scenario with dynamic memory usage data that reflects stabilization.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: Refactor the verification logic in `run_memory_acceptance.py` to interpret
+      an absence of OOM logs as a success condition.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: Refactor the verification logic in `verify_memory_acceptance.py` to interpret
+      an absence of OOM logs as a success condition.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: Revise the `_run_profiler_loop` function in `api/memory_profiler.py` to
+      handle `CancelledError` and ensure logging/tracemalloc snapshots can be conditionally
+      disabled or throttled.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: Update the existing monitoring dataset to cover at least a 48-hour period
+      with variable memory usage values.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: Generate a new monitoring dataset that covers at least a 48-hour period
+      with variable memory usage values.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: Ensure the memory leak fix PR modifies only relevant files by removing
+      unrelated changes and verifying the PR diff aligns with the intended scope.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: The memory stabilization unit test simulates a 24+ hour runtime and verifies
+      that memory usage variance is below 5% after the initial warmup period.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: The scripts `run_memory_acceptance.py` and `verify_memory_acceptance.py`
+      correctly interpret the absence of OOM logs as a success condition.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: The `_run_profiler_loop` function handles `CancelledError` without crashing
+      and allows logging/tracemalloc snapshots to be conditionally disabled or throttled.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: Unrelated changes are removed from the memory leak fix PR, ensuring only
+      relevant files are modified.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-40
+    title: The monitoring dataset is updated to cover at least 48 hours with variable
+      memory usage values.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-41
+    title: Ensure the memory leak fix PR modifies only relevant files by removing
+      unrelated changes and verifying the PR diff aligns with the intended scope.
+      (AGENT_LIMITATIONS prevent the agent from making subjective design decisions
+      or verifying PR diffs. | Provide clear guidelines for contributors to ensure
+      PRs are scoped correctly and reviewed manually.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
