@@ -140,7 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 22/23 tasks complete, 1 remaining
+**Progress:** 23/23 tasks complete, 0 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
@@ -184,7 +184,7 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 ### Acceptance Criteria
 The PR is complete when ALL of these are satisfied:
 
-- [ ] The pull request contains only changes directly related to memory leak stabilization and profiling.
+- [x] The pull request contains only changes directly related to memory leak stabilization and profiling.
 - [x] All modules that use `os.getenv`, such as `etl/edgar_flow.py`, must have the `os` module imported.
 - [x] The assertion in `tests/test_analyze_memory.py` verifies that `monitored_summary.duration_s` is within a specified tolerance of `monitored_duration_s`.
 - [x] The `_run_profiler_loop` in `profiler.py` properly handles `CancelledError` in `profiler.log_diff()` and `profiler.capture_diff()`, maintaining logging and snapshot capture cadence.
@@ -196,7 +196,7 @@ Avoid repeating these unless a task needs explicit follow-up:
 - Strip unrelated modifications from the PR to maintain focus on memory leak stabilization and profiling.
 
 ### Suggested Next Task
-- The pull request contains only changes directly related to memory leak stabilization and profiling.
+- All tasks complete.
 
 ### Source Context
 _For additional background, check these linked issues/PRs:_
