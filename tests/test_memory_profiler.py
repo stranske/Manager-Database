@@ -186,6 +186,30 @@ async def test_run_profiler_loop_skips_when_snapshots_disabled(monkeypatch: Any)
 
 
 @pytest.mark.asyncio
+async def test_run_profiler_loop_uses_interval(monkeypatch: Any) -> None:
+    profiler = _LoopProfiler()
+    intervals: list[float] = []
+
+    async def fake_sleep(interval: float) -> None:
+        intervals.append(interval)
+        if len(intervals) > 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
+
+    await memory_profiler._run_profiler_loop(
+        profiler,  # type: ignore[arg-type]
+        2.5,
+        log_enabled=False,
+        snapshot_enabled=False,
+        log_every_n=1,
+        snapshot_every_n=1,
+    )
+
+    assert intervals == [2.5, 2.5, 2.5, 2.5]
+
+
+@pytest.mark.asyncio
 async def test_start_background_profiler_passes_interval(monkeypatch: Any) -> None:
     app = FastAPI()
     captured: dict[str, float] = {}
@@ -210,6 +234,35 @@ async def test_start_background_profiler_passes_interval(monkeypatch: Any) -> No
     await app.state.memory_profiler_task
 
     assert captured["interval_s"] == 12.5
+    await memory_profiler.stop_memory_profiler(app)
+
+
+@pytest.mark.asyncio
+async def test_start_background_profiler_defaults_interval(monkeypatch: Any) -> None:
+    app = FastAPI()
+    captured: dict[str, float] = {}
+
+    async def fake_run_profiler_loop(
+        _profiler: memory_profiler.MemoryLeakProfiler,
+        interval_s: float,
+        **_kwargs: object,
+    ) -> None:
+        captured["interval_s"] = interval_s
+
+    real_create_task = memory_profiler.asyncio.create_task
+
+    def passthrough_create_task(coro: object) -> asyncio.Task[object]:
+        return real_create_task(coro)  # type: ignore[arg-type]
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "true")
+    monkeypatch.delenv("MEMORY_PROFILE_INTERVAL_S", raising=False)
+    monkeypatch.setattr(memory_profiler, "_run_profiler_loop", fake_run_profiler_loop)
+    monkeypatch.setattr(memory_profiler.asyncio, "create_task", passthrough_create_task)
+
+    await memory_profiler.start_background_profiler(app)
+    await app.state.memory_profiler_task
+
+    assert captured["interval_s"] == 300.0
     await memory_profiler.stop_memory_profiler(app)
 
 
