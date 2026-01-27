@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 import json
 import math
 import os
@@ -89,13 +90,23 @@ def search_documents(query: str, db_path: str | None = None, k: int = 3) -> list
         ).fetchall()
         conn.close()
         return [{"content": content, "distance": dist} for content, dist in rows]
-    rows = conn.execute("SELECT content, embedding FROM documents").fetchall()
-    conn.close()
+    # Process documents one at a time to avoid loading entire dataset into memory
+    # Use a heap to keep only top k results, bounding memory to O(k) instead of O(n)
+    cur = conn.execute("SELECT content, embedding FROM documents")
     qvec = embed_text(query)
-    results = []
-    for content, emb_json in rows:
+    # Use a max heap (negate distances for heapq which is a min heap)
+    heap: list[tuple[float, dict[str, Any]]] = []
+    for content, emb_json in cur:
         emb = json.loads(emb_json)
         dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(qvec, emb, strict=False)))
-        results.append({"content": content, "distance": dist})
+        result = {"content": content, "distance": dist}
+        # Keep only k smallest distances using a max heap
+        if len(heap) < k:
+            heapq.heappush(heap, (-dist, result))
+        elif dist < -heap[0][0]:  # If this distance is smaller than the largest in heap
+            heapq.heapreplace(heap, (-dist, result))
+    conn.close()
+    # Extract results and sort by distance (ascending)
+    results = [item[1] for item in heap]
     results.sort(key=lambda r: r["distance"])
-    return results[:k]
+    return results
