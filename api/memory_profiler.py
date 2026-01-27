@@ -190,7 +190,6 @@ async def _run_profiler_loop(
             except asyncio.CancelledError:
                 logger.info("memory_profiler: profiler loop cancelled during log diff")
                 break
-            continue
         if iteration % snapshot_every_n == 0:
             try:
                 profiler.capture_diff()

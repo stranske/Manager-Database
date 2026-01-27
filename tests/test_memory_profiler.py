@@ -157,7 +157,7 @@ async def test_run_profiler_loop_throttles(monkeypatch: Any) -> None:
     )
 
     assert profiler.log_calls == 2
-    assert profiler.snapshot_calls == 2
+    assert profiler.snapshot_calls == 4
 
 
 @pytest.mark.asyncio
