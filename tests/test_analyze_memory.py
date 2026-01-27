@@ -31,9 +31,10 @@ def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:
 def _build_stabilization_samples(
     base_time: dt.datetime, *, pid: int = 42
 ) -> list[analyze_memory.MemorySample]:
-    # Scope: 6h warmup growth, then 24+ hours of stabilized memory with small variance.
+    # Scope: 6h warmup growth, then 24+ hours of stabilized memory with dynamic jitter.
     samples: list[analyze_memory.MemorySample] = []
-    for hour in range(6):
+    warmup_hours = 6
+    for hour in range(warmup_hours):
         samples.append(
             analyze_memory.MemorySample(
                 timestamp=base_time + dt.timedelta(hours=hour),
@@ -43,14 +44,18 @@ def _build_stabilization_samples(
             )
         )
 
-    stable_rss_values = [1600, 1620, 1590, 1610, 1605]
-    stable_vms_values = [3400, 3420, 3390, 3410, 3405]
-    for index, hour in enumerate(range(6, 32)):
+    stable_rss_base = 1600
+    stable_vms_base = 3400
+    jitter_pattern = [0, 20, -15, 10, -5, 15, -10, 5]
+    # Use deterministic jitter with mild dampening to simulate stabilization without randomness.
+    for index, hour in enumerate(range(warmup_hours, 32)):
+        scale = 1.0 - min(index, 10) * 0.03
+        jitter = int(jitter_pattern[index % len(jitter_pattern)] * scale)
         samples.append(
             analyze_memory.MemorySample(
                 timestamp=base_time + dt.timedelta(hours=hour),
-                rss_kb=stable_rss_values[index % len(stable_rss_values)],
-                vms_kb=stable_vms_values[index % len(stable_vms_values)],
+                rss_kb=stable_rss_base + jitter,
+                vms_kb=stable_vms_base + jitter * 2,
                 pid=pid,
             )
         )
