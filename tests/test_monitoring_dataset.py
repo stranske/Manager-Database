@@ -16,3 +16,8 @@ def test_monitoring_dataset_has_additional_samples() -> None:
     ]
     assert timestamps == sorted(timestamps)
     assert (timestamps[-1] - timestamps[0]) >= dt.timedelta(hours=48)
+
+    rss_values = [int(row["rss_kb"]) for row in rows]
+    vms_values = [int(row["vms_kb"]) for row in rows]
+    assert max(rss_values) > min(rss_values)
+    assert max(vms_values) > min(vms_values)
