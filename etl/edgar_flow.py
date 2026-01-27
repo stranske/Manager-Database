@@ -76,12 +76,13 @@ async def fetch_and_store(cik: str, since: str):
                     row["sshPrnamt"],
                 ),
             )
-            # Only accumulate results if under the memory threshold
-            if row_count < max_results:
-                results.append(row)
             row_count += 1
         # Commit after each filing to free transaction memory
         conn.commit()
+        # Only accumulate results if we haven't exceeded the threshold
+        # Check at filing level to avoid partial filing data in results
+        if row_count <= max_results:
+            results.extend(parsed)
     logger.info(
         "Stored filings",
         extra={"cik": cik, "filings": len(filings), "rows": row_count},
