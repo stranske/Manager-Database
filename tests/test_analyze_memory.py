@@ -292,6 +292,7 @@ def test_memory_stabilization_over_24h_variance_below_threshold() -> None:
     warmup_samples = analyze_memory.filter_after_warmup(samples, warmup_hours=warmup_hours)
     monitored_summary = analyze_memory.summarize_samples(warmup_samples)
     assert monitored_summary.duration_s / 3600 >= 24
+    assert monitored_summary.observed_duration_s / 3600 >= 24
     rss_values = [sample.rss_kb for sample in warmup_samples]
     rss_avg = sum(rss_values) / len(rss_values)
     variance_ratio = (max(rss_values) - min(rss_values)) / rss_avg
