@@ -29,9 +29,7 @@ def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:
     path.write_text("\n".join(content) + "\n", encoding="utf-8")
 
 
-def _build_stabilization_samples(
-    base_time: dt.datetime, *, pid: int = 42
-) -> list[Any]:
+def _build_stabilization_samples(base_time: dt.datetime, *, pid: int = 42) -> list[Any]:
     # Scope: 6h warmup growth, then 24+ hours of stabilized memory with dynamic jitter.
     samples: list[Any] = []
     warmup_hours = 6
