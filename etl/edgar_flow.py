@@ -63,6 +63,8 @@ async def fetch_and_store(cik: str, since: str):
         )
         parsed = await ADAPTER.parse(raw)
         store_document(raw)
+        # Check threshold before processing to decide if we keep results
+        should_keep_results = row_count < max_results
         for row in parsed:
             conn.execute(
                 "INSERT INTO holdings VALUES (?,?,?,?,?,?,?)",
@@ -79,9 +81,9 @@ async def fetch_and_store(cik: str, since: str):
             row_count += 1
         # Commit after each filing to free transaction memory
         conn.commit()
-        # Only accumulate results if we haven't exceeded the threshold
-        # Check at filing level to avoid partial filing data in results
-        if row_count <= max_results:
+        # Only accumulate results if we checked the threshold before processing
+        # This ensures consistent filing-level behavior
+        if should_keep_results:
             results.extend(parsed)
     logger.info(
         "Stored filings",
