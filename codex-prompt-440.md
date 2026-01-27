@@ -140,7 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 14/31 tasks complete, 17 remaining
+**Progress:** 18/31 tasks complete, 13 remaining
 
 ### Scope
 PR #432 addressed issue #429 but verification identified concerns (verdict: **CONCERNS**). This follow-up addresses the remaining gaps with improved task structure.
@@ -165,15 +165,15 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Implement focused slice for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
 - [x] Validate focused slice for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
 - [x] Adjust the control flow in _run_profiler_loop to ensure logging does not skip snapshot captures if both are due.
-- [ ] Define scope for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
-- [ ] snapshot captures are executed as scheduled. (verify: confirm completion in repo)
-- [ ] Define scope for: Ensure that logging does not interfere with snapshot captures when both are due. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Ensure that logging does not interfere with snapshot captures when both are due. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Ensure that logging does not interfere with snapshot captures when both are due. (verify: confirm completion in repo)
+- [x] Define scope for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
+- [x] Implement focused slice for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
+- [x] Validate focused slice for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
+- [x] snapshot captures are executed as scheduled. (verify: confirm completion in repo)
+- [x] Define scope for: Ensure that logging does not interfere with snapshot captures when both are due. (verify: confirm completion in repo)
+- [x] Implement focused slice for: Ensure that logging does not interfere with snapshot captures when both are due. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Ensure that logging does not interfere with snapshot captures when both are due. (verify: confirm completion in repo)
 - [ ] Review and remove all unrelated changes from the PR, including modifications to GitHub Actions scripting and rate limit wrappers.
-- [ ] Ensure run_memory_acceptance.py reflects the intended logic for interpreting the absence of OOM logs as a success condition.
+- [x] Ensure run_memory_acceptance.py reflects the intended logic for interpreting the absence of OOM logs as a success condition.
 - [ ] Update or confirm the monitoring dataset used in tests to simulate at least 48 hours of variable memory usage data.
 
 ### Acceptance Criteria
@@ -183,17 +183,17 @@ The PR is complete when ALL of these are satisfied:
 - [ ] The `_run_profiler_loop` function handles `CancelledError` during `profiler.log_diff()` and `profiler.capture_diff()` without crashing.
 - [x] The `_run_profiler_loop` function ensures logging and snapshot captures occur at their configured cadences without one interfering with the other.
 - [ ] The PR contains only changes directly related to memory leak stabilization and profiling, with no unrelated modifications.
-- [ ] The `run_memory_acceptance.py` script interprets the absence of OOM logs as a success condition.
+- [x] The `run_memory_acceptance.py` script interprets the absence of OOM logs as a success condition.
 - [ ] The monitoring dataset used in tests simulates at least 48 hours of variable memory usage data.
 
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Define scope for: Update the memory stabilization unit test to calculate the monitored duration by subtracting the warmup period. (verify: confirm completion in repo)
 - Refactor the _run_profiler_loop function to wrap profiler.log_diff() and profiler.capture_diff() in try/except blocks to handle CancelledError.
 - Define scope for: Wrap `profiler.log_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
+- Define scope for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Define scope for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
+- Define scope for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
 
 ---

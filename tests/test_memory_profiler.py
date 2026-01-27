@@ -161,6 +161,32 @@ async def test_run_profiler_loop_throttles(monkeypatch: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_profiler_loop_runs_log_and_snapshot_same_iteration(monkeypatch: Any) -> None:
+    profiler = _LoopProfiler()
+    sleep_calls: list[int] = []
+
+    async def fake_sleep(_interval: float) -> None:
+        sleep_calls.append(1)
+        if len(sleep_calls) > 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
+
+    await memory_profiler._run_profiler_loop(
+        profiler,  # type: ignore[arg-type]
+        0.1,
+        log_enabled=True,
+        snapshot_enabled=True,
+        log_every_n=2,
+        snapshot_every_n=2,
+    )
+
+    # Both operations should run when their cadence aligns.
+    assert profiler.log_calls == 1
+    assert profiler.snapshot_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_run_profiler_loop_skips_when_snapshots_disabled(monkeypatch: Any) -> None:
     profiler = _LoopProfiler()
     sleep_calls: list[int] = []
