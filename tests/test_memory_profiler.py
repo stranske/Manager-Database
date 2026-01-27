@@ -236,6 +236,29 @@ async def test_run_profiler_loop_uses_interval(monkeypatch: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_profiler_loop_clamps_non_positive_interval(monkeypatch: Any) -> None:
+    profiler = _LoopProfiler()
+    intervals: list[float] = []
+
+    async def fake_sleep(interval: float) -> None:
+        intervals.append(interval)
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
+
+    await memory_profiler._run_profiler_loop(
+        profiler,  # type: ignore[arg-type]
+        0.0,
+        log_enabled=False,
+        snapshot_enabled=False,
+        log_every_n=1,
+        snapshot_every_n=1,
+    )
+
+    assert intervals == [0.1]
+
+
+@pytest.mark.asyncio
 async def test_run_profiler_loop_handles_cancelled_log_diff(monkeypatch: Any) -> None:
     class _CancelledLogProfiler(_LoopProfiler):
         def log_diff(self) -> None:
