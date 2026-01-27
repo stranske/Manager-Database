@@ -140,19 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 7/31 tasks complete, 24 remaining
-
-### ⚠️ IMPORTANT: Task Reconciliation Required
-
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
-
-**Before continuing, you MUST:**
-1. Review the recent commits to understand what was changed
-2. Determine which task checkboxes should be marked complete
-3. Update the PR body to check off completed tasks
-4. Then continue with remaining tasks
-
-_Failure to update checkboxes means progress is not being tracked properly._
+**Progress:** 14/31 tasks complete, 17 remaining
 
 ### Scope
 PR #432 addressed issue #429 but verification identified concerns (verdict: **CONCERNS**). This follow-up addresses the remaining gaps with improved task structure.
@@ -169,14 +157,14 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Define scope for: Assert that the monitored duration is at least 24 hours. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Assert that the monitored duration is at least 24 hours. (verify: confirm completion in repo)
 - [x] Validate focused slice for: Assert that the monitored duration is at least 24 hours. (verify: confirm completion in repo)
-- [ ] Refactor the _run_profiler_loop function to wrap profiler.log_diff() and profiler.capture_diff() in try/except blocks to handle CancelledError.
-- [ ] Define scope for: Wrap `profiler.log_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Wrap `profiler.log_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Wrap `profiler.log_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
-- [ ] Define scope for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
-- [ ] Adjust the control flow in _run_profiler_loop to ensure logging does not skip snapshot captures if both are due.
+- [x] Refactor the _run_profiler_loop function to wrap profiler.log_diff() and profiler.capture_diff() in try/except blocks to handle CancelledError.
+- [x] Define scope for: Wrap `profiler.log_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
+- [x] Implement focused slice for: Wrap `profiler.log_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Wrap `profiler.log_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
+- [x] Define scope for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
+- [x] Implement focused slice for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
+- [x] Adjust the control flow in _run_profiler_loop to ensure logging does not skip snapshot captures if both are due.
 - [ ] Define scope for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
 - [ ] Implement focused slice for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
 - [ ] Validate focused slice for: Adjust the control flow in `_run_profiler_loop` to ensure logging (verify: confirm completion in repo)
@@ -193,7 +181,7 @@ The PR is complete when ALL of these are satisfied:
 
 - [ ] The memory stabilization unit test simulates a runtime with an initial warmup period followed by at least 24 hours of monitored execution, verifying that memory usage variance during the monitored period remains below 5%.
 - [ ] The `_run_profiler_loop` function handles `CancelledError` during `profiler.log_diff()` and `profiler.capture_diff()` without crashing.
-- [ ] The `_run_profiler_loop` function ensures logging and snapshot captures occur at their configured cadences without one interfering with the other.
+- [x] The `_run_profiler_loop` function ensures logging and snapshot captures occur at their configured cadences without one interfering with the other.
 - [ ] The PR contains only changes directly related to memory leak stabilization and profiling, with no unrelated modifications.
 - [ ] The `run_memory_acceptance.py` script interprets the absence of OOM logs as a success condition.
 - [ ] The monitoring dataset used in tests simulates at least 48 hours of variable memory usage data.
@@ -201,9 +189,11 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Modify the memory stabilization unit test to assert that the monitored duration (after any warmup period) is at least 24 hours.
+- Define scope for: Update the memory stabilization unit test to calculate the monitored duration by subtracting the warmup period. (verify: confirm completion in repo)
+- Refactor the _run_profiler_loop function to wrap profiler.log_diff() and profiler.capture_diff() in try/except blocks to handle CancelledError.
+- Define scope for: Wrap `profiler.log_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Define scope for: Update the memory stabilization unit test to calculate the monitored duration by subtracting the warmup period. (verify: confirm completion in repo)
+- Define scope for: Wrap `profiler.capture_diff()` in a try/except block to handle `CancelledError`. (verify: confirm completion in repo)
 
 ---
