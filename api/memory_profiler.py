@@ -183,13 +183,10 @@ async def _run_profiler_loop(
         # Compute due flags before executing so both actions run when scheduled.
         should_log = log_enabled and iteration % log_every_n == 0
         should_snapshot = iteration % snapshot_every_n == 0
-        try:
-            if should_log:
-                profiler.log_diff()
-            if should_snapshot:
-                profiler.capture_diff()
-        except asyncio.CancelledError:
-            raise
+        if should_log:
+            profiler.log_diff()
+        if should_snapshot:
+            profiler.capture_diff()
 
 
 async def start_background_profiler(app: FastAPI, *, interval_s: float | None = None) -> None:
