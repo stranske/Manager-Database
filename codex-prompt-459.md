@@ -140,19 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 26/29 tasks complete, 3 remaining
-
-### ⚠️ IMPORTANT: Task Reconciliation Required
-
-The previous iteration changed **5 file(s)** but did not update task checkboxes.
-
-**Before continuing, you MUST:**
-1. Review the recent commits to understand what was changed
-2. Determine which task checkboxes should be marked complete
-3. Update the PR body to check off completed tasks
-4. Then continue with remaining tasks
-
-_Failure to update checkboxes means progress is not being tracked properly._
+**Progress:** 29/29 tasks complete, 0 remaining
 
 ### Scope
 PR #452 attempted to resolve issue #451 but failed verification due to unmet acceptance criteria. This follow-up issue aims to address the remaining gaps with a refined task structure to ensure all criteria are met.
@@ -168,9 +156,9 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Implement focused slice for: Revert changes made to api/memory_profiler.py (verify: confirm completion in repo)
 - [x] Validate focused slice for: Revert changes made to api/memory_profiler.py (verify: confirm completion in repo)
 - [x] tests/test_memory_profiler.py. (verify: tests pass)
-- [ ] Define scope for: Migrate functionality from api/memory_profiler.py (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Migrate functionality from api/memory_profiler.py (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Migrate functionality from api/memory_profiler.py (verify: confirm completion in repo)
+- [x] Define scope for: Migrate functionality from api/memory_profiler.py (verify: confirm completion in repo)
+- [x] Implement focused slice for: Migrate functionality from api/memory_profiler.py (verify: confirm completion in repo)
+- [x] Validate focused slice for: Migrate functionality from api/memory_profiler.py (verify: confirm completion in repo)
 - [x] tests/test_memory_profiler.py to profiler.py (verify: tests pass)
 - [x] tests/profiler_test.py. (verify: tests pass)
 - [x] Review etl/edgar_flow.py to confirm if os.getenv is used. If it is, add 'import os' at the top of the file.
@@ -201,8 +189,9 @@ Avoid repeating these unless a task needs explicit follow-up:
 
 - Revert any modifications made to .github/scripts/github-rate-limited-wrapper.js, codex-prompt-445.md, and .agents/issue-444-ledger.yml in the current PR.
 - Revert changes made to api/memory_profiler.py and tests/test_memory_profiler.py or migrate their functionality completely to profiler.py and tests/profiler_test.py.
+- Define scope for: Revert changes made to api/memory_profiler.py (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Define scope for: Revert changes made to api/memory_profiler.py (verify: confirm completion in repo)
+- None (all tasks complete)
 
 ---

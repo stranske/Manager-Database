@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from fastapi import FastAPI
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -15,6 +17,27 @@ import profiler  # noqa: E402
 
 if TYPE_CHECKING:
     from typing import Any
+
+
+@dataclass(frozen=True)
+class _FakeFrame:
+    filename: str
+    lineno: int
+
+
+@dataclass(frozen=True)
+class _FakeStat:
+    size_diff: int
+    count_diff: int
+    traceback: list[_FakeFrame]
+
+
+class _FakeSnapshot:
+    def __init__(self, stats: list[_FakeStat]) -> None:
+        self._stats = stats
+
+    def compare_to(self, _other: object, _key_type: str) -> list[_FakeStat]:
+        return self._stats
 
 
 class _LoopProfiler:
@@ -28,6 +51,94 @@ class _LoopProfiler:
     def capture_diff(self) -> list[profiler.MemoryDiff]:
         self.snapshot_calls += 1
         return []
+
+
+def test_memory_profiler_filters_and_limits(monkeypatch: Any) -> None:
+    stats = [
+        _FakeStat(size_diff=256 * 1024, count_diff=3, traceback=[_FakeFrame("a.py", 10)]),
+        _FakeStat(size_diff=64 * 1024, count_diff=1, traceback=[_FakeFrame("b.py", 20)]),
+        _FakeStat(size_diff=8 * 1024, count_diff=-2, traceback=[_FakeFrame("c.py", 30)]),
+    ]
+    snapshots = [_FakeSnapshot([]), _FakeSnapshot(stats)]
+    monkeypatch.setattr(profiler.tracemalloc, "is_tracing", lambda: True)
+    monkeypatch.setattr(
+        profiler.tracemalloc,
+        "take_snapshot",
+        lambda: snapshots.pop(0),
+    )
+
+    # Disable default scope filters to focus on limit/min_kb behavior.
+    profiler_impl = profiler.MemoryLeakProfiler(
+        top_n=2,
+        min_kb=16.0,
+        frame_limit=5,
+        include_patterns=[],
+        exclude_patterns=[],
+    )
+    assert profiler_impl.capture_diff() == []
+
+    diffs = profiler_impl.capture_diff()
+    assert len(diffs) == 2
+    assert diffs[0].filename == "a.py"
+    assert diffs[1].filename == "b.py"
+    assert all(diff.size_diff_kb >= 16.0 for diff in diffs)
+
+
+def test_memory_profiler_scope_filters(monkeypatch: Any) -> None:
+    stats = [
+        _FakeStat(size_diff=128 * 1024, count_diff=2, traceback=[_FakeFrame("a.py", 10)]),
+        _FakeStat(size_diff=128 * 1024, count_diff=2, traceback=[_FakeFrame("b.py", 20)]),
+    ]
+    snapshots = [_FakeSnapshot([]), _FakeSnapshot(stats)]
+    monkeypatch.setattr(profiler.tracemalloc, "is_tracing", lambda: True)
+    monkeypatch.setattr(
+        profiler.tracemalloc,
+        "take_snapshot",
+        lambda: snapshots.pop(0),
+    )
+
+    profiler_impl = profiler.MemoryLeakProfiler(
+        top_n=5,
+        min_kb=1.0,
+        frame_limit=5,
+        include_patterns=["a.py", "b.py"],
+        exclude_patterns=["b.py"],
+    )
+    assert profiler_impl.capture_diff() == []
+
+    diffs = profiler_impl.capture_diff()
+    assert len(diffs) == 1
+    assert diffs[0].filename == "a.py"
+
+
+def test_memory_profiler_default_scope(monkeypatch: Any) -> None:
+    stats = [
+        _FakeStat(
+            size_diff=128 * 1024,
+            count_diff=2,
+            traceback=[_FakeFrame("/srv/app/api/chat.py", 10)],
+        ),
+        _FakeStat(
+            size_diff=128 * 1024,
+            count_diff=2,
+            traceback=[_FakeFrame("/usr/lib/python3.12/site-packages/foo.py", 20)],
+        ),
+    ]
+    snapshots = [_FakeSnapshot([]), _FakeSnapshot(stats)]
+    monkeypatch.setattr(profiler.tracemalloc, "is_tracing", lambda: True)
+    monkeypatch.setattr(
+        profiler.tracemalloc,
+        "take_snapshot",
+        lambda: snapshots.pop(0),
+    )
+
+    # Defaults should keep focus on repo-owned modules and ignore site-packages.
+    profiler_impl = profiler.MemoryLeakProfiler(top_n=5, min_kb=1.0, frame_limit=5)
+    assert profiler_impl.capture_diff() == []
+
+    diffs = profiler_impl.capture_diff()
+    assert len(diffs) == 1
+    assert diffs[0].filename.endswith("api/chat.py")
 
 
 @pytest.mark.asyncio
@@ -88,6 +199,59 @@ async def test_run_profiler_loop_handles_cancelled_capture(monkeypatch: Any) -> 
 
     assert sleep_calls == [1]
     assert profiler_impl.log_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_throttles(monkeypatch: Any) -> None:
+    profiler_impl = _LoopProfiler()
+    sleep_calls: list[int] = []
+
+    async def fake_sleep(_interval: float) -> None:
+        sleep_calls.append(1)
+        if len(sleep_calls) > 4:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(profiler.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await profiler._run_profiler_loop(
+            profiler_impl,
+            0.1,
+            log_enabled=True,
+            snapshot_enabled=True,
+            log_every_n=2,
+            snapshot_every_n=1,
+        )
+
+    assert profiler_impl.log_calls == 2
+    assert profiler_impl.snapshot_calls == 4
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_runs_log_and_snapshot_same_iteration(monkeypatch: Any) -> None:
+    profiler_impl = _LoopProfiler()
+    sleep_calls: list[int] = []
+
+    async def fake_sleep(_interval: float) -> None:
+        sleep_calls.append(1)
+        if len(sleep_calls) > 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(profiler.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await profiler._run_profiler_loop(
+            profiler_impl,
+            0.1,
+            log_enabled=True,
+            snapshot_enabled=True,
+            log_every_n=2,
+            snapshot_every_n=2,
+        )
+
+    # Both operations should run when their cadence aligns.
+    assert profiler_impl.log_calls == 1
+    assert profiler_impl.snapshot_calls == 1
 
 
 @pytest.mark.asyncio
@@ -242,3 +406,214 @@ async def test_run_profiler_loop_logs_without_snapshots(monkeypatch: Any) -> Non
     assert len(sleep_calls) == 7
     assert profiler_impl.log_calls == 3
     assert profiler_impl.snapshot_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_uses_interval(monkeypatch: Any) -> None:
+    profiler_impl = _LoopProfiler()
+    intervals: list[float] = []
+
+    async def fake_sleep(interval: float) -> None:
+        intervals.append(interval)
+        if len(intervals) > 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(profiler.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await profiler._run_profiler_loop(
+            profiler_impl,
+            2.5,
+            log_enabled=False,
+            snapshot_enabled=False,
+            log_every_n=1,
+            snapshot_every_n=1,
+        )
+
+    assert intervals == [2.5, 2.5, 2.5, 2.5]
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_clamps_non_positive_interval(monkeypatch: Any) -> None:
+    profiler_impl = _LoopProfiler()
+    intervals: list[float] = []
+
+    async def fake_sleep(interval: float) -> None:
+        intervals.append(interval)
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(profiler.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await profiler._run_profiler_loop(
+            profiler_impl,
+            0.0,
+            log_enabled=False,
+            snapshot_enabled=False,
+            log_every_n=1,
+            snapshot_every_n=1,
+        )
+
+    assert intervals == [0.1]
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_cadence_over_extended_run(monkeypatch: Any) -> None:
+    profiler_impl = _LoopProfiler()
+    sleep_calls: list[int] = []
+
+    async def fake_sleep(_interval: float) -> None:
+        sleep_calls.append(1)
+        if len(sleep_calls) > 12:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(profiler.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await profiler._run_profiler_loop(
+            profiler_impl,
+            0.1,
+            log_enabled=True,
+            snapshot_enabled=True,
+            log_every_n=3,
+            snapshot_every_n=2,
+        )
+
+    assert len(sleep_calls) == 13
+    assert profiler_impl.log_calls == 4
+    assert profiler_impl.snapshot_calls == 6
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_multiple_cancellations_preserve_cadence(
+    monkeypatch: Any,
+) -> None:
+    async def run_loop(iterations: int, log_every_n: int, snapshot_every_n: int) -> _LoopProfiler:
+        profiler_impl = _LoopProfiler()
+        sleep_calls: list[int] = []
+
+        async def fake_sleep(_interval: float) -> None:
+            sleep_calls.append(1)
+            if len(sleep_calls) > iterations:
+                raise asyncio.CancelledError
+
+        monkeypatch.setattr(profiler.asyncio, "sleep", fake_sleep)
+
+        with pytest.raises(asyncio.CancelledError):
+            await profiler._run_profiler_loop(
+                profiler_impl,
+                0.1,
+                log_enabled=True,
+                snapshot_enabled=True,
+                log_every_n=log_every_n,
+                snapshot_every_n=snapshot_every_n,
+            )
+
+        assert len(sleep_calls) == iterations + 1
+        assert profiler_impl.log_calls == iterations // log_every_n
+        assert profiler_impl.snapshot_calls == iterations // snapshot_every_n
+        return profiler_impl
+
+    await run_loop(iterations=15, log_every_n=3, snapshot_every_n=4)
+    await run_loop(iterations=22, log_every_n=2, snapshot_every_n=5)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("interval_s", [12.5, 1.0])
+async def test_start_background_profiler_passes_interval(
+    monkeypatch: Any, interval_s: float
+) -> None:
+    app = FastAPI()
+    captured: dict[str, float] = {}
+
+    async def fake_run_profiler_loop(
+        _profiler: profiler.MemoryLeakProfiler,
+        interval_s: float,
+        **_kwargs: object,
+    ) -> None:
+        captured["interval_s"] = interval_s
+
+    real_create_task = profiler.asyncio.create_task
+
+    def passthrough_create_task(coro: object) -> asyncio.Task[object]:
+        return real_create_task(coro)  # type: ignore[arg-type]
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "true")
+    monkeypatch.setattr(profiler, "_run_profiler_loop", fake_run_profiler_loop)
+    monkeypatch.setattr(profiler.asyncio, "create_task", passthrough_create_task)
+
+    await profiler.start_background_profiler(app, interval_s=interval_s)
+    await app.state.memory_profiler_task
+
+    assert captured["interval_s"] == interval_s
+    # Ensure the effective interval is stored for diagnostics.
+    assert app.state.memory_profiler_interval_s == interval_s
+    await profiler.stop_memory_profiler(app)
+
+
+@pytest.mark.asyncio
+async def test_start_background_profiler_defaults_interval(monkeypatch: Any) -> None:
+    app = FastAPI()
+    captured: dict[str, float] = {}
+
+    async def fake_run_profiler_loop(
+        _profiler: profiler.MemoryLeakProfiler,
+        interval_s: float,
+        **_kwargs: object,
+    ) -> None:
+        captured["interval_s"] = interval_s
+
+    real_create_task = profiler.asyncio.create_task
+
+    def passthrough_create_task(coro: object) -> asyncio.Task[object]:
+        return real_create_task(coro)  # type: ignore[arg-type]
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "true")
+    monkeypatch.delenv("MEMORY_PROFILE_INTERVAL_S", raising=False)
+    monkeypatch.setattr(profiler, "_run_profiler_loop", fake_run_profiler_loop)
+    monkeypatch.setattr(profiler.asyncio, "create_task", passthrough_create_task)
+
+    await profiler.start_background_profiler(app)
+    await app.state.memory_profiler_task
+
+    assert captured["interval_s"] == 300.0
+    assert app.state.memory_profiler_interval_s == 300.0
+    await profiler.stop_memory_profiler(app)
+
+
+@pytest.mark.asyncio
+async def test_start_background_profiler_rejects_non_positive_interval(monkeypatch: Any) -> None:
+    app = FastAPI()
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "true")
+
+    with pytest.raises(ValueError, match="interval_s must be positive"):
+        await profiler.start_background_profiler(app, interval_s=0.0)
+
+
+@pytest.mark.asyncio
+async def test_start_background_profiler_rejects_interval_when_disabled(monkeypatch: Any) -> None:
+    app = FastAPI()
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "false")
+
+    await profiler.start_background_profiler(app, interval_s=0.0)
+
+    assert getattr(app.state, "memory_profiler_task", None) is None
+
+
+@pytest.mark.asyncio
+async def test_start_background_profiler_rejects_env_interval(monkeypatch: Any) -> None:
+    app = FastAPI()
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "true")
+    monkeypatch.setenv("MEMORY_PROFILE_INTERVAL_S", "0")
+
+    with pytest.raises(ValueError, match="interval_s must be positive"):
+        await profiler.start_background_profiler(app)
+
+
+# Commit-message checklist:
+# - [ ] type is accurate (feat, fix, test)
+# - [ ] scope is clear (memory)
+# - [ ] summary is concise and imperative
