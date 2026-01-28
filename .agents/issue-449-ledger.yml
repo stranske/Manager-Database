@@ -7,10 +7,10 @@ tasks:
     title: Remove unrelated changes from the PR, specifically delete or revert modifications
       to .github/scripts/github-rate-limited-wrapper.js, codex-prompt-445.md, and
       .agents/issue-444-ledger.yml.
-    status: doing
+    status: done
     started_at: '2026-01-28T13:40:42Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-28T13:40:50Z'
+    commit: fbb467261c21ad13efb24b7e91c6bea473bd2c49
     notes: []
   - id: task-02
     title: In etl/edgar_flow.py, add or verify an 'import os' statement if os.getenv
