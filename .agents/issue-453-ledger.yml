@@ -1,0 +1,382 @@
+version: 1
+issue: 453
+base: main
+branch: codex/issue-453
+tasks:
+  - id: task-01
+    title: Restore or isolate the '.github/scripts/github-rate-limited-wrapper.js'
+      file so that only memory profiler specific changes are applied to it; remove
+      any unnecessary duplication or structural changes.
+    status: done
+    started_at: '2026-01-28T15:24:12Z'
+    finished_at: '2026-01-28T15:24:22Z'
+    commit: b61aca20b655db335aaacdd605352bca65a73143
+    notes: []
+  - id: task-02
+    title: 'Define scope for: Restore the ''.github/scripts/github-rate-limited-wrapper.js''
+      file to its original location. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Implement focused slice for: Restore the ''.github/scripts/github-rate-limited-wrapper.js''
+      file to its original location. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Validate focused slice for: Restore the ''.github/scripts/github-rate-limited-wrapper.js''
+      file to its original location. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Define scope for: Remove any unnecessary duplication or structural changes
+      in the ''.github/scripts/github-rate-limited-wrapper.js'' file (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Implement focused slice for: Remove any unnecessary duplication or structural
+      changes in the ''.github/scripts/github-rate-limited-wrapper.js'' file (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Validate focused slice for: Remove any unnecessary duplication or structural
+      changes in the ''.github/scripts/github-rate-limited-wrapper.js'' file (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Define scope for: ensuring only memory profiler-specific changes are applied.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: 'Implement focused slice for: ensuring only memory profiler-specific changes
+      are applied. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'Validate focused slice for: ensuring only memory profiler-specific changes
+      are applied. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Update the _run_profiler_loop() function to ensure that it does not catch
+      asyncio.CancelledError. Add or adjust a unit test that explicitly raises asyncio.CancelledError
+      inside _run_profiler_loop() and confirms that it propagates.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Define scope for: Update the _run_profiler_loop() function to ensure that
+      it does not catch asyncio.CancelledError. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Implement focused slice for: Update the _run_profiler_loop() function
+      to ensure that it does not catch asyncio.CancelledError. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Validate focused slice for: Update the _run_profiler_loop() function to
+      ensure that it does not catch asyncio.CancelledError. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Define scope for: Add or adjust a unit test that explicitly raises asyncio.CancelledError
+      inside _run_profiler_loop() (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Implement focused slice for: Add or adjust a unit test that explicitly
+      raises asyncio.CancelledError inside _run_profiler_loop() (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Validate focused slice for: Add or adjust a unit test that explicitly
+      raises asyncio.CancelledError inside _run_profiler_loop() (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'confirms that it propagates. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: Modify the start_background_profiler() function so that the ValueError
+      for a non-positive interval_s is raised only when the profiler is enabled. Add
+      unit tests to verify the intended behavior in both enabled and disabled scenarios.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: 'Define scope for: Modify the start_background_profiler() function so that
+      the ValueError for a non-positive interval_s is raised only when the profiler
+      is enabled. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: 'Implement focused slice for: Modify the start_background_profiler() function
+      so that the ValueError for a non-positive interval_s is raised only when the
+      profiler is enabled. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: 'Validate focused slice for: Modify the start_background_profiler() function
+      so that the ValueError for a non-positive interval_s is raised only when the
+      profiler is enabled. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: 'Define scope for: Add unit tests to verify the intended behavior of start_background_profiler()
+      in both enabled'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: 'Implement focused slice for: Add unit tests to verify the intended behavior
+      of start_background_profiler() in both enabled'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: 'Validate focused slice for: Add unit tests to verify the intended behavior
+      of start_background_profiler() in both enabled'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: 'disabled scenarios. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: Adjust the test setups in tests/test_github_rate_limited_wrapper_sync.py
+      to reflect the new repository structure. Ensure that the tests only reference
+      the '.github/scripts/github-rate-limited-wrapper.js' file and do not rely on
+      its presence in multiple locations.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: Optionally, update the main documentation (e.g., docs/README) to provide
+      a link or reference to docs/memory_profiler.md for better discoverability.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: The '.github/scripts/github-rate-limited-wrapper.js' file contains only
+      changes directly related to the memory profiler, with no unrelated modifications
+      or duplications.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: The '_run_profiler_loop()' function allows 'asyncio.CancelledError' to
+      propagate without being caught.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: The 'start_background_profiler()' function raises a 'ValueError' for non-positive
+      'interval_s' values only when the profiler is enabled.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: Tests in 'tests/test_github_rate_limited_wrapper_sync.py' reference only
+      the '.github/scripts/github-rate-limited-wrapper.js' file and do not rely on
+      its presence in multiple locations.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: The main documentation (e.g., docs/README.md) includes a link or reference
+      to 'docs/memory_profiler.md'.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: Restore or isolate the '.github/scripts/github-rate-limited-wrapper.js'
+      file so that only memory profiler specific changes are applied to it; remove
+      any unnecessary duplication or structural changes.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: Update the _run_profiler_loop() function to ensure that it does not catch
+      asyncio.CancelledError. Add or adjust a unit test that explicitly raises asyncio.CancelledError
+      inside _run_profiler_loop() and confirms that it propagates.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: Modify the start_background_profiler() function so that the ValueError
+      for a non-positive interval_s is raised only when the profiler is enabled. Add
+      unit tests to verify the intended behavior in both enabled and disabled scenarios.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: Adjust the test setups in tests/test_github_rate_limited_wrapper_sync.py
+      to reflect the new repository structure. Ensure that the tests only reference
+      the '.github/scripts/github-rate-limited-wrapper.js' file and do not rely on
+      its presence in multiple locations.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: Optionally, update the main documentation (e.g., docs/README) to provide
+      a link or reference to docs/memory_profiler.md for better discoverability.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: The '.github/scripts/github-rate-limited-wrapper.js' file contains only
+      changes directly related to the memory profiler, with no unrelated modifications
+      or duplications.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-40
+    title: The '_run_profiler_loop()' function allows 'asyncio.CancelledError' to
+      propagate without being caught.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-41
+    title: The 'start_background_profiler()' function raises a 'ValueError' for non-positive
+      'interval_s' values only when the profiler is enabled.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-42
+    title: Tests in 'tests/test_github_rate_limited_wrapper_sync.py' reference only
+      the '.github/scripts/github-rate-limited-wrapper.js' file and do not rely on
+      its presence in multiple locations.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-43
+    title: The main documentation (e.g., docs/README.md) includes a link or reference
+      to 'docs/memory_profiler.md'.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-44
+    title: Restore or isolate the '.github/scripts/github-rate-limited-wrapper.js'
+      file so that only memory profiler specific changes are applied to it; remove
+      any unnecessary duplication or structural changes. (The agent cannot modify
+      files in protected directories such as '.github/scripts/'. | Request manual
+      intervention or provide guidance for a human contributor to make these changes.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []

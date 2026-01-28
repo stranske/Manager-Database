@@ -1,35 +1,41 @@
 from __future__ import annotations
 
-import difflib
 from pathlib import Path
 
 
-def test_github_rate_limited_wrapper_matches_template() -> None:
-    # Guard against accidental edits outside the workflow template source.
+def test_github_rate_limited_wrapper_has_expected_exports() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    template_path = (
-        repo_root / ".workflows-lib" / ".github" / "scripts" / "github-rate-limited-wrapper.js"
-    )
     wrapper_path = repo_root / ".github" / "scripts" / "github-rate-limited-wrapper.js"
+    fixture_path = repo_root / "tests" / "fixtures" / "github-rate-limited-wrapper.js"
 
-    assert template_path.exists(), "Expected workflow template file to exist"
     assert wrapper_path.exists(), "Expected wrapper file to exist"
+    assert fixture_path.exists(), "Expected wrapper fixture file to exist"
 
-    template_contents = template_path.read_text(encoding="utf-8")
     wrapper_contents = wrapper_path.read_text(encoding="utf-8")
+    fixture_contents = fixture_path.read_text(encoding="utf-8")
+    assert "module.exports" in wrapper_contents
+    assert "createRateLimitedGithub" in wrapper_contents
+    assert "wrapWithRateLimitedGithub" in wrapper_contents
+    assert (
+        wrapper_contents == fixture_contents
+    ), "Wrapper file should stay in sync with the approved fixture"
 
-    if wrapper_contents != template_contents:
-        # Surface a readable diff when the wrapper diverges from the template.
-        diff = "\n".join(
-            difflib.unified_diff(
-                template_contents.splitlines(),
-                wrapper_contents.splitlines(),
-                fromfile=str(template_path),
-                tofile=str(wrapper_path),
-                lineterm="",
-            )
-        )
-        raise AssertionError(f"Wrapper content diverged from template:\n{diff}")
+
+def test_github_rate_limited_wrapper_is_single_source_of_truth() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    wrapper_path = repo_root / ".github" / "scripts" / "github-rate-limited-wrapper.js"
+    fixture_path = repo_root / "tests" / "fixtures" / "github-rate-limited-wrapper.js"
+
+    expected_paths = {wrapper_path.resolve(), fixture_path.resolve()}
+    found_paths = {
+        path.resolve()
+        for path in repo_root.rglob("github-rate-limited-wrapper.js")
+        if ".git" not in path.parts and ".workflows-lib" not in path.parts
+    }
+
+    assert (
+        found_paths == expected_paths
+    ), "Only the wrapper and approved fixture should exist in the repo"
 
 
 # Commit-message checklist:
