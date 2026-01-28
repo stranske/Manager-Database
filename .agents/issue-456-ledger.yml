@@ -8,10 +8,10 @@ tasks:
       update the `parse()` function or its documentation to clarify whether returning
       a dict is acceptable or if it needs to be a list. Modify the adapter output
       or provide a conversion layer as needed.
-    status: doing
+    status: done
     started_at: '2026-01-28T17:39:20Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-28T17:39:28Z'
+    commit: 9858f0528eb261c4c7e4a5f796d1bb705e71ce32
     notes: []
   - id: task-02
     title: 'Define scope for: Review the expected adapter API''s output format across
