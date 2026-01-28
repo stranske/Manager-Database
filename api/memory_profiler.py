@@ -177,11 +177,7 @@ async def _run_profiler_loop(
     log_every_n = max(1, log_every_n)
     snapshot_every_n = max(1, snapshot_every_n)
     while True:
-        try:
-            await asyncio.sleep(interval_s)
-        except asyncio.CancelledError:
-            logger.info("memory_profiler: profiler loop cancelled during sleep")
-            raise
+        await asyncio.sleep(interval_s)
         if not snapshot_enabled:
             continue
         iteration += 1
@@ -189,17 +185,9 @@ async def _run_profiler_loop(
         should_log = log_enabled and iteration % log_every_n == 0
         should_snapshot = iteration % snapshot_every_n == 0
         if should_log:
-            try:
-                profiler.log_diff()
-            except asyncio.CancelledError:
-                logger.info("memory_profiler: profiler loop cancelled during log")
-                raise
+            profiler.log_diff()
         if should_snapshot:
-            try:
-                profiler.capture_diff()
-            except asyncio.CancelledError:
-                logger.info("memory_profiler: profiler loop cancelled during snapshot")
-                raise
+            profiler.capture_diff()
 
 
 async def start_background_profiler(app: FastAPI, *, interval_s: float | None = None) -> None:
@@ -209,10 +197,10 @@ async def start_background_profiler(app: FastAPI, *, interval_s: float | None = 
         interval_s: Optional interval (seconds) between snapshots. If unset, uses
             MEMORY_PROFILE_INTERVAL_S (default 300.0s).
     """
-    if interval_s is not None and interval_s <= 0:
-        raise ValueError("interval_s must be positive")
     if not _env_bool("MEMORY_PROFILE_ENABLED", False):
         return
+    if interval_s is not None and interval_s <= 0:
+        raise ValueError("interval_s must be positive")
     env_interval_s = _env_float("MEMORY_PROFILE_INTERVAL_S", 300.0)
     interval_s = interval_s if interval_s is not None else env_interval_s
     if interval_s <= 0:
