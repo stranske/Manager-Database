@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 from pathlib import Path
 
 
@@ -17,7 +18,18 @@ def test_github_rate_limited_wrapper_matches_template() -> None:
     template_contents = template_path.read_text(encoding="utf-8")
     wrapper_contents = wrapper_path.read_text(encoding="utf-8")
 
-    assert wrapper_contents == template_contents
+    if wrapper_contents != template_contents:
+        # Surface a readable diff when the wrapper diverges from the template.
+        diff = "\n".join(
+            difflib.unified_diff(
+                template_contents.splitlines(),
+                wrapper_contents.splitlines(),
+                fromfile=str(template_path),
+                tofile=str(wrapper_path),
+                lineterm="",
+            )
+        )
+        raise AssertionError(f"Wrapper content diverged from template:\n{diff}")
 
 
 # Commit-message checklist:
