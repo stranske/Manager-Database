@@ -5,10 +5,10 @@ branch: codex/issue-129
 tasks:
   - id: task-01
     title: Research UK Companies House PDF filing format structure.
-    status: doing
+    status: done
     started_at: '2026-01-28T17:02:13Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-28T17:02:24Z'
+    commit: a7c3ded2606a9c4c553e4ffb0c221cd21201a6cf
     notes: []
   - id: task-02
     title: 'Define scope for: Identify common UK Companies House filing types (e.g.
