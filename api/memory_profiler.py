@@ -196,6 +196,8 @@ async def start_background_profiler(app: FastAPI, *, interval_s: float | None = 
         interval_s: Optional interval (seconds) between snapshots. If unset, uses
             MEMORY_PROFILE_INTERVAL_S (default 300.0s).
     """
+    if interval_s is not None and interval_s <= 0:
+        raise ValueError("interval_s must be positive")
     if not _env_bool("MEMORY_PROFILE_ENABLED", False):
         return
     env_interval_s = _env_float("MEMORY_PROFILE_INTERVAL_S", 300.0)

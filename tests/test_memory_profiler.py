@@ -370,6 +370,16 @@ async def test_start_background_profiler_rejects_non_positive_interval(monkeypat
         await memory_profiler.start_background_profiler(app, interval_s=0.0)
 
 
+@pytest.mark.asyncio
+async def test_start_background_profiler_rejects_interval_when_disabled(monkeypatch: Any) -> None:
+    app = FastAPI()
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "false")
+
+    with pytest.raises(ValueError, match="interval_s must be positive"):
+        await memory_profiler.start_background_profiler(app, interval_s=0.0)
+
+
 # Commit-message checklist:
 # - [ ] type is accurate (feat, fix, test)
 # - [ ] scope is clear (memory)

@@ -140,19 +140,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 14/17 tasks complete, 3 remaining
-
-### ⚠️ IMPORTANT: Task Reconciliation Required
-
-The previous iteration changed **5 file(s)** but did not update task checkboxes.
-
-**Before continuing, you MUST:**
-1. Review the recent commits to understand what was changed
-2. Determine which task checkboxes should be marked complete
-3. Update the PR body to check off completed tasks
-4. Then continue with remaining tasks
-
-_Failure to update checkboxes means progress is not being tracked properly._
+**Progress:** 11/22 tasks complete, 11 remaining
 
 ### Scope
 PR #443 addressed issue #433 but verification identified concerns (verdict: **CONCERNS**). This follow-up addresses the remaining gaps with improved task structure.
@@ -164,21 +152,21 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 
 - [x] Revert changes made to '.github/scripts/github-rate-limited-wrapper.js' to ensure only memory profiler-related code is modified.
 - [x] Define scope for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
-- [x] Implement focused slice for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
+- [ ] Implement focused slice for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
 - [x] Validate focused slice for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
-- [x] Define scope for: Verify that '.github/scripts/github-rate-limited-wrapper.js' contains only memory profiler-related modifications.
-- [x] Implement focused slice for: Verify that '.github/scripts/github-rate-limited-wrapper.js' contains only memory profiler-related modifications.
+- [ ] Define scope for: Verify that '.github/scripts/github-rate-limited-wrapper.js' contains only memory profiler-related modifications.
+- [ ] Implement focused slice for: Verify that '.github/scripts/github-rate-limited-wrapper.js' contains only memory profiler-related modifications.
 - [x] Validate focused slice for: Verify that '.github/scripts/github-rate-limited-wrapper.js' contains only memory profiler-related modifications.
 - [x] Modify _run_profiler_loop() to allow asyncio.CancelledError to propagate normally.
 - [x] Update start_background_profiler() to handle non-positive 'interval_s' values by either raising a ValueError or implementing a clamping behavior.
-- [x] Define scope for: Update start_background_profiler() to raise a ValueError for non-positive 'interval_s' values. (verify: confirm completion in repo)
+- [ ] Define scope for: Update start_background_profiler() to raise a ValueError for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Update start_background_profiler() to raise a ValueError for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [x] Validate focused slice for: Update start_background_profiler() to raise a ValueError for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [ ] Define scope for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [ ] Implement focused slice for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [ ] Validate focused slice for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [x] Add unit tests to verify that providing different 'interval_s' values results in the expected behavior.
-- [x] Review and update documentation regarding the side effect of storing the 'interval_s' value in app.state.memory_profiler_interval_s.
+- [ ] Review and update documentation regarding the side effect of storing the 'interval_s' value in app.state.memory_profiler_interval_s.
 
 ### Acceptance Criteria
 The PR is complete when ALL of these are satisfied:
@@ -192,10 +180,11 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Revert changes made to '.github/scripts/github-rate-limited-wrapper.js' to ensure only memory profiler-related code is modified.
 - Define scope for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
+- Implement focused slice for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
+- Define scope for: Verify that '.github/scripts/github-rate-limited-wrapper.js' contains only memory profiler-related modifications.
 
 ### Suggested Next Task
-- Define scope for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo)
+- Implement focused slice for: Verify that '.github/scripts/github-rate-limited-wrapper.js' contains only memory profiler-related modifications.
 
 ---
