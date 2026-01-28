@@ -7,10 +7,10 @@ tasks:
     title: Restore or isolate the '.github/scripts/github-rate-limited-wrapper.js'
       file so that only memory profiler specific changes are applied to it; remove
       any unnecessary duplication or structural changes.
-    status: doing
+    status: done
     started_at: '2026-01-28T15:24:12Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-28T15:24:22Z'
+    commit: b61aca20b655db335aaacdd605352bca65a73143
     notes: []
   - id: task-02
     title: 'Define scope for: Restore the ''.github/scripts/github-rate-limited-wrapper.js''
