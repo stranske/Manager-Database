@@ -191,14 +191,12 @@ async def _run_profiler_loop(
             try:
                 profiler.log_diff()
             except asyncio.CancelledError:
-                logger.info("memory_profiler: profiler loop cancelled during log diff")
-                break
+                logger.info("memory_profiler: log diff cancelled; continuing loop")
         if should_snapshot:
             try:
                 profiler.capture_diff()
             except asyncio.CancelledError:
-                logger.info("memory_profiler: profiler loop cancelled during snapshot capture")
-                break
+                logger.info("memory_profiler: snapshot capture cancelled; continuing loop")
 
 
 async def start_background_profiler(app: FastAPI, *, interval_s: float | None = None) -> None:
