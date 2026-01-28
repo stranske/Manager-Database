@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -147,14 +148,15 @@ async def test_run_profiler_loop_throttles(monkeypatch: Any) -> None:
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    await memory_profiler._run_profiler_loop(
-        profiler,  # type: ignore[arg-type]
-        0.1,
-        log_enabled=True,
-        snapshot_enabled=True,
-        log_every_n=2,
-        snapshot_every_n=1,
-    )
+    with pytest.raises(asyncio.CancelledError):
+        await memory_profiler._run_profiler_loop(
+            profiler,  # type: ignore[arg-type]
+            0.1,
+            log_enabled=True,
+            snapshot_enabled=True,
+            log_every_n=2,
+            snapshot_every_n=1,
+        )
 
     assert profiler.log_calls == 2
     assert profiler.snapshot_calls == 4
@@ -172,14 +174,15 @@ async def test_run_profiler_loop_runs_log_and_snapshot_same_iteration(monkeypatc
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    await memory_profiler._run_profiler_loop(
-        profiler,  # type: ignore[arg-type]
-        0.1,
-        log_enabled=True,
-        snapshot_enabled=True,
-        log_every_n=2,
-        snapshot_every_n=2,
-    )
+    with pytest.raises(asyncio.CancelledError):
+        await memory_profiler._run_profiler_loop(
+            profiler,  # type: ignore[arg-type]
+            0.1,
+            log_enabled=True,
+            snapshot_enabled=True,
+            log_every_n=2,
+            snapshot_every_n=2,
+        )
 
     # Both operations should run when their cadence aligns.
     assert profiler.log_calls == 1
@@ -198,14 +201,15 @@ async def test_run_profiler_loop_skips_when_snapshots_disabled(monkeypatch: Any)
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    await memory_profiler._run_profiler_loop(
-        profiler,  # type: ignore[arg-type]
-        0.1,
-        log_enabled=True,
-        snapshot_enabled=False,
-        log_every_n=1,
-        snapshot_every_n=1,
-    )
+    with pytest.raises(asyncio.CancelledError):
+        await memory_profiler._run_profiler_loop(
+            profiler,  # type: ignore[arg-type]
+            0.1,
+            log_enabled=True,
+            snapshot_enabled=False,
+            log_every_n=1,
+            snapshot_every_n=1,
+        )
 
     assert profiler.log_calls == 0
     assert profiler.snapshot_calls == 0
@@ -223,14 +227,15 @@ async def test_run_profiler_loop_uses_interval(monkeypatch: Any) -> None:
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    await memory_profiler._run_profiler_loop(
-        profiler,  # type: ignore[arg-type]
-        2.5,
-        log_enabled=False,
-        snapshot_enabled=False,
-        log_every_n=1,
-        snapshot_every_n=1,
-    )
+    with pytest.raises(asyncio.CancelledError):
+        await memory_profiler._run_profiler_loop(
+            profiler,  # type: ignore[arg-type]
+            2.5,
+            log_enabled=False,
+            snapshot_enabled=False,
+            log_every_n=1,
+            snapshot_every_n=1,
+        )
 
     assert intervals == [2.5, 2.5, 2.5, 2.5]
 
@@ -246,20 +251,24 @@ async def test_run_profiler_loop_clamps_non_positive_interval(monkeypatch: Any) 
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    await memory_profiler._run_profiler_loop(
-        profiler,  # type: ignore[arg-type]
-        0.0,
-        log_enabled=False,
-        snapshot_enabled=False,
-        log_every_n=1,
-        snapshot_every_n=1,
-    )
+    with pytest.raises(asyncio.CancelledError):
+        await memory_profiler._run_profiler_loop(
+            profiler,  # type: ignore[arg-type]
+            0.0,
+            log_enabled=False,
+            snapshot_enabled=False,
+            log_every_n=1,
+            snapshot_every_n=1,
+        )
 
     assert intervals == [0.1]
 
 
 @pytest.mark.asyncio
-async def test_run_profiler_loop_handles_cancelled_log_diff(monkeypatch: Any) -> None:
+async def test_run_profiler_loop_handles_cancelled_log_diff(
+    monkeypatch: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     class _CancelledLogProfiler(_LoopProfiler):
         def log_diff(self) -> None:
             raise asyncio.CancelledError
@@ -274,21 +283,31 @@ async def test_run_profiler_loop_handles_cancelled_log_diff(monkeypatch: Any) ->
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    await memory_profiler._run_profiler_loop(
-        profiler,  # type: ignore[arg-type]
-        0.1,
-        log_enabled=True,
-        snapshot_enabled=True,
-        log_every_n=1,
-        snapshot_every_n=1,
+    with caplog.at_level(logging.INFO, logger=memory_profiler.__name__):
+        with pytest.raises(asyncio.CancelledError):
+            await memory_profiler._run_profiler_loop(
+                profiler,  # type: ignore[arg-type]
+                0.1,
+                log_enabled=True,
+                snapshot_enabled=True,
+                log_every_n=1,
+                snapshot_every_n=1,
+            )
+
+    assert any(
+        "memory_profiler: profiler loop cancelled during log" in record.message
+        for record in caplog.records
     )
 
-    assert sleep_calls == [1, 1]
-    assert profiler.snapshot_calls == 1
+    assert sleep_calls == [1]
+    assert profiler.snapshot_calls == 0
 
 
 @pytest.mark.asyncio
-async def test_run_profiler_loop_handles_cancelled_capture(monkeypatch: Any) -> None:
+async def test_run_profiler_loop_handles_cancelled_capture(
+    monkeypatch: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     class _CancelledCaptureProfiler(_LoopProfiler):
         def capture_diff(self) -> list[memory_profiler.MemoryDiff]:
             raise asyncio.CancelledError
@@ -303,17 +322,84 @@ async def test_run_profiler_loop_handles_cancelled_capture(monkeypatch: Any) -> 
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    await memory_profiler._run_profiler_loop(
-        profiler,  # type: ignore[arg-type]
-        0.1,
-        log_enabled=True,
-        snapshot_enabled=True,
-        log_every_n=1,
-        snapshot_every_n=1,
+    with caplog.at_level(logging.INFO, logger=memory_profiler.__name__):
+        with pytest.raises(asyncio.CancelledError):
+            await memory_profiler._run_profiler_loop(
+                profiler,  # type: ignore[arg-type]
+                0.1,
+                log_enabled=True,
+                snapshot_enabled=True,
+                log_every_n=1,
+                snapshot_every_n=1,
+            )
+
+    assert sleep_calls == [1]
+    assert profiler.log_calls == 1
+    assert any(
+        "memory_profiler: profiler loop cancelled during snapshot" in record.message
+        for record in caplog.records
     )
 
-    assert sleep_calls == [1, 1]
-    assert profiler.log_calls == 1
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_cadence_over_extended_run(monkeypatch: Any) -> None:
+    profiler = _LoopProfiler()
+    sleep_calls: list[int] = []
+
+    async def fake_sleep(_interval: float) -> None:
+        sleep_calls.append(1)
+        if len(sleep_calls) > 12:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await memory_profiler._run_profiler_loop(
+            profiler,  # type: ignore[arg-type]
+            0.1,
+            log_enabled=True,
+            snapshot_enabled=True,
+            log_every_n=3,
+            snapshot_every_n=2,
+        )
+
+    assert len(sleep_calls) == 13
+    assert profiler.log_calls == 4
+    assert profiler.snapshot_calls == 6
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_multiple_cancellations_preserve_cadence(
+    monkeypatch: Any,
+) -> None:
+    async def run_loop(iterations: int, log_every_n: int, snapshot_every_n: int) -> _LoopProfiler:
+        profiler = _LoopProfiler()
+        sleep_calls: list[int] = []
+
+        async def fake_sleep(_interval: float) -> None:
+            sleep_calls.append(1)
+            if len(sleep_calls) > iterations:
+                raise asyncio.CancelledError
+
+        monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
+
+        with pytest.raises(asyncio.CancelledError):
+            await memory_profiler._run_profiler_loop(
+                profiler,  # type: ignore[arg-type]
+                0.1,
+                log_enabled=True,
+                snapshot_enabled=True,
+                log_every_n=log_every_n,
+                snapshot_every_n=snapshot_every_n,
+            )
+
+        assert len(sleep_calls) == iterations + 1
+        assert profiler.log_calls == iterations // log_every_n
+        assert profiler.snapshot_calls == iterations // snapshot_every_n
+        return profiler
+
+    await run_loop(iterations=15, log_every_n=3, snapshot_every_n=4)
+    await run_loop(iterations=22, log_every_n=2, snapshot_every_n=5)
 
 
 @pytest.mark.asyncio
