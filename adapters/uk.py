@@ -60,6 +60,7 @@ async def parse(raw: bytes):
     """Parse a UK Companies House filing PDF into key metadata.
 
     Returns a list of dicts to match the adapter contract used elsewhere.
+    Results include a status field ("ok" or "error") alongside any errors.
     """
     if not raw:
         # Keep adapter output consistent: always return list-of-dicts.
@@ -89,12 +90,14 @@ async def parse(raw: bytes):
     if filing_type == "unsupported":
         errors.append("unsupported_filing_type")
 
+    status = "error" if errors else "ok"
     result = {
         "company_name": company_name or None,
         "filing_date": filing_date,
         "filing_type": filing_type,
         "company_number": company_number or None,
         "errors": errors,
+        "status": status,
     }
     # Return a list for parity with other adapters and the ETL flow.
     return [result]
@@ -104,9 +107,10 @@ def _error_result(reason: str) -> dict[str, str | None | list[str]]:
     return {
         "company_name": None,
         "filing_date": None,
-        "filing_type": "unsupported",
+        "filing_type": "error",
         "company_number": None,
         "errors": [reason],
+        "status": "error",
     }
 
 

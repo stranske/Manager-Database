@@ -110,8 +110,9 @@ async def test_parse_empty_pdf_returns_error():
 
     assert result["company_name"] is None
     assert result["filing_date"] is None
-    assert result["filing_type"] == "unsupported"
+    assert result["filing_type"] == "error"
     assert result["errors"] == ["empty_pdf"]
+    assert result["status"] == "error"
 
 
 @pytest.mark.asyncio
@@ -120,8 +121,9 @@ async def test_parse_unreadable_pdf_returns_error():
 
     assert result["company_name"] is None
     assert result["filing_date"] is None
-    assert result["filing_type"] == "unsupported"
+    assert result["filing_type"] == "error"
     assert result["errors"] == ["unreadable_pdf"]
+    assert result["status"] == "error"
 
 
 @pytest.mark.asyncio
@@ -131,8 +133,9 @@ async def test_parse_non_pdf_bytes_returns_error():
 
     assert result["company_name"] is None
     assert result["filing_date"] is None
-    assert result["filing_type"] == "unsupported"
+    assert result["filing_type"] == "error"
     assert result["errors"] == ["unreadable_pdf"]
+    assert result["status"] == "error"
 
 
 @pytest.mark.asyncio
@@ -147,6 +150,7 @@ async def test_parse_unsupported_filing_type_marks_error():
 
     assert result["filing_type"] == "unsupported"
     assert result["errors"] == ["unsupported_filing_type"]
+    assert result["status"] == "error"
 
 
 @pytest.mark.asyncio
