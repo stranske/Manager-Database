@@ -140,11 +140,11 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 22/22 tasks complete, 0 remaining
+**Progress:** 14/17 tasks complete, 3 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
+The previous iteration changed **5 file(s)** but did not update task checkboxes.
 
 **Before continuing, you MUST:**
 1. Review the recent commits to understand what was changed
@@ -162,7 +162,7 @@ PR #443 addressed issue #433 but verification identified concerns (verdict: **CO
 ### Tasks
 Complete these in order. Mark checkbox done ONLY after implementation is verified:
 
-- [x] Revert changes made to '.github/scripts/github-rate-limited-wrapper.js' to ensure only memory profiler-related code is modified. (verified no diff in repo)
+- [x] Revert changes made to '.github/scripts/github-rate-limited-wrapper.js' to ensure only memory profiler-related code is modified.
 - [x] Define scope for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
 - [x] Validate focused slice for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
@@ -174,9 +174,9 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 - [x] Define scope for: Update start_background_profiler() to raise a ValueError for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Update start_background_profiler() to raise a ValueError for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [x] Validate focused slice for: Update start_background_profiler() to raise a ValueError for non-positive 'interval_s' values. (verify: confirm completion in repo)
-- [x] Define scope for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo) (N/A - chose ValueError behavior)
-- [x] Implement focused slice for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo) (N/A - chose ValueError behavior)
-- [x] Validate focused slice for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo) (N/A - chose ValueError behavior)
+- [ ] Define scope for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo)
+- [ ] Implement focused slice for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo)
+- [ ] Validate focused slice for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo)
 - [x] Add unit tests to verify that providing different 'interval_s' values results in the expected behavior.
 - [x] Review and update documentation regarding the side effect of storing the 'interval_s' value in app.state.memory_profiler_interval_s.
 
@@ -193,8 +193,9 @@ The PR is complete when ALL of these are satisfied:
 Avoid repeating these unless a task needs explicit follow-up:
 
 - Revert changes made to '.github/scripts/github-rate-limited-wrapper.js' to ensure only memory profiler-related code is modified.
+- Define scope for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Define scope for: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'. (verify: confirm completion in repo)
+- Define scope for: Update start_background_profiler() to implement clamping behavior for non-positive 'interval_s' values. (verify: confirm completion in repo)
 
 ---
