@@ -140,11 +140,11 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 18/33 tasks complete, 15 remaining
+**Progress:** 32/33 tasks complete, 1 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
-The previous iteration changed **5 file(s)** but did not update task checkboxes.
+The previous iteration changed **7 file(s)** but did not update task checkboxes.
 
 **Before continuing, you MUST:**
 1. Review the recent commits to understand what was changed
@@ -162,16 +162,16 @@ PR #448 addressed issue #447 but verification identified concerns (verdict: **CO
 ### Tasks
 Complete these in order. Mark checkbox done ONLY after implementation is verified:
 
-- [ ] Restore or isolate the '.github/scripts/github-rate-limited-wrapper.js' file so that only memory profiler specific changes are applied to it; remove any unnecessary duplication or structural changes.
-- [ ] Define scope for: Restore the '.github/scripts/github-rate-limited-wrapper.js' file to its original location. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Restore the '.github/scripts/github-rate-limited-wrapper.js' file to its original location. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Restore the '.github/scripts/github-rate-limited-wrapper.js' file to its original location. (verify: confirm completion in repo)
-- [ ] Define scope for: Remove any unnecessary duplication or structural changes in the '.github/scripts/github-rate-limited-wrapper.js' file (verify: confirm completion in repo)
-- [ ] Implement focused slice for: Remove any unnecessary duplication or structural changes in the '.github/scripts/github-rate-limited-wrapper.js' file (verify: confirm completion in repo)
-- [ ] Validate focused slice for: Remove any unnecessary duplication or structural changes in the '.github/scripts/github-rate-limited-wrapper.js' file (verify: confirm completion in repo)
-- [ ] Define scope for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
-- [ ] Implement focused slice for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
-- [ ] Validate focused slice for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
+- [x] Restore or isolate the '.github/scripts/github-rate-limited-wrapper.js' file so that only memory profiler specific changes are applied to it; remove any unnecessary duplication or structural changes.
+- [x] Define scope for: Restore the '.github/scripts/github-rate-limited-wrapper.js' file to its original location. (verify: confirm completion in repo)
+- [x] Implement focused slice for: Restore the '.github/scripts/github-rate-limited-wrapper.js' file to its original location. (verify: confirm completion in repo)
+- [x] Validate focused slice for: Restore the '.github/scripts/github-rate-limited-wrapper.js' file to its original location. (verify: confirm completion in repo)
+- [x] Define scope for: Remove any unnecessary duplication or structural changes in the '.github/scripts/github-rate-limited-wrapper.js' file (verify: confirm completion in repo)
+- [x] Implement focused slice for: Remove any unnecessary duplication or structural changes in the '.github/scripts/github-rate-limited-wrapper.js' file (verify: confirm completion in repo)
+- [x] Validate focused slice for: Remove any unnecessary duplication or structural changes in the '.github/scripts/github-rate-limited-wrapper.js' file (verify: confirm completion in repo)
+- [x] Define scope for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
+- [x] Implement focused slice for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
+- [x] Validate focused slice for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
 - [x] Update the _run_profiler_loop() function to ensure that it does not catch asyncio.CancelledError. Add or adjust a unit test that explicitly raises asyncio.CancelledError inside _run_profiler_loop() and confirms that it propagates.
 - [x] Define scope for: Update the _run_profiler_loop() function to ensure that it does not catch asyncio.CancelledError. (verify: confirm completion in repo)
 - [x] Implement focused slice for: Update the _run_profiler_loop() function to ensure that it does not catch asyncio.CancelledError. (verify: confirm completion in repo)
@@ -194,7 +194,7 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 ### Acceptance Criteria
 The PR is complete when ALL of these are satisfied:
 
-- [ ] The '.github/scripts/github-rate-limited-wrapper.js' file contains only changes directly related to the memory profiler, with no unrelated modifications or duplications.
+- [x] The '.github/scripts/github-rate-limited-wrapper.js' file contains only changes directly related to the memory profiler, with no unrelated modifications or duplications.
 - [x] The '_run_profiler_loop()' function allows 'asyncio.CancelledError' to propagate without being caught.
 - [x] The 'start_background_profiler()' function raises a 'ValueError' for non-positive 'interval_s' values only when the profiler is enabled.
 - [x] Tests in 'tests/test_github_rate_limited_wrapper_sync.py' reference only the '.github/scripts/github-rate-limited-wrapper.js' file and do not rely on its presence in multiple locations.
@@ -203,9 +203,11 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Restore or isolate the '.github/scripts/github-rate-limited-wrapper.js' file so that only memory profiler specific changes are applied to it; remove any unnecessary duplication or structural changes.
+- Define scope for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
+- Implement focused slice for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
+- Validate focused slice for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Define scope for: Restore the '.github/scripts/github-rate-limited-wrapper.js' file to its original location. (verify: confirm completion in repo)
+- Validate focused slice for: ensuring only memory profiler-specific changes are applied. (verify: confirm completion in repo)
 
 ---
