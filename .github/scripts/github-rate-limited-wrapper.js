@@ -174,9 +174,9 @@ async function createRateLimitedGithub(options = {}) {
   // Create the proxied github object
   const proxiedGithub = new Proxy(baseClient, {
     get(target, prop) {
-      if (prop === 'rest' && target.rest) {
-        return createNamespaceProxy(target.rest, 'rest');
-      }
+  if (prop === 'rest' && target.rest) {
+    return createNamespaceProxy(target.rest, 'rest');
+  }
       
       if (prop === 'graphql' && typeof target.graphql === 'function') {
         return async function wrappedGraphql(...args) {
