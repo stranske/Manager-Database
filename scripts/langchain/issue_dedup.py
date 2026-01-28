@@ -5,16 +5,15 @@ Build FAISS vector stores for issue deduplication.
 
 from __future__ import annotations
 
-import importlib
 import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
 try:
-    semantic_matcher: Any = importlib.import_module("scripts.langchain.semantic_matcher")
+    from scripts.langchain import semantic_matcher
 except ModuleNotFoundError:
-    semantic_matcher = importlib.import_module("semantic_matcher")
+    import semantic_matcher
 
 
 @dataclass(frozen=True)
