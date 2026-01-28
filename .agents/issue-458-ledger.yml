@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Revert any modifications made to .github/scripts/github-rate-limited-wrapper.js,
       codex-prompt-445.md, and .agents/issue-444-ledger.yml in the current PR.
-    status: doing
+    status: done
     started_at: '2026-01-28T17:56:08Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-28T17:56:18Z'
+    commit: d84754db4542200c45d332291997c24cc7ddc05a
     notes: []
   - id: task-02
     title: Revert changes made to api/memory_profiler.py and tests/test_memory_profiler.py
