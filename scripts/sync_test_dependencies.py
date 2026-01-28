@@ -50,6 +50,7 @@ STDLIB_MODULES = {
     "csv",
     "datetime",
     "decimal",
+    "difflib",
     "fractions",
     "functools",
     "gc",
