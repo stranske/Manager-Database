@@ -351,6 +351,40 @@ async def test_run_profiler_loop_cadence_over_extended_run(monkeypatch: Any) -> 
 
 
 @pytest.mark.asyncio
+async def test_run_profiler_loop_multiple_cancellations_preserve_cadence(
+    monkeypatch: Any,
+) -> None:
+    async def run_loop(iterations: int, log_every_n: int, snapshot_every_n: int) -> _LoopProfiler:
+        profiler = _LoopProfiler()
+        sleep_calls: list[int] = []
+
+        async def fake_sleep(_interval: float) -> None:
+            sleep_calls.append(1)
+            if len(sleep_calls) > iterations:
+                raise asyncio.CancelledError
+
+        monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
+
+        with pytest.raises(asyncio.CancelledError):
+            await memory_profiler._run_profiler_loop(
+                profiler,  # type: ignore[arg-type]
+                0.1,
+                log_enabled=True,
+                snapshot_enabled=True,
+                log_every_n=log_every_n,
+                snapshot_every_n=snapshot_every_n,
+            )
+
+        assert len(sleep_calls) == iterations + 1
+        assert profiler.log_calls == iterations // log_every_n
+        assert profiler.snapshot_calls == iterations // snapshot_every_n
+        return profiler
+
+    await run_loop(iterations=15, log_every_n=3, snapshot_every_n=4)
+    await run_loop(iterations=22, log_every_n=2, snapshot_every_n=5)
+
+
+@pytest.mark.asyncio
 async def test_start_background_profiler_passes_interval(monkeypatch: Any) -> None:
     app = FastAPI()
     captured: dict[str, float] = {}
