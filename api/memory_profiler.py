@@ -172,6 +172,12 @@ async def _run_profiler_loop(
     log_every_n: int = 1,
     snapshot_every_n: int = 1,
 ) -> None:
+    if interval_s <= 0:
+        logger.warning(
+            "memory_profiler: interval_s=%s is non-positive; clamping to 0.1s",
+            interval_s,
+        )
+        interval_s = 0.1
     iteration = 0
     log_every_n = max(1, log_every_n)
     snapshot_every_n = max(1, snapshot_every_n)
@@ -236,6 +242,8 @@ async def start_background_profiler(app: FastAPI, *, interval_s: float | None = 
         include_patterns=include_patterns,
         exclude_patterns=exclude_patterns,
     )
+    # Record the effective interval for diagnostics and tests.
+    app.state.memory_profiler_interval_s = interval_s
     task = asyncio.create_task(
         _run_profiler_loop(
             profiler,
