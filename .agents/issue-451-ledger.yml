@@ -1,0 +1,309 @@
+version: 1
+issue: 451
+base: main
+branch: codex/issue-451
+tasks:
+  - id: task-01
+    title: Add an 'import os' line at the beginning of `etl/edgar_flow.py` if `os.getenv`
+      is being used.
+    status: done
+    started_at: '2026-01-28T14:26:08Z'
+    finished_at: '2026-01-28T14:26:18Z'
+    commit: 077c8c016bf46290fbf10047f0a89555865d2b3d
+    notes: []
+  - id: task-02
+    title: Modify the `_run_profiler_loop` function in `profiler.py` to handle cancellation
+      correctly by catching and re-raising `asyncio.CancelledError` from `profiler.log_diff()`
+      and `profiler.capture_diff()`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Define scope for: Modify the `_run_profiler_loop` function in `profiler.py`
+      to handle cancellation correctly by catching `asyncio.CancelledError`. (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Implement focused slice for: Modify the `_run_profiler_loop` function
+      in `profiler.py` to handle cancellation correctly by catching `asyncio.CancelledError`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Validate focused slice for: Modify the `_run_profiler_loop` function in
+      `profiler.py` to handle cancellation correctly by catching `asyncio.CancelledError`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Ensure `profiler.log_diff()` (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Define scope for: `profiler.capture_diff()` correctly re-raise `asyncio.CancelledError`.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Implement focused slice for: `profiler.capture_diff()` correctly re-raise
+      `asyncio.CancelledError`. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: 'Validate focused slice for: `profiler.capture_diff()` correctly re-raise
+      `asyncio.CancelledError`. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Create or update test cases in `tests/profiler_test.py` to simulate multiple
+      cancellation events over an extended period and verify logging and snapshot
+      capture cadence, including handling of `asyncio.CancelledError`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Define scope for: Create or update test cases in `tests/profiler_test.py`
+      to simulate multiple cancellation events over an extended period. (verify: tests
+      pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Implement focused slice for: Create or update test cases in `tests/profiler_test.py`
+      to simulate multiple cancellation events over an extended period. (verify: tests
+      pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Validate focused slice for: Create or update test cases in `tests/profiler_test.py`
+      to simulate multiple cancellation events over an extended period. (verify: tests
+      pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: Verify logging cadence during cancellation events in `tests/profiler_test.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: Verify snapshot capture cadence during cancellation events in `tests/profiler_test.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Define scope for: Ensure proper handling of `asyncio.CancelledError` in
+      `tests/profiler_test.py`. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Implement focused slice for: Ensure proper handling of `asyncio.CancelledError`
+      in `tests/profiler_test.py`. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'Validate focused slice for: Ensure proper handling of `asyncio.CancelledError`
+      in `tests/profiler_test.py`. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: Remove or revert changes made to `api/memory_profiler.py` and `tests/test_memory_profiler.py`,
+      or migrate those changes to `profiler.py` and `tests/profiler_test.py` as required.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: Audit the PR for unintended changes to `.github/scripts/github-rate-limited-wrapper.js`,
+      `codex-prompt-445.md`, and `.agents/issue-444-ledger.yml`, and remove those
+      changes if present.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: The `etl/edgar_flow.py` file includes 'import os' at the top if `os.getenv`
+      is used within the file.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: The `_run_profiler_loop` function in `profiler.py` catches and re-raises
+      `asyncio.CancelledError` from calls to `profiler.log_diff()` and `profiler.capture_diff()`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: Tests in `tests/profiler_test.py` simulate multiple cancellation events
+      over a prolonged duration and assert that logging and snapshot capture occur
+      at expected cadence, including verifying that `asyncio.CancelledError` is being
+      raised as intended.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: No changes are present in `api/memory_profiler.py` and `tests/test_memory_profiler.py`
+      unless they are migrated to `profiler.py` and `tests/profiler_test.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: No changes are made to `.github/scripts/github-rate-limited-wrapper.js`,
+      `codex-prompt-445.md`, and `.agents/issue-444-ledger.yml`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: Add an 'import os' line at the beginning of `etl/edgar_flow.py` if `os.getenv`
+      is being used.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: Modify the `_run_profiler_loop` function in `profiler.py` to handle cancellation
+      correctly by catching and re-raising `asyncio.CancelledError` from `profiler.log_diff()`
+      and `profiler.capture_diff()`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: Create or update test cases in `tests/profiler_test.py` to simulate multiple
+      cancellation events over an extended period and verify logging and snapshot
+      capture cadence, including handling of `asyncio.CancelledError`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: Remove or revert changes made to `api/memory_profiler.py` and `tests/test_memory_profiler.py`,
+      or migrate those changes to `profiler.py` and `tests/profiler_test.py` as required.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: Audit the PR for unintended changes to `.github/scripts/github-rate-limited-wrapper.js`,
+      `codex-prompt-445.md`, and `.agents/issue-444-ledger.yml`, and remove those
+      changes if present.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: The `etl/edgar_flow.py` file includes 'import os' at the top if `os.getenv`
+      is used within the file.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: The `_run_profiler_loop` function in `profiler.py` catches and re-raises
+      `asyncio.CancelledError` from calls to `profiler.log_diff()` and `profiler.capture_diff()`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: Tests in `tests/profiler_test.py` simulate multiple cancellation events
+      over a prolonged duration and assert that logging and snapshot capture occur
+      at expected cadence, including verifying that `asyncio.CancelledError` is being
+      raised as intended.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: No changes are present in `api/memory_profiler.py` and `tests/test_memory_profiler.py`
+      unless they are migrated to `profiler.py` and `tests/profiler_test.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: No changes are made to `.github/scripts/github-rate-limited-wrapper.js`,
+      `codex-prompt-445.md`, and `.agents/issue-444-ledger.yml`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: Audit the PR for unintended changes to `.github/scripts/github-rate-limited-wrapper.js`,
+      `codex-prompt-445.md`, and `.agents/issue-444-ledger.yml`, and remove those
+      changes if present. (The agent cannot modify `.github/scripts/github-rate-limited-wrapper.js`
+      or `.agents/issue-444-ledger.yml` due to AGENT_LIMITATIONS. | Delegate this
+      task to a human reviewer or provide a script for manual verification.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
