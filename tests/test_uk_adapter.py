@@ -47,6 +47,21 @@ async def test_parse_annual_return_parses_named_date():
 
 
 @pytest.mark.asyncio
+async def test_parse_company_name_in_full_label():
+    raw = _make_pdf_bytes(
+        "Confirmation Statement CS01",
+        "Company name in full: Atlas Holdings Ltd",
+        "Confirmation date: 02/01/2025",
+    )
+
+    result = await uk.parse(raw)
+
+    assert result["company_name"] == "Atlas Holdings Ltd"
+    assert result["filing_type"] == "confirmation_statement"
+    assert result["filing_date"] == "2025-01-02"
+
+
+@pytest.mark.asyncio
 async def test_parse_date_label_variants():
     # Ensure label variants from Companies House forms are recognized.
     cs01 = _make_pdf_bytes(

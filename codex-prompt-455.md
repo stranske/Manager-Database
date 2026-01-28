@@ -140,11 +140,11 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 26/26 tasks complete, 0 remaining
+**Progress:** 34/34 tasks complete, 0 remaining
 
-### ⚠️ IMPORTANT: Task Reconciliation Required
+### ✅ Task Reconciliation Completed
 
-The previous iteration changed **1 file(s)** but did not update task checkboxes.
+The previous iteration changed **4 file(s)** but did not update task checkboxes.
 
 **Before continuing, you MUST:**
 1. Review the recent commits to understand what was changed
@@ -206,8 +206,9 @@ The PR is complete when ALL of these are satisfied:
 Avoid repeating these unless a task needs explicit follow-up:
 
 - Research UK Companies House PDF filing format structure.
+- Define scope for: Identify common UK Companies House filing types (e.g. (verify: confirm completion in repo)
 
 ### Suggested Next Task
-- Define scope for: Identify common UK Companies House filing types (e.g. (verify: confirm completion in repo)
+- Implement focused slice for: Identify common UK Companies House filing types (e.g. (verify: confirm completion in repo)
 
 ---

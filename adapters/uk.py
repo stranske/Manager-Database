@@ -72,7 +72,8 @@ async def parse(raw: bytes):
     lines = _split_lines(text)
     company_name = _find_labeled_value(
         lines,
-        labels=("company name", "name of company"),
+        # Companies House forms often use "Company name in full".
+        labels=("company name in full", "company name", "name of company"),
     )
     company_number = _find_company_number(lines)
     filing_date = _find_filing_date(lines, text)
