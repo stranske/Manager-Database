@@ -172,21 +172,11 @@ async def _run_profiler_loop(
     log_every_n: int = 1,
     snapshot_every_n: int = 1,
 ) -> None:
-    if interval_s <= 0:
-        logger.warning(
-            "memory_profiler: interval_s=%s is non-positive; clamping to 0.1s",
-            interval_s,
-        )
-        interval_s = 0.1
     iteration = 0
     log_every_n = max(1, log_every_n)
     snapshot_every_n = max(1, snapshot_every_n)
     while True:
-        try:
-            await asyncio.sleep(interval_s)
-        except asyncio.CancelledError:
-            logger.info("memory_profiler: profiler loop cancelled")
-            break
+        await asyncio.sleep(interval_s)
         if not snapshot_enabled:
             continue
         iteration += 1
@@ -194,15 +184,9 @@ async def _run_profiler_loop(
         should_log = log_enabled and iteration % log_every_n == 0
         should_snapshot = iteration % snapshot_every_n == 0
         if should_log:
-            try:
-                profiler.log_diff()
-            except asyncio.CancelledError:
-                logger.info("memory_profiler: log diff cancelled; continuing loop")
+            profiler.log_diff()
         if should_snapshot:
-            try:
-                profiler.capture_diff()
-            except asyncio.CancelledError:
-                logger.info("memory_profiler: snapshot capture cancelled; continuing loop")
+            profiler.capture_diff()
 
 
 async def start_background_profiler(app: FastAPI, *, interval_s: float | None = None) -> None:
@@ -210,12 +194,14 @@ async def start_background_profiler(app: FastAPI, *, interval_s: float | None = 
 
     Args:
         interval_s: Optional interval (seconds) between snapshots. If unset, uses
-            MEMORY_PROFILE_INTERVAL_S (default 300.0s), clamped to a 10s minimum.
+            MEMORY_PROFILE_INTERVAL_S (default 300.0s).
     """
     if not _env_bool("MEMORY_PROFILE_ENABLED", False):
         return
-    env_interval_s = max(_env_float("MEMORY_PROFILE_INTERVAL_S", 300.0), 10.0)
-    interval_s = max(interval_s if interval_s is not None else env_interval_s, 10.0)
+    env_interval_s = _env_float("MEMORY_PROFILE_INTERVAL_S", 300.0)
+    interval_s = interval_s if interval_s is not None else env_interval_s
+    if interval_s <= 0:
+        raise ValueError("interval_s must be positive")
     top_n = _env_int("MEMORY_PROFILE_TOP_N", 10)
     min_kb = _env_float("MEMORY_PROFILE_MIN_KB", 64.0)
     frame_limit = _env_int("MEMORY_PROFILE_FRAMES", 25)
