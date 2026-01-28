@@ -54,7 +54,7 @@ async function createRateLimitedGithub(options = {}) {
   // Create a wrapper that retries API calls with token switching
   // The `path` is used to locate the method on the fresh client during retry
   function wrapApiMethod(path) {
-    const wrappedMethod = async function wrappedMethod(...args) {
+    return async function wrappedMethod(...args) {
       return withRetry((client) => {
         // Navigate to the method on the (possibly fresh) client
         const pathParts = path.split('.');
@@ -68,25 +68,6 @@ async function createRateLimitedGithub(options = {}) {
         return target.apply(client, args);
       });
     };
-    Object.defineProperty(wrappedMethod, '__octokitPath', {
-      value: path,
-      enumerable: false,
-      configurable: false,
-      writable: false,
-    });
-    return wrappedMethod;
-  }
-
-  function resolveMethod(client, method) {
-    if (method && method.__octokitPath) {
-      const pathParts = method.__octokitPath.split('.');
-      let target = client;
-      for (const part of pathParts) {
-        target = target?.[part];
-      }
-      return target;
-    }
-    return method;
   }
 
   function createNamespaceProxy(namespace, pathPrefix) {
@@ -114,15 +95,13 @@ async function createRateLimitedGithub(options = {}) {
   function createWrappedPaginate(originalPaginate) {
     // Wrap the main paginate function
     const wrappedPaginate = async function (method, params, ...rest) {
-      // The method is an Octokit endpoint like github.rest.issues.listComments.
-      // Resolve the method on the retry-selected client to preserve token switching.
-      return withRetry((client) => {
-        const resolvedMethod = resolveMethod(client, method);
-        if (typeof resolvedMethod !== 'function') {
-          throw new Error('paginate method target is not callable');
-        }
-        return client.paginate(resolvedMethod, params, ...rest);
-      });
+      // The method is an Octokit endpoint like github.rest.issues.listComments
+      // We must use baseClient.paginate directly because:
+      // 1. The method arg may be a proxied endpoint bound to the wrapped client
+      // 2. Octokit's paginate needs the endpoint to be from the same client instance
+      // 3. Using withRetry with (client) => client.paginate would pass a different client
+      //    which breaks the endpoint's internal binding to route.endpoint
+      return withRetry(async () => baseClient.paginate(method, params, ...rest));
     };
     
     // Add iterator method that wraps each page fetch with retry logic
@@ -131,8 +110,7 @@ async function createRateLimitedGithub(options = {}) {
       // Get the original async iterable from the base client
       // Note: paginate.iterator() returns an async iterable (has [Symbol.asyncIterator])
       // not a direct async iterator (with .next). We need to get the iterator from it.
-  const resolvedMethod = resolveMethod(baseClient, method);
-  const originalIterable = baseClient.paginate.iterator(resolvedMethod, params, ...rest);
+      const originalIterable = baseClient.paginate.iterator(method, params, ...rest);
       
       // Return a wrapped async iterable that:
       // 1. Applies retry to each next() call for rate limit resilience
@@ -174,9 +152,14 @@ async function createRateLimitedGithub(options = {}) {
   // Create the proxied github object
   const proxiedGithub = new Proxy(baseClient, {
     get(target, prop) {
-  if (prop === 'rest' && target.rest) {
-    return createNamespaceProxy(target.rest, 'rest');
-  }
+      // For 'rest' namespace, return the original baseClient.rest directly
+      // This is critical because paginate.iterator needs the original endpoint
+      // methods with their internal route.endpoint() bindings intact.
+      // Wrapping rest methods breaks paginate since Octokit expects the
+      // endpoint to be the actual method object, not a wrapped function.
+      if (prop === 'rest' && target.rest) {
+        return target.rest;
+      }
       
       if (prop === 'graphql' && typeof target.graphql === 'function') {
         return async function wrappedGraphql(...args) {
