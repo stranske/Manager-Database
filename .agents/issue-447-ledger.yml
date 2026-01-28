@@ -1,0 +1,276 @@
+version: 1
+issue: 447
+base: main
+branch: codex/issue-447
+tasks:
+  - id: task-01
+    title: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'
+      to ensure only memory profiler-related code is modified.
+    status: done
+    started_at: '2026-01-28T04:09:42Z'
+    finished_at: '2026-01-28T04:09:49Z'
+    commit: 1509ca8fe987a9d25eb7b49aa73cf60905eb85ec
+    notes: []
+  - id: task-02
+    title: 'Define scope for: Revert changes made to ''.github/scripts/github-rate-limited-wrapper.js''.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Implement focused slice for: Revert changes made to ''.github/scripts/github-rate-limited-wrapper.js''.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Validate focused slice for: Revert changes made to ''.github/scripts/github-rate-limited-wrapper.js''.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Define scope for: Verify that ''.github/scripts/github-rate-limited-wrapper.js''
+      contains only memory profiler-related modifications.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Implement focused slice for: Verify that ''.github/scripts/github-rate-limited-wrapper.js''
+      contains only memory profiler-related modifications.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Validate focused slice for: Verify that ''.github/scripts/github-rate-limited-wrapper.js''
+      contains only memory profiler-related modifications.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Modify _run_profiler_loop() to allow asyncio.CancelledError to propagate
+      normally.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Update start_background_profiler() to handle non-positive 'interval_s'
+      values by either raising a ValueError or implementing a clamping behavior.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'Define scope for: Update start_background_profiler() to raise a ValueError
+      for non-positive ''interval_s'' values. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Implement focused slice for: Update start_background_profiler() to raise
+      a ValueError for non-positive ''interval_s'' values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Validate focused slice for: Update start_background_profiler() to raise
+      a ValueError for non-positive ''interval_s'' values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Define scope for: Update start_background_profiler() to implement clamping
+      behavior for non-positive ''interval_s'' values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Implement focused slice for: Update start_background_profiler() to implement
+      clamping behavior for non-positive ''interval_s'' values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Validate focused slice for: Update start_background_profiler() to implement
+      clamping behavior for non-positive ''interval_s'' values. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: Add unit tests to verify that providing different 'interval_s' values results
+      in the expected behavior.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: Review and update documentation regarding the side effect of storing the
+      'interval_s' value in app.state.memory_profiler_interval_s.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: The '.github/scripts/github-rate-limited-wrapper.js' file contains no changes
+      unrelated to the memory profiler.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: The '_run_profiler_loop()' function allows 'asyncio.CancelledError' to
+      propagate without being caught.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: The 'start_background_profiler()' function raises a 'ValueError' for non-positive
+      'interval_s' values.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: Unit tests confirm that valid positive 'interval_s' values set the delay
+      between snapshots correctly.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: Documentation in 'docs/memory_profiler.md' is updated to reflect the storage
+      of 'interval_s' in 'app.state.memory_profiler_interval_s'.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'
+      to ensure only memory profiler-related code is modified.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: Modify _run_profiler_loop() to allow asyncio.CancelledError to propagate
+      normally.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: Update start_background_profiler() to handle non-positive 'interval_s'
+      values by either raising a ValueError or implementing a clamping behavior.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: Add unit tests to verify that providing different 'interval_s' values results
+      in the expected behavior.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: Review and update documentation regarding the side effect of storing the
+      'interval_s' value in app.state.memory_profiler_interval_s.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: The '.github/scripts/github-rate-limited-wrapper.js' file contains no changes
+      unrelated to the memory profiler.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: The '_run_profiler_loop()' function allows 'asyncio.CancelledError' to
+      propagate without being caught.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: The 'start_background_profiler()' function raises a 'ValueError' for non-positive
+      'interval_s' values.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: Unit tests confirm that valid positive 'interval_s' values set the delay
+      between snapshots correctly.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: Documentation in 'docs/memory_profiler.md' is updated to reflect the storage
+      of 'interval_s' in 'app.state.memory_profiler_interval_s'.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'
+      to ensure only memory profiler-related code is modified. (Agents cannot modify
+      protected files like '.github/scripts/github-rate-limited-wrapper.js'. | Request
+      manual intervention from a repository administrator to revert changes.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []

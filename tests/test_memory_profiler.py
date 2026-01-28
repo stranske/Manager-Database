@@ -403,7 +403,10 @@ async def test_run_profiler_loop_multiple_cancellations_preserve_cadence(
 
 
 @pytest.mark.asyncio
-async def test_start_background_profiler_passes_interval(monkeypatch: Any) -> None:
+@pytest.mark.parametrize("interval_s", [12.5, 1.0])
+async def test_start_background_profiler_passes_interval(
+    monkeypatch: Any, interval_s: float
+) -> None:
     app = FastAPI()
     captured: dict[str, float] = {}
 
@@ -423,12 +426,12 @@ async def test_start_background_profiler_passes_interval(monkeypatch: Any) -> No
     monkeypatch.setattr(memory_profiler, "_run_profiler_loop", fake_run_profiler_loop)
     monkeypatch.setattr(memory_profiler.asyncio, "create_task", passthrough_create_task)
 
-    await memory_profiler.start_background_profiler(app, interval_s=12.5)
+    await memory_profiler.start_background_profiler(app, interval_s=interval_s)
     await app.state.memory_profiler_task
 
-    assert captured["interval_s"] == 12.5
+    assert captured["interval_s"] == interval_s
     # Ensure the effective interval is stored for diagnostics.
-    assert app.state.memory_profiler_interval_s == 12.5
+    assert app.state.memory_profiler_interval_s == interval_s
     await memory_profiler.stop_memory_profiler(app)
 
 
@@ -458,35 +461,39 @@ async def test_start_background_profiler_defaults_interval(monkeypatch: Any) -> 
     await app.state.memory_profiler_task
 
     assert captured["interval_s"] == 300.0
+    assert app.state.memory_profiler_interval_s == 300.0
     await memory_profiler.stop_memory_profiler(app)
 
 
 @pytest.mark.asyncio
-async def test_start_background_profiler_clamps_interval(monkeypatch: Any) -> None:
+async def test_start_background_profiler_rejects_non_positive_interval(monkeypatch: Any) -> None:
     app = FastAPI()
-    captured: dict[str, float] = {}
-
-    async def fake_run_profiler_loop(
-        _profiler: memory_profiler.MemoryLeakProfiler,
-        interval_s: float,
-        **_kwargs: object,
-    ) -> None:
-        captured["interval_s"] = interval_s
-
-    real_create_task = memory_profiler.asyncio.create_task
-
-    def passthrough_create_task(coro: object) -> asyncio.Task[object]:
-        return real_create_task(coro)  # type: ignore[arg-type]
 
     monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "true")
-    monkeypatch.setattr(memory_profiler, "_run_profiler_loop", fake_run_profiler_loop)
-    monkeypatch.setattr(memory_profiler.asyncio, "create_task", passthrough_create_task)
 
-    await memory_profiler.start_background_profiler(app, interval_s=1.0)
-    await app.state.memory_profiler_task
+    with pytest.raises(ValueError, match="interval_s must be positive"):
+        await memory_profiler.start_background_profiler(app, interval_s=0.0)
 
-    assert captured["interval_s"] == 10.0
-    await memory_profiler.stop_memory_profiler(app)
+
+@pytest.mark.asyncio
+async def test_start_background_profiler_rejects_interval_when_disabled(monkeypatch: Any) -> None:
+    app = FastAPI()
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "false")
+
+    with pytest.raises(ValueError, match="interval_s must be positive"):
+        await memory_profiler.start_background_profiler(app, interval_s=0.0)
+
+
+@pytest.mark.asyncio
+async def test_start_background_profiler_rejects_env_interval(monkeypatch: Any) -> None:
+    app = FastAPI()
+
+    monkeypatch.setenv("MEMORY_PROFILE_ENABLED", "true")
+    monkeypatch.setenv("MEMORY_PROFILE_INTERVAL_S", "0")
+
+    with pytest.raises(ValueError, match="interval_s must be positive"):
+        await memory_profiler.start_background_profiler(app)
 
 
 # Commit-message checklist:

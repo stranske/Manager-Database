@@ -5,15 +5,16 @@ Integration helpers for applying semantic labels to issues.
 
 from __future__ import annotations
 
+import importlib
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 try:
-    from scripts.langchain import label_matcher
+    label_matcher: Any = importlib.import_module("scripts.langchain.label_matcher")
 except ModuleNotFoundError:
-    import label_matcher
+    label_matcher = importlib.import_module("label_matcher")
 
 
 @dataclass

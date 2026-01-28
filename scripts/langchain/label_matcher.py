@@ -5,6 +5,7 @@ Semantic label matching helpers for issue intake.
 
 from __future__ import annotations
 
+import importlib
 import os
 import re
 from collections.abc import Iterable, Mapping
@@ -12,9 +13,9 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
-    from scripts.langchain import semantic_matcher
+    semantic_matcher: Any = importlib.import_module("scripts.langchain.semantic_matcher")
 except ModuleNotFoundError:
-    import semantic_matcher
+    semantic_matcher = importlib.import_module("semantic_matcher")
 
 
 @dataclass(frozen=True)
@@ -425,9 +426,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        matches.sort(key=lambda match: match.score, reverse=True)
-        return matches
+        keyword_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
+        keyword_matches.sort(key=lambda match: match.score, reverse=True)
+        return keyword_matches
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:
