@@ -14,7 +14,6 @@ from profiler import (  # noqa: F401
     stop_memory_profiler,
 )
 
-
 # Commit-message checklist:
 # - [ ] type is accurate (feat, fix, test)
 # - [ ] scope is clear (memory)
