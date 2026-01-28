@@ -49,7 +49,10 @@ async def _run_profiler_loop(
         try:
             await asyncio.sleep(interval_s)
         except asyncio.CancelledError:
-            logger.info("profiler: loop cancelled during sleep")
+            logger.info(
+                "profiler: loop cancelled during sleep (iteration=%s)",
+                iteration,
+            )
             raise
         iteration += 1
         should_log = log_enabled and iteration % log_every_n == 0
@@ -58,11 +61,17 @@ async def _run_profiler_loop(
             try:
                 profiler.log_diff()
             except asyncio.CancelledError:
-                logger.info("profiler: loop cancelled during log")
+                logger.info(
+                    "profiler: loop cancelled during log (iteration=%s)",
+                    iteration,
+                )
                 raise
         if should_snapshot:
             try:
                 profiler.capture_diff()
             except asyncio.CancelledError:
-                logger.info("profiler: loop cancelled during snapshot")
+                logger.info(
+                    "profiler: loop cancelled during snapshot (iteration=%s)",
+                    iteration,
+                )
                 raise
