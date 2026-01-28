@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Add an 'import os' line at the beginning of `etl/edgar_flow.py` if `os.getenv`
       is being used.
-    status: doing
+    status: done
     started_at: '2026-01-28T14:26:08Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-28T14:26:18Z'
+    commit: 077c8c016bf46290fbf10047f0a89555865d2b3d
     notes: []
   - id: task-02
     title: Modify the `_run_profiler_loop` function in `profiler.py` to handle cancellation
