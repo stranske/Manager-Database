@@ -1,5 +1,5 @@
-from contextlib import asynccontextmanager
 import zlib
+from contextlib import asynccontextmanager
 
 import httpx
 import pytest
