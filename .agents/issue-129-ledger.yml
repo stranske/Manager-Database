@@ -1,0 +1,267 @@
+version: 1
+issue: 129
+base: main
+branch: codex/issue-129
+tasks:
+  - id: task-01
+    title: Research UK Companies House PDF filing format structure.
+    status: done
+    started_at: '2026-01-28T17:02:13Z'
+    finished_at: '2026-01-28T17:02:24Z'
+    commit: a7c3ded2606a9c4c553e4ffb0c221cd21201a6cf
+    notes: []
+  - id: task-02
+    title: 'Define scope for: Identify common UK Companies House filing types (e.g.
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Implement focused slice for: Identify common UK Companies House filing
+      types (e.g. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Validate focused slice for: Identify common UK Companies House filing
+      types (e.g. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'annual returns (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'confirmation statements). (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Analyze the structure of filing headers (verify: confirm completion in
+      repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'metadata in sample PDFs. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: 'Document key fields (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'their expected formats for parsing. (verify: formatter passes)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Implement `parse()` in `adapters/uk.py` to extract key fields (company
+      name, filing date, filing type).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: Add proper error handling for malformed or unsupported PDFs.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Define scope for: Implement error handling for empty or zero-byte PDF
+      files. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Implement focused slice for: Implement error handling for empty or zero-byte
+      PDF files. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Validate focused slice for: Implement error handling for empty or zero-byte
+      PDF files. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Define scope for: Implement error handling for corrupted or unreadable
+      PDFs. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Implement focused slice for: Implement error handling for corrupted or
+      unreadable PDFs. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'Validate focused slice for: Implement error handling for corrupted or
+      unreadable PDFs. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Implement error handling for unsupported filing types. (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: Add unit tests for UK parsing with mock PDF data in `tests/test_uk_adapter.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: Update module docstring in `adapters/uk.py` with supported filing types.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: Research UK Companies House PDF filing format structure
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: Implement `parse()` in `adapters/uk.py` to extract key fields (company
+      name, filing date, filing type)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: Add proper error handling for malformed or unsupported PDFs
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: Add unit tests for UK parsing with mock PDF data
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: Update module docstring with supported filing types
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: '`parse()` returns a structured dict with at minimum: company_name, filing_date,
+      filing_type.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: Unit tests pass with >80% coverage for the adapter module.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: Function handles malformed input gracefully without raising unhandled exceptions.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: No hardcoded test data paths (use fixtures or mock data).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: '`parse()` returns a structured dict with at minimum: company_name, filing_date,
+      filing_type'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: Unit tests pass with >80% coverage for the adapter module
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: Function handles malformed input gracefully without raising unhandled exceptions
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: No hardcoded test data paths (use fixtures or mock data)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: Unit tests pass with >80% coverage for the adapter module. (The agent cannot
+      guarantee specific coverage percentages due to AGENT_LIMITATIONS. | Rephrase
+      to 'Unit tests are implemented for all key functionalities of the adapter module.')
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
