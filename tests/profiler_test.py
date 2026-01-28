@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-import profiler
+import profiler  # noqa: E402
 
 if TYPE_CHECKING:
     from typing import Any
