@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -264,7 +265,10 @@ async def test_run_profiler_loop_clamps_non_positive_interval(monkeypatch: Any) 
 
 
 @pytest.mark.asyncio
-async def test_run_profiler_loop_handles_cancelled_log_diff(monkeypatch: Any) -> None:
+async def test_run_profiler_loop_handles_cancelled_log_diff(
+    monkeypatch: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     class _CancelledLogProfiler(_LoopProfiler):
         def log_diff(self) -> None:
             raise asyncio.CancelledError
@@ -279,22 +283,31 @@ async def test_run_profiler_loop_handles_cancelled_log_diff(monkeypatch: Any) ->
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    with pytest.raises(asyncio.CancelledError):
-        await memory_profiler._run_profiler_loop(
-            profiler,  # type: ignore[arg-type]
-            0.1,
-            log_enabled=True,
-            snapshot_enabled=True,
-            log_every_n=1,
-            snapshot_every_n=1,
-        )
+    with caplog.at_level(logging.INFO, logger=memory_profiler.__name__):
+        with pytest.raises(asyncio.CancelledError):
+            await memory_profiler._run_profiler_loop(
+                profiler,  # type: ignore[arg-type]
+                0.1,
+                log_enabled=True,
+                snapshot_enabled=True,
+                log_every_n=1,
+                snapshot_every_n=1,
+            )
+
+    assert any(
+        "memory_profiler: profiler loop cancelled during log" in record.message
+        for record in caplog.records
+    )
 
     assert sleep_calls == [1]
     assert profiler.snapshot_calls == 0
 
 
 @pytest.mark.asyncio
-async def test_run_profiler_loop_handles_cancelled_capture(monkeypatch: Any) -> None:
+async def test_run_profiler_loop_handles_cancelled_capture(
+    monkeypatch: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     class _CancelledCaptureProfiler(_LoopProfiler):
         def capture_diff(self) -> list[memory_profiler.MemoryDiff]:
             raise asyncio.CancelledError
@@ -309,18 +322,23 @@ async def test_run_profiler_loop_handles_cancelled_capture(monkeypatch: Any) -> 
 
     monkeypatch.setattr(memory_profiler.asyncio, "sleep", fake_sleep)
 
-    with pytest.raises(asyncio.CancelledError):
-        await memory_profiler._run_profiler_loop(
-            profiler,  # type: ignore[arg-type]
-            0.1,
-            log_enabled=True,
-            snapshot_enabled=True,
-            log_every_n=1,
-            snapshot_every_n=1,
-        )
+    with caplog.at_level(logging.INFO, logger=memory_profiler.__name__):
+        with pytest.raises(asyncio.CancelledError):
+            await memory_profiler._run_profiler_loop(
+                profiler,  # type: ignore[arg-type]
+                0.1,
+                log_enabled=True,
+                snapshot_enabled=True,
+                log_every_n=1,
+                snapshot_every_n=1,
+            )
 
     assert sleep_calls == [1]
     assert profiler.log_calls == 1
+    assert any(
+        "memory_profiler: profiler loop cancelled during snapshot" in record.message
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

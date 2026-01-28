@@ -144,7 +144,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
+The previous iteration changed **5 file(s)** but did not update task checkboxes.
 
 **Before continuing, you MUST:**
 1. Review the recent commits to understand what was changed
@@ -194,8 +194,9 @@ The PR is complete when ALL of these are satisfied:
 Avoid repeating these unless a task needs explicit follow-up:
 
 - Remove unrelated changes from the PR, specifically delete or revert modifications to .github/scripts/github-rate-limited-wrapper.js, codex-prompt-445.md, and .agents/issue-444-ledger.yml.
+- In etl/edgar_flow.py, add or verify an 'import os' statement if os.getenv is used.
 
 ### Suggested Next Task
-- In etl/edgar_flow.py, add or verify an 'import os' statement if os.getenv is used.
+- Verify that logging
 
 ---
