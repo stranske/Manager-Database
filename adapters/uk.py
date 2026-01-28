@@ -3,6 +3,11 @@
 Supported filing types:
 - annual_return (AR01)
 - confirmation_statement (CS01)
+
+Parsed fields:
+- company_name (string, label-derived)
+- company_number (string, 6-8 alphanumeric)
+- filing_date (YYYY-MM-DD)
 """
 
 from __future__ import annotations
@@ -55,6 +60,10 @@ async def parse(raw: bytes):
     if not raw:
         return _error_result("empty_pdf")
 
+    if not _looks_like_pdf(raw):
+        # Guard against non-PDF inputs to avoid misleading parsing output.
+        return _error_result("unreadable_pdf")
+
     text = _extract_pdf_text(raw)
     if not text:
         return _error_result("unreadable_pdf")
@@ -91,9 +100,15 @@ def _error_result(reason: str) -> dict[str, str | None | list[str]]:
     }
 
 
+def _looks_like_pdf(raw: bytes) -> bool:
+    # PDF files should start with a %PDF header near the beginning of the byte stream.
+    return b"%PDF" in raw[:1024]
+
+
 def _extract_pdf_text(raw: bytes) -> str:
     """Extract rough text from PDF bytes by parsing literal strings."""
     try:
+        # Use latin-1 to preserve byte values without throwing decode errors.
         decoded = raw.decode("latin-1", errors="ignore")
     except Exception:
         return ""
@@ -202,6 +217,7 @@ def _find_company_number(lines: list[str]) -> str:
 
 
 def _find_filing_date(lines: list[str], text: str) -> str | None:
+    # Include label variants seen on CS01/AR01 forms.
     labels = (
         "date of filing",
         "filing date",
@@ -209,6 +225,8 @@ def _find_filing_date(lines: list[str], text: str) -> str | None:
         "made up date",
         "statement date",
         "date of registration",
+        "confirmation date",
+        "date of this return",
     )
     for line in lines:
         lowered = line.lower()

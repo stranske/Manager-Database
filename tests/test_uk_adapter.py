@@ -47,6 +47,27 @@ async def test_parse_annual_return_parses_named_date():
 
 
 @pytest.mark.asyncio
+async def test_parse_date_label_variants():
+    # Ensure label variants from Companies House forms are recognized.
+    cs01 = _make_pdf_bytes(
+        "Confirmation Statement CS01",
+        "Company Name: Example Widgets Ltd",
+        "Confirmation date: 01/10/2024",
+    )
+    ar01 = _make_pdf_bytes(
+        "Annual Return AR01",
+        "Company Name: Example Widgets Ltd",
+        "Date of this return: 01/11/2024",
+    )
+
+    cs01_result = await uk.parse(cs01)
+    ar01_result = await uk.parse(ar01)
+
+    assert cs01_result["filing_date"] == "2024-10-01"
+    assert ar01_result["filing_date"] == "2024-11-01"
+
+
+@pytest.mark.asyncio
 async def test_parse_empty_pdf_returns_error():
     result = await uk.parse(b"")
 
@@ -59,6 +80,17 @@ async def test_parse_empty_pdf_returns_error():
 @pytest.mark.asyncio
 async def test_parse_unreadable_pdf_returns_error():
     result = await uk.parse(b"%PDF-1.4\n%%EOF")
+
+    assert result["company_name"] is None
+    assert result["filing_date"] is None
+    assert result["filing_type"] == "unsupported"
+    assert result["errors"] == ["unreadable_pdf"]
+
+
+@pytest.mark.asyncio
+async def test_parse_non_pdf_bytes_returns_error():
+    # Non-PDF bytes should be treated as unreadable input.
+    result = await uk.parse(b"not a pdf")
 
     assert result["company_name"] is None
     assert result["filing_date"] is None
