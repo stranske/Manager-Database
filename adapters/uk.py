@@ -56,17 +56,23 @@ async def download(filing: dict[str, str]):
 
 
 async def parse(raw: bytes):
-    """Parse a UK Companies House filing PDF into key metadata."""
+    """Parse a UK Companies House filing PDF into key metadata.
+
+    Returns a list of dicts to match the adapter contract used elsewhere.
+    """
     if not raw:
-        return _error_result("empty_pdf")
+        # Keep adapter output consistent: always return list-of-dicts.
+        return [_error_result("empty_pdf")]
 
     if not _looks_like_pdf(raw):
         # Guard against non-PDF inputs to avoid misleading parsing output.
-        return _error_result("unreadable_pdf")
+        # Keep adapter output consistent: always return list-of-dicts.
+        return [_error_result("unreadable_pdf")]
 
     text = _extract_pdf_text(raw)
     if not text:
-        return _error_result("unreadable_pdf")
+        # Keep adapter output consistent: always return list-of-dicts.
+        return [_error_result("unreadable_pdf")]
 
     filing_type = _detect_filing_type(text)
     lines = _split_lines(text)
@@ -82,13 +88,15 @@ async def parse(raw: bytes):
     if filing_type == "unsupported":
         errors.append("unsupported_filing_type")
 
-    return {
+    result = {
         "company_name": company_name or None,
         "filing_date": filing_date,
         "filing_type": filing_type,
         "company_number": company_number or None,
         "errors": errors,
     }
+    # Return a list for parity with other adapters and the ETL flow.
+    return [result]
 
 
 def _error_result(reason: str) -> dict[str, str | None | list[str]]:
