@@ -51,11 +51,9 @@ async def _run_profiler_loop(
         except asyncio.CancelledError:
             logger.info("profiler: loop cancelled during sleep")
             raise
-        if not snapshot_enabled:
-            continue
         iteration += 1
         should_log = log_enabled and iteration % log_every_n == 0
-        should_snapshot = iteration % snapshot_every_n == 0
+        should_snapshot = snapshot_enabled and iteration % snapshot_every_n == 0
         if should_log:
             try:
                 profiler.log_diff()

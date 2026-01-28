@@ -122,3 +122,30 @@ async def test_run_profiler_loop_multiple_cancellations_preserve_cadence(
 
     await run_loop(iterations=15, log_every_n=3, snapshot_every_n=4)
     await run_loop(iterations=22, log_every_n=2, snapshot_every_n=5)
+
+
+@pytest.mark.asyncio
+async def test_run_profiler_loop_logs_without_snapshots(monkeypatch: Any) -> None:
+    profiler_impl = _LoopProfiler()
+    sleep_calls: list[int] = []
+
+    async def fake_sleep(_interval: float) -> None:
+        sleep_calls.append(1)
+        if len(sleep_calls) > 6:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(profiler.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await profiler._run_profiler_loop(
+            profiler_impl,
+            0.1,
+            log_enabled=True,
+            snapshot_enabled=False,
+            log_every_n=2,
+            snapshot_every_n=1,
+        )
+
+    assert len(sleep_calls) == 7
+    assert profiler_impl.log_calls == 3
+    assert profiler_impl.snapshot_calls == 0
