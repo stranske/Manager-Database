@@ -1,0 +1,335 @@
+version: 1
+issue: 458
+base: main
+branch: codex/issue-458
+tasks:
+  - id: task-01
+    title: Revert any modifications made to .github/scripts/github-rate-limited-wrapper.js,
+      codex-prompt-445.md, and .agents/issue-444-ledger.yml in the current PR.
+    status: doing
+    started_at: '2026-01-28T17:56:08Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: Revert changes made to api/memory_profiler.py and tests/test_memory_profiler.py
+      or migrate their functionality completely to profiler.py and tests/profiler_test.py.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Define scope for: Revert changes made to api/memory_profiler.py (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Implement focused slice for: Revert changes made to api/memory_profiler.py
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Validate focused slice for: Revert changes made to api/memory_profiler.py
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'tests/test_memory_profiler.py. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Define scope for: Migrate functionality from api/memory_profiler.py (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Implement focused slice for: Migrate functionality from api/memory_profiler.py
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: 'Validate focused slice for: Migrate functionality from api/memory_profiler.py
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'tests/test_memory_profiler.py to profiler.py (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'tests/profiler_test.py. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: Review etl/edgar_flow.py to confirm if os.getenv is used. If it is, add
+      'import os' at the top of the file.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: Ensure that in profiler.py, the _run_profiler_loop function wraps calls
+      to profiler.log_diff() and profiler.capture_diff() within try/except blocks
+      that explicitly catch asyncio.CancelledError, log necessary context, and re-raise
+      the exception.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: Update tests/profiler_test.py to simulate multiple cancellation events
+      over a prolonged period. The tests should assert that logging and snapshot capture
+      occur at the specified intervals and that asyncio.CancelledError is raised appropriately.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Define scope for: Create tests in tests/profiler_test.py to simulate multiple
+      cancellation events over a prolonged period. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Implement focused slice for: Create tests in tests/profiler_test.py to
+      simulate multiple cancellation events over a prolonged period. (verify: tests
+      pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Validate focused slice for: Create tests in tests/profiler_test.py to
+      simulate multiple cancellation events over a prolonged period. (verify: tests
+      pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: Verify that logging
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Define scope for: snapshot capture occur at the specified intervals in
+      tests/profiler_test.py. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: 'Implement focused slice for: snapshot capture occur at the specified intervals
+      in tests/profiler_test.py. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: 'Validate focused slice for: snapshot capture occur at the specified intervals
+      in tests/profiler_test.py. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: 'Define scope for: Ensure that asyncio.CancelledError is raised appropriately
+      in tests/profiler_test.py. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: 'Implement focused slice for: Ensure that asyncio.CancelledError is raised
+      appropriately in tests/profiler_test.py. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: 'Validate focused slice for: Ensure that asyncio.CancelledError is raised
+      appropriately in tests/profiler_test.py. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: The files .github/scripts/github-rate-limited-wrapper.js, codex-prompt-445.md,
+      and .agents/issue-444-ledger.yml remain unchanged.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: The files api/memory_profiler.py and tests/test_memory_profiler.py have
+      no modifications unless their functionality is migrated to profiler.py and tests/profiler_test.py.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: If os.getenv is used in etl/edgar_flow.py, the file starts with an 'import
+      os' statement.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: In profiler.py, the _run_profiler_loop function wraps calls to profiler.log_diff()
+      and profiler.capture_diff() in try/except blocks that catch asyncio.CancelledError,
+      log necessary context, and re-raise the exception.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: tests/profiler_test.py includes tests that simulate multiple cancellation
+      events over a prolonged period, verifying logging and snapshot capture at expected
+      intervals, and proper propagation of asyncio.CancelledError.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: Revert any modifications made to .github/scripts/github-rate-limited-wrapper.js,
+      codex-prompt-445.md, and .agents/issue-444-ledger.yml in the current PR.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: Revert changes made to api/memory_profiler.py and tests/test_memory_profiler.py
+      or migrate their functionality completely to profiler.py and tests/profiler_test.py.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: Review etl/edgar_flow.py to confirm if os.getenv is used. If it is, add
+      'import os' at the top of the file.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: Ensure that in profiler.py, the _run_profiler_loop function wraps calls
+      to profiler.log_diff() and profiler.capture_diff() within try/except blocks
+      that explicitly catch asyncio.CancelledError, log necessary context, and re-raise
+      the exception.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: Update tests/profiler_test.py to simulate multiple cancellation events
+      over a prolonged period. The tests should assert that logging and snapshot capture
+      occur at the specified intervals and that asyncio.CancelledError is raised appropriately.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: The files .github/scripts/github-rate-limited-wrapper.js, codex-prompt-445.md,
+      and .agents/issue-444-ledger.yml remain unchanged.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: The files api/memory_profiler.py and tests/test_memory_profiler.py have
+      no modifications unless their functionality is migrated to profiler.py and tests/profiler_test.py.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: If os.getenv is used in etl/edgar_flow.py, the file starts with an 'import
+      os' statement.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: In profiler.py, the _run_profiler_loop function wraps calls to profiler.log_diff()
+      and profiler.capture_diff() in try/except blocks that catch asyncio.CancelledError,
+      log necessary context, and re-raise the exception.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: tests/profiler_test.py includes tests that simulate multiple cancellation
+      events over a prolonged period, verifying logging and snapshot capture at expected
+      intervals, and proper propagation of asyncio.CancelledError.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-40
+    title: Revert any modifications made to .github/scripts/github-rate-limited-wrapper.js,
+      codex-prompt-445.md, and .agents/issue-444-ledger.yml in the current PR. (The
+      agent cannot modify files in the .github directory as they are protected. |
+      Provide instructions for a human collaborator to manually revert these changes.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
