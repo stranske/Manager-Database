@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import zlib
 
 import httpx
 import pytest
@@ -9,6 +10,21 @@ from adapters import uk
 def _make_pdf_bytes(*lines: str) -> bytes:
     content = "\n".join(f"({line})" for line in lines)
     return f"%PDF-1.4\n{content}\n%%EOF".encode("latin-1")
+
+
+def _make_flate_pdf_bytes(*lines: str) -> bytes:
+    content = "\n".join(f"({line})" for line in lines).encode("latin-1")
+    compressed = zlib.compress(content)
+    header = b"%PDF-1.4\n1 0 obj\n"
+    header += b"<< /Length " + str(len(compressed)).encode("ascii") + b" /Filter /FlateDecode >>\n"
+    return header + b"stream\n" + compressed + b"\nendstream\nendobj\n%%EOF"
+
+
+def _make_obj_stream_pdf_bytes(*lines: str) -> bytes:
+    content = "\n".join(f"({line})" for line in lines).encode("latin-1")
+    header = b"%PDF-1.4\n2 0 obj\n"
+    header += b"<< /Type /ObjStm /Length " + str(len(content)).encode("ascii") + b" >>\n"
+    return header + b"stream\n" + content + b"\nendstream\nendobj\n%%EOF"
 
 
 def _single_result(results):
@@ -211,3 +227,35 @@ def test_unescape_pdf_string_and_date_helpers_cover_branches():
     assert uk._parse_date_from_line("Short date 07/10/23") == "2023-10-07"
     assert uk._format_named_date("7", "Oct", "2023") == "2023-10-07"
     assert uk._find_company_number(["Company 12345678"]) == "12345678"
+
+
+def test_extract_pdf_text_handles_flate_stream():
+    raw = _make_flate_pdf_bytes(
+        "Confirmation Statement CS01",
+        "Company Name: Example Widgets Ltd",
+        "Company number: 01234567",
+    )
+
+    text = uk._extract_pdf_text(raw)
+
+    assert "Example Widgets Ltd" in text
+    assert "01234567" in text
+
+
+def test_extract_pdf_text_handles_hex_strings():
+    raw = b"%PDF-1.4\n<48656c6c6f20576f726c64>\n%%EOF"
+
+    text = uk._extract_pdf_text(raw)
+
+    assert "Hello World" in text
+
+
+def test_extract_pdf_text_handles_object_streams():
+    raw = _make_obj_stream_pdf_bytes(
+        "Annual Return AR01",
+        "Company Name: Orbit Labs PLC",
+    )
+
+    text = uk._extract_pdf_text(raw)
+
+    assert "Orbit Labs PLC" in text

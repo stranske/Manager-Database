@@ -13,6 +13,7 @@ Parsed fields:
 from __future__ import annotations
 
 import re
+import zlib
 from datetime import datetime
 
 import httpx
@@ -115,18 +116,91 @@ def _looks_like_pdf(raw: bytes) -> bool:
 
 
 def _extract_pdf_text(raw: bytes) -> str:
-    """Extract rough text from PDF bytes by parsing literal strings."""
+    """Extract rough text from PDF bytes by parsing literal and hex strings."""
+    chunks: list[str] = []
+    chunks.extend(_extract_strings_from_bytes(raw))
+
+    for stream_dict, stream_data in _iter_pdf_streams(raw):
+        decoded = _decode_pdf_stream(stream_dict, stream_data)
+        if decoded is None:
+            continue
+        if _is_obj_stream(stream_dict) or _is_flate_stream(stream_dict):
+            chunks.extend(_extract_strings_from_bytes(decoded))
+
+    combined = "\n".join(chunk for chunk in chunks if chunk)
+    return combined.strip()
+
+
+def _extract_strings_from_bytes(raw: bytes) -> list[str]:
     try:
         # Use latin-1 to preserve byte values without throwing decode errors.
         decoded = raw.decode("latin-1", errors="ignore")
     except Exception:
-        return ""
+        return []
     matches = re.findall(r"\((?:\\.|[^\\)])*\)", decoded)
-    if not matches:
-        return ""
     chunks = [_unescape_pdf_string(match[1:-1]) for match in matches]
-    combined = "\n".join(chunk for chunk in chunks if chunk)
-    return combined.strip()
+    chunks.extend(_extract_hex_strings(raw))
+    return [chunk for chunk in chunks if chunk]
+
+
+def _extract_hex_strings(raw: bytes) -> list[str]:
+    chunks: list[str] = []
+    for match in re.finditer(rb"(?<!<)<([0-9A-Fa-f\s]+)>", raw):
+        hex_bytes = re.sub(rb"\s+", b"", match.group(1))
+        if not hex_bytes:
+            continue
+        if len(hex_bytes) % 2 == 1:
+            hex_bytes += b"0"
+        try:
+            raw_bytes = bytes.fromhex(hex_bytes.decode("ascii"))
+        except (ValueError, UnicodeDecodeError):
+            continue
+        chunks.append(_decode_pdf_hex_bytes(raw_bytes))
+    return [chunk for chunk in chunks if chunk]
+
+
+def _decode_pdf_hex_bytes(value: bytes) -> str:
+    if value.startswith(b"\xfe\xff"):
+        try:
+            return value[2:].decode("utf-16-be", errors="ignore")
+        except UnicodeDecodeError:
+            return ""
+    if value.startswith(b"\xff\xfe"):
+        try:
+            return value[2:].decode("utf-16-le", errors="ignore")
+        except UnicodeDecodeError:
+            return ""
+    return value.decode("latin-1", errors="ignore")
+
+
+def _iter_pdf_streams(raw: bytes) -> list[tuple[bytes, bytes]]:
+    streams: list[tuple[bytes, bytes]] = []
+    pattern = re.compile(
+        rb"<<(?P<dict>.*?)>>\s*stream\r?\n(?P<data>.*?)\r?\nendstream",
+        re.DOTALL,
+    )
+    for match in pattern.finditer(raw):
+        streams.append((match.group("dict"), match.group("data")))
+    return streams
+
+
+def _decode_pdf_stream(stream_dict: bytes, stream_data: bytes) -> bytes | None:
+    if _is_flate_stream(stream_dict):
+        try:
+            return zlib.decompress(stream_data)
+        except zlib.error:
+            return None
+    if _is_obj_stream(stream_dict):
+        return stream_data
+    return None
+
+
+def _is_flate_stream(stream_dict: bytes) -> bool:
+    return b"/FlateDecode" in stream_dict
+
+
+def _is_obj_stream(stream_dict: bytes) -> bool:
+    return b"/ObjStm" in stream_dict
 
 
 def _unescape_pdf_string(value: str) -> str:
