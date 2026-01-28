@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Revert changes made to '.github/scripts/github-rate-limited-wrapper.js'
       to ensure only memory profiler-related code is modified.
-    status: doing
+    status: done
     started_at: '2026-01-28T04:09:42Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-28T04:09:49Z'
+    commit: 1509ca8fe987a9d25eb7b49aa73cf60905eb85ec
     notes: []
   - id: task-02
     title: 'Define scope for: Revert changes made to ''.github/scripts/github-rate-limited-wrapper.js''.
