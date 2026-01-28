@@ -22,11 +22,9 @@ class MemoryDiff:
 
 
 class Profiler(Protocol):
-    def log_diff(self) -> None:
-        ...
+    def log_diff(self) -> None: ...
 
-    def capture_diff(self) -> list[MemoryDiff]:
-        ...
+    def capture_diff(self) -> list[MemoryDiff]: ...
 
 
 async def _run_profiler_loop(
