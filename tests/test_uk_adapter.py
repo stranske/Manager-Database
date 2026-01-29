@@ -229,6 +229,11 @@ def test_unescape_pdf_string_and_date_helpers_cover_branches():
     assert uk._parse_date_from_line("Statement date: October 7, 2023") == "2023-10-07"
     assert uk._parse_date_from_line("Bad date 32/13/2023") is None
     assert uk._parse_date_from_line("Short date 07/10/23") == "2023-10-07"
+    assert uk._parse_date_from_line("Short date 07/10/00") == "2000-10-07"
+    assert uk._parse_date_from_line("Short date 07/10/99") == "2099-10-07"
+    assert uk._parse_date_from_line("Out of range 07/10/1999") is None
+    assert uk._parse_date_from_line("Out of range 07/10/2100") is None
+    assert uk._parse_date_from_line("Out of range 07/10/123") is None
     assert uk._format_named_date("7", "Oct", "2023") == "2023-10-07"
     assert uk._find_company_number(["Company 12345678"]) == "12345678"
 

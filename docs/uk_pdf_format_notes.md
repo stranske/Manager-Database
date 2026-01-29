@@ -18,3 +18,6 @@ Parsing implications:
 - Company name and number appear as labeled fields near the top of the form.
 - Filing date is labeled as "Confirmation date" (CS01) or "Date of this return"
   (AR01), so parsing should look for these label variants.
+- Filing dates are accepted only when the year resolves to 2000-2099. Two-digit
+  years are normalized to 20xx (00-99 -> 2000-2099). Dates outside that range
+  are ignored.

@@ -330,30 +330,50 @@ def _parse_date_from_line(line: str) -> str | None:
     line = line.strip()
     iso_match = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", line)
     if iso_match:
-        return iso_match.group(0)
+        year, month, day = iso_match.groups()
+        year = _normalize_year(year)
+        if year is None:
+            return None
+        return _format_date(day, month, year)
 
     slash_match = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b", line)
     if slash_match:
         day, month, year = slash_match.groups()
         year = _normalize_year(year)
+        if year is None:
+            return None
         return _format_date(day, month, year)
 
     dmy_match = re.search(r"\b(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})\b", line)
     if dmy_match:
         day, month_name, year = dmy_match.groups()
+        year = _normalize_year(year)
+        if year is None:
+            return None
         return _format_named_date(day, month_name, year)
 
     mdy_match = re.search(r"\b([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})\b", line)
     if mdy_match:
         month_name, day, year = mdy_match.groups()
+        year = _normalize_year(year)
+        if year is None:
+            return None
         return _format_named_date(day, month_name, year)
     return None
 
 
-def _normalize_year(year: str) -> str:
+def _normalize_year(year: str) -> str | None:
     if len(year) == 2:
-        return f"20{year}"
-    return year
+        value = int(year)
+        if 0 <= value <= 99:
+            return f"20{value:02d}"
+        return None
+    if len(year) == 4:
+        value = int(year)
+        if 2000 <= value <= 2099:
+            return year
+        return None
+    return None
 
 
 def _format_date(day: str, month: str, year: str) -> str | None:
