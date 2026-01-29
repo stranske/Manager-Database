@@ -233,6 +233,15 @@ def test_unescape_pdf_string_and_date_helpers_cover_branches():
     assert uk._find_company_number(["Company 12345678"]) == "12345678"
 
 
+def test_find_company_number_fallback_scan():
+    lines = [
+        "Registered in England and Wales",
+        "Example Widgets Ltd",
+        "01234567",
+    ]
+    assert uk._find_company_number(lines) == "01234567"
+
+
 def test_extract_pdf_text_handles_flate_stream():
     raw = _make_flate_pdf_bytes(
         "Confirmation Statement CS01",

@@ -300,6 +300,8 @@ def _find_company_number(lines: list[str]) -> str:
         match = re.search(r"\b[A-Z0-9]{6,8}\b", line)
         if match and ("company" in line.lower() or "number" in line.lower()):
             return match.group(0)
+    for match in re.finditer(r"\b[A-Z0-9]{6,8}\b", " ".join(lines)):
+        return match.group(0)
     return ""
 
 
