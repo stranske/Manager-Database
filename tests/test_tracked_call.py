@@ -32,9 +32,7 @@ async def test_tracked_call_defaults_when_no_response(tmp_path: Path):
     async with tracked_call("empty", "http://none", db_path=str(db_path)):
         pass
     conn = sqlite3.connect(db_path)
-    row = conn.execute(
-        "SELECT source, endpoint, status, bytes FROM api_usage"
-    ).fetchone()
+    row = conn.execute("SELECT source, endpoint, status, bytes FROM api_usage").fetchone()
     conn.close()
     assert row == ("empty", "http://none", 0, 0)
 
