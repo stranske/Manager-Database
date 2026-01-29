@@ -286,6 +286,31 @@ def test_find_company_number_prefers_standalone_token():
     assert uk._find_company_number(lines) == "SC123456"
 
 
+def test_find_company_number_embedded_in_company_line():
+    lines = [
+        "Registered in England and Wales",
+        "Company number is 01234567 for this filing",
+    ]
+    assert uk._find_company_number(lines) == "01234567"
+
+
+def test_find_company_number_embedded_without_company_label():
+    lines = [
+        "Example Widgets Ltd",
+        "Incorporated on 2010-01-01 with number SC123456 in Edinburgh",
+    ]
+    assert uk._find_company_number(lines) == "SC123456"
+
+
+def test_find_company_number_ignores_disqualified_embedded_tokens():
+    lines = [
+        "Document reference 01234567",
+        "Payment ref AB123456",
+        "Submission form 76543210",
+    ]
+    assert uk._find_company_number(lines) == ""
+
+
 def test_extract_pdf_text_handles_flate_stream():
     raw = _make_flate_pdf_bytes(
         "Confirmation Statement CS01",

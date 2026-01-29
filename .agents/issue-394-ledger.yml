@@ -1,8 +1,0 @@
-version: 1
-issue: 394
-base: main
-branch: codex/issue-394
-tasks:
-  - id: task-01
-    title: Ledger condensed; tasks tracked in issue-397 ledger.
-    status: done
