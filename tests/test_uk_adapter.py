@@ -20,6 +20,25 @@ def _make_flate_pdf_bytes(*lines: str) -> bytes:
     return header + b"stream\n" + compressed + b"\nendstream\nendobj\n%%EOF"
 
 
+def _make_flate_pdf_with_header(header: bytes, body: bytes) -> bytes:
+    return b"%PDF-1.4\n1 0 obj\n" + header + b"\nstream\n" + body + b"\nendstream\nendobj\n%%EOF"
+
+
+def _make_png_sub_predictor_stream(payload: bytes, columns: int) -> bytes:
+    rows = [payload[i : i + columns] for i in range(0, len(payload), columns)]
+    encoded = b"".join(b"\x01" + _png_sub_encode_row(row) for row in rows)
+    return encoded
+
+
+def _png_sub_encode_row(row: bytes) -> bytes:
+    encoded = bytearray()
+    prev = 0
+    for value in row:
+        encoded.append((value - prev) % 256)
+        prev = value
+    return bytes(encoded)
+
+
 def _make_obj_stream_pdf_bytes(*lines: str) -> bytes:
     content = "\n".join(f"({line})" for line in lines).encode("latin-1")
     header = b"%PDF-1.4\n2 0 obj\n"
@@ -258,6 +277,88 @@ def test_extract_pdf_text_handles_flate_stream():
 
     assert "Example Widgets Ltd" in text
     assert "01234567" in text
+
+
+def test_iter_pdf_streams_accepts_cr_line_endings():
+    content = b"(Hello CR stream)"
+    compressed = zlib.compress(content)
+    header = b"<< /Length " + str(len(compressed)).encode("ascii") + b" /Filter /FlateDecode >>"
+    raw = (
+        b"%PDF-1.4\r1 0 obj\r"
+        + header
+        + b"\rstream\r"
+        + compressed
+        + b"\rendstream\rendobj\r%%EOF"
+    )
+
+    streams = uk._iter_pdf_streams(raw)
+
+    assert len(streams) == 1
+    assert streams[0][1] == compressed
+
+
+def test_iter_pdf_streams_accepts_windows_line_endings():
+    content = b"(Hello CRLF stream)"
+    compressed = zlib.compress(content)
+    header = b"<< /Length " + str(len(compressed)).encode("ascii") + b" /Filter /FlateDecode >>"
+    raw = (
+        b"%PDF-1.4\r\n1 0 obj\r\n"
+        + header
+        + b"\r\nstream\r\n"
+        + compressed
+        + b"\r\nendstream\r\nendobj\r\n%%EOF"
+    )
+
+    streams = uk._iter_pdf_streams(raw)
+
+    assert len(streams) == 1
+    assert streams[0][1] == compressed
+
+
+def test_extract_pdf_text_handles_multiple_filters_with_flate():
+    content = b"(Multi filter stream)"
+    compressed = zlib.compress(content)
+    header = (
+        b"<< /Length "
+        + str(len(compressed)).encode("ascii")
+        + b" /Filter [/ASCII85Decode /FlateDecode] >>"
+    )
+    raw = _make_flate_pdf_with_header(header, compressed)
+
+    text = uk._extract_pdf_text(raw)
+
+    assert "Multi filter stream" in text
+
+
+def test_extract_pdf_text_handles_raw_deflate_stream():
+    content = b"(Raw deflate stream)"
+    compressor = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+    compressed = compressor.compress(content) + compressor.flush()
+    header = b"<< /Length " + str(len(compressed)).encode("ascii") + b" /Filter /FlateDecode >>"
+    raw = _make_flate_pdf_with_header(header, compressed)
+
+    text = uk._extract_pdf_text(raw)
+
+    assert "Raw deflate stream" in text
+
+
+def test_extract_pdf_text_handles_png_predictor_sub():
+    payload = b"(Predictor Test)"
+    columns = len(payload)
+    encoded = _make_png_sub_predictor_stream(payload, columns)
+    compressed = zlib.compress(encoded)
+    header = (
+        b"<< /Length "
+        + str(len(compressed)).encode("ascii")
+        + b" /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns "
+        + str(columns).encode("ascii")
+        + b" >> >>"
+    )
+    raw = _make_flate_pdf_with_header(header, compressed)
+
+    text = uk._extract_pdf_text(raw)
+
+    assert "Predictor Test" in text
 
 
 def test_extract_pdf_text_handles_hex_strings():

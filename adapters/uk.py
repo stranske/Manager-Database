@@ -180,7 +180,7 @@ def _decode_pdf_hex_bytes(value: bytes) -> str:
 def _iter_pdf_streams(raw: bytes) -> list[tuple[bytes, bytes]]:
     streams: list[tuple[bytes, bytes]] = []
     pattern = re.compile(
-        rb"<<(?P<dict>.*?)>>\s*stream\r?\n(?P<data>.*?)\r?\nendstream",
+        rb"<<(?P<dict>.*?)>>\s*stream(?:\r\n|\r|\n)(?P<data>.*?)(?:\r\n|\r|\n)?endstream",
         re.DOTALL,
     )
     for match in pattern.finditer(raw):
@@ -189,22 +189,138 @@ def _iter_pdf_streams(raw: bytes) -> list[tuple[bytes, bytes]]:
 
 
 def _decode_pdf_stream(stream_dict: bytes, stream_data: bytes) -> bytes | None:
-    if _is_flate_stream(stream_dict):
-        try:
-            return zlib.decompress(stream_data)
-        except zlib.error:
-            return None
+    filters = _parse_filters(stream_dict)
+    if filters:
+        data = stream_data
+        applied = False
+        for flt in filters:
+            if flt == b"/FlateDecode":
+                data = _flate_decode(data, stream_dict)
+                if data is None:
+                    return None
+                applied = True
+            else:
+                continue
+        return data if applied else None
     if _is_obj_stream(stream_dict):
         return stream_data
     return None
 
 
 def _is_flate_stream(stream_dict: bytes) -> bool:
-    return b"/FlateDecode" in stream_dict
+    return b"/FlateDecode" in stream_dict or any(
+        flt == b"/FlateDecode" for flt in _parse_filters(stream_dict)
+    )
 
 
 def _is_obj_stream(stream_dict: bytes) -> bool:
     return b"/ObjStm" in stream_dict
+
+
+def _parse_filters(stream_dict: bytes) -> list[bytes]:
+    list_match = re.search(rb"/Filter\s*\[(?P<filters>.*?)\]", stream_dict, re.DOTALL)
+    if list_match:
+        return [b"/" + name for name in re.findall(rb"/([A-Za-z0-9]+)", list_match.group("filters"))]
+    single_match = re.search(rb"/Filter\s*/([A-Za-z0-9]+)", stream_dict)
+    if single_match:
+        return [b"/" + single_match.group(1)]
+    return []
+
+
+def _flate_decode(data: bytes, stream_dict: bytes) -> bytes | None:
+    try:
+        decoded = zlib.decompress(data)
+    except zlib.error:
+        try:
+            decoded = zlib.decompress(data, wbits=-zlib.MAX_WBITS)
+        except zlib.error:
+            return None
+    predictor, columns = _parse_decode_params(stream_dict)
+    return _apply_predictor(decoded, predictor, columns)
+
+
+def _parse_decode_params(stream_dict: bytes) -> tuple[int | None, int | None]:
+    predictor = None
+    columns = None
+    predictor_match = re.search(rb"/Predictor\s+(\d+)", stream_dict)
+    if predictor_match:
+        predictor = int(predictor_match.group(1))
+    columns_match = re.search(rb"/Columns\s+(\d+)", stream_dict)
+    if columns_match:
+        columns = int(columns_match.group(1))
+    return predictor, columns
+
+
+def _apply_predictor(data: bytes, predictor: int | None, columns: int | None) -> bytes:
+    if not predictor or predictor == 1:
+        return data
+    if not columns or columns <= 0:
+        return data
+    if predictor == 2:
+        return _apply_tiff_predictor(data, columns)
+    if 10 <= predictor <= 15:
+        return _apply_png_predictor(data, columns)
+    return data
+
+
+def _apply_tiff_predictor(data: bytes, columns: int) -> bytes:
+    output = bytearray()
+    for offset in range(0, len(data), columns):
+        row = bytearray(data[offset : offset + columns])
+        for idx in range(1, len(row)):
+            row[idx] = (row[idx] + row[idx - 1]) % 256
+        output.extend(row)
+    return bytes(output)
+
+
+def _apply_png_predictor(data: bytes, columns: int) -> bytes:
+    row_length = columns + 1
+    output = bytearray()
+    prev_row = bytearray(columns)
+    for offset in range(0, len(data), row_length):
+        row = data[offset : offset + row_length]
+        if not row:
+            break
+        filter_type = row[0]
+        raw = bytearray(row[1:])
+        recon = bytearray(raw)
+        if filter_type == 0:
+            pass
+        elif filter_type == 1:
+            for i in range(len(raw)):
+                left = recon[i - 1] if i > 0 else 0
+                recon[i] = (raw[i] + left) % 256
+        elif filter_type == 2:
+            for i in range(len(raw)):
+                recon[i] = (raw[i] + prev_row[i]) % 256
+        elif filter_type == 3:
+            for i in range(len(raw)):
+                left = recon[i - 1] if i > 0 else 0
+                up = prev_row[i]
+                recon[i] = (raw[i] + ((left + up) // 2)) % 256
+        elif filter_type == 4:
+            for i in range(len(raw)):
+                left = recon[i - 1] if i > 0 else 0
+                up = prev_row[i]
+                up_left = prev_row[i - 1] if i > 0 else 0
+                recon[i] = (raw[i] + _paeth_predictor(left, up, up_left)) % 256
+        else:
+            return data
+        output.extend(recon)
+        prev_row = recon
+    return bytes(output)
+
+
+def _paeth_predictor(left: int, up: int, up_left: int) -> int:
+    p = left + up - up_left
+    pa = abs(p - left)
+    pb = abs(p - up)
+    pc = abs(p - up_left)
+    if pa <= pb and pa <= pc:
+        return left
+    if pb <= pc:
+        return up
+    return up_left
 
 
 def _unescape_pdf_string(value: str) -> str:
