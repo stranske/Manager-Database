@@ -1,3 +1,6 @@
 [run]
+# Adapter coverage runs should include the full adapters package by default.
+source =
+    adapters
 omit =
     ui/*
