@@ -220,7 +220,9 @@ def _is_obj_stream(stream_dict: bytes) -> bool:
 def _parse_filters(stream_dict: bytes) -> list[bytes]:
     list_match = re.search(rb"/Filter\s*\[(?P<filters>.*?)\]", stream_dict, re.DOTALL)
     if list_match:
-        return [b"/" + name for name in re.findall(rb"/([A-Za-z0-9]+)", list_match.group("filters"))]
+        return [
+            b"/" + name for name in re.findall(rb"/([A-Za-z0-9]+)", list_match.group("filters"))
+        ]
     single_match = re.search(rb"/Filter\s*/([A-Za-z0-9]+)", stream_dict)
     if single_match:
         return [b"/" + single_match.group(1)]

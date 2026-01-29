@@ -284,11 +284,7 @@ def test_iter_pdf_streams_accepts_cr_line_endings():
     compressed = zlib.compress(content)
     header = b"<< /Length " + str(len(compressed)).encode("ascii") + b" /Filter /FlateDecode >>"
     raw = (
-        b"%PDF-1.4\r1 0 obj\r"
-        + header
-        + b"\rstream\r"
-        + compressed
-        + b"\rendstream\rendobj\r%%EOF"
+        b"%PDF-1.4\r1 0 obj\r" + header + b"\rstream\r" + compressed + b"\rendstream\rendobj\r%%EOF"
     )
 
     streams = uk._iter_pdf_streams(raw)
