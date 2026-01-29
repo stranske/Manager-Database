@@ -28,6 +28,12 @@ def test_db_retry_config_uses_env_defaults(monkeypatch):
     assert delay == 0.0
 
 
+def test_db_retry_config_uses_explicit_values():
+    retries, delay = _db_retry_config(2, 1.25)
+    assert retries == 2
+    assert delay == 1.25
+
+
 def test_connect_db_raises_when_retries_exhausted(monkeypatch):
     def failing_connect(*_args, **_kwargs):
         raise sqlite3.OperationalError("down")
@@ -66,6 +72,29 @@ def test_connect_db_retries_on_transient_error(tmp_path, monkeypatch):
         conn.close()
 
 
+def test_connect_db_uses_env_db_path(tmp_path, monkeypatch):
+    env_path = tmp_path / "env.db"
+    monkeypatch.setenv("DB_PATH", str(env_path))
+    conn = connect_db()
+    try:
+        assert isinstance(conn, sqlite3.Connection)
+    finally:
+        conn.close()
+    assert env_path.exists()
+
+
+def test_connect_db_falls_back_when_postgres_unavailable(tmp_path, monkeypatch):
+    env_path = tmp_path / "fallback.db"
+    monkeypatch.setenv("DB_PATH", str(env_path))
+    monkeypatch.setenv("DB_URL", "postgres://user@localhost/db")
+    monkeypatch.setattr(base, "psycopg", None)
+    conn = connect_db()
+    try:
+        assert isinstance(conn, sqlite3.Connection)
+    finally:
+        conn.close()
+
+
 def test_connect_db_postgres_retries_and_timeout(monkeypatch):
     class DummyConn:
         def close(self):
@@ -99,7 +128,93 @@ def test_connect_db_postgres_retries_and_timeout(monkeypatch):
     assert dummy_psycopg.calls[0][1]["connect_timeout"] == 5
 
 
+def test_connect_db_postgres_raises_after_retries(monkeypatch):
+    class DummyPsycopg:
+        class Error(Exception):
+            pass
+
+        def connect(self, *_args, **_kwargs):
+            raise self.Error("still down")
+
+    dummy_psycopg = DummyPsycopg()
+    monkeypatch.setattr(base, "psycopg", dummy_psycopg)
+    monkeypatch.setenv("DB_URL", "postgres://user@localhost/db")
+    monkeypatch.setattr(base.time, "sleep", lambda _delay: None)
+
+    with pytest.raises(DummyPsycopg.Error):
+        connect_db(retries=1, retry_delay=0)
+
+
 def test_get_adapter_caches_module():
     adapter = get_adapter("edgar")
     # The registry should return the same module instance on repeated calls.
     assert get_adapter("edgar") is adapter
+
+
+def test_get_adapter_unknown_module_raises():
+    with pytest.raises(ModuleNotFoundError):
+        get_adapter("not_a_real_adapter")
+
+
+@pytest.mark.asyncio
+async def test_tracked_call_writes_sqlite_usage(tmp_path):
+    db_path = tmp_path / "usage.db"
+
+    class DummyResponse:
+        status_code = 204
+        content = b"hello"
+
+    async with base.tracked_call("uk", "/filings", db_path=str(db_path)) as log:
+        log(DummyResponse())
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT source, endpoint, status, bytes, cost_usd FROM api_usage"
+        ).fetchone()
+        assert row == ("uk", "/filings", 204, 5, 0.0)
+        view = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='view' AND name='monthly_usage'"
+        ).fetchone()
+        assert view == ("monthly_usage",)
+    finally:
+        conn.close()
+
+
+@pytest.mark.asyncio
+async def test_tracked_call_postgres_placeholder(monkeypatch):
+    class DummyConn:
+        def __init__(self):
+            self.statements = []
+            self.params = []
+            self.committed = False
+            self.closed = False
+
+        def execute(self, sql, params=None):
+            self.statements.append(sql)
+            if params is not None:
+                self.params.append(params)
+            if "CREATE MATERIALIZED VIEW" in sql:
+                raise RuntimeError("no permission")
+
+        def commit(self):
+            self.committed = True
+
+        def close(self):
+            self.closed = True
+
+    class DummyResponse:
+        status_code = 200
+        content = b"abc"
+
+    dummy_conn = DummyConn()
+    monkeypatch.setattr(base, "connect_db", lambda _db_path=None: dummy_conn)
+
+    async with base.tracked_call("edgar", "endpoint") as log:
+        log(DummyResponse())
+
+    insert_sql = next(sql for sql in dummy_conn.statements if sql.startswith("INSERT"))
+    assert "VALUES (%s,%s,%s,%s,%s,%s)" in insert_sql
+    assert dummy_conn.params[-1][:4] == ("edgar", "endpoint", 200, 3)
+    assert dummy_conn.committed is True
+    assert dummy_conn.closed is True

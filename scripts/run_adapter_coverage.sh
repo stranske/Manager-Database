@@ -8,4 +8,5 @@ pytest tests/test_adapter_base.py tests/test_adapter_registry.py tests/test_trac
   --cov=adapters \
   --cov-report=term-missing \
   --cov-report=xml:coverage-adapters.xml \
+  --cov-fail-under=80 \
   -m "not slow"

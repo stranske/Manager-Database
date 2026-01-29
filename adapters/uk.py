@@ -415,23 +415,27 @@ def _find_company_number(lines: list[str]) -> str:
     if label_value:
         return label_value.strip()
     token_pattern = re.compile(r"\b[A-Z0-9]{6,8}\b")
+    disqualifier_pattern = re.compile(
+        r"\b(reference|ref|form|document|submission|payment)\b", re.IGNORECASE
+    )
     for line in lines:
         lowered = line.lower()
-        match = token_pattern.search(line)
-        if match and ("company" in lowered or "number" in lowered):
-            if any(term in lowered for term in ("reference", "ref", "form")):
+        if "company" in lowered and "number" in lowered:
+            if disqualifier_pattern.search(line):
                 continue
-            return match.group(0)
-    disqualifiers = ("reference", "ref", "form", "document", "submission", "payment")
+            for match in token_pattern.finditer(line):
+                return match.group(0)
+    fallback_matches: list[str] = []
     for line in lines:
-        lowered = line.lower()
-        if any(term in lowered for term in disqualifiers):
+        if disqualifier_pattern.search(line):
             continue
         stripped = line.strip()
         # Prefer standalone tokens to avoid capturing unrelated identifiers.
         if token_pattern.fullmatch(stripped):
             return stripped
-    return ""
+        for match in token_pattern.finditer(line):
+            fallback_matches.append(match.group(0))
+    return fallback_matches[0] if fallback_matches else ""
 
 
 def _find_filing_date(lines: list[str], text: str) -> str | None:
