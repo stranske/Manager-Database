@@ -1,6 +1,9 @@
 import sqlite3
 
-from adapters.base import connect_db, get_adapter
+import pytest
+
+from adapters import base
+from adapters.base import _db_retry_config, connect_db, get_adapter
 
 
 def test_connect_db_respects_timeout(tmp_path):
@@ -15,6 +18,26 @@ def test_connect_db_respects_timeout(tmp_path):
         assert conn.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 1
     finally:
         conn.close()
+
+
+def test_db_retry_config_uses_env_defaults(monkeypatch):
+    monkeypatch.setenv("DB_CONNECT_RETRIES", "-2")
+    monkeypatch.setenv("DB_CONNECT_RETRY_DELAY", "-1.5")
+    retries, delay = _db_retry_config(None, None)
+    assert retries == 0
+    assert delay == 0.0
+
+
+def test_connect_db_raises_when_retries_exhausted(monkeypatch):
+    def failing_connect(*_args, **_kwargs):
+        raise sqlite3.OperationalError("down")
+
+    monkeypatch.setattr(sqlite3, "connect", failing_connect)
+    monkeypatch.setenv("DB_CONNECT_RETRIES", "0")
+    monkeypatch.setenv("DB_CONNECT_RETRY_DELAY", "0")
+
+    with pytest.raises(sqlite3.OperationalError):
+        connect_db("missing.db")
 
 
 def test_connect_db_retries_on_transient_error(tmp_path, monkeypatch):
@@ -41,6 +64,39 @@ def test_connect_db_retries_on_transient_error(tmp_path, monkeypatch):
         assert isinstance(conn, sqlite3.Connection)
     finally:
         conn.close()
+
+
+def test_connect_db_postgres_retries_and_timeout(monkeypatch):
+    class DummyConn:
+        def close(self):
+            pass
+
+    class DummyPsycopg:
+        class Error(Exception):
+            pass
+
+        def __init__(self, failures):
+            self.failures = failures
+            self.calls = []
+
+        def connect(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            if self.failures > 0:
+                self.failures -= 1
+                raise self.Error("temporary")
+            return DummyConn()
+
+    sleep_calls = []
+    dummy_psycopg = DummyPsycopg(failures=2)
+    monkeypatch.setattr(base, "psycopg", dummy_psycopg)
+    monkeypatch.setenv("DB_URL", "postgres://user@localhost/db")
+    monkeypatch.setattr(base.time, "sleep", lambda delay: sleep_calls.append(delay))
+
+    conn = connect_db(connect_timeout=5, retries=2, retry_delay=0.1)
+    assert isinstance(conn, DummyConn)
+    assert sleep_calls == [0.1, 0.2]
+    assert dummy_psycopg.calls[0][1]["autocommit"] is True
+    assert dummy_psycopg.calls[0][1]["connect_timeout"] == 5
 
 
 def test_get_adapter_caches_module():
