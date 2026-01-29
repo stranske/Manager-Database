@@ -414,12 +414,23 @@ def _find_company_number(lines: list[str]) -> str:
     )
     if label_value:
         return label_value.strip()
+    token_pattern = re.compile(r"\b[A-Z0-9]{6,8}\b")
     for line in lines:
-        match = re.search(r"\b[A-Z0-9]{6,8}\b", line)
-        if match and ("company" in line.lower() or "number" in line.lower()):
+        lowered = line.lower()
+        match = token_pattern.search(line)
+        if match and ("company" in lowered or "number" in lowered):
+            if any(term in lowered for term in ("reference", "ref", "form")):
+                continue
             return match.group(0)
-    for match in re.finditer(r"\b[A-Z0-9]{6,8}\b", " ".join(lines)):
-        return match.group(0)
+    disqualifiers = ("reference", "ref", "form", "document", "submission", "payment")
+    for line in lines:
+        lowered = line.lower()
+        if any(term in lowered for term in disqualifiers):
+            continue
+        stripped = line.strip()
+        # Prefer standalone tokens to avoid capturing unrelated identifiers.
+        if token_pattern.fullmatch(stripped):
+            return stripped
     return ""
 
 

@@ -266,6 +266,26 @@ def test_find_company_number_fallback_scan():
     assert uk._find_company_number(lines) == "01234567"
 
 
+def test_find_company_number_skips_reference_tokens():
+    lines = [
+        "Confirmation Statement CS01",
+        "Reference number: 12345678",
+        "Document reference: AB123456",
+    ]
+    # Avoid false positives from reference codes when no company number exists.
+    assert uk._find_company_number(lines) == ""
+
+
+def test_find_company_number_prefers_standalone_token():
+    lines = [
+        "Reference number: 12345678",
+        "Company details",
+        "SC123456",
+    ]
+    # Standalone company number tokens should still be detected.
+    assert uk._find_company_number(lines) == "SC123456"
+
+
 def test_extract_pdf_text_handles_flate_stream():
     raw = _make_flate_pdf_bytes(
         "Confirmation Statement CS01",
