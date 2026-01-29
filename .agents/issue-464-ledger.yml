@@ -1,0 +1,265 @@
+version: 1
+issue: 464
+base: main
+branch: codex/issue-464
+tasks:
+  - id: task-01
+    title: Delete the file `.agents/issue-462-ledger.yml` and merge any necessary
+      info back into `.agents/issue-129-ledger.yml`. Update the ledger file to reflect
+      a consistent state with no 'todo' entries or duplicated tasks.
+    status: done
+    started_at: '2026-01-29T07:08:29Z'
+    finished_at: '2026-01-29T07:08:38Z'
+    commit: b17a09b7101aac66c65f161ccc85b660cc255039
+    notes: []
+  - id: task-02
+    title: Expand the unit test suite for the adapter module to include tests specific
+      to `adapters/uk.py`. Confirm that the overall test coverage reaches at least
+      80% across the entire adapter module.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Define scope for: Expand the unit test suite for the adapter module to
+      include tests specific to `adapters/uk.py`. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Implement focused slice for: Expand the unit test suite for the adapter
+      module to include tests specific to `adapters/uk.py`. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Validate focused slice for: Expand the unit test suite for the adapter
+      module to include tests specific to `adapters/uk.py`. (verify: tests pass)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Define scope for: Verify that the overall test coverage reaches at least
+      80% across the entire adapter module.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Implement focused slice for: Verify that the overall test coverage reaches
+      at least 80% across the entire adapter module.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Validate focused slice for: Verify that the overall test coverage reaches
+      at least 80% across the entire adapter module.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Modify the `scripts/run_adapter_coverage.sh` script and the pytest-cov
+      configuration to measure coverage for the entire adapter module rather than
+      only `adapters/base.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'Define scope for: Modify the `scripts/run_adapter_coverage.sh` script
+      to measure coverage for the entire adapter module. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Implement focused slice for: Modify the `scripts/run_adapter_coverage.sh`
+      script to measure coverage for the entire adapter module. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Validate focused slice for: Modify the `scripts/run_adapter_coverage.sh`
+      script to measure coverage for the entire adapter module. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Define scope for: Update the pytest-cov configuration to measure coverage
+      for the entire adapter module. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Implement focused slice for: Update the pytest-cov configuration to measure
+      coverage for the entire adapter module. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Validate focused slice for: Update the pytest-cov configuration to measure
+      coverage for the entire adapter module. (verify: config validated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: Add targeted unit tests for the fallback logic in `_find_company_number`
+      to verify that it does not inadvertently capture non-company-number tokens (e.g.,
+      form codes or reference numbers).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: The repository contains exactly one ledger file named `.agents/issue-129-ledger.yml`,
+      which is current, free of 'todo' entries, and contains no duplicate or conflicting
+      task statuses.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: Unit tests for the adapter module cover at least 80% of all code paths,
+      including tests for normal, edge, and malformed inputs for both `adapters/base.py`
+      and `adapters/uk.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: The script `scripts/run_adapter_coverage.sh` and pytest-cov configuration
+      measure coverage for the entire adapter module, not just `adapters/base.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: The company number detection logic correctly identifies valid company numbers
+      without capturing false positives like form codes or reference numbers.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: Delete the file `.agents/issue-462-ledger.yml` and merge any necessary
+      info back into `.agents/issue-129-ledger.yml`. Update the ledger file to reflect
+      a consistent state with no 'todo' entries or duplicated tasks.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: Expand the unit test suite for the adapter module to include tests specific
+      to `adapters/uk.py`. Confirm that the overall test coverage reaches at least
+      80% across the entire adapter module.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: Modify the `scripts/run_adapter_coverage.sh` script and the pytest-cov
+      configuration to measure coverage for the entire adapter module rather than
+      only `adapters/base.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: Add targeted unit tests for the fallback logic in `_find_company_number`
+      to verify that it does not inadvertently capture non-company-number tokens (e.g.,
+      form codes or reference numbers).
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: The repository contains exactly one ledger file named `.agents/issue-129-ledger.yml`,
+      which is current, free of 'todo' entries, and contains no duplicate or conflicting
+      task statuses.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: Unit tests for the adapter module cover at least 80% of all code paths,
+      including tests for normal, edge, and malformed inputs for both `adapters/base.py`
+      and `adapters/uk.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: The script `scripts/run_adapter_coverage.sh` and pytest-cov configuration
+      measure coverage for the entire adapter module, not just `adapters/base.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: The company number detection logic correctly identifies valid company numbers
+      without capturing false positives like form codes or reference numbers.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: Modify the `scripts/run_adapter_coverage.sh` script and the pytest-cov
+      configuration to measure coverage for the entire adapter module rather than
+      only `adapters/base.py`. (Agents cannot modify repository settings or protected
+      files like `.github/workflows/*.yml` or certain scripts. | Request manual intervention
+      from a repository maintainer to modify the script and configuration.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: Confirm that the overall test coverage reaches at least 80% across the
+      entire adapter module. (Agents cannot guarantee specific coverage percentages
+      due to limitations in automated testing and CI pipeline retries. | Reframe the
+      task to focus on adding tests and improving coverage without specifying a percentage.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
