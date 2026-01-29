@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Update the company number extraction function to include a fallback whole-document
       scan that does not rely on 'company'/'number' keywords on the same line.
-    status: doing
+    status: done
     started_at: '2026-01-29T05:49:09Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-29T05:49:16Z'
+    commit: 542ee7db823b468ffd8974285b30d032d20836a5
     notes: []
   - id: task-02
     title: Enhance documentation and unit tests for two-digit year normalization in
