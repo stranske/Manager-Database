@@ -7,10 +7,10 @@ tasks:
     title: Delete the file `.agents/issue-462-ledger.yml` and merge any necessary
       info back into `.agents/issue-129-ledger.yml`. Update the ledger file to reflect
       a consistent state with no 'todo' entries or duplicated tasks.
-    status: doing
+    status: done
     started_at: '2026-01-29T07:08:29Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-29T07:08:38Z'
+    commit: b17a09b7101aac66c65f161ccc85b660cc255039
     notes: []
   - id: task-02
     title: Expand the unit test suite for the adapter module to include tests specific
