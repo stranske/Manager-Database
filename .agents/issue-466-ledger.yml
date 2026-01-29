@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Delete the ledger file `.agents/issue-464-ledger.yml` to ensure the repository
       contains only the designated ledger file as per the acceptance criteria.
-    status: doing
+    status: done
     started_at: '2026-01-29T07:59:40Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-01-29T07:59:49Z'
+    commit: df906097fdc34c05f7fbd3b01ce7748700371648
     notes: []
   - id: task-02
     title: Update `.agents/issue-129-ledger.yml` to remove 'todo' entries and any
