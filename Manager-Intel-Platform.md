@@ -131,6 +131,8 @@ async def list_new_filings(since: datetime) -> list[FilingMeta]:
 async def download(filing: FilingMeta) -> bytes:
 async def parse(raw: bytes) -> list[Dict[str, Any]]:
 …so Prefect can call them in parallel without caring which jurisdiction it is.
+If an adapter only yields a single parsed record, it should still return a
+single-item list to keep the output contract consistent.
 
 2 | Prototype topology (solo-maintainer friendly)
 docker-compose.yml
@@ -301,4 +303,3 @@ Immediate priorities - When the user needs to take action locally before you can
 | **Prefect Cloud (free)**    | Orchestration, retries     | Self-hosted Prefect Server inside k8s          |
 | **ETL image**               | Houses adapters & flows    | CI pipeline builds & pushes to your registry   |
 | **tracked\_call() logging** | Shows value of paid APIs   | Feed Grafana dashboards for management         |
-

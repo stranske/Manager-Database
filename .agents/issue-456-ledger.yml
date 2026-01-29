@@ -1,0 +1,439 @@
+version: 1
+issue: 456
+base: main
+branch: codex/issue-456
+tasks:
+  - id: task-01
+    title: Review the expected adapter API's output format across the project and
+      update the `parse()` function or its documentation to clarify whether returning
+      a dict is acceptable or if it needs to be a list. Modify the adapter output
+      or provide a conversion layer as needed.
+    status: done
+    started_at: '2026-01-28T17:39:20Z'
+    finished_at: '2026-01-28T17:39:28Z'
+    commit: 9858f0528eb261c4c7e4a5f796d1bb705e71ce32
+    notes: []
+  - id: task-02
+    title: 'Define scope for: Review the expected adapter API''s output format across
+      the project. (verify: formatter passes)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'Implement focused slice for: Review the expected adapter API''s output
+      format across the project. (verify: formatter passes)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: 'Validate focused slice for: Review the expected adapter API''s output
+      format across the project. (verify: formatter passes)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'Define scope for: Update the `parse()` function or its documentation to
+      clarify whether returning a dict is acceptable or if it needs to be a list.
+      (verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Implement focused slice for: Update the `parse()` function or its documentation
+      to clarify whether returning a dict is acceptable or if it needs to be a list.
+      (verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: 'Validate focused slice for: Update the `parse()` function or its documentation
+      to clarify whether returning a dict is acceptable or if it needs to be a list.
+      (verify: docs updated)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: 'Define scope for: Modify the adapter output or provide a conversion layer
+      as needed. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: 'Implement focused slice for: Modify the adapter output or provide a conversion
+      layer as needed. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'Validate focused slice for: Modify the adapter output or provide a conversion
+      layer as needed. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Enhance the `_extract_pdf_text` function to handle common real-world PDF
+      structures, including compressed streams (FlateDecode), hex strings, and object
+      streams.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Define scope for: Enhance the `_extract_pdf_text` function to handle compressed
+      streams (FlateDecode). (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Implement focused slice for: Enhance the `_extract_pdf_text` function
+      to handle compressed streams (FlateDecode). (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: 'Validate focused slice for: Enhance the `_extract_pdf_text` function to
+      handle compressed streams (FlateDecode). (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'Define scope for: Enhance the `_extract_pdf_text` function to handle hex
+      strings. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: 'Implement focused slice for: Enhance the `_extract_pdf_text` function
+      to handle hex strings. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: 'Validate focused slice for: Enhance the `_extract_pdf_text` function to
+      handle hex strings. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: 'Define scope for: Enhance the `_extract_pdf_text` function to handle object
+      streams. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Implement focused slice for: Enhance the `_extract_pdf_text` function
+      to handle object streams. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: 'Validate focused slice for: Enhance the `_extract_pdf_text` function to
+      handle object streams. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: Refactor the error handling in the `parse` function so that an empty or
+      unreadable PDF returns a clearly indicated error object or status rather than
+      hardcoding `filing_type` as 'unsupported'.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: 'Improve the company number detection logic: Modify the regex either to
+      not require the existence of the keywords ''company'' or ''number'' on the same
+      line, or implement a secondary search that scans the entire document if initial
+      heuristics fail.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: 'Define scope for: Modify the regex to not require the existence of the
+      keywords ''company'' or ''number'' on the same line. (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: 'Implement focused slice for: Modify the regex to not require the existence
+      of the keywords ''company'' or ''number'' on the same line. (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-25
+    title: 'Validate focused slice for: Modify the regex to not require the existence
+      of the keywords ''company'' or ''number'' on the same line. (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-26
+    title: 'Define scope for: Implement a secondary search that scans the entire document
+      if initial heuristics fail. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-27
+    title: 'Implement focused slice for: Implement a secondary search that scans the
+      entire document if initial heuristics fail. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-28
+    title: 'Validate focused slice for: Implement a secondary search that scans the
+      entire document if initial heuristics fail. (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-29
+    title: Review and document the two-digit year normalization logic. Either update
+      the normalization to handle historical dates correctly or clearly document that
+      only 20xx dates are supported and add tests to reflect this behavior.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-30
+    title: Clean up or update the ledger file (.agents/issue-129-ledger.yml) to accurately
+      reflect the status of tasks, removing 'todo' entries that contradict the PR
+      description.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-31
+    title: The `parse()` function returns a structured dict containing at least 'company_name',
+      'filing_date', and 'filing_type', and matches the output format used by all
+      adapters.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-32
+    title: The `_extract_pdf_text` function correctly extracts text from PDFs with
+      compressed streams, hex strings, and object streams.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-33
+    title: The `parse()` function returns a defined error object or status for empty
+      or unreadable PDFs, without using 'unsupported' as a filing type.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-34
+    title: The company number detection logic successfully identifies company numbers
+      without requiring 'company' or 'number' keywords on the same line.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-35
+    title: The two-digit year normalization logic is documented and tested, supporting
+      only 20xx dates or handling historical dates correctly.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-36
+    title: The `.agents/issue-129-ledger.yml` file accurately reflects the status
+      of tasks with no 'todo' entries contradicting the PR description.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-37
+    title: The adapter module has unit tests covering at least 80% of its code paths,
+      including tests for typical, edge, and malformed inputs.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-38
+    title: Review the expected adapter API's output format across the project and
+      update the `parse()` function or its documentation to clarify whether returning
+      a dict is acceptable or if it needs to be a list. Modify the adapter output
+      or provide a conversion layer as needed.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-39
+    title: Enhance the `_extract_pdf_text` function to handle common real-world PDF
+      structures, including compressed streams (FlateDecode), hex strings, and object
+      streams.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-40
+    title: Refactor the error handling in the `parse` function so that an empty or
+      unreadable PDF returns a clearly indicated error object or status rather than
+      hardcoding `filing_type` as 'unsupported'.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-41
+    title: 'Improve the company number detection logic: Modify the regex either to
+      not require the existence of the keywords ''company'' or ''number'' on the same
+      line, or implement a secondary search that scans the entire document if initial
+      heuristics fail.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-42
+    title: Review and document the two-digit year normalization logic. Either update
+      the normalization to handle historical dates correctly or clearly document that
+      only 20xx dates are supported and add tests to reflect this behavior.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-43
+    title: Clean up or update the ledger file (.agents/issue-129-ledger.yml) to accurately
+      reflect the status of tasks, removing 'todo' entries that contradict the PR
+      description.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-44
+    title: The `parse()` function returns a structured dict containing at least 'company_name',
+      'filing_date', and 'filing_type', and matches the output format used by all
+      adapters.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-45
+    title: The `_extract_pdf_text` function correctly extracts text from PDFs with
+      compressed streams, hex strings, and object streams.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-46
+    title: The `parse()` function returns a defined error object or status for empty
+      or unreadable PDFs, without using 'unsupported' as a filing type.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-47
+    title: The company number detection logic successfully identifies company numbers
+      without requiring 'company' or 'number' keywords on the same line.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-48
+    title: The two-digit year normalization logic is documented and tested, supporting
+      only 20xx dates or handling historical dates correctly.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-49
+    title: The `.agents/issue-129-ledger.yml` file accurately reflects the status
+      of tasks with no 'todo' entries contradicting the PR description.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-50
+    title: The adapter module has unit tests covering at least 80% of its code paths,
+      including tests for typical, edge, and malformed inputs.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-51
+    title: The adapter module has unit tests covering at least 80% of its code paths,
+      including tests for typical, edge, and malformed inputs. (The agent cannot guarantee
+      specific coverage percentages due to AGENT_LIMITATIONS. | Reframe the task to
+      focus on adding unit tests for critical code paths without specifying a percentage.)
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
