@@ -72,9 +72,7 @@ async def test_list_new_filings_filters_13f(monkeypatch):
     monkeypatch.setattr(edgar.httpx, "AsyncClient", DummyClient)
     filings = await edgar.list_new_filings("1234", "2024-01-01")
 
-    assert filings == [
-        {"accession": "0001-01", "cik": "1234", "filed": "2024-02-01"}
-    ]
+    assert filings == [{"accession": "0001-01", "cik": "1234", "filed": "2024-02-01"}]
 
 
 @pytest.mark.asyncio
@@ -107,9 +105,7 @@ async def test_download_returns_text(monkeypatch):
             return False
 
         async def get(self, *a, **k):
-            return httpx.Response(
-                200, request=httpx.Request("GET", "x"), text="<xml></xml>"
-            )
+            return httpx.Response(200, request=httpx.Request("GET", "x"), text="<xml></xml>")
 
     monkeypatch.setattr(edgar.httpx, "AsyncClient", DummyClient)
 
