@@ -34,7 +34,7 @@ dev = [
     "pre-commit",
     "mypy>=1.19.1",
     "types-PyYAML",
-    "coverage>=7.13.2",
+    "coverage>=7.13.3",
     "referencing",
     "PyYAML",
     "fakeredis",
