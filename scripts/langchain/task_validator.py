@@ -16,7 +16,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -117,7 +117,7 @@ Process each item in order. Do not skip any items.
 # ---------------------------------------------------------------------------
 
 
-class TaskOutcome(str, Enum):
+class TaskOutcome(StrEnum):
     """Possible outcomes for a flagged task."""
 
     KEPT = "kept"
