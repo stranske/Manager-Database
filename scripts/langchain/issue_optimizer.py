@@ -16,9 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from scripts.langchain.structured_output import (
+from pydantic import BaseModel, ConfigDict, Field  # Third-party imports.
+from scripts.langchain.structured_output import (  # Local imports.
     DEFAULT_REPAIR_PROMPT,
     build_repair_callback,
     parse_structured_output,

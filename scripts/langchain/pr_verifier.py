@@ -17,10 +17,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # Third-party imports.
+from scripts.langchain.structured_output import (  # Local imports.
+    build_repair_callback,
+    parse_structured_output,
+)
 
-from scripts import api_client
-from scripts.langchain.structured_output import build_repair_callback, parse_structured_output
+from scripts import api_client  # Local imports.
 
 PR_EVALUATION_PROMPT = """
 You are reviewing a **merged** pull request to evaluate whether the code
