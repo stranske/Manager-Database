@@ -80,7 +80,7 @@ colorama==0.4.6
     # via griffe
 coolname==2.2.0
     # via prefect
-coverage==7.13.2
+coverage==7.13.3
     # via
     #   manager-database (pyproject.toml)
     #   pytest-cov
@@ -381,7 +381,7 @@ ruamel-yaml==0.19.1
     # via prefect
 ruamel-yaml-clib==0.2.15
     # via prefect
-ruff==0.14.14
+ruff==0.15.0
     # via manager-database (pyproject.toml)
 s3transfer==0.16.0
     # via boto3
