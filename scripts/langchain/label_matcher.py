@@ -29,8 +29,8 @@ class LabelVectorStore:
     store: object
     provider: str
     model: str
-    is_fallback: bool
     labels: list[LabelRecord]
+    is_fallback: bool = False  # Keep default for tests/fixtures that omit it.
 
 
 @dataclass(frozen=True)
