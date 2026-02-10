@@ -80,7 +80,7 @@ colorama==0.4.6
     # via griffe
 coolname==2.2.0
     # via prefect
-coverage==7.13.3
+coverage==7.13.4
     # via
     #   manager-database (pyproject.toml)
     #   pytest-cov
