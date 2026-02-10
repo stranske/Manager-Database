@@ -13,8 +13,8 @@ import hashlib
 import math
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,7 @@ class EmbeddingSelectionCriteria:
 
 @dataclass(frozen=True)
 class EmbeddingProviderSelection:
-    provider: "EmbeddingProvider"
+    provider: EmbeddingProvider
     model: str
 
 
@@ -134,7 +134,9 @@ class EmbeddingProviderRegistry:
         providers: list[EmbeddingProvider],
         criteria: EmbeddingSelectionCriteria,
     ) -> list[EmbeddingProvider]:
-        allowlist = {_normalize_provider_id(item) for item in (criteria.provider_allowlist or set())}
+        allowlist = {
+            _normalize_provider_id(item) for item in (criteria.provider_allowlist or set())
+        }
         denylist = {_normalize_provider_id(item) for item in (criteria.provider_denylist or set())}
         filtered: list[EmbeddingProvider] = []
         for provider in providers:
@@ -154,7 +156,9 @@ def _normalize_provider_id(value: str | None) -> str | None:
     return normalized or None
 
 
-def _provider_score(provider: EmbeddingProvider, criteria: EmbeddingSelectionCriteria) -> tuple[float, float]:
+def _provider_score(
+    provider: EmbeddingProvider, criteria: EmbeddingSelectionCriteria
+) -> tuple[float, float]:
     return (
         provider.cost_score if criteria.prefer_low_cost else 0.0,
         provider.latency_score if criteria.prefer_low_latency else 0.0,
