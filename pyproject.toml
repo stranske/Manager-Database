@@ -31,7 +31,7 @@ dev = [
     "pytest-asyncio",
     "pytest-cov>=7.0.0",
     "black==26.1.0",
-    "ruff>=0.15.0",
+    "ruff==0.15.1",
     "pre-commit",
     "mypy>=1.19.1",
     "types-PyYAML",

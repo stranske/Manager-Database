@@ -381,7 +381,7 @@ ruamel-yaml==0.19.1
     # via prefect
 ruamel-yaml-clib==0.2.15
     # via prefect
-ruff==0.15.0
+ruff==0.15.1
     # via manager-database (pyproject.toml)
 s3transfer==0.16.0
     # via boto3
