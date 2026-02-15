@@ -117,11 +117,72 @@ jobs:
               return true;
             };
 
+            const hasRelevantFailureJobForRun = async ({ owner, repo, runId }) => {
+              let page = 1;
+              let jobs = [];
+              let totalCount = null;
+
+              while (page <= 25) {
+                const { data } = await withRetry((client) =>
+                  client.rest.actions.listJobsForWorkflowRun({
+                    owner,
+                    repo,
+                    run_id: runId,
+                    per_page: 100,
+                    page,
+                  })
+                );
+
+                const jobsPage = data?.jobs || [];
+                jobs = jobs.concat(jobsPage);
+
+                if (typeof data?.total_count === 'number') {
+                  totalCount = data.total_count;
+                }
+
+                if (jobsPage.length < 100) {
+                  break;
+                }
+
+                if (totalCount !== null && jobs.length >= totalCount) {
+                  break;
+                }
+
+                page += 1;
+              }
+
+              if (totalCount !== null && jobs.length < totalCount) {
+                core.warning(
+                  `Only retrieved ${jobs.length}/${totalCount} jobs for run ${runId}`
+                );
+              }
+              const failedJobs = jobs.filter(
+                (job) => (job.conclusion || '').toLowerCase() === 'failure'
+              );
+              const relevantFailures = failedJobs.filter((job) => {
+                const name = String(job.name || '').toLowerCase();
+                return name.includes('lint-format') || name.includes('lint-ruff');
+              });
+
+              if (relevantFailures.length === 0) {
+                core.info(
+                  'No lint-format/lint-ruff job failures found; skipping autofix.'
+                );
+                return false;
+              }
+
+              core.info(
+                `Relevant failures: ${relevantFailures.map((job) => job.name).join(', ')}`
+              );
+              return true;
+            };
+
             // --- workflow_run trigger (after Gate/CI completes) ---
             if (context.eventName === 'workflow_run') {
               const run = context.payload.workflow_run;
               const workflowName = run?.name || 'workflow';
               const triggerHeadSha = String(run?.head_sha || run?.head_commit?.id || '');
+              const runId = Number(run?.id || 0);
 
               // Only proceed when the upstream workflow failed
               if (run.conclusion !== 'failure') {
@@ -178,12 +239,37 @@ jobs:
                 return;
               }
 
-              const refForChecks = triggerHeadSha || headSha;
-              let shouldAutofix = await hasRelevantFailureCheck({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: refForChecks,
-              });
+              let shouldAutofix = false;
+              if (runId) {
+                try {
+                  shouldAutofix = await hasRelevantFailureJobForRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    runId,
+                  });
+                } catch (error) {
+                  const message = String(error?.message || error || '');
+                  const status = Number(error?.status || error?.response?.status || 0);
+                  if (status === 403 && message.toLowerCase().includes('rate limit')) {
+                    core.warning(
+                      'Rate limited listing workflow jobs; falling back to check runs.'
+                    );
+                  } else {
+                    core.warning(
+                      `Failed to list workflow jobs; falling back to check runs: ${message}`
+                    );
+                  }
+                }
+              }
+
+              if (!shouldAutofix) {
+                const refForChecks = triggerHeadSha || headSha;
+                shouldAutofix = await hasRelevantFailureCheck({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: refForChecks,
+                });
+              }
 
               if (!shouldAutofix && triggerHeadSha && triggerHeadSha !== headSha) {
                 core.info(
