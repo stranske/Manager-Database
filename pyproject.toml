@@ -25,6 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+app = []
 dev = [
     "pytest>=9.0.2",
     "pytest-asyncio",
