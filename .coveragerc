@@ -4,3 +4,5 @@ source =
     adapters
 omit =
     ui/*
+    # Exclude workflow-only helper that is exercised in Workflows repo CI, not here.
+    tools/coverage_trend.py
