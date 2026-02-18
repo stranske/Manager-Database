@@ -20,12 +20,14 @@ def compute(cik: str, date: str, db_path: str) -> None:
     try:
         additions, exits = diff_holdings(cik, db_path)
         conn = connect_db(db_path)
-        conn.execute("""CREATE TABLE IF NOT EXISTS daily_diff (
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS daily_diff (
                 date TEXT,
                 cik TEXT,
                 cusip TEXT,
                 change TEXT
-            )""")
+            )"""
+        )
         for cusip in additions:
             conn.execute(
                 "INSERT INTO daily_diff VALUES (?,?,?,?)",
@@ -71,6 +73,7 @@ def daily_diff_flow(cik_list: list[str] | None = None, date: str | None = None):
 if __name__ == "__main__":
     daily_diff_flow()
 
+
 # Prefect deployment with daily schedule at 08:00 local time
 def _resolve_local_timezone() -> str:
     env = os.getenv("TZ")
@@ -87,7 +90,11 @@ def _resolve_local_timezone() -> str:
         localtime_path = None
 
     if localtime_path:
-        for zone_root in ("/usr/share/zoneinfo/", "/usr/lib/zoneinfo/", "/var/db/timezone/zoneinfo/"):
+        for zone_root in (
+            "/usr/share/zoneinfo/",
+            "/usr/lib/zoneinfo/",
+            "/var/db/timezone/zoneinfo/",
+        ):
             if localtime_path.startswith(zone_root):
                 return localtime_path[len(zone_root) :]
     return "UTC"
