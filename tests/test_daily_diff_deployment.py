@@ -19,7 +19,13 @@ def test_daily_diff_deployment_uses_env_tz(monkeypatch):
 def test_daily_diff_deployment_falls_back_to_local_timezone(monkeypatch):
     monkeypatch.delenv("TZ", raising=False)
     module = importlib.reload(daily_diff_flow)
-    expected = module._resolve_local_timezone()
+
+    # Derive the local timezone independently of the module implementation
+    local_tzinfo = dt.datetime.now().astimezone().tzinfo
+    if hasattr(local_tzinfo, "key"):
+        expected = local_tzinfo.key
+    else:
+        expected = str(local_tzinfo)
     assert module.LOCAL_TZ == expected
     schedule = module.daily_diff_deployment.schedules[0].schedule
     assert schedule.timezone == expected
