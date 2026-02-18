@@ -52,22 +52,26 @@ def store_document(text: str, db_path: str | None = None) -> None:
         if register_vector:
             register_vector(conn)
         conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        conn.execute("""CREATE TABLE IF NOT EXISTS documents (
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS documents (
                 id SERIAL PRIMARY KEY,
                 content TEXT,
                 embedding vector(384)
-            )""")
+            )"""
+        )
         emb = Vector(embed_text(text)) if register_vector else embed_text(text)
         conn.execute(
             "INSERT INTO documents(content, embedding) VALUES (%s,%s)",
             (text, emb),
         )
     else:
-        conn.execute("""CREATE TABLE IF NOT EXISTS documents (
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS documents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT,
                 embedding TEXT
-            )""")
+            )"""
+        )
         emb = json.dumps(embed_text(text))
         conn.execute(
             "INSERT INTO documents(content, embedding) VALUES (?, ?)",
