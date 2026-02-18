@@ -81,14 +81,15 @@ def _resolve_local_timezone() -> str:
     if tzinfo and getattr(tzinfo, "key", None):
         return tzinfo.key  # Prefer canonical IANA identifier.
 
-    for zone_root in ("/usr/share/zoneinfo/", "/usr/lib/zoneinfo/", "/var/db/timezone/zoneinfo/"):
-        try:
-            localtime_path = os.path.realpath("/etc/localtime")
-        except FileNotFoundError:
-            break
-        if localtime_path.startswith(zone_root):
-            return localtime_path[len(zone_root) :]
+    try:
+        localtime_path = os.path.realpath("/etc/localtime")
+    except FileNotFoundError:
+        localtime_path = None
 
+    if localtime_path:
+        for zone_root in ("/usr/share/zoneinfo/", "/usr/lib/zoneinfo/", "/var/db/timezone/zoneinfo/"):
+            if localtime_path.startswith(zone_root):
+                return localtime_path[len(zone_root) :]
     return "UTC"
 
 
