@@ -99,23 +99,19 @@ def _ensure_manager_table(conn) -> None:
     """Create the managers table if it does not exist."""
     # Use dialect-specific schema to keep SQLite and Postgres aligned.
     if isinstance(conn, sqlite3.Connection):
-        conn.execute(
-            """CREATE TABLE IF NOT EXISTS managers (
+        conn.execute("""CREATE TABLE IF NOT EXISTS managers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 role TEXT NOT NULL,
                 department TEXT
-            )"""
-        )
+            )""")
     else:
-        conn.execute(
-            """CREATE TABLE IF NOT EXISTS managers (
+        conn.execute("""CREATE TABLE IF NOT EXISTS managers (
                 id bigserial PRIMARY KEY,
                 name text NOT NULL,
                 role text NOT NULL,
                 department text
-            )"""
-        )
+            )""")
     _ensure_manager_department_column(conn)
 
 
