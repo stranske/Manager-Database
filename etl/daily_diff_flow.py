@@ -72,10 +72,27 @@ if __name__ == "__main__":
     daily_diff_flow()
 
 # Prefect deployment with daily schedule at 08:00 local time
-LOCAL_TZ = os.getenv("TZ")
-if not LOCAL_TZ:
+def _resolve_local_timezone() -> str:
+    env = os.getenv("TZ")
+    if env:
+        return env
+
     tzinfo = dt.datetime.now().astimezone().tzinfo
-    LOCAL_TZ = tzinfo.tzname(None) if tzinfo else "UTC"
+    if tzinfo and getattr(tzinfo, "key", None):
+        return tzinfo.key  # Prefer canonical IANA identifier.
+
+    for zone_root in ("/usr/share/zoneinfo/", "/usr/lib/zoneinfo/", "/var/db/timezone/zoneinfo/"):
+        try:
+            localtime_path = os.path.realpath("/etc/localtime")
+        except FileNotFoundError:
+            break
+        if localtime_path.startswith(zone_root):
+            return localtime_path[len(zone_root) :]
+
+    return "UTC"
+
+
+LOCAL_TZ = _resolve_local_timezone()
 daily_diff_deployment = daily_diff_flow.to_deployment(
     "daily-diff",
     schedule=Cron("0 8 * * *", timezone=LOCAL_TZ),
