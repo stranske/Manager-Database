@@ -44,8 +44,25 @@ def embed_text(text: str) -> list[float]:
     return vec.tolist()
 
 
-def store_document(text: str, db_path: str | None = None) -> None:
-    """Store ``text`` and its embedding in the ``documents`` table."""
+def store_document(
+    text: str,
+    db_path: str | None = None,
+    manager_id: int | None = None,
+    kind: str = "note",
+    filename: str | None = None,
+) -> int:
+    """Store text and its embedding in the documents table.
+
+    Args:
+        text: Document text content
+        db_path: Database path (optional, uses default)
+        manager_id: FK to managers table (optional)
+        kind: Document type ('memo', 'note', 'pdf', 'filing_text')
+        filename: Original filename (optional)
+
+    Returns:
+        doc_id of the inserted/existing document
+    """
     conn = connect_db(db_path)
     is_pg = conn.__class__.__name__ == "Connection" and hasattr(conn, "info")
     if is_pg:
@@ -58,10 +75,14 @@ def store_document(text: str, db_path: str | None = None) -> None:
                 embedding vector(384)
             )""")
         emb = Vector(embed_text(text)) if register_vector else embed_text(text)
-        conn.execute(
-            "INSERT INTO documents(content, embedding) VALUES (%s,%s)",
+        result = conn.execute(
+            "INSERT INTO documents(content, embedding) VALUES (%s,%s) RETURNING id",
             (text, emb),
         )
+        row = result.fetchone()
+        if row is None:
+            raise RuntimeError("Failed to insert document")
+        doc_id = int(row[0])
     else:
         conn.execute("""CREATE TABLE IF NOT EXISTS documents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,12 +90,14 @@ def store_document(text: str, db_path: str | None = None) -> None:
                 embedding TEXT
             )""")
         emb = json.dumps(embed_text(text))
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO documents(content, embedding) VALUES (?, ?)",
             (text, emb),
         )
+        doc_id = int(cur.lastrowid)
     conn.commit()
     conn.close()
+    return doc_id
 
 
 def search_documents(query: str, db_path: str | None = None, k: int = 3) -> list[dict[str, Any]]:

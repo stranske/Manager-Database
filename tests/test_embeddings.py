@@ -66,6 +66,8 @@ def test_store_and_search_pgvector(monkeypatch):
             self.executed.append((sql, params))
             if sql.startswith("SELECT"):
                 return type("Result", (), {"fetchall": lambda self: [("hello", 0.1)]})()
+            if sql.startswith("INSERT INTO documents"):
+                return type("Result", (), {"fetchone": lambda self: (1,)})()
             return type("Result", (), {"fetchall": lambda self: []})()
 
         def commit(self):
