@@ -53,16 +53,26 @@ class ManagerCreate(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "name": "Grace Hopper",
-                    "role": "Engineering Director",
-                    "department": "Engineering",
+                    "name": "Elliott Investment Management L.P.",
+                    "cik": "0001791786",
+                    "lei": "549300U3N12T57QLOU60",
+                    "aliases": ["Elliott Management"],
+                    "jurisdictions": ["us"],
+                    "tags": ["activist"],
+                    "registry_ids": {"fca_frn": "122927"},
                 }
             ]
         }
     )
-    name: str = Field(..., description="Manager name")
-    role: str = Field(..., description="Manager role")
-    department: str | None = Field(None, description="Manager department")
+    name: str = Field(..., description="Legal name of the investment manager")
+    cik: str | None = Field(None, description="SEC Central Index Key")
+    lei: str | None = Field(None, description="Legal Entity Identifier")
+    aliases: list[str] = Field(default_factory=list, description="Alternative names")
+    jurisdictions: list[str] = Field(
+        default_factory=list, description="Filing jurisdictions (us, uk, ca)"
+    )
+    tags: list[str] = Field(default_factory=list, description="Classification tags")
+    registry_ids: dict[str, str] = Field(default_factory=dict, description="External registry IDs")
 
 
 class NotFoundResponse(BaseModel):
