@@ -213,10 +213,10 @@ def search_documents(
         conn.close()
         return []
     where_clause = ""
-    params: list[Any] = []
+    sqlite_params: list[Any] = []
     if manager_id is not None:
         where_clause = "WHERE d.manager_id = ?"
-        params.append(manager_id)
+        sqlite_params.append(manager_id)
     kind_expr = "COALESCE(d.kind, 'note')" if "kind" in columns else "'note'"
     filename_expr = "d.filename" if "filename" in columns else "NULL"
     manager_name_expr = "m.name" if has_manager_id and manager_table_exists else "NULL"
@@ -232,7 +232,7 @@ def search_documents(
             f"{manager_name_expr}, d.embedding "
             f"FROM documents d {join_clause} {where_clause}"
         ),
-        tuple(params),
+        tuple(sqlite_params),
     )
     qvec = embed_text(query)
     # Use a max heap (negate distances for heapq which is a min heap)
