@@ -1,8 +1,7 @@
-"""Diff the latest two filings for a manager."""
+"""Diff the latest two filings for a manager (or CIK via lookup)."""
 
 from __future__ import annotations
 
-import argparse
 import sqlite3
 import sys
 from typing import Any
@@ -11,91 +10,73 @@ from adapters.base import connect_db
 
 
 def _placeholder(conn: Any) -> str:
+    """Return the parameterised-query placeholder for the connection dialect."""
     return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
 
-def _fetch_latest_sets(manager_id: int, conn):
-    """Fetch holdings data keyed by CUSIP for the latest two filing dates."""
-    placeholder = _placeholder(conn)
+def _fetch_latest_sets(
+    manager_id: int, conn: Any
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Fetch holdings keyed by CUSIP for the two most-recent filing dates.
+
+    Returns ``(current, prior)`` where each is
+    ``{cusip: {"shares": int|None, "value_usd": float|None, "name_of_issuer": str|None}}``.
+    """
+    ph = _placeholder(conn)
     cursor = conn.execute(
         f"""
-        SELECT f.filed_date, h.cusip, h.shares, h.value_usd
+        SELECT f.filed_date, h.cusip, h.shares, h.value_usd, h.name_of_issuer
         FROM holdings h
         JOIN filings f ON f.filing_id = h.filing_id
-        JOIN managers m ON m.manager_id = f.manager_id
-        WHERE m.manager_id = {placeholder}
+        WHERE f.manager_id = {ph}
         ORDER BY f.filed_date DESC
-    """,
+        """,
         (manager_id,),
     )
 
-    grouped: dict[object, dict[str, dict[str, int | float | None]]] = {}
+    grouped: dict[object, dict[str, dict[str, Any]]] = {}
     ordered_dates: list[object] = []
 
-    for filed_date, cusip, shares, value_usd in cursor:
+    for filed_date, cusip, shares, value_usd, name_of_issuer in cursor:
         if filed_date not in grouped:
             if len(ordered_dates) == 2:
                 break
             ordered_dates.append(filed_date)
             grouped[filed_date] = {}
-        grouped[filed_date][cusip] = {"shares": shares, "value_usd": value_usd}
+        grouped[filed_date][cusip] = {
+            "shares": shares,
+            "value_usd": value_usd,
+            "name_of_issuer": name_of_issuer,
+        }
 
     if not ordered_dates:
-        raise SystemExit("Manager not found")
+        raise SystemExit("Manager not found or has no filings")
     if len(ordered_dates) < 2:
-        raise SystemExit("Need at least two filings")
+        raise SystemExit("Need at least two filings to compute a diff")
     return grouped[ordered_dates[0]], grouped[ordered_dates[1]]
 
 
-def _fetch_latest_sets_legacy(cik: str, conn):
-    """Fallback for legacy flat SQLite holdings table."""
-    placeholder = _placeholder(conn)
-    cursor = conn.execute(
-        f"""
-        SELECT filed, cusip, sshPrnamt, value
-        FROM holdings
-        WHERE cik = {placeholder}
-        ORDER BY filed DESC
-    """,
-        (cik,),
-    )
+def _resolve_manager_id(identifier: int | str, conn: Any) -> int:
+    """Resolve a manager_id (int) or CIK string to a manager_id."""
+    if isinstance(identifier, int):
+        return identifier
 
-    grouped: dict[object, dict[str, dict[str, int | float | None]]] = {}
-    ordered_dates: list[object] = []
-
-    for filed_date, cusip, shares, value_usd in cursor:
-        if filed_date not in grouped:
-            if len(ordered_dates) == 2:
-                break
-            ordered_dates.append(filed_date)
-            grouped[filed_date] = {}
-        grouped[filed_date][cusip] = {"shares": shares, "value_usd": value_usd}
-
-    if not ordered_dates:
-        raise SystemExit("Manager not found")
-    if len(ordered_dates) < 2:
-        raise SystemExit("Need at least two filings")
-    return grouped[ordered_dates[0]], grouped[ordered_dates[1]]
-
-
-def _resolve_manager_id(manager_id_or_cik: int | str, conn) -> int:
-    if isinstance(manager_id_or_cik, int):
-        return manager_id_or_cik
-
-    identifier = manager_id_or_cik.strip()
-    placeholder = _placeholder(conn)
+    cik = identifier.strip()
+    ph = _placeholder(conn)
     row = conn.execute(
-        f"SELECT manager_id FROM managers WHERE cik = {placeholder} LIMIT 1",
-        (identifier,),
+        f"SELECT manager_id FROM managers WHERE cik = {ph} LIMIT 1",
+        (cik,),
     ).fetchone()
     if row is not None:
         return int(row[0])
-    if identifier.isdigit():
-        return int(identifier)
-    raise SystemExit("Manager not found")
+    # If the string is purely digits, treat it as a numeric manager_id.
+    if cik.isdigit():
+        return int(cik)
+    raise SystemExit(f"Manager not found for identifier: {cik}")
 
 
 def _compare_optional(curr: int | float | None, prev: int | float | None) -> int | None:
+    """Compare two nullable numbers: 1 if curr > prev, -1 if <, 0 if equal, None if null."""
     if curr is None or prev is None:
         return None
     if curr > prev:
@@ -105,32 +86,39 @@ def _compare_optional(curr: int | float | None, prev: int | float | None) -> int
     return 0
 
 
-def diff_holdings(manager_id: int | str, conn=None) -> list[dict[str, int | float | str | None]]:
+def diff_holdings(manager_id: int | str, conn: Any = None) -> list[dict[str, Any]]:
+    """Compute structured diffs between the two most-recent filings.
+
+    Parameters
+    ----------
+    manager_id:
+        An integer ``manager_id`` or a CIK string (looked up in ``managers``).
+    conn:
+        A database connection.  When ``None``, ``connect_db()`` is called.
+        A ``str`` is accepted for backward compatibility (treated as a db path).
+
+    Returns
+    -------
+    list of dicts, each with keys:
+        cusip, name_of_issuer, delta_type, shares_prev, shares_curr,
+        value_prev, value_curr
+    """
     owns_connection = False
     if conn is None:
-        conn = connect_db("dev.db")
+        conn = connect_db()
         owns_connection = True
     elif isinstance(conn, str):
-        # Backward compatibility for older callers still providing a SQLite db_path.
         conn = connect_db(conn)
         owns_connection = True
 
     try:
-        try:
-            resolved_manager_id = _resolve_manager_id(manager_id, conn)
-            current, prior = _fetch_latest_sets(resolved_manager_id, conn)
-        except sqlite3.OperationalError as exc:
-            # Legacy tests still use the original flat SQLite holdings schema.
-            if "no such table: managers" not in str(exc):
-                raise
-            if not isinstance(manager_id, str):
-                raise
-            current, prior = _fetch_latest_sets_legacy(manager_id.strip(), conn)
+        resolved = _resolve_manager_id(manager_id, conn)
+        current, prior = _fetch_latest_sets(resolved, conn)
     finally:
         if owns_connection:
             conn.close()
 
-    results: list[dict[str, int | float | str | None]] = []
+    results: list[dict[str, Any]] = []
     for cusip in sorted(set(current) | set(prior)):
         prev = prior.get(cusip)
         curr = current.get(cusip)
@@ -139,6 +127,7 @@ def diff_holdings(manager_id: int | str, conn=None) -> list[dict[str, int | floa
             results.append(
                 {
                     "cusip": cusip,
+                    "name_of_issuer": curr.get("name_of_issuer"),
                     "delta_type": "ADD",
                     "shares_prev": None,
                     "shares_curr": curr["shares"],
@@ -152,6 +141,7 @@ def diff_holdings(manager_id: int | str, conn=None) -> list[dict[str, int | floa
             results.append(
                 {
                     "cusip": cusip,
+                    "name_of_issuer": prev.get("name_of_issuer"),
                     "delta_type": "EXIT",
                     "shares_prev": prev["shares"],
                     "shares_curr": None,
@@ -173,6 +163,7 @@ def diff_holdings(manager_id: int | str, conn=None) -> list[dict[str, int | floa
         results.append(
             {
                 "cusip": cusip,
+                "name_of_issuer": curr.get("name_of_issuer") or prev.get("name_of_issuer"),
                 "delta_type": "INCREASE" if direction > 0 else "DECREASE",
                 "shares_prev": prev["shares"],
                 "shares_curr": curr["shares"],
@@ -180,29 +171,17 @@ def diff_holdings(manager_id: int | str, conn=None) -> list[dict[str, int | floa
                 "value_curr": curr["value_usd"],
             }
         )
+
     return results
 
 
-def _parse_cli_identifier(argv: list[str]) -> int | str:
-    parser = argparse.ArgumentParser(description="Diff holdings by CIK or manager_id.")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--cik", dest="cik", help="Manager CIK value.")
-    group.add_argument("--manager-id", dest="manager_id", type=int, help="Manager numeric ID.")
-    parser.add_argument("identifier", nargs="?", help="CIK or manager_id.")
-    args = parser.parse_args(argv)
-
-    if args.manager_id is not None:
-        return args.manager_id
-    if args.cik is not None:
-        return args.cik.strip()
-    if args.identifier is None:
-        parser.error("Provide either --cik, --manager-id, or positional identifier.")
-    return args.identifier.strip()
-
-
 if __name__ == "__main__":
-    identifier = _parse_cli_identifier(sys.argv[1:])
-    for row in diff_holdings(identifier):
+    if len(sys.argv) != 2:
+        print("Usage: diff_holdings.py <CIK_or_manager_id>")
+        sys.exit(1)
+    # Always pass as string — _resolve_manager_id handles CIK lookup
+    # and numeric fallback without losing leading zeros.
+    for row in diff_holdings(sys.argv[1]):
         print(
             f"{row['cusip']}: {row['delta_type']} "
             f"(shares {row['shares_prev']} -> {row['shares_curr']}, "

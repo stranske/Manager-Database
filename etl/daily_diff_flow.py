@@ -4,6 +4,7 @@ import datetime as dt
 import logging
 import os
 import sqlite3
+from typing import Any
 
 from prefect import flow, task
 from prefect.schedules import Cron
@@ -16,29 +17,17 @@ configure_logging("daily_diff_flow")
 logger = logging.getLogger(__name__)
 
 
-def _placeholder(conn) -> str:
+def _placeholder(conn: Any) -> str:
     return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
 
-def _fetch_managers(conn, cik_list: list[str] | None = None) -> list[tuple[int, str | None]]:
-    placeholder = _placeholder(conn)
-    cleaned = [cik.strip() for cik in (cik_list or []) if cik and cik.strip()]
-    if cleaned:
-        values = ",".join([placeholder] * len(cleaned))
-        cursor = conn.execute(
-            f"SELECT manager_id, cik FROM managers WHERE cik IN ({values}) ORDER BY manager_id",
-            tuple(cleaned),
-        )
-        return [(int(manager_id), cik) for manager_id, cik in cursor.fetchall()]
-    cursor = conn.execute("SELECT manager_id, cik FROM managers ORDER BY manager_id")
-    return [(int(manager_id), cik) for manager_id, cik in cursor.fetchall()]
+def _is_postgres(conn: Any) -> bool:
+    return not isinstance(conn, sqlite3.Connection)
 
 
-@task
-def compute(date: str, db_path: str, cik_list: list[str] | None = None) -> None:
-    try:
-        conn = connect_db(db_path)
-        placeholder = _placeholder(conn)
+def _ensure_daily_diffs_table(conn: Any) -> None:
+    """Create the daily_diffs table on SQLite (Postgres uses Alembic migrations)."""
+    if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS daily_diffs (
                 diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 manager_id INTEGER NOT NULL,
@@ -49,77 +38,152 @@ def compute(date: str, db_path: str, cik_list: list[str] | None = None) -> None:
                 shares_prev INTEGER,
                 shares_curr INTEGER,
                 value_prev REAL,
-                value_curr REAL
+                value_curr REAL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )""")
 
-        managers = _fetch_managers(conn, cik_list)
-        total_changes = 0
 
-        for manager_id, _cik in managers:
-            try:
-                raw_diffs = diff_holdings(manager_id, conn)
-            except SystemExit:
-                # Some managers may not yet have enough filings to diff.
-                continue
+def _delete_existing_diffs(conn: Any, manager_id: int, report_date: str) -> None:
+    """Delete any existing diffs for this manager/date before reinserting (idempotency)."""
+    ph = _placeholder(conn)
+    conn.execute(
+        f"DELETE FROM daily_diffs WHERE manager_id = {ph} AND report_date = {ph}",
+        (manager_id, report_date),
+    )
 
-            conn.execute(
-                f"DELETE FROM daily_diffs WHERE report_date = {placeholder} AND manager_id = {placeholder}",
-                (date, manager_id),
-            )
-            for row in raw_diffs:
-                conn.execute(
-                    "INSERT INTO daily_diffs ("
-                    "manager_id, report_date, cusip, name_of_issuer, delta_type, "
-                    "shares_prev, shares_curr, value_prev, value_curr"
-                    f") VALUES ({','.join([placeholder] * 9)})",
-                    (
-                        manager_id,
-                        date,
-                        row.get("cusip"),
-                        row.get("name_of_issuer"),
-                        row.get("delta_type"),
-                        row.get("shares_prev"),
-                        row.get("shares_curr"),
-                        row.get("value_prev"),
-                        row.get("value_curr"),
-                    ),
-                )
-            total_changes += len(raw_diffs)
 
-        conn.commit()
-        conn.close()
-        log_outcome(
-            logger,
-            "Daily diff computed",
-            has_data=total_changes > 0,
-            extra={
-                "date": date,
-                "managers": len(managers),
-                "changes": total_changes,
-            },
+def _insert_diffs(
+    conn: Any,
+    manager_id: int,
+    report_date: str,
+    diffs: list[dict[str, Any]],
+) -> None:
+    """Insert diff rows into the daily_diffs table."""
+    ph = _placeholder(conn)
+    sql = (
+        "INSERT INTO daily_diffs "
+        "(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})"
+    )
+    for row in diffs:
+        conn.execute(
+            sql,
+            (
+                manager_id,
+                report_date,
+                row["cusip"],
+                row.get("name_of_issuer"),
+                row["delta_type"],
+                row.get("shares_prev"),
+                row.get("shares_curr"),
+                row.get("value_prev"),
+                row.get("value_curr"),
+            ),
         )
-    except Exception:
-        logger.exception("Daily diff failed", extra={"date": date})
-        raise
+
+
+def _refresh_matview(conn: Any) -> None:
+    """Refresh the mv_daily_report materialized view (Postgres only)."""
+    if _is_postgres(conn):
+        try:
+            conn.execute("REFRESH MATERIALIZED VIEW mv_daily_report")
+        except Exception as exc:
+            # Only suppress "does not exist" errors (fresh environments
+            # without the Alembic migration applied); re-raise real failures.
+            if "does not exist" in str(exc).lower():
+                logger.debug("mv_daily_report refresh skipped (view does not exist)")
+            else:
+                raise
+
+
+def _fetch_all_manager_ids(conn: Any) -> list[int]:
+    """Return all manager_ids from the managers table."""
+    rows = conn.execute("SELECT manager_id FROM managers ORDER BY manager_id").fetchall()
+    return [r[0] for r in rows]
+
+
+@task
+def compute_manager_diffs(manager_id: int, report_date: str, conn: Any) -> int:
+    """Compute and store diffs for a single manager. Returns change count."""
+    diffs = diff_holdings(manager_id, conn)
+    _delete_existing_diffs(conn, manager_id, report_date)
+    _insert_diffs(conn, manager_id, report_date, diffs)
+    return len(diffs)
 
 
 @flow
-def daily_diff_flow(cik_list: list[str] | None = None, date: str | None = None):
-    if cik_list is None:
-        env = os.getenv("CIK_LIST", "0001791786,0001434997")
-        cik_list = [c.strip() for c in env.split(",")]
-    db_path = os.getenv("DB_PATH", "dev.db")
-    date = date or str(dt.date.today() - dt.timedelta(days=1))
-    compute(date, db_path, cik_list)
-    conn = connect_db(db_path)
+def daily_diff_flow(date: str | None = None) -> None:
+    """Compute holdings diffs for all managers and store in daily_diffs."""
+    conn = connect_db()
+    report_date = date or str(dt.date.today() - dt.timedelta(days=1))
+
     try:
-        if isinstance(conn, sqlite3.Connection):
-            logger.info("Skipping mv_daily_report refresh for SQLite backend")
+        _ensure_daily_diffs_table(conn)
+        manager_ids = _fetch_all_manager_ids(conn)
+
+        if not manager_ids:
+            logger.warning("No managers found in database")
+            return
+
+        # Postgres runs with autocommit=True, so an explicit transaction is
+        # required to make the DELETE-then-INSERT cycle atomic per batch.
+        if _is_postgres(conn):
+            conn.execute("BEGIN")
+
+        total_changes = 0
+        managers_processed = 0
+        managers_skipped = 0
+
+        for mid in manager_ids:
+            try:
+                count = compute_manager_diffs.fn(mid, report_date, conn)
+                total_changes += count
+                managers_processed += 1
+                log_outcome(
+                    logger,
+                    "Manager diff computed",
+                    has_data=count > 0,
+                    extra={
+                        "manager_id": mid,
+                        "date": report_date,
+                        "changes": count,
+                    },
+                )
+            except SystemExit:
+                # diff_holdings raises SystemExit when < 2 filings exist.
+                managers_skipped += 1
+                logger.debug(
+                    "Skipped manager %d (< 2 filings)",
+                    mid,
+                    extra={"manager_id": mid},
+                )
+            except Exception:
+                logger.exception(
+                    "Daily diff failed for manager %d",
+                    mid,
+                    extra={"manager_id": mid, "date": report_date},
+                )
+                raise
+
+        if not isinstance(conn, sqlite3.Connection):
+            conn.execute("COMMIT")
         else:
-            conn.execute("REFRESH MATERIALIZED VIEW mv_daily_report")
+            conn.commit()
+
+        _refresh_matview(conn)
+
+        logger.info(
+            "Daily diff flow finished",
+            extra={
+                "date": report_date,
+                "managers_processed": managers_processed,
+                "managers_skipped": managers_skipped,
+                "total_changes": total_changes,
+            },
+        )
     finally:
         conn.close()
-    logger.info("Daily diff flow finished", extra={"date": date, "ciks": len(cik_list)})
 
 
 if __name__ == "__main__":
@@ -154,8 +218,7 @@ def _resolve_local_timezone() -> str:
 
 
 LOCAL_TZ = _resolve_local_timezone()
-DAILY_DIFF_CRON = "0 8 * * *"
 daily_diff_deployment = daily_diff_flow.to_deployment(
     "daily-diff",
-    schedule=Cron(DAILY_DIFF_CRON, timezone=LOCAL_TZ),
+    schedule=Cron("0 8 * * *", timezone=LOCAL_TZ),
 )
