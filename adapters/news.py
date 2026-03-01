@@ -6,8 +6,10 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
 from time import monotonic, struct_time
 from typing import Any
 
@@ -56,9 +58,23 @@ async def list_new_items(source: str, since: str) -> list[dict[str, Any]]:
 
 async def download(item: dict[str, Any]) -> str:
     """Fetch the full article text for a news item."""
+    url = str(item.get("url", "")).strip()
+    if not url:
+        return ""
 
-    _ = item
-    return ""
+    source = str(item.get("source", "news")).strip() or "news"
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            async with tracked_call(source, url) as log:
+                response = await client.get(url)
+                log(response)
+            response.raise_for_status()
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.warning("News download failed for %s: %s", url, exc)
+        return ""
+
+    text = _strip_html(response.text)
+    return text[:2000]
 
 
 def tag(item: dict[str, Any]) -> dict[str, Any]:
@@ -284,3 +300,24 @@ def _gdelt_timestamp(value: Any) -> datetime | None:
     except ValueError:
         return None
     return parsed.replace(tzinfo=UTC)
+
+
+class _HTMLTextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        if data:
+            self.parts.append(data)
+
+
+def _strip_html(value: str) -> str:
+    extractor = _HTMLTextExtractor()
+    try:
+        extractor.feed(value)
+        extractor.close()
+    except Exception:  # pragma: no cover - fallback for malformed HTML edge-cases
+        return ""
+    text = " ".join(extractor.parts)
+    return re.sub(r"\s+", " ", text).strip()

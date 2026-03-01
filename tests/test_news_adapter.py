@@ -306,3 +306,79 @@ def test_tag_adds_topics_and_confidence():
 
     assert set(tagged["topics"]) == {"regulatory", "merger", "fund_launch"}
     assert tagged["confidence"] == pytest.approx(7 / 26)
+
+
+@pytest.mark.asyncio
+async def test_download_strips_html_truncates_and_logs_calls(monkeypatch):
+    called_endpoints = []
+    log_calls = []
+    html_doc = "<html><body><h1>Headline</h1><p>" + ("A" * 2100) + "</p></body></html>"
+
+    @asynccontextmanager
+    async def dummy_tracked_call(source, endpoint, **_kwargs):
+        called_endpoints.append((source, endpoint))
+
+        def _log(resp):
+            log_calls.append(resp.status_code)
+
+        yield _log
+
+    class DummyClient:
+        def __init__(self, *args, **kwargs):
+            _ = args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url):
+            return httpx.Response(200, request=httpx.Request("GET", url), text=html_doc)
+
+    monkeypatch.setattr(news, "tracked_call", dummy_tracked_call)
+    monkeypatch.setattr(news.httpx, "AsyncClient", DummyClient)
+
+    content = await news.download({"url": "https://example.test/story", "source": "rss"})
+
+    assert len(content) == 2000
+    assert content.startswith("Headline ")
+    assert called_endpoints == [("rss", "https://example.test/story")]
+    assert log_calls == [200]
+
+
+@pytest.mark.asyncio
+async def test_download_returns_empty_string_on_http_error(monkeypatch):
+    called_endpoints = []
+    log_calls = []
+
+    @asynccontextmanager
+    async def dummy_tracked_call(source, endpoint, **_kwargs):
+        called_endpoints.append((source, endpoint))
+
+        def _log(resp):
+            log_calls.append(resp.status_code)
+
+        yield _log
+
+    class DummyClient:
+        def __init__(self, *args, **kwargs):
+            _ = args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url):
+            return httpx.Response(500, request=httpx.Request("GET", url), text="oops")
+
+    monkeypatch.setattr(news, "tracked_call", dummy_tracked_call)
+    monkeypatch.setattr(news.httpx, "AsyncClient", DummyClient)
+
+    content = await news.download({"url": "https://example.test/fail", "source": "gdelt"})
+
+    assert content == ""
+    assert called_endpoints == [("gdelt", "https://example.test/fail")]
+    assert log_calls == [500]
