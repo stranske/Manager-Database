@@ -6,8 +6,8 @@ from types import SimpleNamespace
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import api.chat as chat_api_module
-from api.search import universal_search
-from ui.search import search_news
+from api.search import SearchResult, universal_search
+from ui.search import _count_results_by_entity_type, search_news
 
 
 class _FakeCursor:
@@ -233,3 +233,44 @@ def test_api_search_endpoint_filters_entity_type(tmp_path: Path, monkeypatch):
 
     assert results
     assert {item.entity_type for item in results} == {"news"}
+
+
+def test_count_results_by_entity_type_orders_known_types():
+    results = [
+        SearchResult(
+            entity_type="news",
+            entity_id=1,
+            manager_name=None,
+            headline="n1",
+            snippet="",
+            relevance=0.8,
+            url=None,
+            timestamp=None,
+        ),
+        SearchResult(
+            entity_type="manager",
+            entity_id=2,
+            manager_name="Elliott",
+            headline="Elliott",
+            snippet="",
+            relevance=0.7,
+            url=None,
+            timestamp=None,
+        ),
+        SearchResult(
+            entity_type="news",
+            entity_id=3,
+            manager_name=None,
+            headline="n2",
+            snippet="",
+            relevance=0.6,
+            url=None,
+            timestamp=None,
+        ),
+    ]
+
+    counts = _count_results_by_entity_type(results)
+
+    assert list(counts.keys()) == ["manager", "news"]
+    assert counts["manager"] == 1
+    assert counts["news"] == 2
