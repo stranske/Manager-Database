@@ -28,7 +28,14 @@ target_metadata = None
 
 def get_database_url() -> str:
     """Resolve database URL from environment first, then alembic.ini."""
-    return os.getenv("DB_URL", config.get_main_option("sqlalchemy.url") or "")
+    if db_url := os.getenv("DB_URL"):
+        return db_url
+
+    ini_url = config.get_main_option("sqlalchemy.url") or ""
+    if ini_url and ini_url != "driver://user:pass@localhost/dbname":
+        return ini_url
+
+    return "sqlite:///./manager_database.db"
 
 
 def run_migrations_offline() -> None:
