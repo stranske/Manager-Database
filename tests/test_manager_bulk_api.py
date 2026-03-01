@@ -47,9 +47,9 @@ def test_bulk_json_imports_valid_records(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payloads = [
-        {"name": "Grace Hopper", "role": "Engineering Director"},
-        {"name": "", "role": "Operations Lead"},
-        {"name": "Ada Lovelace", "role": "Research Lead", "department": "R&D"},
+        {"name": "Manager A", "jurisdictions": ["us"]},
+        {"name": "", "jurisdictions": ["us"]},
+        {"name": "Manager B", "jurisdictions": ["uk"], "tags": ["quant"]},
     ]
 
     resp = asyncio.run(_post_bulk_json(payloads))
@@ -63,12 +63,12 @@ def test_bulk_json_imports_valid_records(tmp_path, monkeypatch):
 
     conn = sqlite3.connect(db_path)
     try:
-        rows = conn.execute("SELECT name, role FROM managers ORDER BY id").fetchall()
+        rows = conn.execute("SELECT name, jurisdictions, tags FROM managers ORDER BY id").fetchall()
     finally:
         conn.close()
     assert rows == [
-        ("Grace Hopper", "Engineering Director"),
-        ("Ada Lovelace", "Research Lead"),
+        ("Manager A", '["us"]', "[]"),
+        ("Manager B", '["uk"]', '["quant"]'),
     ]
 
 
@@ -77,9 +77,10 @@ def test_bulk_csv_import_logs_invalid_rows(tmp_path, monkeypatch, caplog):
     monkeypatch.setenv("DB_PATH", str(db_path))
     csv_payload = "\n".join(
         [
-            "name,role,department",
-            "Grace Hopper,Engineering Director,Engineering",
-            "Missing Role,,Operations",
+            "name,cik,jurisdictions",
+            'Manager A,0001791786,["us"]',
+            "Missing Name,0001791787,[]",
+            ',0001791786,["us"]',
         ]
     )
 
@@ -88,16 +89,16 @@ def test_bulk_csv_import_logs_invalid_rows(tmp_path, monkeypatch, caplog):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["succeeded"] == 1
+    assert body["succeeded"] == 2
     assert body["failed"] == 1
     assert "Bulk import CSV record missing required values" in caplog.text
 
     conn = sqlite3.connect(db_path)
     try:
-        rows = conn.execute("SELECT name, role FROM managers ORDER BY id").fetchall()
+        rows = conn.execute("SELECT name, cik, jurisdictions FROM managers ORDER BY id").fetchall()
     finally:
         conn.close()
-    assert rows == [("Grace Hopper", "Engineering Director")]
+    assert rows == [("Manager A", "0001791786", '["us"]'), ("Missing Name", "0001791787", "[]")]
 
 
 def test_bulk_csv_import_rejects_missing_headers(tmp_path, monkeypatch, caplog):
@@ -105,8 +106,8 @@ def test_bulk_csv_import_rejects_missing_headers(tmp_path, monkeypatch, caplog):
     monkeypatch.setenv("DB_PATH", str(db_path))
     csv_payload = "\n".join(
         [
-            "name,department",
-            "Grace Hopper,Engineering",
+            "cik,jurisdictions",
+            '0001791786,["us"]',
         ]
     )
 
@@ -123,7 +124,7 @@ def test_bulk_csv_import_rejects_missing_headers(tmp_path, monkeypatch, caplog):
 def test_bulk_json_import_handles_large_batch(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    payloads = [{"name": f"Manager {idx}", "role": "Team Lead"} for idx in range(105)]
+    payloads = [{"name": f"Manager {idx}", "jurisdictions": ["us"]} for idx in range(105)]
 
     resp = asyncio.run(_post_bulk_json(payloads))
     assert resp.status_code == 200
@@ -137,7 +138,7 @@ def test_bulk_import_rejects_large_payload(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("BULK_IMPORT_MAX_BYTES", "50")
-    payloads = [{"name": "X" * 100, "role": "Team Lead"}]
+    payloads = [{"name": "X" * 100, "jurisdictions": ["us"]}]
 
     resp = asyncio.run(_post_bulk_json(payloads))
 

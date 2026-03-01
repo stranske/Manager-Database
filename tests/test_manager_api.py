@@ -53,54 +53,60 @@ async def _get_manager(manager_id: int):
 def test_manager_empty_name_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    resp = asyncio.run(_post_manager({"name": "", "role": "Operations Lead"}))
+    resp = asyncio.run(_post_manager({"name": "", "jurisdictions": ["us"]}))
     assert resp.status_code == 400
     payload = resp.json()
     assert payload["errors"][0]["field"] == "name"
     assert "required" in payload["errors"][0]["message"].lower()
 
 
-def test_manager_empty_role_returns_400(tmp_path, monkeypatch):
-    # Validate that required role values are enforced.
+def test_manager_invalid_cik_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    resp = asyncio.run(_post_manager({"name": "Ada Lovelace", "role": "   "}))
+    resp = asyncio.run(_post_manager({"name": "Ada Lovelace", "cik": "123"}))
     assert resp.status_code == 400
     payload = resp.json()
-    assert payload["errors"][0]["field"] == "role"
-    assert "required" in payload["errors"][0]["message"].lower()
+    assert payload["errors"][0]["field"] == "cik"
+    assert "10-digit" in payload["errors"][0]["message"].lower()
 
 
 def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payload = {
-        "name": "Grace Hopper",
-        "role": "Engineering Director",
+        "name": "Elliott Investment Management L.P.",
+        "cik": "0001791786",
+        "jurisdictions": ["us"],
+        "tags": ["activist"],
     }
     resp = asyncio.run(_post_manager(payload))
     assert resp.status_code == 201
     created = resp.json()
-    assert created["id"] > 0
+    assert created["manager_id"] > 0
     conn = sqlite3.connect(db_path)
     try:
         # Verify the record was persisted with the expected values.
         row = conn.execute(
-            "SELECT name, role FROM managers WHERE id = ?",
-            (created["id"],),
+            "SELECT name, cik, jurisdictions, tags FROM managers WHERE id = ?",
+            (created["manager_id"],),
         ).fetchone()
     finally:
         conn.close()
-    assert row == (payload["name"], payload["role"])
+    assert row == (
+        payload["name"],
+        payload["cik"],
+        '["us"]',
+        '["activist"]',
+    )
 
 
 def test_manager_list_returns_paginated_results(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payloads = [
-        {"name": "Grace Hopper", "role": "Engineering Director"},
-        {"name": "Ada Lovelace", "role": "Research Lead"},
-        {"name": "Mary Jackson", "role": "Operations Manager"},
+        {"name": "Manager A", "jurisdictions": ["us"]},
+        {"name": "Manager B", "jurisdictions": ["uk"]},
+        {"name": "Manager C", "jurisdictions": ["ca"]},
     ]
     for payload in payloads:
         resp = asyncio.run(_post_manager(payload))
@@ -113,15 +119,15 @@ def test_manager_list_returns_paginated_results(tmp_path, monkeypatch):
     assert body["limit"] == 2
     assert body["offset"] == 1
     names = [item["name"] for item in body["items"]]
-    assert names == ["Ada Lovelace", "Mary Jackson"]
+    assert names == ["Manager B", "Manager C"]
 
 
 def test_manager_list_limit_offset_zero_returns_all(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payloads = [
-        {"name": "Grace Hopper", "role": "Engineering Director"},
-        {"name": "Ada Lovelace", "role": "Research Lead"},
+        {"name": "Manager A", "jurisdictions": ["us"]},
+        {"name": "Manager B", "jurisdictions": ["uk"]},
     ]
     for payload in payloads:
         resp = asyncio.run(_post_manager(payload))
@@ -133,7 +139,7 @@ def test_manager_list_limit_offset_zero_returns_all(tmp_path, monkeypatch):
     assert body["total"] == 2
     assert body["limit"] == 10
     assert body["offset"] == 0
-    assert [item["name"] for item in body["items"]] == ["Grace Hopper", "Ada Lovelace"]
+    assert [item["name"] for item in body["items"]] == ["Manager A", "Manager B"]
 
 
 def test_manager_list_returns_ordered_by_id(tmp_path, monkeypatch):
@@ -141,9 +147,9 @@ def test_manager_list_returns_ordered_by_id(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payloads = [
-        {"name": "Zeta Manager", "role": "Ops Lead"},
-        {"name": "Alpha Manager", "role": "Research Lead"},
-        {"name": "Omega Manager", "role": "Engineering Director"},
+        {"name": "Zeta Manager", "jurisdictions": ["us"]},
+        {"name": "Alpha Manager", "jurisdictions": ["uk"]},
+        {"name": "Omega Manager", "jurisdictions": ["ca"]},
     ]
     for payload in payloads:
         resp = asyncio.run(_post_manager(payload))
@@ -175,7 +181,7 @@ def test_manager_list_defaults_return_first_page(tmp_path, monkeypatch):
     for idx in range(30):
         resp = asyncio.run(
             _post_manager(
-                {"name": f"Manager {idx}", "role": "Team Lead"},
+                {"name": f"Manager {idx}", "jurisdictions": ["us"]},
             )
         )
         assert resp.status_code == 201
@@ -189,25 +195,25 @@ def test_manager_list_defaults_return_first_page(tmp_path, monkeypatch):
     assert [item["name"] for item in body["items"]] == [f"Manager {idx}" for idx in range(25)]
 
 
-def test_manager_list_filter_by_department_returns_subset(tmp_path, monkeypatch):
+def test_manager_list_filter_by_jurisdiction_returns_subset(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    # Ensure list filtering includes only managers from the requested department.
+    # Ensure list filtering includes only managers from the requested jurisdiction.
     payloads = [
-        {"name": "Grace Hopper", "role": "Engineering Director", "department": "Engineering"},
-        {"name": "Ada Lovelace", "role": "Research Lead", "department": "Engineering"},
-        {"name": "Mary Jackson", "role": "Operations Manager", "department": "Operations"},
+        {"name": "Manager A", "jurisdictions": ["us"]},
+        {"name": "Manager B", "jurisdictions": ["us"]},
+        {"name": "Manager C", "jurisdictions": ["uk"]},
     ]
     for payload in payloads:
         resp = asyncio.run(_post_manager(payload))
         assert resp.status_code == 201
 
-    resp = asyncio.run(_get_managers({"department": "Engineering"}))
+    resp = asyncio.run(_get_managers({"jurisdiction": "us"}))
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 2
-    assert [item["name"] for item in body["items"]] == ["Grace Hopper", "Ada Lovelace"]
-    assert {item["department"] for item in body["items"]} == {"Engineering"}
+    assert [item["name"] for item in body["items"]] == ["Manager A", "Manager B"]
+    assert {tuple(item["jurisdictions"]) for item in body["items"]} == {("us",)}
 
 
 def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
@@ -251,8 +257,8 @@ def test_manager_list_offset_beyond_total_returns_empty_page(tmp_path, monkeypat
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     payloads = [
-        {"name": "Grace Hopper", "role": "Engineering Director"},
-        {"name": "Ada Lovelace", "role": "Research Lead"},
+        {"name": "Manager A", "jurisdictions": ["us"]},
+        {"name": "Manager B", "jurisdictions": ["uk"]},
     ]
     for payload in payloads:
         resp = asyncio.run(_post_manager(payload))
@@ -292,16 +298,16 @@ def test_manager_list_invalid_limit_and_offset_returns_400(tmp_path, monkeypatch
 def test_manager_get_returns_single_manager(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    payload = {"name": "Linus Torvalds", "role": "Chief Architect"}
+    payload = {"name": "Elliott Investment Management L.P.", "tags": ["activist"]}
     resp = asyncio.run(_post_manager(payload))
     created = resp.json()
 
-    get_resp = asyncio.run(_get_manager(created["id"]))
+    get_resp = asyncio.run(_get_manager(created["manager_id"]))
     assert get_resp.status_code == 200
     fetched = get_resp.json()
-    assert fetched["id"] == created["id"]
+    assert fetched["manager_id"] == created["manager_id"]
     assert fetched["name"] == payload["name"]
-    assert fetched["role"] == payload["role"]
+    assert fetched["tags"] == payload["tags"]
 
 
 def test_manager_get_returns_404_for_missing_id(tmp_path, monkeypatch):
@@ -326,7 +332,7 @@ def test_manager_create_db_unavailable_returns_503(monkeypatch):
         raise sqlite3.OperationalError("db down")
 
     monkeypatch.setattr("api.managers.connect_db", _raise_db_error)
-    resp = asyncio.run(_post_manager({"name": "Fail", "role": "Ops"}))
+    resp = asyncio.run(_post_manager({"name": "Fail"}))
     assert resp.status_code == 503
     payload = resp.json()
     assert payload["detail"] == "Database unavailable"

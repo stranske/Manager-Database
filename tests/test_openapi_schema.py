@@ -52,15 +52,15 @@ def test_openapi_managers_schema():
     request_schema = manager_schema["requestBody"]["content"]["application/json"]["schema"]
     assert request_schema["$ref"] == "#/components/schemas/ManagerCreate"
     manager_create = schema["components"]["schemas"]["ManagerCreate"]
-    assert manager_create["examples"][0]["name"] == "Grace Hopper"
+    assert manager_create["examples"][0]["name"] == "Elliott Investment Management L.P."
 
     response_schema = manager_schema["responses"]["201"]["content"]["application/json"]["schema"]
     assert response_schema["$ref"] == "#/components/schemas/ManagerResponse"
     manager_component = schema["components"]["schemas"]["ManagerResponse"]
-    assert manager_component["examples"][0]["role"] == "Engineering Director"
+    assert manager_component["examples"][0]["cik"] == "0001791786"
 
     error_examples = manager_schema["responses"]["400"]["content"]["application/json"]["examples"]
-    assert error_examples["missing-role"]["value"]["errors"][0]["field"] == "role"
+    assert error_examples["missing-name"]["value"]["errors"][0]["field"] == "name"
 
     manager_list_schema = schema["paths"]["/managers"]["get"]
     assert manager_list_schema["summary"] == "List managers"
@@ -77,7 +77,8 @@ def test_openapi_managers_schema():
     # Default pagination should reflect the 25-row page size.
     assert list_parameters["limit"]["schema"]["default"] == 25
     assert list_parameters["offset"]["schema"]["default"] == 0
-    assert "department" in list_parameters
+    assert "jurisdiction" in list_parameters
+    assert "tag" in list_parameters
 
     manager_detail_schema = schema["paths"]["/managers/{id}"]["get"]
     assert manager_detail_schema["summary"] == "Retrieve a manager"
