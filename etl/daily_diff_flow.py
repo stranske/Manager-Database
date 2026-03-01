@@ -16,56 +16,90 @@ configure_logging("daily_diff_flow")
 logger = logging.getLogger(__name__)
 
 
-@task
-def compute(cik: str, date: str, db_path: str) -> None:
-    try:
-        raw_diffs = diff_holdings(cik, db_path)
-        change_rows: list[tuple[str, str]] = []
-        if isinstance(raw_diffs, tuple) and len(raw_diffs) == 2:
-            # Backward compatibility for older diff_holdings return shape.
-            additions, exits = raw_diffs
-            change_rows.extend((cusip, "ADD") for cusip in additions)
-            change_rows.extend((cusip, "EXIT") for cusip in exits)
-        else:
-            for row in raw_diffs:
-                cusip = row.get("cusip")
-                change = row.get("delta_type")
-                if isinstance(cusip, str) and isinstance(change, str):
-                    change_rows.append((cusip, change))
+def _placeholder(conn) -> str:
+    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
+
+def _fetch_managers(conn, cik_list: list[str] | None = None) -> list[tuple[int, str | None]]:
+    placeholder = _placeholder(conn)
+    cleaned = [cik.strip() for cik in (cik_list or []) if cik and cik.strip()]
+    if cleaned:
+        values = ",".join([placeholder] * len(cleaned))
+        cursor = conn.execute(
+            f"SELECT manager_id, cik FROM managers WHERE cik IN ({values}) ORDER BY manager_id",
+            tuple(cleaned),
+        )
+        return [(int(manager_id), cik) for manager_id, cik in cursor.fetchall()]
+    cursor = conn.execute("SELECT manager_id, cik FROM managers ORDER BY manager_id")
+    return [(int(manager_id), cik) for manager_id, cik in cursor.fetchall()]
+
+
+@task
+def compute(date: str, db_path: str, cik_list: list[str] | None = None) -> None:
+    try:
         conn = connect_db(db_path)
-        conn.execute("""CREATE TABLE IF NOT EXISTS daily_diff (
-                date TEXT,
-                cik TEXT,
-                cusip TEXT,
-                change TEXT
+        placeholder = _placeholder(conn)
+        conn.execute("""CREATE TABLE IF NOT EXISTS daily_diffs (
+                diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manager_id INTEGER NOT NULL,
+                report_date TEXT NOT NULL,
+                cusip TEXT NOT NULL,
+                name_of_issuer TEXT,
+                delta_type TEXT NOT NULL,
+                shares_prev INTEGER,
+                shares_curr INTEGER,
+                value_prev REAL,
+                value_curr REAL
             )""")
-        # Idempotent reruns: replace prior rows for the same report date and manager.
-        conn.execute("DELETE FROM daily_diff WHERE date = ? AND cik = ?", (date, cik))
-        for cusip, change in change_rows:
+
+        managers = _fetch_managers(conn, cik_list)
+        total_changes = 0
+
+        for manager_id, _cik in managers:
+            try:
+                raw_diffs = diff_holdings(manager_id, conn)
+            except SystemExit:
+                # Some managers may not yet have enough filings to diff.
+                continue
+
             conn.execute(
-                "INSERT INTO daily_diff VALUES (?,?,?,?)",
-                (date, cik, cusip, change),
+                f"DELETE FROM daily_diffs WHERE report_date = {placeholder} AND manager_id = {placeholder}",
+                (date, manager_id),
             )
+            for row in raw_diffs:
+                conn.execute(
+                    "INSERT INTO daily_diffs ("
+                    "manager_id, report_date, cusip, name_of_issuer, delta_type, "
+                    "shares_prev, shares_curr, value_prev, value_curr"
+                    f") VALUES ({','.join([placeholder] * 9)})",
+                    (
+                        manager_id,
+                        date,
+                        row.get("cusip"),
+                        row.get("name_of_issuer"),
+                        row.get("delta_type"),
+                        row.get("shares_prev"),
+                        row.get("shares_curr"),
+                        row.get("value_prev"),
+                        row.get("value_curr"),
+                    ),
+                )
+            total_changes += len(raw_diffs)
+
         conn.commit()
         conn.close()
-        additions = sum(1 for _, change in change_rows if change == "ADD")
-        exits = sum(1 for _, change in change_rows if change == "EXIT")
-        total_changes = len(change_rows)
         log_outcome(
             logger,
             "Daily diff computed",
             has_data=total_changes > 0,
             extra={
-                "cik": cik,
                 "date": date,
-                "additions": additions,
-                "exits": exits,
+                "managers": len(managers),
                 "changes": total_changes,
             },
         )
     except Exception:
-        logger.exception("Daily diff failed", extra={"cik": cik, "date": date})
+        logger.exception("Daily diff failed", extra={"date": date})
         raise
 
 
@@ -76,8 +110,7 @@ def daily_diff_flow(cik_list: list[str] | None = None, date: str | None = None):
         cik_list = [c.strip() for c in env.split(",")]
     db_path = os.getenv("DB_PATH", "dev.db")
     date = date or str(dt.date.today() - dt.timedelta(days=1))
-    for cik in cik_list:
-        compute(cik, date, db_path)
+    compute(date, db_path, cik_list)
     conn = connect_db(db_path)
     try:
         if isinstance(conn, sqlite3.Connection):
