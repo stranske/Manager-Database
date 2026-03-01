@@ -75,3 +75,20 @@ def test_seed_universe_csv_and_dry_run(tmp_path):
     finally:
         conn.close()
     assert count == 0
+
+
+def test_sample_universe_json_contains_confirmed_managers_and_seeds(tmp_path):
+    sample_path = REPO_ROOT / "scripts" / "sample_universe.json"
+    payload = json.loads(sample_path.read_text(encoding="utf-8"))
+    assert isinstance(payload, list)
+    assert len(payload) >= 10
+
+    by_cik = {item["cik"]: item for item in payload}
+    assert "0001791786" in by_cik
+    assert "0001434997" in by_cik
+    assert by_cik["0001791786"]["name"] == "Elliott Investment Management L.P."
+    assert by_cik["0001434997"]["name"] == "SIR Capital Management L.P."
+
+    result = _run_seed(tmp_path, sample_path)
+    assert "Created: 10" in result.stdout
+    assert "Updated: 0" in result.stdout
