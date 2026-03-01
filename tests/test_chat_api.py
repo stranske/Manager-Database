@@ -95,6 +95,32 @@ def test_direct_endpoint_returns_500_for_unexpected_chain_errors(monkeypatch):
     assert response.json()["detail"] == "Research assistant error. Check server logs."
 
 
+@pytest.mark.parametrize(
+    ("path", "request_kwargs"),
+    [
+        ("/api/chat/filing-summary", {"params": {"filing_id": 7}}),
+        (
+            "/api/chat/holdings-analysis",
+            {"json": {"question": "Analyze positions", "context": {"manager_ids": [1]}}},
+        ),
+        ("/api/chat/query", {"params": {"question": "latest filings"}}),
+        ("/api/chat/search", {"params": {"question": "recent activism"}}),
+    ],
+)
+def test_all_direct_endpoints_return_500_for_unexpected_chain_errors(
+    monkeypatch, path, request_kwargs
+):
+    async def _raise_runtime(*_args, **_kwargs):
+        raise RuntimeError("direct chain blew up")
+
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+    monkeypatch.setattr(chat_api_module, "_run_chain", _raise_runtime)
+
+    response = asyncio.run(_request("POST", path, **request_kwargs))
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Research assistant error. Check server logs."
+
+
 def test_direct_filing_summary_returns_503_when_no_provider(monkeypatch):
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
     response = asyncio.run(_request("POST", "/api/chat/filing-summary", params={"filing_id": 42}))
