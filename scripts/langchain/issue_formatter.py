@@ -19,7 +19,9 @@ from typing import Any
 try:
     from scripts.langchain.injection_guard import check_prompt_injection as _check_prompt_injection
 except ImportError:  # pragma: no cover - fallback for direct invocation
-    from injection_guard import check_prompt_injection as _check_prompt_injection  # type: ignore[no-redef]
+    from injection_guard import (
+        check_prompt_injection as _check_prompt_injection,  # type: ignore[no-redef]
+    )
 
 check_prompt_injection = _check_prompt_injection
 

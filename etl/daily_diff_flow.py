@@ -54,14 +54,14 @@ def compute(cik: str, date: str, db_path: str) -> None:
             logger,
             "Daily diff computed",
             has_data=total_changes > 0,
-                extra={
-                    "cik": cik,
-                    "date": date,
-                    "additions": additions,
-                    "exits": exits,
-                    "changes": total_changes,
-                },
-            )
+            extra={
+                "cik": cik,
+                "date": date,
+                "additions": additions,
+                "exits": exits,
+                "changes": total_changes,
+            },
+        )
     except Exception:
         logger.exception("Daily diff failed", extra={"cik": cik, "date": date})
         raise
