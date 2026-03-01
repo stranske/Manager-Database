@@ -4,6 +4,11 @@ set -euo pipefail
 # Verifies schema.sql can be applied to a fresh Postgres database twice.
 # If no reachable Postgres instance is configured, this script starts a
 # temporary local Postgres 16 cluster under /tmp.
+#
+# Docker shortcut (no local Postgres needed):
+#   docker run --rm -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust pgvector/pgvector:pg16 &
+#   until pg_isready -h localhost -p 5432 -U postgres >/dev/null 2>&1; do sleep 1; done
+#   PGHOST=localhost PGPORT=5432 PGUSER=postgres bash scripts/verify_schema_idempotence.sh
 
 SCHEMA_PATH="${1:-schema.sql}"
 MAINTENANCE_DB="${PGMAINTENANCE_DB:-postgres}"
