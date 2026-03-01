@@ -31,7 +31,6 @@ DB_PATH = os.getenv("DB_PATH", "dev.db")
 JURISDICTION = os.getenv("JURISDICTION", "us")
 _MAP = {"us": "edgar", "uk": "uk", "ca": "canada"}
 ADAPTER = get_adapter(_MAP.get(JURISDICTION, "edgar"))
-FILING_SOURCE = _MAP.get(JURISDICTION, "edgar")
 
 configure_logging("edgar_flow")
 logger = logging.getLogger(__name__)
@@ -104,7 +103,7 @@ async def fetch_and_store(cik: str, since: str):
                    VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT DO NOTHING
                    RETURNING filing_id""",
-                (manager_id, "13F-HR", filing["filed"], FILING_SOURCE, filing_url, raw_key, 1),
+                (manager_id, "13F-HR", filing["filed"], "edgar", filing_url, raw_key, 1),
             )
         else:
             filing_cursor = conn.execute(
@@ -112,7 +111,7 @@ async def fetch_and_store(cik: str, since: str):
                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT DO NOTHING
                    RETURNING filing_id""",
-                (manager_id, "13F-HR", filing["filed"], FILING_SOURCE, filing_url, raw_key, 1),
+                (manager_id, "13F-HR", filing["filed"], "edgar", filing_url, raw_key, 1),
             )
         filing_row = filing_cursor.fetchone()
         if filing_row:
@@ -194,12 +193,12 @@ async def fetch_and_store(cik: str, since: str):
 async def edgar_flow(
     cik_list: list[str] | None = None, since: str | None = None, jurisdiction: str | None = None
 ):
-    global FILING_SOURCE
+    global ADAPTER
     if cik_list is None:
         env = os.getenv("CIK_LIST", "0001791786,0001434997")
         cik_list = [c.strip() for c in env.split(",")]
     since = since or ("1970-01-01")
-    FILING_SOURCE = _MAP.get((jurisdiction or JURISDICTION), "edgar")
+    ADAPTER = get_adapter(_MAP.get((jurisdiction or JURISDICTION), "edgar"))
     all_rows = []
     for cik in cik_list:
         try:
