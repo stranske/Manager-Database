@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import streamlit as st
 
 from ui import daily_report, dashboard, research, search, upload
 
 
-def _build_pages() -> list[st.Page]:
+def _build_pages() -> list[Any]:
     """Define sidebar navigation and URL paths for all UI pages."""
     return [
         st.Page(dashboard.main, title="Dashboard", icon="📈", url_path=""),

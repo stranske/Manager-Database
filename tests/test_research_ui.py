@@ -2,6 +2,8 @@ import importlib
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 
@@ -367,9 +369,8 @@ def test_call_chat_api_raises_runtime_error_for_http_failure(monkeypatch):
 
     monkeypatch.setattr(research.requests, "post", lambda *args, **kwargs: FailingResponse())
 
-    try:
+    with pytest.raises(RuntimeError) as exc_info:
         research._call_chat_api("hello", "Auto (recommended)", None)
-        assert False, "Expected RuntimeError"
-    except RuntimeError as exc:
-        assert "503" in str(exc)
-        assert "No LLM provider configured" in str(exc)
+    exc = exc_info.value
+    assert "503" in str(exc)
+    assert "No LLM provider configured" in str(exc)
