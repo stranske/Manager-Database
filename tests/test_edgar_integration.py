@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import sqlite3
@@ -11,6 +12,21 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import adapters.edgar as edgar
 import etl.edgar_flow as flow
+
+
+def seed_manager(db_path: Path, cik: str, manager_id: int = 1) -> None:
+    conn = sqlite3.connect(db_path)
+    conn.execute("""CREATE TABLE IF NOT EXISTS managers (
+            manager_id INTEGER PRIMARY KEY,
+            name TEXT,
+            cik TEXT UNIQUE
+        )""")
+    conn.execute(
+        "INSERT INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
+        (manager_id, "Test Manager", cik),
+    )
+    conn.commit()
+    conn.close()
 
 
 def make_client(responder):
@@ -81,6 +97,7 @@ async def test_edgar_flow_full_cycle(monkeypatch, tmp_path):
     monkeypatch.setattr(flow, "RAW_DIR", tmp_path)
     monkeypatch.setattr(flow, "ADAPTER", edgar)
     monkeypatch.setattr(flow, "fetch_and_store", flow.fetch_and_store.fn)
+    monkeypatch.setattr(flow, "store_document", lambda raw: None)
 
     put_calls = []
 
@@ -88,6 +105,7 @@ async def test_edgar_flow_full_cycle(monkeypatch, tmp_path):
         put_calls.append(kwargs)
 
     monkeypatch.setattr(flow.S3, "put_object", put_object)
+    seed_manager(db_path, "0000000000", manager_id=10)
 
     def responder(url):
         if "submissions/CIK" in url:
@@ -110,13 +128,18 @@ async def test_edgar_flow_full_cycle(monkeypatch, tmp_path):
             "sshPrnamt": 100,
         }
     ]
-    assert put_calls[0]["Key"] == "raw/0000000000-24-000001.xml"
+    expected_prefix = hashlib.sha256(sample_xml().encode("utf-8")).hexdigest()[:16]
+    assert put_calls[0]["Key"] == f"raw/edgar/{expected_prefix}_0000000000-24-000001.xml"
     parsed_path = tmp_path / "parsed.json"
     assert json.loads(parsed_path.read_text()) == rows
     conn = sqlite3.connect(db_path)
-    row = conn.execute("SELECT cik, accession, cusip, value, sshPrnamt FROM holdings").fetchone()
+    filing = conn.execute("SELECT filing_id, manager_id, source, raw_key FROM filings").fetchone()
+    row = conn.execute(
+        "SELECT filing_id, cusip, name_of_issuer, value_usd, shares FROM holdings"
+    ).fetchone()
     conn.close()
-    assert row == ("0000000000", "0000000000-24-000001", "123456789", 1000, 100)
+    assert filing == (1, 10, "edgar", f"raw/edgar/{expected_prefix}_0000000000-24-000001.xml")
+    assert row == (1, "123456789", "Example Corp", 1000, 100)
 
 
 @pytest.mark.integration
@@ -145,6 +168,7 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
     monkeypatch.setattr(flow, "DB_PATH", str(db_path))
     monkeypatch.setattr(flow, "ADAPTER", edgar)
+    seed_manager(db_path, "0000000000")
 
     stored = []
 
@@ -174,11 +198,16 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
 
     assert rows
     assert stored == [sample_xml()]
-    assert put_calls[0]["Key"] == "raw/0000000000-24-000001.xml"
+    expected_prefix = hashlib.sha256(sample_xml().encode("utf-8")).hexdigest()[:16]
+    assert put_calls[0]["Key"] == f"raw/edgar/{expected_prefix}_0000000000-24-000001.xml"
     conn = sqlite3.connect(db_path)
-    row = conn.execute("SELECT cik, accession, cusip, value, sshPrnamt FROM holdings").fetchone()
+    filing = conn.execute("SELECT filing_id, manager_id, source, raw_key FROM filings").fetchone()
+    row = conn.execute(
+        "SELECT filing_id, cusip, name_of_issuer, value_usd, shares FROM holdings"
+    ).fetchone()
     conn.close()
-    assert row == ("0000000000", "0000000000-24-000001", "123456789", 1000, 100)
+    assert filing == (1, 1, "edgar", f"raw/edgar/{expected_prefix}_0000000000-24-000001.xml")
+    assert row == (1, "123456789", "Example Corp", 1000, 100)
 
 
 @pytest.mark.integration
@@ -280,6 +309,7 @@ async def test_malformed_data_handling(monkeypatch, tmp_path, caplog):
     monkeypatch.setattr(flow, "ADAPTER", edgar)
     monkeypatch.setattr(flow, "fetch_and_store", flow.fetch_and_store.fn)
     monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
+    seed_manager(db_path, "0000000000")
 
     def responder(url):
         if "submissions/CIK" in url:

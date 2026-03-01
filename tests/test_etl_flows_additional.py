@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sqlite3
 from contextlib import asynccontextmanager
@@ -8,6 +9,21 @@ import pytest
 import etl.daily_diff_flow as daily_flow
 import etl.edgar_flow as edgar_flow
 import etl.summariser_flow as summariser_flow
+
+
+def seed_manager(db_path, cik, manager_id=1):
+    conn = sqlite3.connect(db_path)
+    conn.execute("""CREATE TABLE IF NOT EXISTS managers (
+            manager_id INTEGER PRIMARY KEY,
+            name TEXT,
+            cik TEXT UNIQUE
+        )""")
+    conn.execute(
+        "INSERT INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
+        (manager_id, "Manager", cik),
+    )
+    conn.commit()
+    conn.close()
 
 
 # Fixed date for deterministic flow defaults.
@@ -112,6 +128,7 @@ async def test_fetch_and_store_uploads_raw_and_persists_rows(tmp_path, monkeypat
     monkeypatch.setattr(edgar_flow, "S3", DummyS3())
     monkeypatch.setattr(edgar_flow, "BUCKET", "filings-test")
     monkeypatch.setattr(edgar_flow, "store_document", fake_store_document)
+    seed_manager(db_path, "0001")
 
     rows = await edgar_flow.fetch_and_store.fn("0001", "2024-01-01")
 
@@ -120,20 +137,23 @@ async def test_fetch_and_store_uploads_raw_and_persists_rows(tmp_path, monkeypat
         {"nameOfIssuer": "CorpB", "cusip": "BBB", "value": 20, "sshPrnamt": 2},
     ]
     assert recorded["stored"] == "<xml>raw</xml>"
+    expected_prefix = hashlib.sha256(b"<xml>raw</xml>").hexdigest()[:16]
     assert recorded["s3"] == {
         "Bucket": "filings-test",
-        "Key": "raw/0001.xml",
+        "Key": f"raw/edgar/{expected_prefix}_0001.xml",
         "Body": "<xml>raw</xml>",
         "ServerSideEncryption": "AES256",
     }
     conn = sqlite3.connect(db_path)
+    filing = conn.execute("SELECT filing_id, manager_id, source, raw_key FROM filings").fetchone()
     rows = conn.execute(
-        "SELECT accession, nameOfIssuer, cusip, value, sshPrnamt FROM holdings"
+        "SELECT filing_id, name_of_issuer, cusip, value_usd, shares FROM holdings ORDER BY cusip"
     ).fetchall()
     conn.close()
+    assert filing == (1, 1, "edgar", f"raw/edgar/{expected_prefix}_0001.xml")
     assert rows == [
-        ("0001", "CorpA", "AAA", 10, 1),
-        ("0001", "CorpB", "BBB", 20, 2),
+        (1, "CorpA", "AAA", 10, 1),
+        (1, "CorpB", "BBB", 20, 2),
     ]
 
 
