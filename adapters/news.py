@@ -38,7 +38,13 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
 }
 
 
-async def list_new_items(source: str, since: str) -> list[dict[str, Any]]:
+def _normalize_since(since: str | None) -> str:
+    if since and since.strip():
+        return since
+    return "1970-01-01T00:00:00+00:00"
+
+
+async def list_new_items(source: str, since: str | None) -> list[dict[str, Any]]:
     """Discover new news items from a source since a watermark timestamp.
 
     Args:
@@ -49,10 +55,12 @@ async def list_new_items(source: str, since: str) -> list[dict[str, Any]]:
         List of dicts with keys: headline, url, published_at, source, body_snippet.
     """
 
+    normalized_since = _normalize_since(since)
+
     if source in {"rss", "sec_press", "enforcement"}:
-        return await _fetch_rss(since)
+        return await _fetch_rss(normalized_since)
     if source == "gdelt":
-        return await _fetch_gdelt(since)
+        return await _fetch_gdelt(normalized_since)
     raise ValueError(f"Unsupported news source: {source}")
 
 

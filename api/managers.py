@@ -1341,7 +1341,7 @@ async def patch_manager_tags(
         existing_tags = _json_array(existing_row[6])
         merged_tags = _merge_tags(existing_tags, add_tags, remove_tags)
         if merged_tags != existing_tags:
-            _update_manager(conn, id, ManagerUpdate(tags=merged_tags))
+            _update_manager(conn, id, ManagerUpdate.model_validate({"tags": merged_tags}))
             invalidate_cache_prefix("managers")
             row = _fetch_manager(conn, db_identity, id)
         else:
