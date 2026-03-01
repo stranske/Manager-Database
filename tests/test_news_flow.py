@@ -5,23 +5,57 @@ import pytest
 import etl.news_flow as news_flow
 
 
+def _create_managers_table(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS managers (
+            manager_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            aliases TEXT
+        )""")
+
+
 @pytest.mark.asyncio
-async def test_news_flow_uses_default_sources(monkeypatch):
+async def test_news_flow_uses_default_sources(monkeypatch, tmp_path):
     monkeypatch.setenv("NEWS_SOURCES", "rss,gdelt")
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "news.db"))
+    conn = sqlite3.connect(tmp_path / "news.db")
+    _create_managers_table(conn)
+    conn.commit()
+    conn.close()
+
+    async def fake_list_new_items(source, since):
+        return []
+
+    monkeypatch.setattr(news_flow.news, "list_new_items", fake_list_new_items)
 
     result = await news_flow.news_flow.fn()
 
-    assert result == {"sources": ["rss", "gdelt"], "since": None}
+    assert result["sources"] == ["rss", "gdelt"]
+    assert result["since"] is None
+    assert result["fetched"] == 0
+    assert result["inserted"] == 0
 
 
 @pytest.mark.asyncio
-async def test_news_flow_respects_explicit_sources():
+async def test_news_flow_respects_explicit_sources(monkeypatch, tmp_path):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "news.db"))
+    conn = sqlite3.connect(tmp_path / "news.db")
+    _create_managers_table(conn)
+    conn.commit()
+    conn.close()
+    calls = []
+
+    async def fake_list_new_items(source, since):
+        calls.append((source, since))
+        return []
+
+    monkeypatch.setattr(news_flow.news, "list_new_items", fake_list_new_items)
+
     result = await news_flow.news_flow.fn(sources=["custom"], since="2024-01-01T00:00:00Z")
 
-    assert result == {
-        "sources": ["custom"],
-        "since": "2024-01-01T00:00:00Z",
-    }
+    assert calls == [("custom", "2024-01-01T00:00:00Z")]
+    assert result["sources"] == ["custom"]
+    assert result["since"] == "2024-01-01T00:00:00Z"
+    assert result["source_since"] == {"custom": "2024-01-01T00:00:00Z"}
 
 
 @pytest.mark.asyncio
@@ -158,6 +192,14 @@ def _create_news_items_table(conn):
             )""")
 
 
+def _create_watermarks_table(conn):
+    conn.execute("""CREATE TABLE watermarks (
+                source TEXT PRIMARY KEY,
+                latest_published_at TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+
+
 def test_persist_news_inserts_items():
     conn = sqlite3.connect(":memory:")
     try:
@@ -199,6 +241,101 @@ def test_persist_news_inserts_items():
         assert rows[1][0] is None
     finally:
         conn.close()
+
+
+def test_resolve_source_since_uses_watermark_then_news_fallback():
+    conn = sqlite3.connect(":memory:")
+    try:
+        _create_news_items_table(conn)
+        _create_watermarks_table(conn)
+        conn.execute(
+            """INSERT INTO news_items (published_at, source, headline, url, body_snippet, topics, confidence)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "2026-01-01T01:00:00+00:00",
+                "rss",
+                "From news items",
+                "https://example.com/fallback",
+                "",
+                "[]",
+                0.2,
+            ),
+        )
+        conn.execute(
+            "INSERT INTO watermarks (source, latest_published_at) VALUES (?, ?)",
+            ("rss", "2026-01-01T02:00:00+00:00"),
+        )
+        conn.commit()
+
+        from_watermark = news_flow.resolve_source_since.fn("rss", None, conn)
+        from_explicit = news_flow.resolve_source_since.fn("rss", "2026-01-01T03:00:00+00:00", conn)
+        from_fallback = news_flow.resolve_source_since.fn("gdelt", None, conn)
+
+        assert from_watermark == "2026-01-01T02:00:00+00:00"
+        assert from_explicit == "2026-01-01T03:00:00+00:00"
+        assert from_fallback is None
+    finally:
+        conn.close()
+
+
+@pytest.mark.asyncio
+async def test_news_flow_advances_watermark_after_each_run(monkeypatch, tmp_path):
+    db_path = tmp_path / "news.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    conn = sqlite3.connect(db_path)
+    _create_managers_table(conn)
+    conn.execute(
+        "INSERT INTO managers (manager_id, name, aliases) VALUES (?, ?, ?)",
+        (1, "Alpha Capital", '["Alpha"]'),
+    )
+    _create_news_items_table(conn)
+    conn.commit()
+    conn.close()
+    calls = []
+
+    async def fake_list_new_items(source, since):
+        calls.append((source, since))
+        if since is None:
+            return [
+                {
+                    "published_at": "2026-01-01T00:00:00+00:00",
+                    "source": source,
+                    "headline": "Alpha Capital launches fund",
+                    "url": "https://example.com/1",
+                    "body_snippet": "Launch details",
+                }
+            ]
+        return [
+            {
+                "published_at": "2026-01-01T01:00:00+00:00",
+                "source": source,
+                "headline": "Alpha Capital expands team",
+                "url": "https://example.com/2",
+                "body_snippet": "Expansion details",
+            }
+        ]
+
+    monkeypatch.setattr(news_flow.news, "list_new_items", fake_list_new_items)
+    monkeypatch.setattr(news_flow.news, "tag", lambda item: item)
+
+    first = await news_flow.news_flow.fn(sources=["rss"])
+    second = await news_flow.news_flow.fn(sources=["rss"])
+
+    assert first["source_since"] == {"rss": None}
+    assert calls == [("rss", None), ("rss", "2026-01-01T00:00:00+00:00")]
+    assert second["source_since"] == {"rss": "2026-01-01T00:00:00+00:00"}
+
+    verify_conn = sqlite3.connect(db_path)
+    try:
+        count = verify_conn.execute("SELECT COUNT(*) FROM news_items").fetchone()[0]
+        watermark = verify_conn.execute(
+            "SELECT latest_published_at FROM watermarks WHERE source = ?",
+            ("rss",),
+        ).fetchone()[0]
+        assert count == 2
+        assert watermark == "2026-01-01T01:00:00+00:00"
+    finally:
+        verify_conn.close()
 
 
 def test_persist_news_ignores_duplicate_url_and_published_at():

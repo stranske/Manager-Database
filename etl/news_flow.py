@@ -6,10 +6,12 @@ import json
 import logging
 import os
 import sqlite3
+from datetime import UTC, datetime
 from typing import Any
 
 from prefect import flow, task
 
+from adapters.base import connect_db
 from adapters import news
 from etl.logging_setup import configure_logging, log_outcome
 
@@ -136,6 +138,106 @@ def _ensure_news_unique_constraint(conn: Any) -> None:
            ON news_items(url, published_at)""")
 
 
+def _ensure_watermarks_table(conn: Any) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS watermarks (
+            source TEXT PRIMARY KEY,
+            latest_published_at TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
+    if isinstance(conn, sqlite3.Connection):
+        conn.commit()
+
+
+def _parse_iso_timestamp(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _latest_published_at(items: list[dict[str, Any]]) -> str | None:
+    latest: datetime | None = None
+    for item in items:
+        parsed = _parse_iso_timestamp(item.get("published_at"))
+        if parsed is None:
+            continue
+        if latest is None or parsed > latest:
+            latest = parsed
+    return latest.isoformat() if latest is not None else None
+
+
+def _fetch_source_watermark(conn: Any, source: str) -> str | None:
+    ph = _placeholder(conn)
+    row = conn.execute(
+        f"SELECT latest_published_at FROM watermarks WHERE source = {ph}",
+        (source,),
+    ).fetchone()
+    if row and row[0]:
+        return str(row[0])
+    return None
+
+
+def _fallback_source_since_from_news(conn: Any, source: str) -> str | None:
+    ph = _placeholder(conn)
+    try:
+        row = conn.execute(
+            f"SELECT MAX(published_at) FROM news_items WHERE source = {ph}",
+            (source,),
+        ).fetchone()
+    except Exception:
+        return None
+    if row and row[0]:
+        return str(row[0])
+    return None
+
+
+@task
+def resolve_source_since(source: str, since: str | None, conn: Any) -> str | None:
+    """Resolve the effective since watermark for a source."""
+    if since is not None:
+        return since
+    return _fetch_source_watermark(conn, source) or _fallback_source_since_from_news(conn, source)
+
+
+@task
+def update_source_watermark(source: str, items: list[dict[str, Any]], conn: Any) -> str | None:
+    """Advance the source watermark to the latest published timestamp in items."""
+    latest = _latest_published_at(items)
+    if latest is None:
+        return _fetch_source_watermark(conn, source)
+
+    current = _fetch_source_watermark(conn, source)
+    current_dt = _parse_iso_timestamp(current)
+    latest_dt = _parse_iso_timestamp(latest)
+    if latest_dt is None:
+        return current
+    if current_dt is not None and latest_dt <= current_dt:
+        return current
+
+    ph = _placeholder(conn)
+    conn.execute(
+        f"""INSERT INTO watermarks (source, latest_published_at)
+            VALUES ({ph}, {ph})
+            ON CONFLICT(source)
+            DO UPDATE SET latest_published_at = excluded.latest_published_at,
+                          updated_at = CURRENT_TIMESTAMP""",
+        (source, latest),
+    )
+    if isinstance(conn, sqlite3.Connection):
+        conn.commit()
+    return latest
+
+
 @task
 def persist_news(items: list[dict[str, Any]], conn: Any) -> int:
     """Persist tagged news items, skipping duplicates by (url, published_at)."""
@@ -190,13 +292,49 @@ async def news_flow(sources: list[str] | None = None, since: str | None = None):
     """
 
     resolved_sources = _resolve_sources(sources)
-    logger.info(
-        "News flow started",
-        extra={"sources": resolved_sources, "since": since},
-    )
+    logger.info("News flow started", extra={"sources": resolved_sources, "since": since})
+
+    conn = connect_db()
+    source_since: dict[str, str | None] = {}
+    source_watermarks: dict[str, str | None] = {}
+    total_fetched = 0
+    total_inserted = 0
+    try:
+        _ensure_watermarks_table(conn)
+        for source in resolved_sources:
+            effective_since = resolve_source_since.fn(source, since, conn)
+            source_since[source] = effective_since
+
+            fetched_items = await fetch_news.fn(source, effective_since)
+            total_fetched += len(fetched_items)
+
+            matched_items = match_entities.fn(fetched_items, conn)
+            inserted = persist_news.fn(matched_items, conn)
+            total_inserted += inserted
+
+            source_watermarks[source] = update_source_watermark.fn(source, fetched_items, conn)
+    finally:
+        conn.close()
+
+    has_data = total_fetched > 0
     log_outcome(
         logger,
         "News flow completed",
-        extra={"sources": resolved_sources, "since": since},
+        has_data=has_data,
+        extra={
+            "sources": resolved_sources,
+            "since": since,
+            "source_since": source_since,
+            "watermarks": source_watermarks,
+            "fetched": total_fetched,
+            "inserted": total_inserted,
+        },
     )
-    return {"sources": resolved_sources, "since": since}
+    return {
+        "sources": resolved_sources,
+        "since": since,
+        "source_since": source_since,
+        "watermarks": source_watermarks,
+        "fetched": total_fetched,
+        "inserted": total_inserted,
+    }
