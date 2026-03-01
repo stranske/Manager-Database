@@ -18,7 +18,7 @@ class _FakeCursor:
         self._rows_by_cik = rows_by_cik
         self._last_row: tuple[bool] | None = None
 
-    def __enter__(self) -> "_FakeCursor":
+    def __enter__(self) -> _FakeCursor:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -45,7 +45,7 @@ class _FakeConnection:
         self._rows_by_cik = rows_by_cik
         self._commits = commits
 
-    def __enter__(self) -> "_FakeConnection":
+    def __enter__(self) -> _FakeConnection:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
