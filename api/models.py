@@ -117,3 +117,22 @@ class BulkImportResponse(BaseModel):
     failures: list[BulkImportFailure] = Field(
         ..., description="Details for records that failed validation"
     )
+
+
+class UniverseImportResponse(BaseModel):
+    """Response payload for manager universe imports."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "created": 8,
+                    "updated": 2,
+                    "skipped": 1,
+                }
+            ]
+        }
+    )
+    created: int = Field(..., description="Number of new manager records created")
+    updated: int = Field(..., description="Number of existing manager records updated")
+    skipped: int = Field(..., description="Number of records skipped due to invalid inputs")

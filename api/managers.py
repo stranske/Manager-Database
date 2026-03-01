@@ -24,6 +24,7 @@ from api.models import (
     BulkImportSuccess,
     ManagerListResponse,
     ManagerResponse,
+    UniverseImportResponse,
 )
 
 router = APIRouter()
@@ -44,6 +45,7 @@ REQUIRED_FIELD_ERRORS = {
     "role": "Role is required.",
 }
 DEFAULT_BULK_IMPORT_MAX_BYTES = 2_000_000
+DEFAULT_UNIVERSE_ROLE = "Manager"
 
 
 class ManagerCreate(BaseModel):
@@ -132,6 +134,86 @@ def _ensure_manager_department_column(conn) -> None:
     columns = {row[0] for row in cursor.fetchall()}
     if "department" not in columns:
         conn.execute("ALTER TABLE managers ADD COLUMN department text")
+
+
+def _normalize_cik(raw: Any) -> str:
+    cik = "" if raw is None else str(raw).strip()
+    if not cik:
+        return ""
+    digits = "".join(ch for ch in cik if ch.isdigit())
+    if not digits:
+        return ""
+    return digits.zfill(10)
+
+
+def _ensure_universe_schema(conn: Any) -> None:
+    """Ensure managers table has the columns/index needed for universe imports."""
+    _ensure_manager_table(conn)
+    if isinstance(conn, sqlite3.Connection):
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        if "cik" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN cik TEXT")
+        if "jurisdiction" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN jurisdiction TEXT")
+        if "created_at" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN created_at TIMESTAMP")
+            conn.execute(
+                "UPDATE managers SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"
+            )
+        if "updated_at" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN updated_at TIMESTAMP")
+            conn.execute(
+                "UPDATE managers SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL"
+            )
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
+        conn.commit()
+        return
+
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS cik text")
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdiction text")
+    conn.execute(
+        "ALTER TABLE managers ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now()"
+    )
+    conn.execute(
+        "ALTER TABLE managers ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()"
+    )
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
+
+
+def _existing_ciks(conn: Any) -> set[str]:
+    rows = conn.execute(
+        "SELECT cik FROM managers WHERE cik IS NOT NULL AND TRIM(cik) != ''"
+    ).fetchall()
+    return {str(row[0]).strip() for row in rows if row and row[0] is not None}
+
+
+def _upsert_universe_record(conn: Any, name: str, cik: str, jurisdiction: str) -> None:
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute(
+            """
+            INSERT INTO managers(name, role, cik, jurisdiction, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(cik)
+            DO UPDATE SET
+                name = excluded.name,
+                jurisdiction = excluded.jurisdiction,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (name, DEFAULT_UNIVERSE_ROLE, cik, jurisdiction),
+        )
+        return
+    conn.execute(
+        """
+        INSERT INTO managers(name, role, cik, jurisdiction, updated_at)
+        VALUES (%s, %s, %s, %s, now())
+        ON CONFLICT(cik)
+        DO UPDATE SET
+            name = EXCLUDED.name,
+            jurisdiction = EXCLUDED.jurisdiction,
+            updated_at = now()
+        """,
+        (name, DEFAULT_UNIVERSE_ROLE, cik, jurisdiction),
+    )
 
 
 def _insert_manager(conn, payload: ManagerCreate) -> int:
@@ -629,6 +711,66 @@ async def bulk_import_managers(
         successes=successes,
         failures=failures,
     )
+
+
+@router.post(
+    "/managers/import/universe",
+    status_code=200,
+    response_model=UniverseImportResponse,
+    summary="Import manager universe records",
+    description=(
+        "Import a JSON array of manager universe records with CIK-based upsert behavior. "
+        "Valid records create or update managers by CIK; invalid records are skipped."
+    ),
+)
+async def import_manager_universe(
+    records: Annotated[list[dict[str, Any]], Body(..., description="Array of manager records")],
+):
+    """Upsert manager universe records using CIK as the unique key."""
+    if not records:
+        return UniverseImportResponse(created=0, updated=0, skipped=0)
+
+    conn = None
+    created = 0
+    updated = 0
+    skipped = 0
+    try:
+        conn = connect_db()
+        _ensure_universe_schema(conn)
+        known_ciks = _existing_ciks(conn)
+        for index, record in enumerate(records):
+            if not isinstance(record, dict):
+                skipped += 1
+                logger.warning("Universe import skipped record %s: record must be an object", index)
+                continue
+            name = str(record.get("name", "")).strip()
+            cik = _normalize_cik(record.get("cik"))
+            jurisdiction = str(record.get("jurisdiction", "")).strip().lower()
+            if not name or not cik or not jurisdiction:
+                skipped += 1
+                logger.warning(
+                    "Universe import skipped record %s: requires name, cik, jurisdiction",
+                    index,
+                )
+                continue
+
+            if cik in known_ciks:
+                updated += 1
+            else:
+                created += 1
+                known_ciks.add(cik)
+
+            _upsert_universe_record(conn, name, cik, jurisdiction)
+
+        conn.commit()
+        invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return UniverseImportResponse(created=created, updated=updated, skipped=skipped)
 
 
 @router.get(
