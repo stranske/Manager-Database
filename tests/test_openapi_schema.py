@@ -68,6 +68,13 @@ def test_openapi_managers_schema():
         "schema"
     ]
     assert list_response_schema["$ref"] == "#/components/schemas/ManagerListResponse"
+    list_examples = manager_list_schema["responses"]["200"]["content"]["application/json"][
+        "examples"
+    ]
+    assert (
+        list_examples["investment-managers"]["value"]["items"][0]["name"]
+        == "Elliott Investment Management L.P."
+    )
     # Validate list endpoint documents request validation errors.
     list_error_schema = manager_list_schema["responses"]["400"]["content"]["application/json"][
         "schema"
@@ -85,6 +92,10 @@ def test_openapi_managers_schema():
         "application/json"
     ]["schema"]
     assert detail_response_schema["$ref"] == "#/components/schemas/ManagerResponse"
+    detail_examples = manager_detail_schema["responses"]["200"]["content"]["application/json"][
+        "examples"
+    ]
+    assert detail_examples["investment-manager"]["value"]["cik"] == "0001791786"
     # Validate detail endpoint exposes path validation errors.
     detail_error_schema = manager_detail_schema["responses"]["400"]["content"]["application/json"][
         "schema"
@@ -94,6 +105,9 @@ def test_openapi_managers_schema():
         "schema"
     ]
     assert not_found_schema["$ref"] == "#/components/schemas/NotFoundResponse"
+    manager_patch_schema = schema["paths"]["/managers/{id}"]["patch"]
+    patch_examples = manager_patch_schema["requestBody"]["content"]["application/json"]["examples"]
+    assert patch_examples["update-tags-and-lei"]["value"]["tags"] == ["event-driven"]
 
     bulk_schema = schema["paths"]["/api/managers/bulk"]["post"]
     assert bulk_schema["summary"] == "Bulk import managers"

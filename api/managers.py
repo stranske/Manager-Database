@@ -654,6 +654,40 @@ async def create_manager(
             },
         }
     },
+    openapi_extra={
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "investment-managers": {
+                                "summary": "Investment manager page",
+                                "value": {
+                                    "items": [
+                                        {
+                                            "manager_id": 101,
+                                            "name": "Elliott Investment Management L.P.",
+                                            "cik": "0001791786",
+                                            "lei": "549300U3N12T57QLOU60",
+                                            "aliases": ["Elliott Management"],
+                                            "jurisdictions": ["us"],
+                                            "tags": ["activist"],
+                                            "registry_ids": {"fca_frn": "122927"},
+                                            "created_at": "2026-02-01T10:00:00Z",
+                                            "updated_at": "2026-02-01T10:00:00Z",
+                                        }
+                                    ],
+                                    "total": 1,
+                                    "limit": 25,
+                                    "offset": 0,
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
 )
 async def list_managers(
     limit: int = Query(
@@ -887,6 +921,33 @@ async def bulk_import_managers(
             },
         },
     },
+    openapi_extra={
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "investment-manager": {
+                                "summary": "Investment manager",
+                                "value": {
+                                    "manager_id": 101,
+                                    "name": "Elliott Investment Management L.P.",
+                                    "cik": "0001791786",
+                                    "lei": "549300U3N12T57QLOU60",
+                                    "aliases": ["Elliott Management"],
+                                    "jurisdictions": ["us"],
+                                    "tags": ["activist"],
+                                    "registry_ids": {"fca_frn": "122927"},
+                                    "created_at": "2026-02-01T10:00:00Z",
+                                    "updated_at": "2026-02-01T10:00:00Z",
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
 )
 async def get_manager(
     id: int = Path(..., ge=1, description="Manager identifier"),
@@ -917,6 +978,24 @@ async def get_manager(
     responses={
         400: {"model": ErrorResponse, "description": "Validation error"},
         404: {"model": NotFoundResponse, "description": "Manager not found"},
+    },
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "update-tags-and-lei": {
+                            "summary": "Update manager metadata",
+                            "value": {
+                                "lei": "549300U3N12T57QLOU60",
+                                "aliases": ["Elliott Management"],
+                                "tags": ["event-driven"],
+                            },
+                        }
+                    }
+                }
+            }
+        }
     },
 )
 async def patch_manager(
