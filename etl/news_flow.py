@@ -4,13 +4,30 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
-from prefect import flow
+from prefect import flow, task
 
+from adapters import news
 from etl.logging_setup import configure_logging, log_outcome
 
 configure_logging("news_flow")
 logger = logging.getLogger(__name__)
+
+
+@task
+async def fetch_news(source: str, since: str | None = None) -> list[dict[str, Any]]:
+    """Fetch and topic-tag new items for a single source."""
+    items = await news.list_new_items(source, since or "")
+    tagged_items: list[dict[str, Any]] = []
+    for item in items:
+        tagged_item = news.tag(item)
+        tagged_items.append(tagged_item if tagged_item is not None else item)
+    logger.info(
+        "Fetched and tagged news items",
+        extra={"source": source, "count": len(tagged_items), "since": since},
+    )
+    return tagged_items
 
 
 def _resolve_sources(sources: list[str] | None) -> list[str]:
