@@ -198,3 +198,59 @@ def test_sources_panel_displays_document_id_and_url(monkeypatch):
     assert "doc `doc-13f-001`" in rendered_sources[0]
     assert "[link](https://example.com/filings/13f-001)" in rendered_sources[0]
     assert "📄 Sources" in fake_st.expander_labels
+
+
+def test_sql_panel_displays_for_nl_query(monkeypatch):
+    research = _load_research_module()
+    fake_st = FakeStreamlit(chat_inputs=["Show top managers by position count"])
+
+    def _fake_call(_question: str, _chain_mode: str, _context):
+        return {
+            "answer": "Top managers listed.",
+            "chain_used": "nl_query",
+            "sources": [],
+            "sql": "SELECT manager_name, COUNT(*) FROM holdings GROUP BY manager_name LIMIT 5;",
+            "trace_url": None,
+            "latency_ms": 18,
+        }
+
+    monkeypatch.setattr(research, "st", fake_st)
+    monkeypatch.setattr(research, "require_login", lambda: True)
+    monkeypatch.setattr(research, "_load_manager_list", lambda: [])
+    monkeypatch.setattr(research, "_call_chat_api", _fake_call)
+
+    research.main()
+
+    assert (
+        "SELECT manager_name, COUNT(*) FROM holdings GROUP BY manager_name LIMIT 5;",
+        "sql",
+    ) in (fake_st.code_calls)
+    assert "🔍 Generated SQL" in fake_st.expander_labels
+    assert fake_st.session_state.messages[-1]["sql"].startswith("SELECT manager_name")
+
+
+def test_history_renders_saved_assistant_metadata(monkeypatch):
+    research = _load_research_module()
+    fake_st = FakeStreamlit()
+    monkeypatch.setattr(research, "st", fake_st)
+
+    fake_st.session_state.messages = [
+        {"role": "user", "content": "Show a query"},
+        {
+            "role": "assistant",
+            "content": "Here is the result.",
+            "sources": [{"type": "news", "description": "Reuters note"}],
+            "chain_used": "nl_query",
+            "latency_ms": 22,
+            "trace_url": "https://trace.local/1",
+            "sql": "SELECT 1;",
+        },
+    ]
+
+    research._render_history()
+
+    assert "Chain: nl_query" in fake_st.captions
+    assert "Latency: 22ms" in fake_st.captions
+    assert "[Trace](https://trace.local/1)" in fake_st.captions
+    assert ("SELECT 1;", "sql") in fake_st.code_calls
+    assert "🔍 Generated SQL" in fake_st.expander_labels

@@ -142,14 +142,49 @@ def _call_chat_api(
         raise RuntimeError("Invalid response from chat API") from exc
 
 
-def _append_message(role: str, content: str, sources: list[Any] | None = None) -> None:
-    st.session_state.messages.append(
-        {
-            "role": role,
-            "content": content,
-            "sources": sources or [],
-        }
-    )
+def _append_message(
+    role: str,
+    content: str,
+    sources: list[Any] | None = None,
+    chain_used: str | None = None,
+    latency_ms: int | None = None,
+    trace_url: str | None = None,
+    sql: str | None = None,
+) -> None:
+    message: dict[str, Any] = {
+        "role": role,
+        "content": content,
+        "sources": sources or [],
+    }
+    if chain_used:
+        message["chain_used"] = chain_used
+    if latency_ms is not None:
+        message["latency_ms"] = latency_ms
+    if trace_url:
+        message["trace_url"] = trace_url
+    if sql:
+        message["sql"] = sql
+    st.session_state.messages.append(message)
+
+
+def _render_assistant_metadata(message: dict[str, Any]) -> None:
+    chain_used = message.get("chain_used")
+    latency_ms = message.get("latency_ms")
+    trace_url = message.get("trace_url")
+    sql = message.get("sql")
+
+    if chain_used or latency_ms is not None or trace_url:
+        col1, col2, col3 = st.columns(3)
+        if chain_used:
+            col1.caption(f"Chain: {chain_used}")
+        if latency_ms is not None:
+            col2.caption(f"Latency: {latency_ms}ms")
+        if trace_url:
+            col3.caption(f"[Trace]({trace_url})")
+
+    if sql:
+        with st.expander("🔍 Generated SQL"):
+            st.code(str(sql), language="sql")
 
 
 def _run_chat_turn(prompt: str, chain_mode: str, context: dict[str, Any] | None) -> None:
@@ -166,25 +201,34 @@ def _run_chat_turn(prompt: str, chain_mode: str, context: dict[str, Any] | None)
 
         answer = str(result.get("answer", ""))
         sources = result.get("sources") or []
+        chain_used = str(result.get("chain_used", "unknown"))
+        latency_ms = int(result.get("latency_ms", 0))
+        trace_url = result.get("trace_url")
+        sql = result.get("sql")
         st.markdown(answer)
 
-        col1, col2, col3 = st.columns(3)
-        col1.caption(f"Chain: {result.get('chain_used', 'unknown')}")
-        col2.caption(f"Latency: {result.get('latency_ms', 0)}ms")
-        trace_url = result.get("trace_url")
-        if trace_url:
-            col3.caption(f"[Trace]({trace_url})")
+        _render_assistant_metadata(
+            {
+                "chain_used": chain_used,
+                "latency_ms": latency_ms,
+                "trace_url": trace_url,
+                "sql": sql,
+            }
+        )
 
         if sources:
             with st.expander("📄 Sources", expanded=True):
                 _render_sources(sources)
 
-        sql = result.get("sql")
-        if sql:
-            with st.expander("🔍 Generated SQL"):
-                st.code(str(sql), language="sql")
-
-    _append_message("assistant", answer, sources=sources)
+    _append_message(
+        "assistant",
+        answer,
+        sources=sources,
+        chain_used=chain_used,
+        latency_ms=latency_ms,
+        trace_url=trace_url,
+        sql=str(sql) if sql else None,
+    )
 
 
 def _init_session_state() -> None:
@@ -200,6 +244,8 @@ def _render_history() -> None:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+            if msg.get("role") == "assistant":
+                _render_assistant_metadata(msg)
             sources = msg.get("sources") or []
             if sources:
                 with st.expander("📄 Sources"):
