@@ -116,7 +116,7 @@ async def test_fetch_and_store_encryption(monkeypatch, tmp_path):
     await flow.fetch_and_store.fn("0", "2024-01-01")
 
     assert calls.get("ServerSideEncryption") == "AES256"
-    expected_prefix = hashlib.sha256("<xml></xml>".encode("utf-8")).hexdigest()[:16]
+    expected_prefix = hashlib.sha256(b"<xml></xml>").hexdigest()[:16]
     assert calls.get("Key") == f"raw/edgar/{expected_prefix}_1.xml"
 
 
@@ -211,7 +211,7 @@ async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
         stored.append(raw)
 
     def put_object(**kwargs):
-        expected_prefix = hashlib.sha256("<xml></xml>".encode("utf-8")).hexdigest()[:16]
+        expected_prefix = hashlib.sha256(b"<xml></xml>").hexdigest()[:16]
         assert kwargs["Key"] == f"raw/edgar/{expected_prefix}_1.xml"
 
     monkeypatch.setattr(flow.S3, "put_object", put_object)

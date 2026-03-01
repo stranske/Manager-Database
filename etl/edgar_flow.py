@@ -31,6 +31,7 @@ DB_PATH = os.getenv("DB_PATH", "dev.db")
 JURISDICTION = os.getenv("JURISDICTION", "us")
 _MAP = {"us": "edgar", "uk": "uk", "ca": "canada"}
 ADAPTER = get_adapter(_MAP.get(JURISDICTION, "edgar"))
+FILING_SOURCE = _MAP.get(JURISDICTION, "edgar")
 
 configure_logging("edgar_flow")
 logger = logging.getLogger(__name__)
@@ -41,6 +42,31 @@ async def fetch_and_store(cik: str, since: str):
     filings = await ADAPTER.list_new_filings(cik, since)
     conn = connect_db(DB_PATH)
     is_sqlite = isinstance(conn, sqlite3.Connection)
+    if is_sqlite:
+        conn.execute("""CREATE TABLE IF NOT EXISTS managers (
+                manager_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                cik TEXT UNIQUE
+            )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS filings (
+                filing_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manager_id INTEGER NOT NULL REFERENCES managers(manager_id),
+                type TEXT NOT NULL,
+                filed_date TEXT,
+                source TEXT,
+                url TEXT,
+                raw_key TEXT UNIQUE,
+                schema_version INTEGER
+            )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
+                holding_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filing_id INTEGER NOT NULL REFERENCES filings(filing_id),
+                cusip TEXT,
+                name_of_issuer TEXT,
+                shares INTEGER,
+                value_usd INTEGER
+            )""")
+        conn.commit()
     placeholder = "?" if is_sqlite else "%s"
     manager_cursor = conn.execute(
         f"SELECT manager_id FROM managers WHERE cik = {placeholder}",
@@ -78,7 +104,7 @@ async def fetch_and_store(cik: str, since: str):
                    VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT DO NOTHING
                    RETURNING filing_id""",
-                (manager_id, "13F-HR", filing["filed"], "edgar", filing_url, raw_key, 1),
+                (manager_id, "13F-HR", filing["filed"], FILING_SOURCE, filing_url, raw_key, 1),
             )
         else:
             filing_cursor = conn.execute(
@@ -86,7 +112,7 @@ async def fetch_and_store(cik: str, since: str):
                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT DO NOTHING
                    RETURNING filing_id""",
-                (manager_id, "13F-HR", filing["filed"], "edgar", filing_url, raw_key, 1),
+                (manager_id, "13F-HR", filing["filed"], FILING_SOURCE, filing_url, raw_key, 1),
             )
         filing_row = filing_cursor.fetchone()
         if filing_row:
@@ -165,11 +191,15 @@ async def fetch_and_store(cik: str, since: str):
 
 
 @flow
-async def edgar_flow(cik_list: list[str] | None = None, since: str | None = None):
+async def edgar_flow(
+    cik_list: list[str] | None = None, since: str | None = None, jurisdiction: str | None = None
+):
+    global FILING_SOURCE
     if cik_list is None:
         env = os.getenv("CIK_LIST", "0001791786,0001434997")
         cik_list = [c.strip() for c in env.split(",")]
     since = since or ("1970-01-01")
+    FILING_SOURCE = _MAP.get((jurisdiction or JURISDICTION), "edgar")
     all_rows = []
     for cik in cik_list:
         try:
