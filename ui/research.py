@@ -99,6 +99,22 @@ def _source_markdown(source: Any) -> str:
         parts.append(f"filing `{source['filing_id']}`")
     if source.get("url"):
         parts.append(f"[link]({source['url']})")
+    if source.get("filing_url"):
+        parts.append(f"[filing]({source['filing_url']})")
+    if source.get("news_reference"):
+        parts.append(f"news: {source['news_reference']}")
+
+    filing_urls = source.get("filing_urls")
+    if isinstance(filing_urls, list):
+        for filing_url in filing_urls:
+            if filing_url:
+                parts.append(f"[filing]({filing_url})")
+
+    news_references = source.get("news_references")
+    if isinstance(news_references, list):
+        for news_reference in news_references:
+            if news_reference:
+                parts.append(f"news: {news_reference}")
 
     description = str(source.get("description", "")).strip()
     if description:

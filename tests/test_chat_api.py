@@ -81,6 +81,18 @@ def test_chat_api_returns_500_for_unexpected_chain_errors(monkeypatch):
     assert response.json()["detail"] == "Research assistant error. Check server logs."
 
 
+def test_direct_endpoint_returns_500_for_unexpected_chain_errors(monkeypatch):
+    async def _raise_runtime(*_args, **_kwargs):
+        raise RuntimeError("direct chain blew up")
+
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+    monkeypatch.setattr(chat_api_module, "_run_chain", _raise_runtime)
+
+    response = asyncio.run(_request("POST", "/api/chat/query", params={"question": "latest filings"}))
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Research assistant error. Check server logs."
+
+
 def test_chat_api_autoroutes_question_to_chain(monkeypatch):
     seen: dict[str, str | None] = {}
 

@@ -200,6 +200,53 @@ def test_sources_panel_displays_document_id_and_url(monkeypatch):
     assert "📄 Sources" in fake_st.expander_labels
 
 
+def test_sources_panel_displays_filing_urls_and_news_references(monkeypatch):
+    research = _load_research_module()
+    fake_st = FakeStreamlit()
+
+    source_line = research._source_markdown(
+        {
+            "type": "news",
+            "document_id": "doc-news-42",
+            "filing_url": "https://example.com/filings/42",
+            "filing_urls": [
+                "https://example.com/filings/42/a",
+                "https://example.com/filings/42/b",
+            ],
+            "news_reference": "Reuters",
+            "news_references": ["Bloomberg", "WSJ"],
+            "description": "Cross-source coverage",
+        }
+    )
+
+    monkeypatch.setattr(research, "st", fake_st)
+    research._render_sources(
+        [
+            {
+                "type": "news",
+                "document_id": "doc-news-42",
+                "filing_url": "https://example.com/filings/42",
+                "filing_urls": [
+                    "https://example.com/filings/42/a",
+                    "https://example.com/filings/42/b",
+                ],
+                "news_reference": "Reuters",
+                "news_references": ["Bloomberg", "WSJ"],
+                "description": "Cross-source coverage",
+            }
+        ]
+    )
+
+    assert "doc `doc-news-42`" in source_line
+    assert "[filing](https://example.com/filings/42)" in source_line
+    assert "[filing](https://example.com/filings/42/a)" in source_line
+    assert "[filing](https://example.com/filings/42/b)" in source_line
+    assert "news: Reuters" in source_line
+    assert "news: Bloomberg" in source_line
+    assert "news: WSJ" in source_line
+    assert any("news: Reuters" in line for line in fake_st.markdown_calls)
+
+
 def test_sql_panel_displays_for_nl_query(monkeypatch):
     research = _load_research_module()
     fake_st = FakeStreamlit(chat_inputs=["Show top managers by position count"])
