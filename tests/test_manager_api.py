@@ -257,6 +257,30 @@ def test_manager_list_filter_by_jurisdiction_and_tag_returns_subset(tmp_path, mo
     assert body["items"][0]["tags"] == ["activist"]
 
 
+def test_manager_list_filter_with_pagination_returns_expected_page(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Manager A", "jurisdictions": ["us"], "tags": ["activist"]},
+        {"name": "Manager B", "jurisdictions": ["us"], "tags": ["activist"]},
+        {"name": "Manager C", "jurisdictions": ["us"], "tags": ["activist"]},
+        {"name": "Manager D", "jurisdictions": ["uk"], "tags": ["activist"]},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(
+        _get_managers({"jurisdiction": "us", "tag": "activist", "limit": 1, "offset": 1})
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3
+    assert body["limit"] == 1
+    assert body["offset"] == 1
+    assert [item["name"] for item in body["items"]] == ["Manager B"]
+
+
 def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
