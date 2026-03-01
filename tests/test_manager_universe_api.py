@@ -97,3 +97,27 @@ def test_universe_import_skips_non_object_records(tmp_path, monkeypatch):
         conn.close()
 
     assert rows == [("Pershing Square Capital Management, L.P.", "0001336528", "us")]
+
+
+def test_universe_import_upserts_on_cik_conflict_within_single_request(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(
+        _post_universe(
+            [
+                {"name": "Berkshire Hathaway", "cik": "0001067983", "jurisdiction": "us"},
+                {"name": "Berkshire Hathaway Inc.", "cik": "1067983", "jurisdiction": "US"},
+            ]
+        )
+    )
+    assert response.status_code == 200
+    assert response.json() == {"created": 1, "updated": 1, "skipped": 0}
+
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute("SELECT name, cik, jurisdiction FROM managers ORDER BY cik").fetchall()
+    finally:
+        conn.close()
+
+    assert rows == [("Berkshire Hathaway Inc.", "0001067983", "us")]
