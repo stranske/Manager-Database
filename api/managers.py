@@ -240,11 +240,13 @@ def _ensure_universe_schema(conn: Any) -> None:
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
 
 
-def _existing_ciks(conn: Any) -> set[str]:
-    rows = conn.execute(
-        "SELECT cik FROM managers WHERE cik IS NOT NULL AND TRIM(cik) != ''"
-    ).fetchall()
-    return {str(row[0]).strip() for row in rows if row and row[0] is not None}
+def _manager_exists_for_cik(conn: Any, cik: str) -> bool:
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    row = conn.execute(
+        f"SELECT 1 FROM managers WHERE cik = {placeholder} LIMIT 1",
+        (cik,),
+    ).fetchone()
+    return bool(row)
 
 
 def _upsert_universe_record(conn: Any, name: str, cik: str, jurisdiction: str) -> None:
@@ -986,7 +988,6 @@ async def import_manager_universe(
     try:
         conn = connect_db()
         _ensure_universe_schema(conn)
-        known_ciks = _existing_ciks(conn)
         for index, record in enumerate(records):
             if not isinstance(record, dict):
                 skipped += 1
@@ -1003,11 +1004,11 @@ async def import_manager_universe(
                 )
                 continue
 
-            if cik in known_ciks:
+            existed = _manager_exists_for_cik(conn, cik)
+            if existed:
                 updated += 1
             else:
                 created += 1
-                known_ciks.add(cik)
 
             _upsert_universe_record(conn, name, cik, jurisdiction)
 

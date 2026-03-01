@@ -99,6 +99,15 @@ def test_universe_import_skips_non_object_records(tmp_path, monkeypatch):
     assert rows == [("Pershing Square Capital Management, L.P.", "0001336528", "us")]
 
 
+def test_universe_import_empty_array_returns_zero_counts(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(_post_universe([]))
+    assert response.status_code == 200
+    assert response.json() == {"created": 0, "updated": 0, "skipped": 0}
+
+
 def test_universe_import_upserts_on_cik_conflict_within_single_request(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
