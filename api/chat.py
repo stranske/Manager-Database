@@ -362,14 +362,23 @@ PROMPT_INJECTION_ERROR = _load_prompt_injection_error_class()
 
 def _build_chat_client_info():
     """Build chat client metadata from available provider modules."""
+    llm_client_module = None
     try:
-        module = importlib.import_module("llm.client")
-        build_fn = module.build_chat_client
-        return build_fn()
-    except Exception:
-        from tools.langchain_client import build_chat_client
+        llm_client_module = importlib.import_module("llm.client")
+    except ModuleNotFoundError as exc:
+        # Fall back only when the llm client module is not installed.
+        if exc.name not in {"llm", "llm.client"}:
+            raise
 
-        return build_chat_client()
+    if llm_client_module is not None:
+        build_fn = getattr(llm_client_module, "build_chat_client", None)
+        if callable(build_fn):
+            return build_fn()
+        return None
+
+    from tools.langchain_client import build_chat_client
+
+    return build_chat_client()
 
 
 def _classify_intent(question: str) -> str:

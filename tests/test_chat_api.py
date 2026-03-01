@@ -20,6 +20,45 @@ def test_chat_endpoint(tmp_path, monkeypatch):
     assert "hello world" in payload["answer"]
 
 
+def test_build_chat_client_info_prefers_llm_client_module(monkeypatch):
+    marker = object()
+
+    class _LLMClientModule:
+        @staticmethod
+        def build_chat_client():
+            return marker
+
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", lambda name: _LLMClientModule)
+
+    assert chat_api_module._build_chat_client_info() is marker
+
+
+def test_build_chat_client_info_falls_back_when_llm_client_module_missing(monkeypatch):
+    marker = object()
+
+    def _missing_llm_client(_name: str):
+        exc = ModuleNotFoundError("No module named 'llm.client'")
+        exc.name = "llm.client"
+        raise exc
+
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", _missing_llm_client)
+    monkeypatch.setattr("tools.langchain_client.build_chat_client", lambda: marker)
+
+    assert chat_api_module._build_chat_client_info() is marker
+
+
+def test_build_chat_client_info_surfaces_llm_client_builder_errors(monkeypatch):
+    class _LLMClientModule:
+        @staticmethod
+        def build_chat_client():
+            raise RuntimeError("broken llm builder")
+
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", lambda name: _LLMClientModule)
+
+    with pytest.raises(RuntimeError, match="broken llm builder"):
+        chat_api_module._build_chat_client_info()
+
+
 @pytest.fixture(autouse=True)
 def _reset_chat_rate_limiter():
     chat_api_module.CHAT_RATE_LIMITER.clear()
