@@ -12,7 +12,7 @@ import sqlite3
 from functools import wraps
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Body, HTTPException, Path, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -74,6 +74,18 @@ class ManagerCreate(BaseModel):
     )
     tags: list[str] = Field(default_factory=list, description="Classification tags")
     registry_ids: dict[str, str] = Field(default_factory=dict, description="External registry IDs")
+
+
+class ManagerUpdate(BaseModel):
+    """Payload for partially updating manager records."""
+
+    name: str | None = Field(None, description="Legal name of the investment manager")
+    cik: str | None = Field(None, description="SEC Central Index Key")
+    lei: str | None = Field(None, description="Legal Entity Identifier")
+    aliases: list[str] | None = Field(None, description="Alternative names")
+    jurisdictions: list[str] | None = Field(None, description="Filing jurisdictions (us, uk, ca)")
+    tags: list[str] | None = Field(None, description="Classification tags")
+    registry_ids: dict[str, str] | None = Field(None, description="External registry IDs")
 
 
 class NotFoundResponse(BaseModel):
@@ -225,6 +237,57 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
     return int(row[0])
 
 
+def _update_manager(conn, manager_id: int, payload: ManagerUpdate) -> bool:
+    """Update a manager record and return whether a row changed."""
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        return False
+
+    set_clauses: list[str] = []
+    params: list[object] = []
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+
+    for field, value in fields.items():
+        if field in {"aliases", "jurisdictions", "tags"}:
+            if isinstance(conn, sqlite3.Connection):
+                set_clauses.append(f"{field} = {placeholder}")
+                params.append(json.dumps(value))
+            else:
+                set_clauses.append(f"{field} = {placeholder}")
+                params.append(value)
+            continue
+        if field == "registry_ids":
+            if isinstance(conn, sqlite3.Connection):
+                set_clauses.append(f"{field} = {placeholder}")
+                params.append(json.dumps(value))
+            else:
+                set_clauses.append(f"{field} = {placeholder}::jsonb")
+                params.append(json.dumps(value))
+            continue
+        set_clauses.append(f"{field} = {placeholder}")
+        params.append(value)
+
+    set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+    params.append(manager_id)
+
+    cursor = conn.execute(
+        f"UPDATE managers SET {', '.join(set_clauses)} WHERE id = {placeholder}",
+        params,
+    )
+    if isinstance(conn, sqlite3.Connection):
+        conn.commit()
+    return cursor.rowcount > 0
+
+
+def _delete_manager(conn, manager_id: int) -> bool:
+    """Delete a manager by id and return whether a row was removed."""
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    cursor = conn.execute(f"DELETE FROM managers WHERE id = {placeholder}", (manager_id,))
+    if isinstance(conn, sqlite3.Connection):
+        conn.commit()
+    return cursor.rowcount > 0
+
+
 @cache_query("managers.count", skip_args=1)
 def _count_managers(conn, db_identity: str, jurisdiction: str | None, tag: str | None) -> int:
     """Return the total number of managers with optional filters."""
@@ -304,6 +367,24 @@ def _validate_manager_payload(payload: ManagerCreate) -> list[dict[str, str]]:
     """Apply required field checks."""
     errors: list[dict[str, str]] = []
     if not payload.name.strip():
+        errors.append({"field": "name", "message": REQUIRED_FIELD_ERRORS["name"]})
+    if (
+        payload.cik is not None
+        and payload.cik.strip()
+        and not CIK_PATTERN.match(payload.cik.strip())
+    ):
+        errors.append({"field": "cik", "message": "CIK must be a 10-digit zero-padded string."})
+    return errors
+
+
+def _validate_manager_update_payload(payload: ManagerUpdate) -> list[dict[str, str]]:
+    """Apply validation checks for partial updates."""
+    errors: list[dict[str, str]] = []
+    provided_fields = payload.model_dump(exclude_unset=True)
+    if not provided_fields:
+        errors.append({"field": "body", "message": "At least one field must be provided."})
+        return errors
+    if payload.name is not None and not payload.name.strip():
         errors.append({"field": "name", "message": REQUIRED_FIELD_ERRORS["name"]})
     if (
         payload.cik is not None
@@ -826,6 +907,73 @@ async def get_manager(
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
     return _to_manager_response(row)
+
+
+@router.patch(
+    "/managers/{id}",
+    response_model=ManagerResponse,
+    summary="Update a manager",
+    description="Partially update manager fields and return the updated record.",
+    responses={
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        404: {"model": NotFoundResponse, "description": "Manager not found"},
+    },
+)
+async def patch_manager(
+    payload: ManagerUpdate,
+    id: int = Path(..., ge=1, description="Manager identifier"),
+):
+    """Partially update a manager by id."""
+    errors = _validate_manager_update_payload(payload)
+    if errors:
+        return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
+
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        updated = _update_manager(conn, id, payload)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Manager not found")
+        row = _fetch_manager(conn, db_identity, id)
+        invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Manager not found")
+    return _to_manager_response(row)
+
+
+@router.delete(
+    "/managers/{id}",
+    status_code=204,
+    summary="Delete a manager",
+    description="Delete a manager by id.",
+    responses={404: {"model": NotFoundResponse, "description": "Manager not found"}},
+)
+async def delete_manager(
+    id: int = Path(..., ge=1, description="Manager identifier"),
+):
+    """Delete a manager by id."""
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        deleted = _delete_manager(conn, id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Manager not found")
+        invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+    return Response(status_code=204)
 
 
 # Commit-message checklist:

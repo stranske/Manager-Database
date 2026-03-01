@@ -50,6 +50,30 @@ async def _get_manager(manager_id: int):
         await app.router.shutdown()
 
 
+async def _patch_manager(manager_id: int, payload: dict):
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.patch(f"/managers/{manager_id}", json=payload)
+    finally:
+        await app.router.shutdown()
+
+
+async def _delete_manager(manager_id: int):
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.delete(f"/managers/{manager_id}")
+    finally:
+        await app.router.shutdown()
+
+
 def test_manager_empty_name_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -517,3 +541,98 @@ def test_manager_get_db_unavailable_returns_503(monkeypatch):
     payload = resp.json()
     assert payload["detail"] == "Database unavailable"
     assert "down" not in payload["detail"].lower()
+
+
+def test_manager_patch_updates_fields(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(
+        _post_manager(
+            {
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist"],
+            }
+        )
+    )
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(
+        _patch_manager(
+            manager_id,
+            {
+                "lei": "549300U3N12T57QLOU60",
+                "aliases": ["Elliott Management"],
+                "tags": ["event-driven"],
+            },
+        )
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["manager_id"] == manager_id
+    assert body["name"] == "Elliott Investment Management L.P."
+    assert body["cik"] == "0001791786"
+    assert body["lei"] == "549300U3N12T57QLOU60"
+    assert body["aliases"] == ["Elliott Management"]
+    assert body["jurisdictions"] == ["us"]
+    assert body["tags"] == ["event-driven"]
+
+
+def test_manager_patch_rejects_invalid_cik(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(_post_manager({"name": "Elliott Investment Management L.P."}))
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(_patch_manager(manager_id, {"cik": "123"}))
+    assert patch_resp.status_code == 400
+    payload = patch_resp.json()
+    assert payload["errors"][0]["field"] == "cik"
+    assert "10-digit" in payload["errors"][0]["message"].lower()
+
+
+def test_manager_patch_requires_at_least_one_field(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(_post_manager({"name": "Elliott Investment Management L.P."}))
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(_patch_manager(manager_id, {}))
+    assert patch_resp.status_code == 400
+    payload = patch_resp.json()
+    assert payload["errors"][0]["field"] == "body"
+
+
+def test_manager_patch_returns_404_for_missing_id(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    patch_resp = asyncio.run(_patch_manager(999, {"tags": ["activist"]}))
+    assert patch_resp.status_code == 404
+    assert patch_resp.json()["detail"] == "Manager not found"
+
+
+def test_manager_delete_removes_record(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(_post_manager({"name": "Elliott Investment Management L.P."}))
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    delete_resp = asyncio.run(_delete_manager(manager_id))
+    assert delete_resp.status_code == 204
+    assert delete_resp.text == ""
+
+    fetch_resp = asyncio.run(_get_manager(manager_id))
+    assert fetch_resp.status_code == 404
+
+
+def test_manager_delete_returns_404_for_missing_id(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    delete_resp = asyncio.run(_delete_manager(999))
+    assert delete_resp.status_code == 404
+    assert delete_resp.json()["detail"] == "Manager not found"
