@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from datetime import UTC, datetime
@@ -25,6 +26,14 @@ DEFAULT_RSS_FEEDS = (
     "https://www.sec.gov/rss/litigation/litreleases.xml",
 )
 GDELT_DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
+TOPIC_KEYWORDS: dict[str, list[str]] = {
+    "activist": ["activist", "proxy fight", "board seat", "13D"],
+    "regulatory": ["SEC", "enforcement", "fine", "penalty", "settlement"],
+    "earnings": ["earnings", "quarterly", "revenue", "profit"],
+    "personnel": ["hired", "appointed", "resigned", "CEO", "CIO"],
+    "merger": ["merger", "acquisition", "deal", "takeover", "bid"],
+    "fund_launch": ["new fund", "launch", "strategy"],
+}
 
 
 async def list_new_items(source: str, since: str) -> list[dict[str, Any]]:
@@ -56,8 +65,36 @@ def tag(item: dict[str, Any]) -> dict[str, Any]:
     """Add topic tags and confidence score to a news item."""
 
     enriched = dict(item)
-    enriched.setdefault("topics", [])
-    enriched.setdefault("confidence", 0.0)
+    text = " ".join(
+        str(enriched.get(key, ""))
+        for key in ("headline", "body_snippet", "body", "summary")
+        if enriched.get(key)
+    ).lower()
+    if not text.strip():
+        enriched["topics"] = []
+        enriched["confidence"] = 0.0
+        return enriched
+
+    topic_keywords = _configured_topic_keywords()
+    topics: list[str] = []
+    matched_keywords = 0
+    total_keywords = 0
+
+    for topic, keywords in topic_keywords.items():
+        total_keywords += len(keywords)
+        topic_matched = False
+        for keyword in keywords:
+            if keyword.lower() in text:
+                matched_keywords += 1
+                topic_matched = True
+        if topic_matched:
+            topics.append(topic)
+
+    confidence = 0.0
+    if total_keywords > 0:
+        confidence = min(matched_keywords / total_keywords, 1.0)
+    enriched["topics"] = topics
+    enriched["confidence"] = confidence
     return enriched
 
 
@@ -184,6 +221,32 @@ def _configured_gdelt_managers() -> list[str]:
     if not env_value.strip():
         return []
     return [name.strip() for name in env_value.split(",") if name.strip()]
+
+
+def _configured_topic_keywords() -> dict[str, list[str]]:
+    env_value = os.getenv("NEWS_TOPIC_KEYWORDS", "")
+    if not env_value.strip():
+        return TOPIC_KEYWORDS
+    try:
+        parsed = json.loads(env_value)
+    except json.JSONDecodeError:
+        logger.warning("Invalid NEWS_TOPIC_KEYWORDS JSON; using defaults")
+        return TOPIC_KEYWORDS
+
+    if not isinstance(parsed, dict):
+        logger.warning("NEWS_TOPIC_KEYWORDS must be a JSON object; using defaults")
+        return TOPIC_KEYWORDS
+
+    configured: dict[str, list[str]] = {}
+    for topic, values in parsed.items():
+        if not isinstance(topic, str) or not isinstance(values, list):
+            continue
+        normalized = [str(value).strip() for value in values if str(value).strip()]
+        if normalized:
+            configured[topic] = normalized
+    if configured:
+        return configured
+    return TOPIC_KEYWORDS
 
 
 def _parse_iso_timestamp(value: str) -> datetime:

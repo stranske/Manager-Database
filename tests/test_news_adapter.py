@@ -294,3 +294,15 @@ async def test_fetch_gdelt_rate_limits_requests(monkeypatch):
 
     assert len(sleep_calls) == 1
     assert sleep_calls[0] == pytest.approx(0.8)
+
+
+def test_tag_adds_topics_and_confidence():
+    item = {
+        "headline": "SEC enforcement action after merger bid",
+        "body_snippet": "The company announced a new fund strategy with acquisition plans.",
+    }
+
+    tagged = news.tag(item)
+
+    assert set(tagged["topics"]) == {"regulatory", "merger", "fund_launch"}
+    assert tagged["confidence"] == pytest.approx(7 / 26)
