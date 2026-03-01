@@ -57,7 +57,7 @@ def test_schema_upgrade_creates_expected_objects(monkeypatch, tmp_path):
 
 
 def test_schema_foreign_keys(monkeypatch, tmp_path):
-    """Verify FK constraint from filings → managers is enforced."""
+    """Verify FK constraint from holdings → filings is enforced."""
     monkeypatch.delenv("DB_URL", raising=False)
     db_path = tmp_path / "schema.db"
     config = _alembic_config(f"sqlite:///{db_path}")
@@ -67,14 +67,9 @@ def test_schema_foreign_keys(monkeypatch, tmp_path):
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
 
-        # Insert a valid manager
-        conn.execute("INSERT INTO managers(manager_id, name) VALUES (1, 'Test Manager')")
-
-        # FK violation: filing references non-existent manager_id
+        # FK violation: holding references non-existent filing_id
         with pytest.raises(sqlite3.IntegrityError):
-            conn.execute(
-                "INSERT INTO filings(manager_id, type, source) VALUES (999, '13F-HR', 'sec')"
-            )
+            conn.execute("INSERT INTO holdings(filing_id) VALUES (999)")
 
 
 def test_schema_downgrade_drops_tables(monkeypatch, tmp_path):
