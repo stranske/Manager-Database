@@ -157,43 +157,164 @@ async def test_fetch_and_store_uploads_raw_and_persists_rows(tmp_path, monkeypat
     ]
 
 
-def test_daily_diff_flow_defaults_use_env_and_yesterday(tmp_path, monkeypatch):
+def _seed_canonical_schema(db_path):
+    """Seed a SQLite DB with the canonical schema and sample managers/filings/holdings."""
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT UNIQUE)"
+    )
+    conn.execute(
+        "CREATE TABLE filings ("
+        "filing_id INTEGER PRIMARY KEY, manager_id INTEGER, "
+        "type TEXT, filed_date TEXT, source TEXT, raw_key TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings ("
+        "holding_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "filing_id INTEGER, cusip TEXT, name_of_issuer TEXT, "
+        "shares INTEGER, value_usd REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE daily_diffs ("
+        "diff_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "manager_id INTEGER NOT NULL, report_date TEXT NOT NULL, "
+        "cusip TEXT NOT NULL, name_of_issuer TEXT, delta_type TEXT NOT NULL, "
+        "shares_prev INTEGER, shares_curr INTEGER, "
+        "value_prev REAL, value_curr REAL, created_at TEXT DEFAULT CURRENT_TIMESTAMP)"
+    )
+    # Two managers
+    conn.executemany(
+        "INSERT INTO managers(manager_id, name, cik) VALUES (?,?,?)",
+        [(1, "FundA", "0001"), (2, "FundB", "0002")],
+    )
+    # Manager 1: two filings — AAA increased, BBB exited, CCC added
+    conn.executemany(
+        "INSERT INTO filings(filing_id, manager_id, type, filed_date, source) VALUES (?,?,?,?,?)",
+        [
+            (101, 1, "13F-HR", "2024-04-01", "edgar"),
+            (102, 1, "13F-HR", "2024-01-01", "edgar"),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) VALUES (?,?,?,?,?)",
+        [
+            (101, "AAA", "CorpA", 120, 1200),
+            (101, "CCC", "CorpC", 40, 400),
+            (102, "AAA", "CorpA", 100, 1000),
+            (102, "BBB", "CorpB", 30, 300),
+        ],
+    )
+    # Manager 2: only one filing — should be skipped (needs 2).
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, filed_date, source) "
+        "VALUES (201, 2, '13F-HR', '2024-04-01', 'edgar')"
+    )
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
+        "VALUES (201, 'ZZZ', 'CorpZ', 50, 500)"
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_daily_diff_flow_processes_all_managers(tmp_path, monkeypatch):
+    """Flow iterates all managers, writes to daily_diffs, skips those with < 2 filings."""
     monkeypatch.setattr(daily_flow.dt, "date", FixedDate)
-    monkeypatch.setenv("CIK_LIST", "1,2")
-    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
-    calls = []
+    db_path = str(tmp_path / "dev.db")
+    _seed_canonical_schema(db_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.delenv("DB_URL", raising=False)
 
-    def fake_compute(cik, date_value, db_path):
-        calls.append((cik, date_value, db_path))
-
-    # Capture inputs without touching the DB.
-    monkeypatch.setattr(daily_flow, "compute", fake_compute)
-
-    daily_flow.daily_diff_flow.fn(cik_list=None, date=None)
-
-    assert calls == [
-        ("1", "2024-05-01", str(tmp_path / "dev.db")),
-        ("2", "2024-05-01", str(tmp_path / "dev.db")),
-    ]
-
-
-def test_compute_inserts_additions_and_exits(tmp_path, monkeypatch):
-    def fake_diff_holdings(cik, db_path):
-        return {"AAA"}, {"BBB"}
-
-    # Mock diffing to exercise both add/exit inserts.
-    monkeypatch.setattr(daily_flow, "diff_holdings", fake_diff_holdings)
-    db_path = tmp_path / "dev.db"
-
-    daily_flow.compute.fn("0000", "2024-05-01", str(db_path))
+    daily_flow.daily_diff_flow.fn(date=None)
 
     conn = sqlite3.connect(db_path)
-    rows = conn.execute("SELECT cik, cusip, change FROM daily_diff ORDER BY change").fetchall()
+    rows = conn.execute(
+        "SELECT manager_id, report_date, cusip, delta_type "
+        "FROM daily_diffs ORDER BY cusip"
+    ).fetchall()
     conn.close()
+
+    # Manager 1 should produce 3 diffs: AAA INCREASE, BBB EXIT, CCC ADD
+    assert len(rows) == 3
     assert rows == [
-        ("0000", "AAA", "ADD"),
-        ("0000", "BBB", "EXIT"),
+        (1, "2024-05-01", "AAA", "INCREASE"),
+        (1, "2024-05-01", "BBB", "EXIT"),
+        (1, "2024-05-01", "CCC", "ADD"),
     ]
+
+
+def test_daily_diff_flow_writes_all_four_delta_types(tmp_path, monkeypatch):
+    """All 4 delta types (ADD, EXIT, INCREASE, DECREASE) are written to daily_diffs."""
+    db_path = str(tmp_path / "dev.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT UNIQUE)"
+    )
+    conn.execute(
+        "CREATE TABLE filings ("
+        "filing_id INTEGER PRIMARY KEY, manager_id INTEGER, "
+        "type TEXT, filed_date TEXT, source TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings ("
+        "holding_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "filing_id INTEGER, cusip TEXT, name_of_issuer TEXT, "
+        "shares INTEGER, value_usd REAL)"
+    )
+    conn.execute("INSERT INTO managers VALUES (1, 'TestFund', '0000')")
+    conn.executemany(
+        "INSERT INTO filings VALUES (?,?,?,?,?)",
+        [(101, 1, "13F-HR", "2024-04-01", "edgar"), (102, 1, "13F-HR", "2024-01-01", "edgar")],
+    )
+    conn.executemany(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) VALUES (?,?,?,?,?)",
+        [
+            (101, "AAA", "CorpA", 120, 1200),  # INCREASE
+            (101, "CCC", "CorpC", 40, 400),     # ADD
+            (101, "EEE", "CorpE", 8, 80),       # DECREASE
+            (102, "AAA", "CorpA", 100, 1000),
+            (102, "BBB", "CorpB", 30, 300),      # EXIT
+            (102, "EEE", "CorpE", 10, 100),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.delenv("DB_URL", raising=False)
+
+    daily_flow.daily_diff_flow.fn(date="2024-05-01")
+
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute(
+        "SELECT cusip, delta_type, shares_prev, shares_curr FROM daily_diffs ORDER BY cusip"
+    ).fetchall()
+    conn.close()
+
+    assert rows == [
+        ("AAA", "INCREASE", 100, 120),
+        ("BBB", "EXIT", 30, None),
+        ("CCC", "ADD", None, 40),
+        ("EEE", "DECREASE", 10, 8),
+    ]
+
+
+def test_daily_diff_flow_idempotent_rerun(tmp_path, monkeypatch):
+    """Running the flow twice for the same date must not create duplicates."""
+    db_path = str(tmp_path / "dev.db")
+    _seed_canonical_schema(db_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.delenv("DB_URL", raising=False)
+
+    daily_flow.daily_diff_flow.fn(date="2024-05-01")
+    daily_flow.daily_diff_flow.fn(date="2024-05-01")
+
+    conn = sqlite3.connect(db_path)
+    count = conn.execute("SELECT COUNT(*) FROM daily_diffs").fetchone()[0]
+    conn.close()
+
+    # Manager 1 produces 3 diffs; re-run should NOT double them.
+    assert count == 3
 
 
 @pytest.mark.asyncio
