@@ -22,6 +22,18 @@ async def _post_universe(payload):
         await app.router.shutdown()
 
 
+async def _get_manager_stats():
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.get("/managers/stats")
+    finally:
+        await app.router.shutdown()
+
+
 def test_universe_import_creates_updates_and_skips_records(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -130,3 +142,27 @@ def test_universe_import_upserts_on_cik_conflict_within_single_request(tmp_path,
         conn.close()
 
     assert rows == [("Berkshire Hathaway Inc.", "0001067983", "us")]
+
+
+def test_manager_stats_uses_universe_jurisdiction_column(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    response = asyncio.run(
+        _post_universe(
+            [
+                {"name": "Berkshire Hathaway", "cik": "0001067983", "jurisdiction": "us"},
+                {"name": "TCI Fund Management", "cik": "0001647251", "jurisdiction": "uk"},
+            ]
+        )
+    )
+    assert response.status_code == 200
+
+    stats = asyncio.run(_get_manager_stats())
+    assert stats.status_code == 200
+    assert stats.json() == {
+        "total_managers": 2,
+        "by_jurisdiction": {"uk": 1, "us": 1},
+        "by_tag": {},
+        "with_cik": 2,
+        "with_lei": 0,
+    }

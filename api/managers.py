@@ -25,6 +25,7 @@ from api.models import (
     BulkImportSuccess,
     ManagerListResponse,
     ManagerResponse,
+    ManagerStatsResponse,
     UniverseImportResponse,
 )
 
@@ -508,6 +509,62 @@ def _merge_tags(existing: list[str], add: list[str], remove: list[str]) -> list[
         return tags
     remove_set = set(remove)
     return [tag for tag in tags if tag not in remove_set]
+
+
+def _fetch_manager_stats_rows(conn: Any) -> list[tuple[Any, ...]]:
+    """Fetch columns needed for manager summary stats with schema fallback."""
+    try:
+        cursor = conn.execute("SELECT cik, lei, jurisdictions, tags, jurisdiction FROM managers")
+        return cursor.fetchall()
+    except DB_ERROR_TYPES as exc:
+        message = str(exc).lower()
+        missing_jurisdiction = (
+            "no such column: jurisdiction" in message
+            or 'column "jurisdiction" does not exist' in message
+        )
+        if not missing_jurisdiction:
+            raise
+        cursor = conn.execute("SELECT cik, lei, jurisdictions, tags FROM managers")
+        rows = cursor.fetchall()
+        return [(row[0], row[1], row[2], row[3], None) for row in rows]
+
+
+def _build_manager_stats(rows: list[tuple[Any, ...]]) -> ManagerStatsResponse:
+    """Aggregate manager universe stats from normalized DB rows."""
+    by_jurisdiction: dict[str, int] = {}
+    by_tag: dict[str, int] = {}
+    with_cik = 0
+    with_lei = 0
+
+    for cik, lei, jurisdictions_raw, tags_raw, jurisdiction_raw in rows:
+        cik_value = str(cik).strip() if cik is not None else ""
+        if cik_value:
+            with_cik += 1
+
+        lei_value = str(lei).strip() if lei is not None else ""
+        if lei_value:
+            with_lei += 1
+
+        jurisdiction_values = _normalize_tags(_json_array(jurisdictions_raw))
+        if not jurisdiction_values and jurisdiction_raw is not None:
+            fallback_value = str(jurisdiction_raw).strip()
+            if fallback_value:
+                jurisdiction_values = [fallback_value]
+        jurisdiction_values = _normalize_tags([value.lower() for value in jurisdiction_values])
+        for jurisdiction in jurisdiction_values:
+            by_jurisdiction[jurisdiction] = by_jurisdiction.get(jurisdiction, 0) + 1
+
+        tag_values = _normalize_tags([value.lower() for value in _json_array(tags_raw)])
+        for tag in tag_values:
+            by_tag[tag] = by_tag.get(tag, 0) + 1
+
+    return ManagerStatsResponse(
+        total_managers=len(rows),
+        by_jurisdiction=dict(sorted(by_jurisdiction.items())),
+        by_tag=dict(sorted(by_tag.items())),
+        with_cik=with_cik,
+        with_lei=with_lei,
+    )
 
 
 def _require_valid_manager(handler):
@@ -1053,6 +1110,31 @@ async def import_manager_universe(
             conn.close()
 
     return UniverseImportResponse(created=created, updated=updated, skipped=skipped)
+
+
+@router.get(
+    "/managers/stats",
+    response_model=ManagerStatsResponse,
+    summary="Retrieve manager universe stats",
+    description=(
+        "Return aggregate manager counts across the current universe, including "
+        "jurisdiction and tag breakdowns."
+    ),
+)
+async def get_manager_stats():
+    """Return aggregate manager universe statistics."""
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        rows = _fetch_manager_stats_rows(conn)
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return _build_manager_stats(rows)
 
 
 @router.get(

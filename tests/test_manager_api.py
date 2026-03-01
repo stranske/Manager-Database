@@ -38,6 +38,18 @@ async def _get_managers(params: dict | None = None):
         await app.router.shutdown()
 
 
+async def _get_manager_stats():
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.get("/managers/stats")
+    finally:
+        await app.router.shutdown()
+
+
 async def _get_manager(manager_id: int):
     # Use the ASGI transport to exercise detail behavior without a live server.
     await app.router.startup()
@@ -417,6 +429,46 @@ def test_manager_list_filter_whitespace_only_treated_as_no_filter(tmp_path, monk
     body = resp.json()
     assert body["total"] == 2
     assert [item["name"] for item in body["items"]] == ["Manager A", "Manager B"]
+
+
+def test_manager_stats_returns_accurate_jurisdiction_and_tag_counts(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {
+            "name": "Manager A",
+            "cik": "0001067983",
+            "jurisdictions": ["us"],
+            "tags": ["activist", "hedge-fund"],
+        },
+        {
+            "name": "Manager B",
+            "lei": "549300U3N12T57QLOU60",
+            "jurisdictions": ["us", "uk"],
+            "tags": ["quant"],
+        },
+        {
+            "name": "Manager C",
+            "cik": "0001350694",
+            "lei": "529900K8VCB4TCB4UQ57",
+            "jurisdictions": ["uk"],
+            "tags": ["activist"],
+        },
+        {"name": "Manager D"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    stats_resp = asyncio.run(_get_manager_stats())
+    assert stats_resp.status_code == 200
+    assert stats_resp.json() == {
+        "total_managers": 4,
+        "by_jurisdiction": {"uk": 2, "us": 2},
+        "by_tag": {"activist": 2, "hedge-fund": 1, "quant": 1},
+        "with_cik": 2,
+        "with_lei": 2,
+    }
 
 
 def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
