@@ -378,7 +378,7 @@ def _classify_intent(question: str) -> str:
         module = importlib.import_module("chains.intent")
         classify_intent = module.classify_intent
         chain_name = classify_intent(question)
-        if chain_name in VALID_CHAIN_NAMES:
+        if chain_name in DIRECT_CHAIN_PATHS:
             return chain_name
     except Exception:
         pass
@@ -492,6 +492,16 @@ async def _run_chain(
     return _extract_chain_payload(result)
 
 
+def _resolve_chain_name(requested_chain: str, question: str) -> str:
+    """Resolve requested/auto chain to a concrete chain implementation name."""
+    if requested_chain != "auto":
+        return requested_chain
+    classified_chain = _classify_intent(question)
+    if classified_chain in DIRECT_CHAIN_PATHS:
+        return classified_chain
+    return "rag_search"
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
     """Main chat endpoint with automatic or explicit chain routing."""
@@ -508,9 +518,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
         requested_chain = (request.chain or "auto").strip().lower()
         if requested_chain not in VALID_CHAIN_NAMES:
             raise HTTPException(status_code=400, detail="Invalid chain")
-        chain_used = (
-            requested_chain if requested_chain != "auto" else _classify_intent(request.question)
-        )
+        chain_used = _resolve_chain_name(requested_chain, request.question)
 
         answer, sources, sql, trace_url = await _run_chain(
             chain_used, request.question, request.context, client_info

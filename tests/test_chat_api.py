@@ -225,6 +225,48 @@ def test_chat_api_autoroutes_question_to_chain(monkeypatch):
     assert body["trace_url"] == "https://trace"
 
 
+def test_chat_api_auto_intent_auto_falls_back_to_rag_search(monkeypatch):
+    seen: dict[str, str] = {}
+
+    async def _capture(chain_name: str, question: str, context: dict | None, _client):
+        seen["chain"] = chain_name
+        seen["question"] = question
+        return ("ok", [], None, None)
+
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+    monkeypatch.setattr(chat_api_module, "_classify_intent", lambda _q: "auto")
+    monkeypatch.setattr(chat_api_module, "_run_chain", _capture)
+
+    response = asyncio.run(
+        _request("POST", "/api/chat", json={"question": "find recent news", "chain": "auto"})
+    )
+    body = response.json()
+    assert response.status_code == 200
+    assert seen["chain"] == "rag_search"
+    assert body["chain_used"] == "rag_search"
+
+
+def test_chat_api_auto_intent_unknown_falls_back_to_rag_search(monkeypatch):
+    seen: dict[str, str] = {}
+
+    async def _capture(chain_name: str, question: str, context: dict | None, _client):
+        seen["chain"] = chain_name
+        seen["question"] = question
+        return ("ok", [], None, None)
+
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+    monkeypatch.setattr(chat_api_module, "_classify_intent", lambda _q: "unsupported_chain")
+    monkeypatch.setattr(chat_api_module, "_run_chain", _capture)
+
+    response = asyncio.run(
+        _request("POST", "/api/chat", json={"question": "find recent news", "chain": "auto"})
+    )
+    body = response.json()
+    assert response.status_code == 200
+    assert seen["chain"] == "rag_search"
+    assert body["chain_used"] == "rag_search"
+
+
 def test_direct_filing_summary_endpoint(monkeypatch):
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
 
