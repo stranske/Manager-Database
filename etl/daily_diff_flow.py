@@ -121,7 +121,8 @@ def _resolve_local_timezone() -> str:
 
 
 LOCAL_TZ = _resolve_local_timezone()
+DAILY_DIFF_CRON = "0 8 * * *"
 daily_diff_deployment = daily_diff_flow.to_deployment(
     "daily-diff",
-    schedule=Cron("0 8 * * *", timezone=LOCAL_TZ),
+    schedule=Cron(DAILY_DIFF_CRON, timezone=LOCAL_TZ),
 )
