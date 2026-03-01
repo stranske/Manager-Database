@@ -77,9 +77,7 @@ def test_openapi_managers_schema():
     # Default pagination should reflect the 25-row page size.
     assert list_parameters["limit"]["schema"]["default"] == 25
     assert list_parameters["offset"]["schema"]["default"] == 0
-    assert "jurisdiction" in list_parameters
-    assert "tag" in list_parameters
-    assert "department" not in list_parameters
+    assert set(list_parameters) == {"limit", "offset", "jurisdiction", "tag"}
 
     manager_detail_schema = schema["paths"]["/managers/{id}"]["get"]
     assert manager_detail_schema["summary"] == "Retrieve a manager"
