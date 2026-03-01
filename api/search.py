@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import sqlite3
 from typing import Any
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SearchResult(BaseModel):
     """Unified search result payload."""
 
-    entity_type: str
+    entity_type: Literal["filing", "holding", "news", "document", "manager"]
     entity_id: int
     manager_name: str | None
     headline: str
     snippet: str
-    relevance: float
+    relevance: float = Field(ge=0.0, le=1.0)
     url: str | None
     timestamp: str | None
 
