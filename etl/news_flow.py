@@ -338,3 +338,9 @@ async def news_flow(sources: list[str] | None = None, since: str | None = None):
         "fetched": total_fetched,
         "inserted": total_inserted,
     }
+
+
+news_deployment = news_flow.to_deployment(
+    name="news-hourly",
+    cron="0 * * * *",
+)

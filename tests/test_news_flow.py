@@ -362,3 +362,9 @@ def test_persist_news_ignores_duplicate_url_and_published_at():
         assert count == 1
     finally:
         conn.close()
+
+
+def test_news_deployment_has_hourly_schedule():
+    assert news_flow.news_deployment.name == "news-hourly"
+    schedule = news_flow.news_deployment.schedules[0].schedule
+    assert schedule.cron == "0 * * * *"
