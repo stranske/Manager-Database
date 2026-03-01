@@ -309,6 +309,16 @@ def test_tag_adds_topics_and_confidence():
     assert tagged["confidence"] == pytest.approx(7 / 16)
 
 
+def test_tag_adds_empty_topics_and_zero_confidence_for_blank_item():
+    item = {"headline": "   ", "body_snippet": ""}
+
+    tagged = news.tag(item)
+
+    assert tagged is item
+    assert tagged["topics"] == []
+    assert tagged["confidence"] == 0.0
+
+
 @pytest.mark.asyncio
 async def test_download_strips_html_truncates_and_logs_calls(monkeypatch):
     called_endpoints = []
