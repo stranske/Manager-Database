@@ -31,18 +31,19 @@ Feel free to open issues or pull requests as you iterate.
    ```
    Parsed rows will be stored in `dev.db` and raw filings uploaded to the `filings` bucket in MinIO.
 
-3. Start the Streamlit dashboard:
+3. Start the Streamlit app shell:
    ```bash
-   streamlit run ui/dashboard.py
+   streamlit run ui/app.py
    ```
 
-4. Explore daily reports and news search:
+4. You can still run individual pages directly if needed:
    ```bash
    streamlit run ui/daily_report.py
    ```
    ```bash
    streamlit run ui/search.py
    ```
+   The multipage shell exposes routes like `/daily-report`, `/search`, `/upload`, and `/research`.
 5. Upload your own notes:
    ```bash
    streamlit run ui/upload.py
