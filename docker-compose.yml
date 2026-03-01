@@ -7,6 +7,8 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ./alembic:/alembic:ro
 
   minio:
     image: minio/minio:RELEASE.2025-05-24T17-08-30Z
@@ -24,6 +26,9 @@ services:
     build: ./etl
     volumes:
       - ./etl:/code
+      - ./alembic:/code/alembic:ro
+      - ./alembic.ini:/code/alembic.ini:ro
+      - ./schema.sql:/code/schema.sql:ro
     environment:
       DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
     depends_on:
