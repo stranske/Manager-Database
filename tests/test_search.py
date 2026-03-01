@@ -3,9 +3,12 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import api.chat as chat_api_module
+from fastapi.encoders import jsonable_encoder
 from api.search import SearchResult, universal_search
 from ui.search import (
     _count_results_by_entity_type,
@@ -275,6 +278,44 @@ def test_api_search_endpoint_filters_entity_type(tmp_path: Path, monkeypatch):
 
     assert results
     assert {item.entity_type for item in results} == {"news"}
+
+
+def test_api_search_results_are_json_serializable(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "search_api_http.db"
+    _seed_api_search_db(db_path)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "embeddings",
+        SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
+    )
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
+    results = chat_api_module.search_api(q="Elliott", limit=20, entity_type=None)
+    payload = jsonable_encoder(results)
+
+    assert isinstance(payload, list)
+    assert payload
+    assert isinstance(payload[0], dict)
+    assert {"entity_type", "entity_id", "headline", "snippet", "relevance"}.issubset(
+        payload[0].keys()
+    )
+
+
+def test_api_search_filtered_results_are_json_serializable(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "search_api_http_filter.db"
+    _seed_api_search_db(db_path)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "embeddings",
+        SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
+    )
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
+    results = chat_api_module.search_api(q="Elliott", entity_type="news", limit=20)
+    payload = jsonable_encoder(results)
+
+    assert payload
+    assert {item["entity_type"] for item in payload} == {"news"}
 
 
 def test_count_results_by_entity_type_orders_known_types():
