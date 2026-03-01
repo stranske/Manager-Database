@@ -118,7 +118,10 @@ def _configured_rss_feeds() -> list[str]:
     env_value = os.getenv("NEWS_RSS_FEEDS", "")
     if not env_value.strip():
         return list(DEFAULT_RSS_FEEDS)
-    return [url.strip() for url in env_value.split(",") if url.strip()]
+    configured = [url.strip() for url in env_value.split(",") if url.strip()]
+    if not configured:
+        return list(DEFAULT_RSS_FEEDS)
+    return configured
 
 
 def _parse_iso_timestamp(value: str) -> datetime:

@@ -80,3 +80,8 @@ async def test_fetch_rss_parses_entries_filters_by_since_and_logs_calls(monkeypa
 def test_configured_rss_feeds_uses_defaults_when_env_missing(monkeypatch):
     monkeypatch.delenv("NEWS_RSS_FEEDS", raising=False)
     assert news._configured_rss_feeds() == list(news.DEFAULT_RSS_FEEDS)
+
+
+def test_configured_rss_feeds_falls_back_to_defaults_when_env_has_no_urls(monkeypatch):
+    monkeypatch.setenv("NEWS_RSS_FEEDS", " , , ")
+    assert news._configured_rss_feeds() == list(news.DEFAULT_RSS_FEEDS)
