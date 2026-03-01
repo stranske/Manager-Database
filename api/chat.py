@@ -430,21 +430,21 @@ async def _run_chain(
 async def chat_api(request: ChatRequest) -> ChatResponse:
     """Main chat endpoint with automatic or explicit chain routing."""
     started = time.perf_counter()
-    client_info = _build_chat_client_info()
-    if not client_info:
-        raise HTTPException(
-            status_code=503,
-            detail="No LLM provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
+    try:
+        client_info = _build_chat_client_info()
+        if not client_info:
+            raise HTTPException(
+                status_code=503,
+                detail="No LLM provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
+            )
+
+        requested_chain = (request.chain or "auto").strip().lower()
+        if requested_chain not in VALID_CHAIN_NAMES:
+            raise HTTPException(status_code=400, detail="Invalid chain")
+        chain_used = (
+            requested_chain if requested_chain != "auto" else _classify_intent(request.question)
         )
 
-    requested_chain = (request.chain or "auto").strip().lower()
-    if requested_chain not in VALID_CHAIN_NAMES:
-        raise HTTPException(status_code=400, detail="Invalid chain")
-    chain_used = (
-        requested_chain if requested_chain != "auto" else _classify_intent(request.question)
-    )
-
-    try:
         answer, sources, sql, trace_url = await _run_chain(
             chain_used, request.question, request.context, client_info
         )
@@ -458,8 +458,22 @@ async def chat_api(request: ChatRequest) -> ChatResponse:
             latency_ms=latency_ms,
         )
     except PROMPT_INJECTION_ERROR as exc:  # type: ignore[misc]
+        reasons = getattr(exc, "reasons", [str(exc)])
+        if isinstance(reasons, list):
+            reason_text = ", ".join(str(reason) for reason in reasons)
+        else:
+            reason_text = str(reasons)
         raise HTTPException(
-            status_code=400, detail=f"Input rejected: {getattr(exc, 'reasons', exc)}"
+            status_code=400,
+            detail=f"Input rejected: {reason_text}",
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Chat error: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Research assistant error. Check server logs.",
         ) from exc
 
 
