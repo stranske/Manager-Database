@@ -82,6 +82,35 @@ def test_configured_rss_feeds_uses_defaults_when_env_missing(monkeypatch):
     assert news._configured_rss_feeds() == list(news.DEFAULT_RSS_FEEDS)
 
 
+def test_configured_rss_feeds_defaults_match_sec_sources(monkeypatch):
+    monkeypatch.delenv("NEWS_RSS_FEEDS", raising=False)
+    assert news._configured_rss_feeds() == [
+        "https://www.sec.gov/news/pressreleases.rss",
+        "https://www.sec.gov/rss/litigation/litreleases.xml",
+    ]
+
+
 def test_configured_rss_feeds_falls_back_to_defaults_when_env_has_no_urls(monkeypatch):
     monkeypatch.setenv("NEWS_RSS_FEEDS", " , , ")
     assert news._configured_rss_feeds() == list(news.DEFAULT_RSS_FEEDS)
+
+
+@pytest.mark.asyncio
+async def test_list_new_items_rss_delegates_to_fetch_rss(monkeypatch):
+    expected = [
+        {
+            "headline": "A",
+            "url": "https://example.test",
+            "published_at": "2026-01-01T00:00:00+00:00",
+        }
+    ]
+
+    async def fake_fetch_rss(since):
+        assert since == "2026-01-01T00:00:00"
+        return expected
+
+    monkeypatch.setattr(news, "_fetch_rss", fake_fetch_rss)
+
+    result = await news.list_new_items("rss", "2026-01-01T00:00:00")
+
+    assert result == expected
