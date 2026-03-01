@@ -6,8 +6,9 @@ set -euo pipefail
 # temporary local Postgres 16 cluster under /tmp.
 #
 # Docker shortcut (no local Postgres needed):
-#   docker run --rm -e POSTGRES_HOST_AUTH_METHOD=trust pgvector/pgvector:pg16 &
-#   sleep 3 && PGHOST=localhost PGPORT=5432 bash scripts/verify_schema_idempotence.sh
+#   docker run --rm -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust pgvector/pgvector:pg16 &
+#   until pg_isready -h localhost -p 5432 -U postgres >/dev/null 2>&1; do sleep 1; done
+#   PGHOST=localhost PGPORT=5432 PGUSER=postgres bash scripts/verify_schema_idempotence.sh
 
 SCHEMA_PATH="${1:-schema.sql}"
 MAINTENANCE_DB="${PGMAINTENANCE_DB:-postgres}"

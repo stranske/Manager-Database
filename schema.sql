@@ -131,15 +131,16 @@ CREATE TABLE IF NOT EXISTS api_usage (
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_matviews WHERE matviewname = 'monthly_usage'
+    SELECT 1 FROM pg_matviews
+    WHERE schemaname = current_schema() AND matviewname = 'monthly_usage'
   ) THEN
     EXECUTE $mv$
       CREATE MATERIALIZED VIEW monthly_usage AS
       SELECT date_trunc('month', ts) AS month,
              source,
              count(*)        AS calls,
-             sum(bytes)      AS total_bytes,
-             sum(cost_usd)   AS total_cost
+             sum(bytes)      AS mb,
+             sum(cost_usd)   AS cost
       FROM api_usage
       GROUP BY 1, 2
     $mv$;
@@ -150,7 +151,8 @@ $$;
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_matviews WHERE matviewname = 'mv_daily_report'
+    SELECT 1 FROM pg_matviews
+    WHERE schemaname = current_schema() AND matviewname = 'mv_daily_report'
   ) THEN
     EXECUTE $mv$
       CREATE MATERIALIZED VIEW mv_daily_report AS
