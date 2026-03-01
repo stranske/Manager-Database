@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import os
+import sqlite3
 
 from prefect import flow, task
 from prefect.schedules import Cron
@@ -77,6 +78,14 @@ def daily_diff_flow(cik_list: list[str] | None = None, date: str | None = None):
     date = date or str(dt.date.today() - dt.timedelta(days=1))
     for cik in cik_list:
         compute(cik, date, db_path)
+    conn = connect_db(db_path)
+    try:
+        if isinstance(conn, sqlite3.Connection):
+            logger.info("Skipping mv_daily_report refresh for SQLite backend")
+        else:
+            conn.execute("REFRESH MATERIALIZED VIEW mv_daily_report")
+    finally:
+        conn.close()
     logger.info("Daily diff flow finished", extra={"date": date, "ciks": len(cik_list)})
 
 

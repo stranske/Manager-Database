@@ -125,3 +125,31 @@ def test_daily_diff_flow_strips_ciks(monkeypatch: pytest.MonkeyPatch):
     daily_diff_flow.fn(cik_list=None, date="2024-01-01")
 
     assert seen == ["0001", "0002"]
+
+
+def test_daily_diff_flow_refreshes_materialized_view(monkeypatch: pytest.MonkeyPatch):
+    class FakeConn:
+        def __init__(self):
+            self.executed = []
+            self.closed = False
+
+        def execute(self, sql):
+            self.executed.append(sql)
+
+        def close(self):
+            self.closed = True
+
+    fake_conn = FakeConn()
+    calls = []
+
+    def fake_compute(cik: str, _date: str, _db_path: str) -> None:
+        calls.append(cik)
+
+    monkeypatch.setattr("etl.daily_diff_flow.compute", fake_compute)
+    monkeypatch.setattr("etl.daily_diff_flow.connect_db", lambda _db_path: fake_conn)
+
+    daily_diff_flow.fn(cik_list=["0001", "0002"], date="2024-01-01")
+
+    assert calls == ["0001", "0002"]
+    assert fake_conn.executed == ["REFRESH MATERIALIZED VIEW mv_daily_report"]
+    assert fake_conn.closed is True
