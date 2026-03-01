@@ -407,14 +407,15 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
             "text" if "text" in doc_columns else ("content" if "content" in doc_columns else None)
         )
         doc_filename_col = "filename" if "filename" in doc_columns else "''"
+        doc_manager_col = "manager_id" if "manager_id" in doc_columns else "NULL"
         doc_created_col = "created_at" if "created_at" in doc_columns else "NULL"
         if doc_text_col:
             rows = conn.execute(
-                f"SELECT {doc_id_col}, {doc_filename_col}, {doc_text_col}, {doc_created_col} FROM documents "
+                f"SELECT {doc_id_col}, {doc_manager_col}, {doc_filename_col}, {doc_text_col}, {doc_created_col} FROM documents "
                 f"WHERE COALESCE({doc_filename_col}, '') LIKE ? OR COALESCE({doc_text_col}, '') LIKE ? LIMIT ?",
                 (like_token, like_token, limit),
             ).fetchall()
-            for entity_id, filename, text, created_at in rows:
+            for entity_id, manager_id, filename, text, created_at in rows:
                 content = (text or "").strip()
                 headline = filename or (content[:80] if content else "Document")
                 snippet = content[:180]
@@ -422,7 +423,7 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     SearchResult(
                         entity_type="document",
                         entity_id=int(entity_id),
-                        manager_name=None,
+                        manager_name=str(manager_id) if manager_id is not None else None,
                         headline=headline,
                         snippet=snippet,
                         relevance=_score_result("document", query, headline, snippet),
@@ -430,6 +431,57 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                         timestamp=str(created_at) if created_at is not None else None,
                     )
                 )
+
+            db_path: str | None = None
+            try:
+                db_rows = conn.execute("PRAGMA database_list").fetchall()
+                if db_rows:
+                    maybe_path = str(db_rows[0][2] or "")
+                    if maybe_path and maybe_path != ":memory:":
+                        db_path = maybe_path
+            except Exception:
+                db_path = None
+
+            if db_path:
+                try:
+                    from embeddings import search_documents
+
+                    vector_hits = search_documents(query, db_path=db_path, k=limit)
+                except Exception:
+                    vector_hits = []
+
+                for hit in vector_hits:
+                    content = str(hit.get("content") or "").strip()
+                    if not content:
+                        continue
+                    match = conn.execute(
+                        f"SELECT {doc_id_col}, {doc_manager_col}, {doc_filename_col}, {doc_created_col} "
+                        f"FROM documents WHERE {doc_text_col} = ? LIMIT 1",
+                        (content,),
+                    ).fetchone()
+                    if match is None:
+                        continue
+                    entity_id, manager_id, filename, created_at = match
+                    headline = (filename or "").strip() or content[:80] or "Document"
+                    snippet = content[:180]
+                    results.append(
+                        SearchResult(
+                            entity_type="document",
+                            entity_id=int(entity_id),
+                            manager_name=str(manager_id) if manager_id is not None else None,
+                            headline=headline,
+                            snippet=snippet,
+                            relevance=_score_result(
+                                "document",
+                                query,
+                                headline,
+                                snippet,
+                                vector_distance=hit.get("distance"),
+                            ),
+                            url=None,
+                            timestamp=str(created_at) if created_at is not None else None,
+                        )
+                    )
 
     holdings_columns = _get_columns(conn, "holdings")
     if holdings_columns:
@@ -536,5 +588,12 @@ def universal_search(query: str, conn: Any, limit: int = 20) -> list[SearchResul
         else _search_postgres(query, conn, limit)
     )
 
-    results.sort(key=lambda item: item.relevance, reverse=True)
-    return results[:limit]
+    deduped: dict[tuple[str, int], SearchResult] = {}
+    for item in results:
+        key = (item.entity_type, item.entity_id)
+        existing = deduped.get(key)
+        if existing is None or item.relevance > existing.relevance:
+            deduped[key] = item
+
+    ranked = sorted(deduped.values(), key=lambda item: item.relevance, reverse=True)
+    return ranked[:limit]

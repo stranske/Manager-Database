@@ -1,6 +1,7 @@
 import sqlite3
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -134,3 +135,33 @@ def test_universal_search_postgres_fts_queries_and_results():
     entity_types = {item.entity_type for item in results}
     assert {"manager", "filing", "holding", "news", "document"}.issubset(entity_types)
     assert any("to_tsvector" in query.lower() for query in conn.queries)
+
+
+def test_universal_search_sqlite_uses_embedding_search_for_documents(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "search.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE documents (id INTEGER PRIMARY KEY, content TEXT, embedding TEXT, created_at TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO documents(id, content, embedding, created_at) VALUES (1, 'Elliott strategy memo', '[]', '2025-01-01')"
+    )
+    conn.commit()
+
+    calls: list[tuple[str, str | None, int]] = []
+
+    def _fake_search_documents(query: str, db_path: str | None = None, k: int = 3):
+        calls.append((query, db_path, k))
+        return [{"content": "Elliott strategy memo", "distance": 0.05}]
+
+    monkeypatch.setitem(
+        sys.modules,
+        "embeddings",
+        SimpleNamespace(search_documents=_fake_search_documents),
+    )
+
+    results = universal_search("activist campaign", conn, limit=5)
+
+    assert calls and calls[0][0] == "activist campaign"
+    assert calls[0][1] == str(db_path)
+    assert any(item.entity_type == "document" and item.entity_id == 1 for item in results)
