@@ -8,12 +8,15 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from importlib import import_module
 from typing import Any
 
 try:
-    from scripts.langchain import label_matcher
+    label_matcher_mod = import_module("scripts.langchain.label_matcher")
 except ModuleNotFoundError:
-    import label_matcher
+    label_matcher_mod = import_module("label_matcher")
+
+label_matcher = label_matcher_mod
 
 
 @dataclass
@@ -51,7 +54,7 @@ def label_issue(
     if label_store is None:
         return []
 
-    matches = label_matcher.find_similar_labels(label_store, issue_text, threshold=threshold, k=k)
+    matches = label_matcher_mod.find_similar_labels(label_store, issue_text, threshold=threshold, k=k)
     names = _select_label_names(matches, max_labels=max_labels)
     issue.apply_labels(names)
     return names
@@ -66,16 +69,16 @@ def _build_issue_text(issue: IssueData) -> str:
     return "\n\n".join(parts)
 
 
-def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore | None:
+def _build_label_store(labels: Iterable[Any]) -> Any | None:
     label_records = _collect_label_records(labels)
     if not label_records:
         return None
 
-    vector_store = label_matcher.build_label_vector_store(label_records)
+    vector_store = label_matcher_mod.build_label_vector_store(label_records)
     if vector_store is not None:
         return vector_store
 
-    return label_matcher.LabelVectorStore(
+    return label_matcher_mod.LabelVectorStore(
         store=object(),
         provider="keyword",
         model="keyword",
@@ -84,7 +87,7 @@ def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore 
     )
 
 
-def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRecord]:
+def _collect_label_records(labels: Iterable[Any]) -> list[Any]:
     if labels is None:
         raise ValueError("labels must be an iterable of label records, not None.")
     if isinstance(labels, (str, bytes)):
@@ -92,7 +95,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRec
     if not isinstance(labels, Iterable):
         raise ValueError("labels must be an iterable of label records.")
 
-    records: list[label_matcher.LabelRecord] = []
+    records: list[Any] = []
     for index, item in enumerate(labels):
         record = _coerce_label_record(item)
         if record is not None:
@@ -106,21 +109,21 @@ def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRec
     return records
 
 
-def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
-    if isinstance(item, label_matcher.LabelRecord):
+def _coerce_label_record(item: Any) -> Any | None:
+    if isinstance(item, label_matcher_mod.LabelRecord):
         return item
     if isinstance(item, (str, bytes)):
         name = item.decode("utf-8", errors="replace") if isinstance(item, bytes) else item
         name = name.strip()
         if not name:
             return None
-        return label_matcher.LabelRecord(name=name)
+        return label_matcher_mod.LabelRecord(name=name)
     if isinstance(item, Mapping):
         name = str(item.get("name") or item.get("label") or "").strip()
         if not name:
             return None
         description = item.get("description")
-        return label_matcher.LabelRecord(
+        return label_matcher_mod.LabelRecord(
             name=name,
             description=str(description) if description is not None else None,
         )
@@ -128,14 +131,14 @@ def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
     if not name:
         return None
     description = getattr(item, "description", None)
-    return label_matcher.LabelRecord(
+    return label_matcher_mod.LabelRecord(
         name=name,
         description=str(description) if description is not None else None,
     )
 
 
 def _select_label_names(
-    matches: Sequence[label_matcher.LabelMatch],
+    matches: Sequence[Any],
     *,
     max_labels: int | None = None,
 ) -> list[str]:

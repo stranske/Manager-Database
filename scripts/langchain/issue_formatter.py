@@ -13,13 +13,14 @@ import argparse
 import json
 import re
 import sys
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
 try:
-    from scripts.langchain.injection_guard import check_prompt_injection
+    injection_guard_mod = import_module("scripts.langchain.injection_guard")
 except ImportError:  # pragma: no cover - fallback for direct invocation
-    from injection_guard import check_prompt_injection
+    injection_guard_mod = import_module("injection_guard")
 
 # Maximum issue body size to prevent OpenAI rate limit errors (30k TPM limit)
 # ~4 chars per token, so 50k chars ≈ 12.5k tokens, leaving headroom for prompt + output
@@ -99,7 +100,7 @@ def _load_prompt() -> str:
     return base_prompt
 
 
-def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
+def _get_llm_client(force_openai: bool = False) -> tuple[Any, str] | None:
     """Get LLM client, trying GitHub Models first (cheaper), then OpenAI.
 
     Args:
@@ -390,15 +391,15 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
         return formatted, None
 
     try:
-        from scripts.langchain import task_validator
+        task_validator_mod = import_module("scripts.langchain.task_validator")
     except ImportError:
         try:
-            import task_validator
+            task_validator_mod = import_module("task_validator")
         except ImportError:
             return formatted, None
 
     # Run validation
-    result = task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
+    result = task_validator_mod.validate_tasks(tasks, context=formatted, use_llm=use_llm)
 
     # If no changes, return original
     if set(result.tasks) == set(tasks) and len(result.tasks) == len(tasks):
@@ -447,7 +448,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
     if not issue_body:
         issue_body = ""
 
-    guard_result = check_prompt_injection(issue_body)
+    guard_result = injection_guard_mod.check_prompt_injection(issue_body)
     if guard_result["blocked"]:
         return {
             "formatted_body": issue_body,
@@ -480,7 +481,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
 
                 prompt = _load_prompt()
                 template = ChatPromptTemplate.from_template(prompt)
-                chain = template | client
+                chain: Any = template | client
                 try:
                     response = chain.invoke({"issue_body": issue_body})
                 except Exception as e:
