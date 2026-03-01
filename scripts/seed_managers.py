@@ -35,43 +35,25 @@ def seed_managers() -> int:
             for manager in SEED_MANAGERS:
                 cur.execute(
                     """
-                    INSERT INTO managers (name, cik, role, department)
-                    VALUES (%s, %s, NULL, NULL)
-                    ON CONFLICT (cik) DO UPDATE
-                    SET name = EXCLUDED.name
-                    RETURNING id
+                    INSERT INTO managers (name, cik, aliases, jurisdictions, tags)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (cik) WHERE cik IS NOT NULL DO UPDATE
+                    SET name = EXCLUDED.name,
+                        aliases = EXCLUDED.aliases,
+                        jurisdictions = EXCLUDED.jurisdictions,
+                        tags = EXCLUDED.tags,
+                        updated_at = now()
+                    RETURNING manager_id
                     """,
-                    (manager["name"], manager["cik"]),
+                    (
+                        manager["name"],
+                        manager["cik"],
+                        manager["aliases"],
+                        manager["jurisdictions"],
+                        manager["tags"],
+                    ),
                 )
-                manager_id = cur.fetchone()[0]
-
-                for alias in manager["aliases"]:
-                    cur.execute(
-                        """
-                        INSERT INTO manager_aliases (manager_id, alias)
-                        VALUES (%s, %s)
-                        ON CONFLICT (manager_id, alias) DO NOTHING
-                        """,
-                        (manager_id, alias),
-                    )
-                for jurisdiction in manager["jurisdictions"]:
-                    cur.execute(
-                        """
-                        INSERT INTO manager_jurisdictions (manager_id, jurisdiction)
-                        VALUES (%s, %s)
-                        ON CONFLICT (manager_id, jurisdiction) DO NOTHING
-                        """,
-                        (manager_id, jurisdiction),
-                    )
-                for tag in manager["tags"]:
-                    cur.execute(
-                        """
-                        INSERT INTO manager_tags (manager_id, tag)
-                        VALUES (%s, %s)
-                        ON CONFLICT (manager_id, tag) DO NOTHING
-                        """,
-                        (manager_id, tag),
-                    )
+                cur.fetchone()
                 inserted += 1
         conn.commit()
     return inserted
