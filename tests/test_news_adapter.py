@@ -137,6 +137,27 @@ async def test_list_new_items_gdelt_delegates_to_fetch_gdelt(monkeypatch):
     assert result == expected
 
 
+@pytest.mark.asyncio
+async def test_list_new_items_normalizes_missing_since(monkeypatch):
+    expected = [
+        {
+            "headline": "A",
+            "url": "https://example.test",
+            "published_at": "2026-01-01T00:00:00+00:00",
+        }
+    ]
+
+    async def fake_fetch_rss(since):
+        assert since == "1970-01-01T00:00:00+00:00"
+        return expected
+
+    monkeypatch.setattr(news, "_fetch_rss", fake_fetch_rss)
+
+    result = await news.list_new_items("rss", None)
+
+    assert result == expected
+
+
 def test_configured_gdelt_managers_reads_env(monkeypatch):
     monkeypatch.setenv("NEWS_GDELT_MANAGERS", "Alpha Capital, Beta Partners , ")
     assert news._configured_gdelt_managers() == ["Alpha Capital", "Beta Partners"]

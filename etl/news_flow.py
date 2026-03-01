@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @task
 async def fetch_news(source: str, since: str | None = None) -> list[dict[str, Any]]:
     """Fetch and topic-tag new items for a single source."""
-    items = await news.list_new_items(source, since or "")
+    items = await news.list_new_items(source, since)
     tagged_items: list[dict[str, Any]] = []
     for item in items:
         tagged_item = news.tag(item)

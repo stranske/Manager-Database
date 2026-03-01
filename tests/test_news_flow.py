@@ -65,7 +65,10 @@ async def test_fetch_news_lists_and_tags_items(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fetch_news_falls_back_to_original_item_when_tag_returns_none(monkeypatch):
+    calls: dict[str, list] = {"list": []}
+
     async def fake_list_new_items(source, since):
+        calls["list"].append((source, since))
         return [{"headline": "item", "source": source}]
 
     def fake_tag(item):
@@ -76,4 +79,5 @@ async def test_fetch_news_falls_back_to_original_item_when_tag_returns_none(monk
 
     result = await news_flow.fetch_news.fn("gdelt", None)
 
+    assert calls["list"] == [("gdelt", None)]
     assert result == [{"headline": "item", "source": "gdelt"}]
