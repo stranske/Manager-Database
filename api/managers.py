@@ -1338,11 +1338,14 @@ async def patch_manager_tags(
         if existing_row is None:
             raise HTTPException(status_code=404, detail="Manager not found")
 
-        merged_tags = _merge_tags(_json_array(existing_row[6]), add_tags, remove_tags)
-        if merged_tags != _json_array(existing_row[6]):
+        existing_tags = _json_array(existing_row[6])
+        merged_tags = _merge_tags(existing_tags, add_tags, remove_tags)
+        if merged_tags != existing_tags:
             _update_manager(conn, id, ManagerUpdate(tags=merged_tags))
             invalidate_cache_prefix("managers")
-        row = _fetch_manager(conn, db_identity, id)
+            row = _fetch_manager(conn, db_identity, id)
+        else:
+            row = existing_row
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
