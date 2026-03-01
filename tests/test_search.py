@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import api.chat as chat_api_module
 from api.search import universal_search
 from ui.search import search_news
 
@@ -165,3 +166,70 @@ def test_universal_search_sqlite_uses_embedding_search_for_documents(tmp_path: P
     assert calls and calls[0][0] == "activist campaign"
     assert calls[0][1] == str(db_path)
     assert any(item.entity_type == "document" and item.entity_id == 1 for item in results)
+
+
+def _seed_api_search_db(db_path: Path) -> None:
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
+    conn.execute("CREATE TABLE news (headline TEXT, source TEXT, published TEXT)")
+    conn.execute("CREATE TABLE documents (id INTEGER PRIMARY KEY, content TEXT, embedding TEXT)")
+    conn.execute(
+        "CREATE TABLE holdings (cik TEXT, accession TEXT, filed TEXT, nameOfIssuer TEXT, cusip TEXT, value INTEGER, sshPrnamt INTEGER)"
+    )
+    conn.execute(
+        "INSERT INTO managers(id, name, role) VALUES (1, 'Elliott Management', 'Activist')"
+    )
+    conn.execute(
+        "INSERT INTO news(headline, source, published) VALUES ('Elliott launches campaign', 'WSJ', '2025-01-02')"
+    )
+    conn.execute(
+        "INSERT INTO documents(id, content, embedding) VALUES (1, 'Internal Elliott strategy memo', '[]')"
+    )
+    conn.execute(
+        "INSERT INTO holdings(cik, accession, filed, nameOfIssuer, cusip, value, sshPrnamt) VALUES ('0001', 'ACC-1', '2025-01-01', 'Elliott Corp', '123456789', 10, 5)"
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_api_search_endpoint_returns_results(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "search_api.db"
+    _seed_api_search_db(db_path)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "embeddings",
+        SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
+    )
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
+    results = chat_api_module.search_api(q="Elliott", limit=20, entity_type=None)
+
+    assert results
+    assert {"entity_type", "entity_id", "headline", "snippet", "relevance"}.issubset(
+        results[0].model_dump().keys()
+    )
+
+
+def test_api_search_route_is_registered():
+    paths = {route.path for route in chat_api_module.app.routes}
+    assert "/api/search" in paths
+
+
+def test_api_search_endpoint_filters_entity_type(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "search_api_filter.db"
+    _seed_api_search_db(db_path)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "embeddings",
+        SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
+    )
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
+    results = chat_api_module.search_api(
+        q="Elliott",
+        entity_type="news",
+        limit=20,
+    )
+
+    assert results
+    assert {item.entity_type for item in results} == {"news"}

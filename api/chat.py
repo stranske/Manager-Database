@@ -13,7 +13,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -27,6 +27,7 @@ from adapters.base import connect_db
 from api.data import router as data_router
 from api.managers import router as managers_router
 from api.memory_profiler import start_memory_profiler, stop_memory_profiler
+from api.search import SearchResult, universal_search
 
 app = FastAPI()
 # Tag manager endpoints so they group clearly in the Swagger UI.
@@ -261,6 +262,49 @@ def chat(
     else:
         answer = "Context: " + " ".join(h["content"] for h in hits)
     return {"answer": answer, "latency_ms": 0, "chain_used": "legacy_search"}
+
+
+@app.get(
+    "/api/search",
+    response_model=list[SearchResult],
+    summary="Universal search across managers, filings, holdings, news, and documents",
+    description=(
+        "Run a unified search query and return ranked results across supported entity types."
+    ),
+)
+def search_api(
+    q: str = Query(
+        ...,
+        min_length=1,
+        description="Search query text",
+        examples=cast(
+            Any,
+            {
+                "manager": {
+                    "summary": "Manager query",
+                    "value": "Elliott",
+                }
+            },
+        ),
+    ),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of results to return"),
+    entity_type: Literal["filing", "holding", "news", "document", "manager"] | None = Query(
+        None,
+        description="Optional result type filter",
+    ),
+) -> list[SearchResult]:
+    conn = connect_db()
+    try:
+        # Pull a larger candidate set when filtering so the requested type is not
+        # unintentionally excluded by the pre-filter limit.
+        candidate_limit = max(limit, 100) if entity_type is not None else limit
+        results = universal_search(q, conn, limit=candidate_limit)
+    finally:
+        conn.close()
+
+    if entity_type is not None:
+        results = [item for item in results if item.entity_type == entity_type]
+    return results[:limit]
 
 
 VALID_CHAIN_NAMES = {
