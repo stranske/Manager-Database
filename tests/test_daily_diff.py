@@ -69,6 +69,66 @@ def setup_db(tmp_path: Path) -> str:
     return str(db_path)
 
 
+def setup_db_with_daily_diff_fk(tmp_path: Path) -> str:
+    db_path = tmp_path / "dev_fk.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT UNIQUE)"
+    )
+    conn.execute(
+        "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, filed_date TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings (filing_id INTEGER, cusip TEXT, shares INTEGER, value_usd INTEGER)"
+    )
+    conn.execute("""CREATE TABLE daily_diffs (
+            diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manager_id INTEGER NOT NULL REFERENCES managers(manager_id),
+            report_date TEXT NOT NULL,
+            cusip TEXT NOT NULL,
+            name_of_issuer TEXT,
+            delta_type TEXT NOT NULL,
+            shares_prev INTEGER,
+            shares_curr INTEGER,
+            value_prev REAL,
+            value_curr REAL
+        )""")
+    conn.executemany(
+        "INSERT INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
+        [
+            (1, "Manager One", "0000000000"),
+            (2, "Manager Two", "0000000001"),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO filings(filing_id, manager_id, filed_date) VALUES (?, ?, ?)",
+        [
+            (101, 1, "2024-01-01"),
+            (102, 1, "2024-04-01"),
+            (201, 2, "2024-01-01"),
+            (202, 2, "2024-04-01"),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO holdings(filing_id, cusip, shares, value_usd) VALUES (?, ?, ?, ?)",
+        [
+            (101, "AAA", 100, 1000),
+            (101, "BBB", 30, 300),
+            (101, "EEE", 10, 100),
+            (102, "AAA", 120, 1200),
+            (102, "CCC", 40, 400),
+            (102, "EEE", 8, 80),
+            (201, "XXX", 10, 100),
+            (202, "XXX", 10, 100),
+            (202, "YYY", 5, 50),
+        ],
+    )
+    conn.commit()
+    conn.close()
+    return str(db_path)
+
+
 def test_compute_processes_all_managers_and_writes_daily_diffs(tmp_path: Path):
     db_path = setup_db(tmp_path)
     compute.fn("2024-05-01", db_path)
@@ -104,6 +164,23 @@ def test_compute_persists_all_four_delta_types_with_values(tmp_path: Path):
         ("CCC", "ADD", None, 40, None, 400.0),
         ("EEE", "DECREASE", 10, 8, 100.0, 80.0),
     ]
+
+
+def test_compute_writes_daily_diffs_with_valid_manager_fk(tmp_path: Path):
+    db_path = setup_db_with_daily_diff_fk(tmp_path)
+    compute.fn("2024-05-01", db_path)
+
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    orphan_count = conn.execute("""
+        SELECT COUNT(*)
+        FROM daily_diffs d
+        LEFT JOIN managers m ON m.manager_id = d.manager_id
+        WHERE m.manager_id IS NULL
+        """).fetchone()[0]
+    conn.close()
+
+    assert orphan_count == 0
 
 
 def test_compute_is_idempotent_for_same_date(tmp_path: Path):

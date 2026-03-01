@@ -1,4 +1,5 @@
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 
@@ -174,3 +175,48 @@ def test_parse_cli_identifier_accepts_cik_flag():
 
 def test_parse_cli_identifier_accepts_manager_id_flag():
     assert _parse_cli_identifier(["--manager-id", "42"]) == 42
+
+
+def test_cli_positional_cik_works_with_seeded_dev_db(tmp_path: Path):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, cik TEXT)")
+    conn.execute(
+        "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, filed_date TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings (filing_id INTEGER, cusip TEXT, shares INTEGER, value_usd INTEGER)"
+    )
+    conn.execute("INSERT INTO managers VALUES (?, ?)", (1, "0000000000"))
+    conn.executemany(
+        "INSERT INTO filings VALUES (?, ?, ?)",
+        [
+            (101, 1, "2024-04-01"),
+            (102, 1, "2024-01-01"),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO holdings VALUES (?, ?, ?, ?)",
+        [
+            (101, "AAA", 120, 1200),
+            (101, "CCC", 40, 400),
+            (102, "AAA", 100, 1000),
+            (102, "BBB", 30, 300),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    script = Path(__file__).resolve().parents[1] / "diff_holdings.py"
+    completed = subprocess.run(
+        [sys.executable, str(script), "0000000000"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert "AAA: INCREASE" in completed.stdout
+    assert "BBB: EXIT" in completed.stdout
+    assert "CCC: ADD" in completed.stdout
