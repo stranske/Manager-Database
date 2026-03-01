@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+
 from prefect import flow, task
 
 import etl.ingest_flow as ingest_module

@@ -6,8 +6,9 @@ import json
 import logging
 import os
 import sqlite3
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 import boto3
 from prefect import flow, task
@@ -181,7 +182,6 @@ def _insert_filing(
     parsed_rows: list[dict[str, Any]],
 ) -> int:
     payload = json.dumps(parsed_rows)
-    marker = _placeholder(conn)
     if _is_sqlite(conn):
         sql = (
             "INSERT OR REPLACE INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
