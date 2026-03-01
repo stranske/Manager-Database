@@ -148,7 +148,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 24/28 tasks complete, 4 remaining
+**Progress:** 28/28 tasks complete, 0 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
@@ -222,7 +222,7 @@ The PR is complete when ALL of these are satisfied:
 - [x] `mv_daily_report` materialized view is refreshed after diff computation
 - [x] Re-running the flow for the same date is idempotent (no duplicate diffs)
 - [x] CLI `python diff_holdings.py <CIK>` still works (looks up manager_id by CIK)
-- [ ] All tests pass
+- [x] All tests pass
 
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
