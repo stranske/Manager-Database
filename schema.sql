@@ -125,7 +125,8 @@ CREATE TABLE IF NOT EXISTS api_usage (
     cost_usd numeric(10,4)
 );
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS monthly_usage AS
+DROP MATERIALIZED VIEW IF EXISTS monthly_usage;
+CREATE MATERIALIZED VIEW monthly_usage AS
 SELECT date_trunc('month', ts) AS month,
        source,
        count(*) AS calls,
@@ -134,7 +135,8 @@ SELECT date_trunc('month', ts) AS month,
 FROM api_usage
 GROUP BY 1,2;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_report AS
+DROP MATERIALIZED VIEW IF EXISTS mv_daily_report;
+CREATE MATERIALIZED VIEW mv_daily_report AS
 SELECT
     d.report_date,
     m.manager_id,
