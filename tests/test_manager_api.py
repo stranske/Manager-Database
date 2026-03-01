@@ -216,6 +216,47 @@ def test_manager_list_filter_by_jurisdiction_returns_subset(tmp_path, monkeypatc
     assert {tuple(item["jurisdictions"]) for item in body["items"]} == {("us",)}
 
 
+def test_manager_list_filter_by_tag_returns_subset(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Manager A", "jurisdictions": ["us"], "tags": ["activist"]},
+        {"name": "Manager B", "jurisdictions": ["uk"], "tags": ["quant"]},
+        {"name": "Manager C", "jurisdictions": ["ca"], "tags": ["activist"]},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"tag": "activist"}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert [item["name"] for item in body["items"]] == ["Manager A", "Manager C"]
+    assert {tuple(item["tags"]) for item in body["items"]} == {("activist",)}
+
+
+def test_manager_list_filter_by_jurisdiction_and_tag_returns_subset(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Manager A", "jurisdictions": ["us"], "tags": ["activist"]},
+        {"name": "Manager B", "jurisdictions": ["us"], "tags": ["quant"]},
+        {"name": "Manager C", "jurisdictions": ["uk"], "tags": ["activist"]},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"jurisdiction": "us", "tag": "activist"}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert [item["name"] for item in body["items"]] == ["Manager A"]
+    assert body["items"][0]["jurisdictions"] == ["us"]
+    assert body["items"][0]["tags"] == ["activist"]
+
+
 def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
