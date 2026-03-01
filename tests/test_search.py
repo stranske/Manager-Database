@@ -168,6 +168,28 @@ def test_universal_search_sqlite_uses_embedding_search_for_documents(tmp_path: P
     assert any(item.entity_type == "document" and item.entity_id == 1 for item in results)
 
 
+def test_universal_search_sqlite_matches_filings_by_manager_name():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute(
+        "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, raw_key TEXT, period_end TEXT, url TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings (holding_id INTEGER PRIMARY KEY, filing_id INTEGER, name_of_issuer TEXT, cusip TEXT)"
+    )
+    conn.execute("INSERT INTO managers(id, name) VALUES (1, 'Elliott Management')")
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, raw_key, period_end, url) VALUES (10, 1, '13F-HR', 'raw-10', '2025-01-01', NULL)"
+    )
+    conn.execute(
+        "INSERT INTO holdings(holding_id, filing_id, name_of_issuer, cusip) VALUES (20, 10, 'Sample Issuer', '123456789')"
+    )
+
+    results = universal_search("Elliott", conn, limit=20)
+
+    assert any(item.entity_type == "filing" and item.entity_id == 10 for item in results)
+
+
 def _seed_api_search_db(db_path: Path) -> None:
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")

@@ -153,12 +153,12 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 f.period_end,
                 f.url,
                 ts_rank(
-                    to_tsvector('english', COALESCE(f.type, '') || ' ' || COALESCE(f.raw_key, '') || ' ' || COALESCE(f.period_end::text, '')),
+                    to_tsvector('english', COALESCE(m.name, '') || ' ' || COALESCE(f.type, '') || ' ' || COALESCE(f.raw_key, '') || ' ' || COALESCE(f.period_end::text, '')),
                     plainto_tsquery('english', %s)
                 ) AS fts_rank
             FROM filings f
             LEFT JOIN managers m ON m.manager_id = f.manager_id
-            WHERE to_tsvector('english', COALESCE(f.type, '') || ' ' || COALESCE(f.raw_key, '') || ' ' || COALESCE(f.period_end::text, ''))
+            WHERE to_tsvector('english', COALESCE(m.name, '') || ' ' || COALESCE(f.type, '') || ' ' || COALESCE(f.raw_key, '') || ' ' || COALESCE(f.period_end::text, ''))
                 @@ plainto_tsquery('english', %s)
             ORDER BY fts_rank DESC, f.created_at DESC
             LIMIT %s
@@ -486,8 +486,17 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
     holdings_columns = _get_columns(conn, "holdings")
     if holdings_columns:
         if "holding_id" in holdings_columns:
+            filing_columns = _get_columns(conn, "filings")
+            filing_date_col = (
+                "filed_date"
+                if "filed_date" in filing_columns
+                else ("period_end" if "period_end" in filing_columns else None)
+            )
+            filing_date_expr = f"f.{filing_date_col}" if filing_date_col else "NULL"
             rows = conn.execute(
-                "SELECT h.holding_id, f.manager_id, h.name_of_issuer, h.cusip, f.filed_date "
+                "SELECT h.holding_id, f.manager_id, h.name_of_issuer, h.cusip, "
+                + filing_date_expr
+                + " "
                 "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
                 "WHERE COALESCE(h.name_of_issuer, '') LIKE ? OR upper(COALESCE(h.cusip, '')) = upper(?) "
                 "LIMIT ?",
@@ -552,20 +561,47 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
 
     if _table_exists(conn, "filings") and "holding_id" in holdings_columns:
+        filing_columns = _get_columns(conn, "filings")
+        filing_manager_expr = "f.manager_id" if "manager_id" in filing_columns else "NULL"
+        filing_url_expr = "f.url" if "url" in filing_columns else "NULL"
+        filing_type_expr = "f.type" if "type" in filing_columns else "NULL"
+        filing_raw_key_expr = "f.raw_key" if "raw_key" in filing_columns else "NULL"
+        filing_period_expr = "f.period_end" if "period_end" in filing_columns else "NULL"
+        manager_join = ""
+        manager_name_expr = "NULL"
+        where_clauses = [
+            f"COALESCE({filing_type_expr}, '') LIKE ?",
+            f"COALESCE({filing_raw_key_expr}, '') LIKE ?",
+            f"COALESCE({filing_period_expr}, '') LIKE ?",
+        ]
+        params: list[Any] = [like_token, like_token, like_token]
+        manager_columns = _get_columns(conn, "managers")
+        if manager_columns and "name" in manager_columns and filing_manager_expr != "NULL":
+            manager_id_col = "manager_id" if "manager_id" in manager_columns else "id"
+            manager_join = f" LEFT JOIN managers m ON m.{manager_id_col} = {filing_manager_expr}"
+            manager_name_expr = "m.name"
+            where_clauses.append("COALESCE(m.name, '') LIKE ?")
+            params.append(like_token)
+
         rows = conn.execute(
-            "SELECT f.filing_id, f.manager_id, f.type, f.raw_key, f.period_end, f.url "
-            "FROM filings f WHERE COALESCE(f.type, '') LIKE ? OR COALESCE(f.raw_key, '') LIKE ? "
-            "OR COALESCE(f.period_end, '') LIKE ? LIMIT ?",
-            (like_token, like_token, like_token, limit),
+            f"SELECT f.filing_id, {filing_manager_expr}, {manager_name_expr}, "
+            f"{filing_type_expr}, {filing_raw_key_expr}, {filing_period_expr}, {filing_url_expr} "
+            f"FROM filings f{manager_join} "
+            f"WHERE {' OR '.join(where_clauses)} "
+            "LIMIT ?",
+            (*params, limit),
         ).fetchall()
-        for filing_id, manager_id, filing_type, raw_key, period_end, url in rows:
+        for filing_id, manager_id, manager_name, filing_type, raw_key, period_end, url in rows:
             headline = f"{filing_type or 'Filing'} filing"
-            snippet = f"Raw key: {raw_key or 'n/a'} | Period end: {period_end or 'n/a'}"
+            manager_text = f"Manager: {manager_name}" if manager_name else ""
+            context = f"Raw key: {raw_key or 'n/a'} | Period end: {period_end or 'n/a'}"
+            snippet = " | ".join(filter(None, [manager_text, context]))
             results.append(
                 SearchResult(
                     entity_type="filing",
                     entity_id=int(filing_id),
-                    manager_name=str(manager_id) if manager_id is not None else None,
+                    manager_name=manager_name
+                    or (str(manager_id) if manager_id is not None else None),
                     headline=headline,
                     snippet=snippet,
                     relevance=_score_result("filing", query, headline, snippet),
