@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import heapq
 import hashlib
+import heapq
 import json
 import math
 import os
