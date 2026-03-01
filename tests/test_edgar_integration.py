@@ -14,7 +14,7 @@ import adapters.edgar as edgar
 import etl.edgar_flow as flow
 
 
-def seed_manager(db_path: Path, cik: str, manager_id: int = 1) -> None:
+def seed_manager(db_path, cik, manager_id=1):
     conn = sqlite3.connect(db_path)
     conn.execute("""CREATE TABLE IF NOT EXISTS managers (
             manager_id INTEGER PRIMARY KEY,
@@ -27,6 +27,7 @@ def seed_manager(db_path: Path, cik: str, manager_id: int = 1) -> None:
     )
     conn.commit()
     conn.close()
+
 
 
 def make_client(responder):
@@ -97,7 +98,6 @@ async def test_edgar_flow_full_cycle(monkeypatch, tmp_path):
     monkeypatch.setattr(flow, "RAW_DIR", tmp_path)
     monkeypatch.setattr(flow, "ADAPTER", edgar)
     monkeypatch.setattr(flow, "fetch_and_store", flow.fetch_and_store.fn)
-    monkeypatch.setattr(flow, "store_document", lambda raw: None)
 
     put_calls = []
 
@@ -133,13 +133,9 @@ async def test_edgar_flow_full_cycle(monkeypatch, tmp_path):
     parsed_path = tmp_path / "parsed.json"
     assert json.loads(parsed_path.read_text()) == rows
     conn = sqlite3.connect(db_path)
-    filing = conn.execute("SELECT filing_id, manager_id, source, raw_key FROM filings").fetchone()
-    row = conn.execute(
-        "SELECT filing_id, cusip, name_of_issuer, value_usd, shares FROM holdings"
-    ).fetchone()
+    row = conn.execute("SELECT cik, accession, cusip, value, sshPrnamt FROM holdings").fetchone()
     conn.close()
-    assert filing == (1, 10, "edgar", f"raw/edgar/{expected_prefix}_0000000000-24-000001.xml")
-    assert row == (1, "123456789", "Example Corp", 1000, 100)
+    assert row == ("0000000000", "0000000000-24-000001", "123456789", 1000, 100)
 
 
 @pytest.mark.integration
@@ -168,12 +164,11 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
     monkeypatch.setattr(flow, "DB_PATH", str(db_path))
     monkeypatch.setattr(flow, "ADAPTER", edgar)
-    seed_manager(db_path, "0000000000")
 
     stored = []
 
-    def record_document(raw):
-        stored.append(raw)
+    def record_document(raw, **kwargs):
+        stored.append((raw, kwargs))
 
     put_calls = []
 
@@ -193,21 +188,28 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
     monkeypatch.setattr(edgar.httpx, "AsyncClient", make_client(responder))
     monkeypatch.setattr(flow, "store_document", record_document)
     monkeypatch.setattr(flow.S3, "put_object", put_object)
+    seed_manager(db_path, "0000000000")
 
     rows = await flow.fetch_and_store.fn("0000000000", "2024-01-01")
 
     assert rows
-    assert stored == [sample_xml()]
+    assert stored == [
+        (
+            sample_xml(),
+            {
+                "db_path": str(db_path),
+                "manager_id": 1,
+                "kind": "filing_text",
+                "filename": "0000000000-24-000001.xml",
+            },
+        )
+    ]
     expected_prefix = hashlib.sha256(sample_xml().encode("utf-8")).hexdigest()[:16]
     assert put_calls[0]["Key"] == f"raw/edgar/{expected_prefix}_0000000000-24-000001.xml"
     conn = sqlite3.connect(db_path)
-    filing = conn.execute("SELECT filing_id, manager_id, source, raw_key FROM filings").fetchone()
-    row = conn.execute(
-        "SELECT filing_id, cusip, name_of_issuer, value_usd, shares FROM holdings"
-    ).fetchone()
+    row = conn.execute("SELECT cik, accession, cusip, value, sshPrnamt FROM holdings").fetchone()
     conn.close()
-    assert filing == (1, 1, "edgar", f"raw/edgar/{expected_prefix}_0000000000-24-000001.xml")
-    assert row == (1, "123456789", "Example Corp", 1000, 100)
+    assert row == ("0000000000", "0000000000-24-000001", "123456789", 1000, 100)
 
 
 @pytest.mark.integration
@@ -309,7 +311,6 @@ async def test_malformed_data_handling(monkeypatch, tmp_path, caplog):
     monkeypatch.setattr(flow, "ADAPTER", edgar)
     monkeypatch.setattr(flow, "fetch_and_store", flow.fetch_and_store.fn)
     monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
-    seed_manager(db_path, "0000000000")
 
     def responder(url):
         if "submissions/CIK" in url:

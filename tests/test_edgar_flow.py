@@ -135,8 +135,8 @@ async def test_fetch_and_store_inserts_filings_and_holdings(monkeypatch, tmp_pat
 
     stored = []
 
-    def record_document(raw):
-        stored.append(raw)
+    def record_document(raw, **kwargs):
+        stored.append((raw, kwargs))
 
     monkeypatch.setattr(flow.S3, "put_object", put_object)
     monkeypatch.setattr(flow, "store_document", record_document)
@@ -145,7 +145,11 @@ async def test_fetch_and_store_inserts_filings_and_holdings(monkeypatch, tmp_pat
 
     assert len(results) == 2
     assert len(put_calls) == 2
-    assert stored == ["<xml accession='1'></xml>", "<xml accession='2'></xml>"]
+    assert [item[0] for item in stored] == [
+        "<xml accession='1'></xml>",
+        "<xml accession='2'></xml>",
+    ]
+    assert all(item[1]["kind"] == "filing_text" for item in stored)
 
     conn = sqlite3.connect(db_path)
     filings = conn.execute(
@@ -178,8 +182,8 @@ async def test_fetch_and_store_handles_empty_filings(monkeypatch, tmp_path):
     def put_object(**kwargs):
         put_calls.append(kwargs)
 
-    def record_document(raw):
-        stored.append(raw)
+    def record_document(raw, **kwargs):
+        stored.append((raw, kwargs))
 
     monkeypatch.setattr(flow.S3, "put_object", put_object)
     monkeypatch.setattr(flow, "store_document", record_document)
@@ -207,8 +211,8 @@ async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
 
     stored = []
 
-    def record_document(raw):
-        stored.append(raw)
+    def record_document(raw, **kwargs):
+        stored.append((raw, kwargs))
 
     def put_object(**kwargs):
         expected_prefix = hashlib.sha256(b"<xml></xml>").hexdigest()[:16]
@@ -220,7 +224,17 @@ async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
     results = await flow.fetch_and_store.fn("0", "2024-01-01")
 
     assert len(results) == 2
-    assert stored == ["<xml></xml>"]
+    assert stored == [
+        (
+            "<xml></xml>",
+            {
+                "db_path": str(db_path),
+                "manager_id": None,
+                "kind": "filing_text",
+                "filename": "1.xml",
+            },
+        )
+    ]
     conn = sqlite3.connect(db_path)
     filing_id = conn.execute("SELECT filing_id FROM filings").fetchone()[0]
     rows = conn.execute(

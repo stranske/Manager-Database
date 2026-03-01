@@ -114,8 +114,9 @@ async def test_fetch_and_store_uploads_raw_and_persists_rows(tmp_path, monkeypat
     # Capture side effects for assertions without external services.
     recorded = {}
 
-    def fake_store_document(raw):
+    def fake_store_document(raw, **kwargs):
         recorded["stored"] = raw
+        recorded["store_kwargs"] = kwargs
 
     class DummyS3:
         def put_object(self, **kwargs):
@@ -138,6 +139,9 @@ async def test_fetch_and_store_uploads_raw_and_persists_rows(tmp_path, monkeypat
     ]
     assert recorded["stored"] == "<xml>raw</xml>"
     expected_prefix = hashlib.sha256(b"<xml>raw</xml>").hexdigest()[:16]
+    assert recorded["store_kwargs"]["kind"] == "filing_text"
+    assert recorded["store_kwargs"]["manager_id"] == 1
+    assert recorded["store_kwargs"]["filename"] == "0001.xml"
     assert recorded["s3"] == {
         "Bucket": "filings-test",
         "Key": f"raw/edgar/{expected_prefix}_0001.xml",
