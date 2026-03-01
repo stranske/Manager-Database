@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+import argparse
 from typing import Any
 
 from adapters.base import connect_db
@@ -182,11 +183,26 @@ def diff_holdings(manager_id: int | str, conn=None) -> list[dict[str, int | floa
     return results
 
 
+def _parse_cli_identifier(argv: list[str]) -> int | str:
+    parser = argparse.ArgumentParser(description="Diff holdings by CIK or manager_id.")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--cik", dest="cik", help="Manager CIK value.")
+    group.add_argument("--manager-id", dest="manager_id", type=int, help="Manager numeric ID.")
+    parser.add_argument("identifier", nargs="?", help="CIK or manager_id.")
+    args = parser.parse_args(argv)
+
+    if args.manager_id is not None:
+        return args.manager_id
+    if args.cik is not None:
+        return args.cik.strip()
+    if args.identifier is None:
+        parser.error("Provide either --cik, --manager-id, or positional identifier.")
+    return args.identifier.strip()
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: diff_holdings.py <CIK>")
-        sys.exit(1)
-    for row in diff_holdings(sys.argv[1]):
+    identifier = _parse_cli_identifier(sys.argv[1:])
+    for row in diff_holdings(identifier):
         print(
             f"{row['cusip']}: {row['delta_type']} "
             f"(shares {row['shares_prev']} -> {row['shares_curr']}, "

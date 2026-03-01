@@ -6,7 +6,7 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from diff_holdings import _fetch_latest_sets, diff_holdings
+from diff_holdings import _fetch_latest_sets, _parse_cli_identifier, diff_holdings
 
 
 def _setup_manager_filing_db() -> sqlite3.Connection:
@@ -162,3 +162,15 @@ def test_fetch_latest_sets_uses_postgres_placeholders():
     _fetch_latest_sets(7, conn)
     assert "WHERE m.manager_id = %s" in conn.sql
     assert conn.params == (7,)
+
+
+def test_parse_cli_identifier_accepts_positional_identifier():
+    assert _parse_cli_identifier(["0000000000"]) == "0000000000"
+
+
+def test_parse_cli_identifier_accepts_cik_flag():
+    assert _parse_cli_identifier(["--cik", "0000000123"]) == "0000000123"
+
+
+def test_parse_cli_identifier_accepts_manager_id_flag():
+    assert _parse_cli_identifier(["--manager-id", "42"]) == 42
