@@ -11,9 +11,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 try:
-    from scripts.langchain import label_matcher
+    from scripts.langchain import label_matcher as _label_matcher
 except ModuleNotFoundError:
-    import label_matcher
+    import label_matcher as _label_matcher  # type: ignore[no-redef]
+
+label_matcher = _label_matcher
 
 
 @dataclass

@@ -163,36 +163,62 @@ def test_daily_diff_flow_defaults_use_env_and_yesterday(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
     calls = []
 
-    def fake_compute(cik, date_value, db_path):
-        calls.append((cik, date_value, db_path))
+    def fake_compute(date_value, db_path, cik_list=None):
+        calls.append((date_value, db_path, cik_list))
 
     # Capture inputs without touching the DB.
     monkeypatch.setattr(daily_flow, "compute", fake_compute)
 
     daily_flow.daily_diff_flow.fn(cik_list=None, date=None)
 
-    assert calls == [
-        ("1", "2024-05-01", str(tmp_path / "dev.db")),
-        ("2", "2024-05-01", str(tmp_path / "dev.db")),
-    ]
+    assert calls == [("2024-05-01", str(tmp_path / "dev.db"), ["1", "2"])]
 
 
 def test_compute_inserts_additions_and_exits(tmp_path, monkeypatch):
-    def fake_diff_holdings(cik, db_path):
-        return {"AAA"}, {"BBB"}
+    def fake_diff_holdings(_manager_id, _conn):
+        return [
+            {
+                "cusip": "AAA",
+                "delta_type": "ADD",
+                "shares_prev": None,
+                "shares_curr": 10,
+                "value_prev": None,
+                "value_curr": 100,
+            },
+            {
+                "cusip": "BBB",
+                "delta_type": "EXIT",
+                "shares_prev": 10,
+                "shares_curr": None,
+                "value_prev": 100,
+                "value_curr": None,
+            },
+        ]
 
     # Mock diffing to exercise both add/exit inserts.
     monkeypatch.setattr(daily_flow, "diff_holdings", fake_diff_holdings)
     db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT UNIQUE)"
+    )
+    conn.execute(
+        "INSERT INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
+        (1, "Manager", "0000"),
+    )
+    conn.commit()
+    conn.close()
 
-    daily_flow.compute.fn("0000", "2024-05-01", str(db_path))
+    daily_flow.compute.fn("2024-05-01", str(db_path))
 
     conn = sqlite3.connect(db_path)
-    rows = conn.execute("SELECT cik, cusip, change FROM daily_diff ORDER BY change").fetchall()
+    rows = conn.execute(
+        "SELECT manager_id, cusip, delta_type FROM daily_diffs ORDER BY delta_type"
+    ).fetchall()
     conn.close()
     assert rows == [
-        ("0000", "AAA", "ADD"),
-        ("0000", "BBB", "EXIT"),
+        (1, "AAA", "ADD"),
+        (1, "BBB", "EXIT"),
     ]
 
 
