@@ -53,9 +53,7 @@ def label_issue(
     if label_store is None:
         return []
 
-    matches = label_matcher.find_similar_labels(
-        label_store, issue_text, threshold=threshold, k=k
-    )
+    matches = label_matcher.find_similar_labels(label_store, issue_text, threshold=threshold, k=k)
     names = _select_label_names(matches, max_labels=max_labels)
     issue.apply_labels(names)
     return names
