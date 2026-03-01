@@ -1,8 +1,7 @@
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -29,7 +28,7 @@ target_metadata = None
 
 def get_database_url() -> str:
     """Resolve database URL from environment first, then alembic.ini."""
-    return os.getenv("DB_URL", config.get_main_option("sqlalchemy.url"))
+    return os.getenv("DB_URL", config.get_main_option("sqlalchemy.url") or "")
 
 
 def run_migrations_offline() -> None:

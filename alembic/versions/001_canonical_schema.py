@@ -7,9 +7,10 @@ plus two materialized views (monthly_usage, mv_daily_report).
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "001"
@@ -117,9 +118,7 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             server_default=text("CURRENT_TIMESTAMP"),
         ),
-        sa.ForeignKeyConstraint(
-            ["filing_id"], ["filings.filing_id"], name="fk_holdings_filing_id"
-        ),
+        sa.ForeignKeyConstraint(["filing_id"], ["filings.filing_id"], name="fk_holdings_filing_id"),
     )
     op.create_index("idx_holdings_filing_id", "holdings", ["filing_id"])
     op.create_index("idx_holdings_cusip", "holdings", ["cusip"])
@@ -150,7 +149,8 @@ def upgrade() -> None:
     )
 
     # ── documents ─────────────────────────────────────────────
-    doc_columns = [
+    op.create_table(
+        "documents",
         sa.Column("doc_id", sa.BigInteger(), primary_key=True, autoincrement=True),
         sa.Column("manager_id", sa.BigInteger(), nullable=True),
         sa.Column("kind", sa.Text(), nullable=False, server_default="note"),
@@ -165,8 +165,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["manager_id"], ["managers.manager_id"], name="fk_documents_manager_id"
         ),
-    ]
-    op.create_table("documents", *doc_columns)
+    )
     if pg:
         op.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS embedding vector(384)")
         op.create_index(

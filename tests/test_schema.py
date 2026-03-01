@@ -4,8 +4,9 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from alembic import command
 from alembic.config import Config
+
+from alembic import command
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -67,9 +68,7 @@ def test_schema_foreign_keys(monkeypatch, tmp_path):
         conn.execute("PRAGMA foreign_keys = ON")
 
         # Insert a valid manager
-        conn.execute(
-            "INSERT INTO managers(manager_id, name) VALUES (1, 'Test Manager')"
-        )
+        conn.execute("INSERT INTO managers(manager_id, name) VALUES (1, 'Test Manager')")
 
         # FK violation: filing references non-existent manager_id
         with pytest.raises(sqlite3.IntegrityError):
