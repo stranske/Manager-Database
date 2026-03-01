@@ -12,18 +12,30 @@ class ManagerResponse(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "id": 101,
-                    "name": "Grace Hopper",
-                    "role": "Engineering Director",
+                    "manager_id": 101,
+                    "name": "Elliott Investment Management L.P.",
+                    "cik": "0001791786",
+                    "lei": "549300U3N12T57QLOU60",
+                    "aliases": ["Elliott Management"],
+                    "jurisdictions": ["us"],
+                    "tags": ["activist"],
+                    "registry_ids": {"fca_frn": "122927"},
+                    "created_at": "2026-02-01T10:00:00Z",
+                    "updated_at": "2026-02-01T10:00:00Z",
                 }
             ]
         }
     )
-    id: int = Field(..., description="Manager identifier")
-    name: str = Field(..., description="Manager name")
-    role: str = Field(..., description="Manager role")
-    # Optional to preserve legacy manager payloads without departments.
-    department: str | None = Field(None, description="Manager department")
+    manager_id: int = Field(..., description="Manager identifier")
+    name: str = Field(..., description="Legal manager name")
+    cik: str | None = Field(None, description="SEC Central Index Key")
+    lei: str | None = Field(None, description="Legal Entity Identifier")
+    aliases: list[str] = Field(default_factory=list, description="Alternative names")
+    jurisdictions: list[str] = Field(default_factory=list, description="Filing jurisdictions")
+    tags: list[str] = Field(default_factory=list, description="Classification tags")
+    registry_ids: dict[str, str] = Field(default_factory=dict, description="External registry IDs")
+    created_at: str | None = Field(None, description="Creation timestamp")
+    updated_at: str | None = Field(None, description="Last update timestamp")
 
 
 class ManagerListResponse(BaseModel):
@@ -35,10 +47,16 @@ class ManagerListResponse(BaseModel):
                 {
                     "items": [
                         {
-                            "id": 101,
-                            "name": "Grace Hopper",
-                            "role": "Engineering Director",
-                            "department": "Engineering",
+                            "manager_id": 101,
+                            "name": "Elliott Investment Management L.P.",
+                            "cik": "0001791786",
+                            "lei": "549300U3N12T57QLOU60",
+                            "aliases": ["Elliott Management"],
+                            "jurisdictions": ["us"],
+                            "tags": ["activist"],
+                            "registry_ids": {"fca_frn": "122927"},
+                            "created_at": "2026-02-01T10:00:00Z",
+                            "updated_at": "2026-02-01T10:00:00Z",
                         }
                     ],
                     "total": 1,
@@ -91,17 +109,23 @@ class BulkImportResponse(BaseModel):
                         {
                             "index": 0,
                             "manager": {
-                                "id": 101,
-                                "name": "Grace Hopper",
-                                "role": "Engineering Director",
-                                "department": "Engineering",
+                                "manager_id": 101,
+                                "name": "Elliott Investment Management L.P.",
+                                "cik": "0001791786",
+                                "lei": "549300U3N12T57QLOU60",
+                                "aliases": ["Elliott Management"],
+                                "jurisdictions": ["us"],
+                                "tags": ["activist"],
+                                "registry_ids": {"fca_frn": "122927"},
+                                "created_at": "2026-02-01T10:00:00Z",
+                                "updated_at": "2026-02-01T10:00:00Z",
                             },
                         }
                     ],
                     "failures": [
                         {
                             "index": 2,
-                            "errors": [{"field": "role", "message": "Role is required."}],
+                            "errors": [{"field": "name", "message": "Name is required."}],
                         }
                     ],
                 }
