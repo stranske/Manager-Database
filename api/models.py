@@ -141,3 +141,51 @@ class BulkImportResponse(BaseModel):
     failures: list[BulkImportFailure] = Field(
         ..., description="Details for records that failed validation"
     )
+
+
+class UniverseImportResponse(BaseModel):
+    """Response payload for manager universe imports."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "created": 8,
+                    "updated": 2,
+                    "skipped": 1,
+                }
+            ]
+        }
+    )
+    created: int = Field(..., description="Number of new manager records created")
+    updated: int = Field(..., description="Number of existing manager records updated")
+    skipped: int = Field(..., description="Number of records skipped due to invalid inputs")
+
+
+class ManagerStatsResponse(BaseModel):
+    """Response payload for manager universe summary statistics."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "total_managers": 12,
+                    "by_jurisdiction": {"us": 10, "uk": 2},
+                    "by_tag": {"activist": 3, "hedge-fund": 5},
+                    "with_cik": 10,
+                    "with_lei": 2,
+                }
+            ]
+        }
+    )
+    total_managers: int = Field(..., description="Total manager records in the universe")
+    by_jurisdiction: dict[str, int] = Field(
+        default_factory=dict,
+        description="Manager counts grouped by jurisdiction code",
+    )
+    by_tag: dict[str, int] = Field(
+        default_factory=dict,
+        description="Manager counts grouped by classification tag",
+    )
+    with_cik: int = Field(..., description="Managers with a non-empty CIK")
+    with_lei: int = Field(..., description="Managers with a non-empty LEI")

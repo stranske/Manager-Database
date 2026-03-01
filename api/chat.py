@@ -175,8 +175,14 @@ def _format_validation_errors(exc: RequestValidationError) -> list[dict[str, str
     """Normalize validation errors into a concise field/message list."""
     errors: list[dict[str, str]] = []
     for err in exc.errors():
-        loc = [str(part) for part in err.get("loc", []) if part != "body"]
-        field = loc[-1] if loc else "unknown"
+        raw_loc = [str(part) for part in err.get("loc", [])]
+        loc = [part for part in raw_loc if part != "body"]
+        if loc:
+            field = loc[-1]
+        elif raw_loc and raw_loc[0] == "body":
+            field = "body"
+        else:
+            field = "unknown"
         errors.append({"field": field, "message": err.get("msg", "Invalid value")})
     return errors
 

@@ -38,6 +38,18 @@ async def _get_managers(params: dict | None = None):
         await app.router.shutdown()
 
 
+async def _get_manager_stats():
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.get("/managers/stats")
+    finally:
+        await app.router.shutdown()
+
+
 async def _get_manager(manager_id: int):
     # Use the ASGI transport to exercise detail behavior without a live server.
     await app.router.startup()
@@ -59,6 +71,18 @@ async def _patch_manager(manager_id: int, payload: dict):
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
             return await client.patch(f"/managers/{manager_id}", json=payload)
+    finally:
+        await app.router.shutdown()
+
+
+async def _patch_manager_tags(manager_id: int, payload: dict):
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.patch(f"/managers/{manager_id}/tags", json=payload)
     finally:
         await app.router.shutdown()
 
@@ -407,6 +431,46 @@ def test_manager_list_filter_whitespace_only_treated_as_no_filter(tmp_path, monk
     assert [item["name"] for item in body["items"]] == ["Manager A", "Manager B"]
 
 
+def test_manager_stats_returns_accurate_jurisdiction_and_tag_counts(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {
+            "name": "Manager A",
+            "cik": "0001067983",
+            "jurisdictions": ["us"],
+            "tags": ["activist", "hedge-fund"],
+        },
+        {
+            "name": "Manager B",
+            "lei": "549300U3N12T57QLOU60",
+            "jurisdictions": ["us", "uk"],
+            "tags": ["quant"],
+        },
+        {
+            "name": "Manager C",
+            "cik": "0001350694",
+            "lei": "529900K8VCB4TCB4UQ57",
+            "jurisdictions": ["uk"],
+            "tags": ["activist"],
+        },
+        {"name": "Manager D"},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    stats_resp = asyncio.run(_get_manager_stats())
+    assert stats_resp.status_code == 200
+    assert stats_resp.json() == {
+        "total_managers": 4,
+        "by_jurisdiction": {"uk": 2, "us": 2},
+        "by_tag": {"activist": 2, "hedge-fund": 1, "quant": 1},
+        "with_cik": 2,
+        "with_lei": 2,
+    }
+
+
 def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -655,6 +719,147 @@ def test_manager_patch_returns_404_for_missing_id(tmp_path, monkeypatch):
     patch_resp = asyncio.run(_patch_manager(999, {"tags": ["activist"]}))
     assert patch_resp.status_code == 404
     assert patch_resp.json()["detail"] == "Manager not found"
+
+
+def test_manager_tags_patch_adds_and_removes_without_replacing_record(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(
+        _post_manager(
+            {
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist", "quant"],
+            }
+        )
+    )
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(
+        _patch_manager_tags(
+            manager_id,
+            {
+                "add": ["event-driven", "activist"],
+                "remove": ["quant"],
+            },
+        )
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["manager_id"] == manager_id
+    assert body["name"] == "Elliott Investment Management L.P."
+    assert body["cik"] == "0001791786"
+    assert body["jurisdictions"] == ["us"]
+    assert body["tags"] == ["activist", "event-driven"]
+
+
+def test_manager_tags_patch_requires_non_empty_add_or_remove(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(_post_manager({"name": "Elliott Investment Management L.P."}))
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(_patch_manager_tags(manager_id, {"add": ["   "], "remove": []}))
+    assert patch_resp.status_code == 400
+    payload = patch_resp.json()
+    assert payload["errors"][0]["field"] == "body"
+
+
+def test_manager_tags_patch_returns_404_for_missing_id(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    patch_resp = asyncio.run(_patch_manager_tags(999, {"add": ["activist"]}))
+    assert patch_resp.status_code == 404
+    assert patch_resp.json()["detail"] == "Manager not found"
+
+
+def test_manager_tags_patch_supports_remove_only(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(
+        _post_manager(
+            {
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist", "quant"],
+            }
+        )
+    )
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(_patch_manager_tags(manager_id, {"remove": ["quant"]}))
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["manager_id"] == manager_id
+    assert body["name"] == "Elliott Investment Management L.P."
+    assert body["cik"] == "0001791786"
+    assert body["jurisdictions"] == ["us"]
+    assert body["tags"] == ["activist"]
+
+
+def test_manager_tags_patch_supports_add_only_and_dedupes(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(
+        _post_manager(
+            {
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist"],
+            }
+        )
+    )
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(
+        _patch_manager_tags(manager_id, {"add": ["event-driven", "event-driven", "  "]})
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["manager_id"] == manager_id
+    assert body["name"] == "Elliott Investment Management L.P."
+    assert body["cik"] == "0001791786"
+    assert body["jurisdictions"] == ["us"]
+    assert body["tags"] == ["activist", "event-driven"]
+
+
+def test_manager_tags_patch_noop_preserves_updated_at(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(
+        _post_manager(
+            {
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist"],
+            }
+        )
+    )
+    assert create_resp.status_code == 201
+    created = create_resp.json()
+    manager_id = created["manager_id"]
+    original_updated_at = created["updated_at"]
+
+    patch_resp = asyncio.run(
+        _patch_manager_tags(
+            manager_id,
+            {"add": ["activist", "activist"], "remove": ["not-present"]},
+        )
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["manager_id"] == manager_id
+    assert body["tags"] == ["activist"]
+    assert body["updated_at"] == original_updated_at
 
 
 def test_manager_delete_removes_record(tmp_path, monkeypatch):
