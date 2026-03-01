@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
