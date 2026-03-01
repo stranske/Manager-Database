@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import datetime as dt
 import os
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
-import requests
+import requests  # type: ignore[import-untyped]
 import streamlit as st
 
 from adapters.base import connect_db
@@ -215,9 +215,14 @@ def main() -> None:
     with st.sidebar.expander("Context Filters", expanded=False):
         selected_manager = st.selectbox("Manager (optional)", ["All", *manager_list])
         filing_id_input = int(st.number_input("Filing ID (for summaries)", value=0, min_value=0))
-        date_range = st.date_input("Date range", value=())
+        date_range = st.date_input("Date range", value=[])
 
-    context = _build_context(selected_manager, filing_id_input, date_range)
+    date_range_tuple = cast(
+        tuple[dt.date, dt.date] | tuple[()],
+        tuple(date_range) if isinstance(date_range, (list, tuple)) else (),
+    )
+
+    context = _build_context(selected_manager, filing_id_input, date_range_tuple)
 
     _render_history()
 
@@ -232,7 +237,7 @@ def main() -> None:
     st.divider()
     st.caption("Quick actions:")
     col1, col2, col3, col4 = st.columns(4)
-    for col, (label, quick_prompt) in zip((col1, col2, col3), QUICK_ACTIONS):
+    for col, (label, quick_prompt) in zip((col1, col2, col3), QUICK_ACTIONS, strict=True):
         if col.button(label):
             st.session_state.pending_prompt = quick_prompt
             st.rerun()
