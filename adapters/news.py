@@ -7,8 +7,7 @@ import logging
 import os
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from time import monotonic
-from time import struct_time
+from time import monotonic, struct_time
 from typing import Any
 
 import httpx
@@ -128,7 +127,7 @@ async def _fetch_gdelt(since: str) -> list[dict[str, Any]]:
                 if elapsed < 1.0:
                     await asyncio.sleep(1.0 - elapsed)
 
-            params = {
+            params: dict[str, str | int] = {
                 "query": manager_name,
                 "mode": "artlist",
                 "maxrecords": 50,
