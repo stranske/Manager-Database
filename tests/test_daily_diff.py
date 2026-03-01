@@ -55,6 +55,20 @@ def test_compute_writes_daily_diff_rows(tmp_path: Path):
     ]
 
 
+def test_compute_is_idempotent_for_same_date_and_cik(tmp_path: Path):
+    db_path = setup_db(tmp_path)
+    compute.fn("0000000000", "2024-05-01", db_path)
+    compute.fn("0000000000", "2024-05-01", db_path)
+
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute("SELECT date, cik, cusip, change FROM daily_diff ORDER BY cusip").fetchall()
+    conn.close()
+    assert rows == [
+        ("2024-05-01", "0000000000", "BBB", "EXIT"),
+        ("2024-05-01", "0000000000", "CCC", "ADD"),
+    ]
+
+
 def test_daily_diff_flow_uses_env_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     db_path = setup_db(tmp_path)
     monkeypatch.setenv("DB_PATH", db_path)

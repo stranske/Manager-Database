@@ -39,6 +39,8 @@ def compute(cik: str, date: str, db_path: str) -> None:
                 cusip TEXT,
                 change TEXT
             )""")
+        # Idempotent reruns: replace prior rows for the same report date and manager.
+        conn.execute("DELETE FROM daily_diff WHERE date = ? AND cik = ?", (date, cik))
         for cusip, change in change_rows:
             conn.execute(
                 "INSERT INTO daily_diff VALUES (?,?,?,?)",
