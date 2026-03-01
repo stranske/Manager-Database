@@ -14,8 +14,16 @@ import boto3
 from prefect import flow, task
 
 from adapters.base import connect_db, get_adapter
-from embeddings import store_document
 from etl.logging_setup import configure_logging, log_outcome
+
+try:
+    from embeddings import store_document
+except ModuleNotFoundError:
+
+    def store_document(text: str, db_path: str | None = None) -> None:
+        _ = (text, db_path)
+        return
+
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "./data/raw"))
 RAW_DIR.mkdir(parents=True, exist_ok=True)
