@@ -229,8 +229,7 @@ def test_daily_diff_flow_processes_all_managers(tmp_path, monkeypatch):
 
     conn = sqlite3.connect(db_path)
     rows = conn.execute(
-        "SELECT manager_id, report_date, cusip, delta_type "
-        "FROM daily_diffs ORDER BY cusip"
+        "SELECT manager_id, report_date, cusip, delta_type FROM daily_diffs ORDER BY cusip"
     ).fetchall()
     conn.close()
 
@@ -270,10 +269,10 @@ def test_daily_diff_flow_writes_all_four_delta_types(tmp_path, monkeypatch):
         "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) VALUES (?,?,?,?,?)",
         [
             (101, "AAA", "CorpA", 120, 1200),  # INCREASE
-            (101, "CCC", "CorpC", 40, 400),     # ADD
-            (101, "EEE", "CorpE", 8, 80),       # DECREASE
+            (101, "CCC", "CorpC", 40, 400),  # ADD
+            (101, "EEE", "CorpE", 8, 80),  # DECREASE
             (102, "AAA", "CorpA", 100, 1000),
-            (102, "BBB", "CorpB", 30, 300),      # EXIT
+            (102, "BBB", "CorpB", 30, 300),  # EXIT
             (102, "EEE", "CorpE", 10, 100),
         ],
     )

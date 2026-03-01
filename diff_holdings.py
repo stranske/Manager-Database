@@ -75,9 +75,7 @@ def _resolve_manager_id(identifier: int | str, conn: Any) -> int:
     raise SystemExit(f"Manager not found for identifier: {cik}")
 
 
-def _compare_optional(
-    curr: int | float | None, prev: int | float | None
-) -> int | None:
+def _compare_optional(curr: int | float | None, prev: int | float | None) -> int | None:
     """Compare two nullable numbers: 1 if curr > prev, -1 if <, 0 if equal, None if null."""
     if curr is None or prev is None:
         return None
@@ -88,9 +86,7 @@ def _compare_optional(
     return 0
 
 
-def diff_holdings(
-    manager_id: int | str, conn: Any = None
-) -> list[dict[str, Any]]:
+def diff_holdings(manager_id: int | str, conn: Any = None) -> list[dict[str, Any]]:
     """Compute structured diffs between the two most-recent filings.
 
     Parameters
@@ -128,27 +124,31 @@ def diff_holdings(
         curr = current.get(cusip)
 
         if prev is None and curr is not None:
-            results.append({
-                "cusip": cusip,
-                "name_of_issuer": curr.get("name_of_issuer"),
-                "delta_type": "ADD",
-                "shares_prev": None,
-                "shares_curr": curr["shares"],
-                "value_prev": None,
-                "value_curr": curr["value_usd"],
-            })
+            results.append(
+                {
+                    "cusip": cusip,
+                    "name_of_issuer": curr.get("name_of_issuer"),
+                    "delta_type": "ADD",
+                    "shares_prev": None,
+                    "shares_curr": curr["shares"],
+                    "value_prev": None,
+                    "value_curr": curr["value_usd"],
+                }
+            )
             continue
 
         if curr is None and prev is not None:
-            results.append({
-                "cusip": cusip,
-                "name_of_issuer": prev.get("name_of_issuer"),
-                "delta_type": "EXIT",
-                "shares_prev": prev["shares"],
-                "shares_curr": None,
-                "value_prev": prev["value_usd"],
-                "value_curr": None,
-            })
+            results.append(
+                {
+                    "cusip": cusip,
+                    "name_of_issuer": prev.get("name_of_issuer"),
+                    "delta_type": "EXIT",
+                    "shares_prev": prev["shares"],
+                    "shares_curr": None,
+                    "value_prev": prev["value_usd"],
+                    "value_curr": None,
+                }
+            )
             continue
 
         if prev is None or curr is None:
@@ -160,15 +160,17 @@ def diff_holdings(
         if direction is None or direction == 0:
             continue
 
-        results.append({
-            "cusip": cusip,
-            "name_of_issuer": curr.get("name_of_issuer") or prev.get("name_of_issuer"),
-            "delta_type": "INCREASE" if direction > 0 else "DECREASE",
-            "shares_prev": prev["shares"],
-            "shares_curr": curr["shares"],
-            "value_prev": prev["value_usd"],
-            "value_curr": curr["value_usd"],
-        })
+        results.append(
+            {
+                "cusip": cusip,
+                "name_of_issuer": curr.get("name_of_issuer") or prev.get("name_of_issuer"),
+                "delta_type": "INCREASE" if direction > 0 else "DECREASE",
+                "shares_prev": prev["shares"],
+                "shares_curr": curr["shares"],
+                "value_prev": prev["value_usd"],
+                "value_curr": curr["value_usd"],
+            }
+        )
 
     return results
 

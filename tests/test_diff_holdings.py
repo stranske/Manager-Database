@@ -27,9 +27,7 @@ def _setup_canonical_db() -> sqlite3.Connection:
         "shares INTEGER, value_usd REAL)"
     )
     # Seed a manager and two filings with overlapping holdings.
-    conn.execute(
-        "INSERT INTO managers(manager_id, name, cik) VALUES (1, 'TestFund', '0000000000')"
-    )
+    conn.execute("INSERT INTO managers(manager_id, name, cik) VALUES (1, 'TestFund', '0000000000')")
     conn.executemany(
         "INSERT INTO filings(filing_id, manager_id, type, filed_date, source) VALUES (?,?,?,?,?)",
         [
@@ -130,7 +128,9 @@ def test_diff_requires_two_filings():
     )
     conn.execute("INSERT INTO managers VALUES (1, 'Test', '0000000000')")
     conn.execute("INSERT INTO filings VALUES (101, 1, '13F-HR', '2024-04-01', 'edgar')")
-    conn.execute("INSERT INTO holdings(filing_id, cusip, shares, value_usd) VALUES (101, 'AAA', 120, 1200)")
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, shares, value_usd) VALUES (101, 'AAA', 120, 1200)"
+    )
 
     with pytest.raises(SystemExit):
         diff_holdings(1, conn)
@@ -187,10 +187,12 @@ def test_fetch_latest_sets_uses_postgres_placeholders():
         def execute(self, sql, params):
             self.sql = sql
             self.params = params
-            return iter([
-                ("2024-04-01", "AAA", 110, 1100, "CorpA"),
-                ("2024-01-01", "AAA", 100, 1000, "CorpA"),
-            ])
+            return iter(
+                [
+                    ("2024-04-01", "AAA", 110, 1100, "CorpA"),
+                    ("2024-01-01", "AAA", 100, 1000, "CorpA"),
+                ]
+            )
 
     conn = FakePostgresConn()
     _fetch_latest_sets(7, conn)

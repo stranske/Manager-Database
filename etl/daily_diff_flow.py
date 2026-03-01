@@ -43,9 +43,7 @@ def _ensure_daily_diffs_table(conn: Any) -> None:
             )""")
 
 
-def _delete_existing_diffs(
-    conn: Any, manager_id: int, report_date: str
-) -> None:
+def _delete_existing_diffs(conn: Any, manager_id: int, report_date: str) -> None:
     """Delete any existing diffs for this manager/date before reinserting (idempotency)."""
     ph = _placeholder(conn)
     conn.execute(
@@ -69,17 +67,20 @@ def _insert_diffs(
         f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})"
     )
     for row in diffs:
-        conn.execute(sql, (
-            manager_id,
-            report_date,
-            row["cusip"],
-            row.get("name_of_issuer"),
-            row["delta_type"],
-            row.get("shares_prev"),
-            row.get("shares_curr"),
-            row.get("value_prev"),
-            row.get("value_curr"),
-        ))
+        conn.execute(
+            sql,
+            (
+                manager_id,
+                report_date,
+                row["cusip"],
+                row.get("name_of_issuer"),
+                row["delta_type"],
+                row.get("shares_prev"),
+                row.get("shares_curr"),
+                row.get("value_prev"),
+                row.get("value_curr"),
+            ),
+        )
 
 
 def _refresh_matview(conn: Any) -> None:
@@ -103,9 +104,7 @@ def _fetch_all_manager_ids(conn: Any) -> list[int]:
 
 
 @task
-def compute_manager_diffs(
-    manager_id: int, report_date: str, conn: Any
-) -> int:
+def compute_manager_diffs(manager_id: int, report_date: str, conn: Any) -> int:
     """Compute and store diffs for a single manager. Returns change count."""
     diffs = diff_holdings(manager_id, conn)
     _delete_existing_diffs(conn, manager_id, report_date)
@@ -155,12 +154,14 @@ def daily_diff_flow(date: str | None = None) -> None:
                 # diff_holdings raises SystemExit when < 2 filings exist.
                 managers_skipped += 1
                 logger.debug(
-                    "Skipped manager %d (< 2 filings)", mid,
+                    "Skipped manager %d (< 2 filings)",
+                    mid,
                     extra={"manager_id": mid},
                 )
             except Exception:
                 logger.exception(
-                    "Daily diff failed for manager %d", mid,
+                    "Daily diff failed for manager %d",
+                    mid,
                     extra={"manager_id": mid, "date": report_date},
                 )
                 raise
