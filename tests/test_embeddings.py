@@ -19,6 +19,19 @@ def test_store_and_search(tmp_path):
     assert results[0]["content"] == "hello world"
 
 
+def test_store_document_deduplicates_by_sha256(tmp_path):
+    db_path = tmp_path / "dev.db"
+    os.environ["USE_SIMPLE_EMBED"] = "1"
+    first = store_document("same text", str(db_path))
+    second = store_document("same text", str(db_path))
+    assert second == first
+
+    conn = sqlite3.connect(db_path)
+    count = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+    conn.close()
+    assert count == 1
+
+
 def test_embed_text_simple_mode(monkeypatch):
     # Force the lightweight fallback to cover the simple embedding path.
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
@@ -64,6 +77,8 @@ def test_store_and_search_pgvector(monkeypatch):
 
         def execute(self, sql, params=None):
             self.executed.append((sql, params))
+            if sql.startswith("SELECT id FROM documents WHERE sha256"):
+                return type("Result", (), {"fetchone": lambda self: None})()
             if sql.startswith("SELECT"):
                 return type("Result", (), {"fetchall": lambda self: [("hello", 0.1)]})()
             if sql.startswith("INSERT INTO documents"):

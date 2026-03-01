@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import heapq
+import hashlib
 import json
 import math
 import os
@@ -65,6 +66,7 @@ def store_document(
     """
     conn = connect_db(db_path)
     is_pg = conn.__class__.__name__ == "Connection" and hasattr(conn, "info")
+    sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
     if is_pg:
         if register_vector:
             register_vector(conn)
@@ -72,12 +74,21 @@ def store_document(
         conn.execute("""CREATE TABLE IF NOT EXISTS documents (
                 id SERIAL PRIMARY KEY,
                 content TEXT,
+                sha256 TEXT UNIQUE,
                 embedding vector(384)
             )""")
+        existing = conn.execute(
+            "SELECT id FROM documents WHERE sha256 = %s",
+            (sha256,),
+        ).fetchone()
+        if existing:
+            conn.commit()
+            conn.close()
+            return int(existing[0])
         emb = Vector(embed_text(text)) if register_vector else embed_text(text)
         result = conn.execute(
-            "INSERT INTO documents(content, embedding) VALUES (%s,%s) RETURNING id",
-            (text, emb),
+            "INSERT INTO documents(content, sha256, embedding) VALUES (%s,%s,%s) RETURNING id",
+            (text, sha256, emb),
         )
         row = result.fetchone()
         if row is None:
@@ -87,12 +98,21 @@ def store_document(
         conn.execute("""CREATE TABLE IF NOT EXISTS documents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT,
+                sha256 TEXT UNIQUE,
                 embedding TEXT
             )""")
+        existing = conn.execute(
+            "SELECT id FROM documents WHERE sha256 = ?",
+            (sha256,),
+        ).fetchone()
+        if existing:
+            conn.commit()
+            conn.close()
+            return int(existing[0])
         emb = json.dumps(embed_text(text))
         cur = conn.execute(
-            "INSERT INTO documents(content, embedding) VALUES (?, ?)",
-            (text, emb),
+            "INSERT INTO documents(content, sha256, embedding) VALUES (?, ?, ?)",
+            (text, sha256, emb),
         )
         doc_id = int(cur.lastrowid)
     conn.commit()
