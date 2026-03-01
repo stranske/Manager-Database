@@ -389,6 +389,24 @@ def test_manager_list_filter_trims_whitespace_values(tmp_path, monkeypatch):
     assert [item["name"] for item in body["items"]] == ["Manager A"]
 
 
+def test_manager_list_filter_whitespace_only_treated_as_no_filter(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Manager A", "jurisdictions": ["us"], "tags": ["activist"]},
+        {"name": "Manager B", "jurisdictions": ["uk"], "tags": ["quant"]},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    resp = asyncio.run(_get_managers({"jurisdiction": "   ", "tag": "   "}))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert [item["name"] for item in body["items"]] == ["Manager A", "Manager B"]
+
+
 def test_manager_list_invalid_limit_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))

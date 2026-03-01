@@ -711,8 +711,8 @@ async def list_managers(
         conn = connect_db()
         # Ensure the table exists so empty databases still return metadata.
         _ensure_manager_table(conn)
-        normalized_jurisdiction = jurisdiction.strip() if jurisdiction else None
-        normalized_tag = tag.strip() if tag else None
+        normalized_jurisdiction = jurisdiction.strip() or None if jurisdiction else None
+        normalized_tag = tag.strip() or None if tag else None
         total = _count_managers(conn, db_identity, normalized_jurisdiction, normalized_tag)
         # Default to a 25-row page while preserving the client-requested limit in metadata.
         remaining = max(total - offset, 0)
