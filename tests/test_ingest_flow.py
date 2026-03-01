@@ -5,6 +5,7 @@ import pytest
 
 import etl.edgar_flow as edgar_flow
 import etl.ingest_flow as ingest_flow
+import etl.uk_flow as uk_flow
 
 
 class _USAdapter:
@@ -136,3 +137,25 @@ async def test_edgar_flow_is_us_wrapper(monkeypatch):
     assert captured["identifiers"] == ["0001"]
     assert captured["since"] == "2024-01-01"
     assert captured["fetcher"] is edgar_flow.fetch_and_store
+
+
+@pytest.mark.asyncio
+async def test_uk_flow_is_uk_wrapper(monkeypatch):
+    captured = {}
+
+    async def fake_ingest_flow(*, jurisdiction, identifiers, since, fetcher=None):
+        captured["jurisdiction"] = jurisdiction
+        captured["identifiers"] = identifiers
+        captured["since"] = since
+        captured["fetcher"] = fetcher
+        return []
+
+    monkeypatch.setattr(uk_flow, "ingest_flow", fake_ingest_flow)
+
+    rows = await uk_flow.uk_flow.fn(company_numbers=["12345678"], since="2024-01-01")
+
+    assert rows == []
+    assert captured["jurisdiction"] == "uk"
+    assert captured["identifiers"] == ["12345678"]
+    assert captured["since"] == "2024-01-01"
+    assert captured["fetcher"] is None
