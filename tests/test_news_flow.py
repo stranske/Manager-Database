@@ -142,3 +142,86 @@ def test_match_entities_supports_postgres_array_literal_aliases():
         assert result[0]["manager_id"] == 10
     finally:
         conn.close()
+
+
+def _create_news_items_table(conn):
+    conn.execute("""CREATE TABLE news_items (
+                news_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manager_id INTEGER,
+                published_at TEXT NOT NULL,
+                source TEXT NOT NULL,
+                headline TEXT NOT NULL,
+                url TEXT,
+                body_snippet TEXT,
+                topics TEXT,
+                confidence REAL
+            )""")
+
+
+def test_persist_news_inserts_items():
+    conn = sqlite3.connect(":memory:")
+    try:
+        _create_news_items_table(conn)
+        items = [
+            {
+                "manager_id": 1,
+                "published_at": "2026-01-01T00:00:00+00:00",
+                "source": "rss",
+                "headline": "Alpha update",
+                "url": "https://example.com/a",
+                "body_snippet": "Alpha Capital update",
+                "topics": ["activist"],
+                "confidence": 0.8,
+            },
+            {
+                "manager_id": None,
+                "published_at": "2026-01-01T01:00:00+00:00",
+                "source": "gdelt",
+                "headline": "Market recap",
+                "url": "https://example.com/b",
+                "body_snippet": "",
+                "topics": ["regulatory"],
+                "confidence": 0.4,
+            },
+        ]
+
+        inserted = news_flow.persist_news.fn(items, conn)
+
+        rows = conn.execute(
+            """SELECT manager_id, published_at, source, headline, url, topics, confidence
+               FROM news_items ORDER BY news_id"""
+        ).fetchall()
+        assert inserted == 2
+        assert len(rows) == 2
+        assert rows[0][0] == 1
+        assert rows[0][4] == "https://example.com/a"
+        assert rows[0][5] == '["activist"]'
+        assert rows[1][0] is None
+    finally:
+        conn.close()
+
+
+def test_persist_news_ignores_duplicate_url_and_published_at():
+    conn = sqlite3.connect(":memory:")
+    try:
+        _create_news_items_table(conn)
+        item = {
+            "manager_id": 1,
+            "published_at": "2026-01-01T00:00:00+00:00",
+            "source": "rss",
+            "headline": "Alpha update",
+            "url": "https://example.com/a",
+            "body_snippet": "Alpha Capital update",
+            "topics": ["activist"],
+            "confidence": 0.8,
+        }
+
+        first = news_flow.persist_news.fn([item], conn)
+        second = news_flow.persist_news.fn([item], conn)
+
+        count = conn.execute("SELECT COUNT(*) FROM news_items").fetchone()[0]
+        assert first == 1
+        assert second == 0
+        assert count == 1
+    finally:
+        conn.close()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sqlite3
 from typing import Any
 
 from prefect import flow, task
@@ -114,6 +115,70 @@ def _resolve_sources(sources: list[str] | None) -> list[str]:
         return sources
     env_sources = os.getenv("NEWS_SOURCES", "rss,gdelt")
     return [source.strip() for source in env_sources.split(",") if source.strip()]
+
+
+def _placeholder(conn: Any) -> str:
+    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
+
+
+def _serialize_topics(topics: Any, conn: Any) -> Any:
+    if isinstance(conn, sqlite3.Connection):
+        if topics is None:
+            return "[]"
+        if isinstance(topics, str):
+            return topics
+        return json.dumps(topics)
+    return topics if topics is not None else []
+
+
+def _ensure_news_unique_constraint(conn: Any) -> None:
+    conn.execute("""CREATE UNIQUE INDEX IF NOT EXISTS idx_news_items_url_published_at_unique
+           ON news_items(url, published_at)""")
+
+
+@task
+def persist_news(items: list[dict[str, Any]], conn: Any) -> int:
+    """Persist tagged news items, skipping duplicates by (url, published_at)."""
+    if not items:
+        logger.info("Persist skipped: no items to write")
+        return 0
+
+    _ensure_news_unique_constraint(conn)
+    ph = _placeholder(conn)
+    sql = (
+        "INSERT INTO news_items "
+        "(manager_id, published_at, source, headline, url, body_snippet, topics, confidence) "
+        f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}) "
+        "ON CONFLICT(url, published_at) DO NOTHING"
+    )
+
+    inserted = 0
+    for item in items:
+        cursor = conn.execute(
+            sql,
+            (
+                item.get("manager_id"),
+                item["published_at"],
+                item["source"],
+                item["headline"],
+                item.get("url"),
+                item.get("body_snippet"),
+                _serialize_topics(item.get("topics", []), conn),
+                item.get("confidence"),
+            ),
+        )
+        rowcount = getattr(cursor, "rowcount", 0)
+        if isinstance(rowcount, int) and rowcount > 0:
+            inserted += 1
+
+    if isinstance(conn, sqlite3.Connection):
+        conn.commit()
+
+    logger.info(
+        "Persisted news items",
+        extra={"attempted": len(items), "inserted": inserted, "duplicates": len(items) - inserted},
+    )
+    return inserted
 
 
 @flow
