@@ -101,7 +101,7 @@ async def fetch_and_store(cik: str, since: str):
             filing_cursor = conn.execute(
                 """INSERT INTO filings (manager_id, type, filed_date, source, url, raw_key, schema_version)
                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT DO NOTHING
+                   ON CONFLICT (raw_key) DO NOTHING
                    RETURNING filing_id""",
                 (manager_id, "13F-HR", filing["filed"], "edgar", filing_url, raw_key, 1),
             )
@@ -109,7 +109,7 @@ async def fetch_and_store(cik: str, since: str):
             filing_cursor = conn.execute(
                 """INSERT INTO filings (manager_id, type, filed_date, source, url, raw_key, schema_version)
                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT DO NOTHING
+                   ON CONFLICT (raw_key) DO NOTHING
                    RETURNING filing_id""",
                 (manager_id, "13F-HR", filing["filed"], "edgar", filing_url, raw_key, 1),
             )

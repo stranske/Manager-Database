@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS filings (
     created_at timestamptz DEFAULT now()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_filings_raw_key_unique
+    ON filings (raw_key)
+    WHERE raw_key IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_filings_manager_filed_date
     ON filings (manager_id, filed_date);
 

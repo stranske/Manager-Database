@@ -77,6 +77,33 @@ def test_schema_foreign_keys(monkeypatch, tmp_path):
             )
 
 
+def test_filings_raw_key_unique_index(monkeypatch, tmp_path):
+    """Verify migration 002 creates a unique index on filings.raw_key."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema.db"
+    config = _alembic_config(f"sqlite:///{db_path}")
+
+    command.upgrade(config, "head")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+        # Insert a manager and a filing (explicit filing_id because
+        # BigInteger PK does not auto-increment on SQLite).
+        conn.execute("INSERT INTO managers(manager_id, name) VALUES (1, 'Test')")
+        conn.execute(
+            "INSERT INTO filings(filing_id, manager_id, type, source, raw_key) "
+            "VALUES (1, 1, '13F-HR', 'edgar', 'raw/test_key.xml')"
+        )
+
+        # Duplicate raw_key must raise IntegrityError
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO filings(filing_id, manager_id, type, source, raw_key) "
+                "VALUES (2, 1, '13F-HR', 'edgar', 'raw/test_key.xml')"
+            )
+
+
 def test_schema_downgrade_drops_tables(monkeypatch, tmp_path):
     """Verify downgrade removes all tables and views."""
     monkeypatch.delenv("DB_URL", raising=False)
