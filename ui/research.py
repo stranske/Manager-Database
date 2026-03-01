@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import uuid
 from typing import Any, cast
 
 import pandas as pd
@@ -119,7 +120,13 @@ def _call_chat_api(
         "chain": CHAIN_MAP.get(chain_mode),
         "context": context,
     }
-    response = requests.post(CHAT_API_URL, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
+    headers = {"x-session-id": st.session_state.chat_session_id}
+    response = requests.post(
+        CHAT_API_URL,
+        json=payload,
+        headers=headers,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+    )
 
     if response.status_code >= 400:
         detail: str
@@ -185,6 +192,8 @@ def _init_session_state() -> None:
         st.session_state.messages = []
     if "pending_prompt" not in st.session_state:
         st.session_state.pending_prompt = None
+    if "chat_session_id" not in st.session_state:
+        st.session_state.chat_session_id = str(uuid.uuid4())
 
 
 def _render_history() -> None:

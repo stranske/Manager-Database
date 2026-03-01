@@ -9,6 +9,7 @@ import logging
 import os
 import time
 from collections.abc import Callable
+from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from threading import Lock
@@ -270,6 +271,65 @@ DIRECT_CHAIN_PATHS = {
     "rag_search": ("chains.rag_search", "RAGSearchChain"),
 }
 
+_CHAT_RATE_LIMIT_PER_MINUTE = 10
+_CHAT_RATE_LIMIT_WINDOW_SECONDS = 60.0
+
+
+class InMemoryChatRateLimiter:
+    """Simple in-memory session limiter for chat endpoints."""
+
+    def __init__(self, max_requests: int, window_seconds: float) -> None:
+        self._max_requests = max_requests
+        self._window_seconds = window_seconds
+        self._requests: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = Lock()
+
+    def check_and_record(self, session_id: str, now: float | None = None) -> bool:
+        """Return True when request can proceed and persist request timestamp."""
+        current_time = now if now is not None else time.time()
+        window_start = current_time - self._window_seconds
+        with self._lock:
+            history = self._requests[session_id]
+            while history and history[0] <= window_start:
+                history.popleft()
+            if len(history) >= self._max_requests:
+                return False
+            history.append(current_time)
+            return True
+
+    def clear(self) -> None:
+        """Reset limiter state; used by tests."""
+        with self._lock:
+            self._requests.clear()
+
+
+CHAT_RATE_LIMITER = InMemoryChatRateLimiter(
+    max_requests=_CHAT_RATE_LIMIT_PER_MINUTE,
+    window_seconds=_CHAT_RATE_LIMIT_WINDOW_SECONDS,
+)
+
+
+def _chat_session_id(request: Request | None) -> str:
+    """Derive a stable session key from headers/cookies or client host."""
+    if request is None:
+        return "unknown"
+    header_value = request.headers.get("x-session-id")
+    if header_value:
+        return f"header:{header_value}"
+    cookie_value = request.cookies.get("session_id")
+    if cookie_value:
+        return f"cookie:{cookie_value}"
+    if request.client and request.client.host:
+        return f"client:{request.client.host}"
+    return "unknown"
+
+
+def _enforce_chat_rate_limit(request: Request | None) -> None:
+    """Raise 429 when request count exceeds session budget."""
+    session_id = _chat_session_id(request)
+    if not CHAT_RATE_LIMITER.check_and_record(session_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
 
 class _PromptInjectionError(Exception):
     """Fallback PromptInjectionError when llm.injection is unavailable."""
@@ -427,10 +487,11 @@ async def _run_chain(
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat_api(request: ChatRequest) -> ChatResponse:
+async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
     """Main chat endpoint with automatic or explicit chain routing."""
     started = time.perf_counter()
     try:
+        _enforce_chat_rate_limit(raw_request)
         client_info = _build_chat_client_info()
         if not client_info:
             raise HTTPException(
@@ -478,39 +539,41 @@ async def chat_api(request: ChatRequest) -> ChatResponse:
 
 
 @app.post("/api/chat/filing-summary", response_model=ChatResponse)
-async def filing_summary(filing_id: int) -> ChatResponse:
+async def filing_summary(filing_id: int, raw_request: Request) -> ChatResponse:
     """Direct filing summary endpoint."""
     return await chat_api(
         ChatRequest(
             question=f"Summarize filing {filing_id}",
             chain="filing_summary",
             context={"filing_id": filing_id},
-        )
+        ),
+        raw_request,
     )
 
 
 @app.post("/api/chat/holdings-analysis", response_model=ChatResponse)
-async def holdings_analysis(request: HoldingsAnalysisRequest) -> ChatResponse:
+async def holdings_analysis(request: HoldingsAnalysisRequest, raw_request: Request) -> ChatResponse:
     """Direct holdings analysis endpoint."""
     return await chat_api(
         ChatRequest(
             question=request.question,
             chain="holdings_analysis",
             context=request.context,
-        )
+        ),
+        raw_request,
     )
 
 
 @app.post("/api/chat/query", response_model=ChatResponse)
-async def nl_query(question: str) -> ChatResponse:
+async def nl_query(question: str, raw_request: Request) -> ChatResponse:
     """Direct NL-to-SQL query endpoint."""
-    return await chat_api(ChatRequest(question=question, chain="nl_query"))
+    return await chat_api(ChatRequest(question=question, chain="nl_query"), raw_request)
 
 
 @app.post("/api/chat/search", response_model=ChatResponse)
-async def rag_search(question: str) -> ChatResponse:
+async def rag_search(question: str, raw_request: Request) -> ChatResponse:
     """Direct RAG search endpoint."""
-    return await chat_api(ChatRequest(question=question, chain="rag_search"))
+    return await chat_api(ChatRequest(question=question, chain="rag_search"), raw_request)
 
 
 def _health_payload() -> dict[str, int | bool]:
