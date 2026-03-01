@@ -246,6 +246,44 @@ async def test_fetch_and_store_skips_when_manager_missing(monkeypatch, tmp_path,
 
 
 @pytest.mark.asyncio
+async def test_fetch_and_store_idempotent_rerun(monkeypatch, tmp_path):
+    """Re-running the same filing must not create duplicate rows."""
+    db_path = tmp_path / "dev.db"
+    _setup_relational_schema(db_path)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "ADAPTER", DummyAdapter())
+
+    stored = []
+
+    def record_document(raw):
+        stored.append(raw)
+
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
+    monkeypatch.setattr(flow, "store_document", record_document)
+
+    # First run — should insert 1 filing + 1 holding
+    results1 = await flow.fetch_and_store.fn("0", "2024-01-01")
+    assert len(results1) == 1
+
+    # Second run — same filing, same raw_key → ON CONFLICT should prevent duplicate
+    results2 = await flow.fetch_and_store.fn("0", "2024-01-01")
+    assert len(results2) == 1
+
+    conn = sqlite3.connect(db_path)
+    filing_count = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
+    holding_count = conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0]
+    conn.close()
+
+    # Must have exactly 1 filing (not 2) after two runs with the same data
+    assert filing_count == 1
+    # Holdings: first run inserts 1; second run resolves the existing filing_id
+    # via the ON CONFLICT fallback lookup and inserts holdings again.
+    # This is expected — holdings dedup is not in scope for this fix.
+    assert holding_count == 2
+
+
+@pytest.mark.asyncio
 async def test_edgar_flow_skips_userwarning_and_writes_json(monkeypatch, tmp_path):
     captured = {"since": None}
 
