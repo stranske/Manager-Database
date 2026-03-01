@@ -7,11 +7,12 @@ import io
 import json
 import logging
 import os
+import re
 import sqlite3
 from functools import wraps
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Body, HTTPException, Path, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -24,6 +25,8 @@ from api.models import (
     BulkImportSuccess,
     ManagerListResponse,
     ManagerResponse,
+    ManagerStatsResponse,
+    UniverseImportResponse,
 )
 
 router = APIRouter()
@@ -41,9 +44,9 @@ if psycopg is not None:
 # Keep validation rules centralized so API docs/tests stay in sync with behavior.
 REQUIRED_FIELD_ERRORS = {
     "name": "Name is required.",
-    "role": "Role is required.",
 }
 DEFAULT_BULK_IMPORT_MAX_BYTES = 2_000_000
+CIK_PATTERN = re.compile(r"^\d{10}$")
 
 
 class ManagerCreate(BaseModel):
@@ -53,16 +56,45 @@ class ManagerCreate(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "name": "Grace Hopper",
-                    "role": "Engineering Director",
-                    "department": "Engineering",
+                    "name": "Elliott Investment Management L.P.",
+                    "cik": "0001791786",
+                    "lei": "549300U3N12T57QLOU60",
+                    "aliases": ["Elliott Management"],
+                    "jurisdictions": ["us"],
+                    "tags": ["activist"],
+                    "registry_ids": {"fca_frn": "122927"},
                 }
             ]
         }
     )
-    name: str = Field(..., description="Manager name")
-    role: str = Field(..., description="Manager role")
-    department: str | None = Field(None, description="Manager department")
+    name: str = Field(..., description="Legal name of the investment manager")
+    cik: str | None = Field(None, description="SEC Central Index Key")
+    lei: str | None = Field(None, description="Legal Entity Identifier")
+    aliases: list[str] = Field(default_factory=list, description="Alternative names")
+    jurisdictions: list[str] = Field(
+        default_factory=list, description="Filing jurisdictions (us, uk, ca)"
+    )
+    tags: list[str] = Field(default_factory=list, description="Classification tags")
+    registry_ids: dict[str, str] = Field(default_factory=dict, description="External registry IDs")
+
+
+class ManagerUpdate(BaseModel):
+    """Payload for partially updating manager records."""
+
+    name: str | None = Field(None, description="Legal name of the investment manager")
+    cik: str | None = Field(None, description="SEC Central Index Key")
+    lei: str | None = Field(None, description="Legal Entity Identifier")
+    aliases: list[str] | None = Field(None, description="Alternative names")
+    jurisdictions: list[str] | None = Field(None, description="Filing jurisdictions (us, uk, ca)")
+    tags: list[str] | None = Field(None, description="Classification tags")
+    registry_ids: dict[str, str] | None = Field(None, description="External registry IDs")
+
+
+class ManagerTagsPatch(BaseModel):
+    """Payload for appending/removing manager tags."""
+
+    add: list[str] = Field(default_factory=list, description="Tags to append if missing")
+    remove: list[str] = Field(default_factory=list, description="Tags to remove if present")
 
 
 class NotFoundResponse(BaseModel):
@@ -85,8 +117,8 @@ class ErrorResponse(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "errors": [{"field": "role", "message": "Role is required."}],
-                    "error": [{"field": "role", "message": "Role is required."}],
+                    "errors": [{"field": "name", "message": "Name is required."}],
+                    "error": [{"field": "name", "message": "Name is required."}],
                 }
             ]
         }
@@ -96,59 +128,199 @@ class ErrorResponse(BaseModel):
 
 
 def _ensure_manager_table(conn) -> None:
-    """Create the managers table if it does not exist."""
-    # Use dialect-specific schema to keep SQLite and Postgres aligned.
+    """Ensure the managers table is available."""
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS managers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                role TEXT NOT NULL,
-                department TEXT
+                cik TEXT,
+                lei TEXT,
+                aliases TEXT NOT NULL DEFAULT '[]',
+                jurisdictions TEXT NOT NULL DEFAULT '[]',
+                tags TEXT NOT NULL DEFAULT '[]',
+                registry_ids TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )""")
-    else:
-        conn.execute("""CREATE TABLE IF NOT EXISTS managers (
-                id bigserial PRIMARY KEY,
-                name text NOT NULL,
-                role text NOT NULL,
-                department text
-            )""")
-    _ensure_manager_department_column(conn)
-
-
-def _ensure_manager_department_column(conn) -> None:
-    """Backfill the department column for existing manager tables."""
-    # Older databases may not include the department column yet.
-    if isinstance(conn, sqlite3.Connection):
-        cursor = conn.execute("PRAGMA table_info(managers)")
-        columns = {row[1] for row in cursor.fetchall()}
-        if "department" not in columns:
-            conn.execute("ALTER TABLE managers ADD COLUMN department TEXT")
-            conn.commit()
         return
-    cursor = conn.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_name = %s",
-        ("managers",),
+    conn.execute("SELECT 1 FROM managers LIMIT 1")
+
+
+def _json_array(raw: object) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            if ";" in text:
+                return [part.strip() for part in text.split(";") if part.strip()]
+            if "," in text:
+                return [part.strip() for part in text.split(",") if part.strip()]
+            return [text]
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+    return []
+
+
+def _json_dict(raw: object) -> dict[str, str]:
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return {str(key): str(value) for key, value in raw.items()}
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return {}
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(parsed, dict):
+            return {str(key): str(value) for key, value in parsed.items()}
+    return {}
+
+
+def _to_manager_response(row: tuple[object, ...]) -> ManagerResponse:
+    manager_id_raw = row[0]
+    if not isinstance(manager_id_raw, (int, str)):
+        manager_id_raw = 0
+    return ManagerResponse(
+        manager_id=int(cast(int | str, manager_id_raw)),
+        name=str(row[1]),
+        cik=str(row[2]) if row[2] is not None else None,
+        lei=str(row[3]) if row[3] is not None else None,
+        aliases=_json_array(row[4]),
+        jurisdictions=_json_array(row[5]),
+        tags=_json_array(row[6]),
+        registry_ids=_json_dict(row[7]),
+        created_at=str(row[8]) if row[8] is not None else None,
+        updated_at=str(row[9]) if row[9] is not None else None,
     )
-    columns = {row[0] for row in cursor.fetchall()}
-    if "department" not in columns:
-        conn.execute("ALTER TABLE managers ADD COLUMN department text")
+
+
+def _normalize_cik(raw: Any) -> str:
+    cik = "" if raw is None else str(raw).strip()
+    if not cik:
+        return ""
+    digits = "".join(ch for ch in cik if ch.isdigit())
+    if not digits:
+        return ""
+    return digits.zfill(10)
+
+
+def _ensure_universe_schema(conn: Any) -> None:
+    """Ensure managers table has the columns/index needed for universe imports."""
+    _ensure_manager_table(conn)
+    if isinstance(conn, sqlite3.Connection):
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        if "cik" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN cik TEXT")
+        if "jurisdiction" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN jurisdiction TEXT")
+        if "created_at" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN created_at TIMESTAMP")
+            conn.execute(
+                "UPDATE managers SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"
+            )
+        if "updated_at" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN updated_at TIMESTAMP")
+            conn.execute(
+                "UPDATE managers SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL"
+            )
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
+        conn.commit()
+        return
+
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS cik text")
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdiction text")
+    conn.execute(
+        "ALTER TABLE managers ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now()"
+    )
+    conn.execute(
+        "ALTER TABLE managers ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()"
+    )
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
+
+
+def _manager_exists_for_cik(conn: Any, cik: str) -> bool:
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    row = conn.execute(
+        f"SELECT 1 FROM managers WHERE cik = {placeholder} LIMIT 1",
+        (cik,),
+    ).fetchone()
+    return bool(row)
+
+
+def _upsert_universe_record(conn: Any, name: str, cik: str, jurisdiction: str) -> None:
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute(
+            """
+            INSERT INTO managers(name, cik, jurisdiction, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(cik)
+            DO UPDATE SET
+                name = excluded.name,
+                jurisdiction = excluded.jurisdiction,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (name, cik, jurisdiction),
+        )
+        return
+    conn.execute(
+        """
+        INSERT INTO managers(name, cik, jurisdiction, updated_at)
+        VALUES (%s, %s, %s, now())
+        ON CONFLICT(cik)
+        DO UPDATE SET
+            name = EXCLUDED.name,
+            jurisdiction = EXCLUDED.jurisdiction,
+            updated_at = now()
+        """,
+        (name, cik, jurisdiction),
+    )
 
 
 def _insert_manager(conn, payload: ManagerCreate) -> int:
     """Insert a manager record and return the generated id."""
-    # Normalize empty department values to NULL for consistent filtering.
-    department = payload.department.strip() if payload.department else None
     if isinstance(conn, sqlite3.Connection):
         cursor = conn.execute(
-            "INSERT INTO managers(name, role, department) VALUES (?, ?, ?)",
-            (payload.name, payload.role, department),
+            (
+                "INSERT INTO managers(name, cik, lei, aliases, jurisdictions, tags, registry_ids) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            ),
+            (
+                payload.name,
+                payload.cik,
+                payload.lei,
+                json.dumps(payload.aliases),
+                json.dumps(payload.jurisdictions),
+                json.dumps(payload.tags),
+                json.dumps(payload.registry_ids),
+            ),
         )
         conn.commit()
         lastrowid = cursor.lastrowid
         return int(lastrowid) if lastrowid is not None else 0
     cursor = conn.execute(
-        "INSERT INTO managers(name, role, department) VALUES (%s, %s, %s) RETURNING id",
-        (payload.name, payload.role, department),
+        (
+            "INSERT INTO managers(name, cik, lei, aliases, jurisdictions, tags, registry_ids) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb) RETURNING id"
+        ),
+        (
+            payload.name,
+            payload.cik,
+            payload.lei,
+            payload.aliases,
+            payload.jurisdictions,
+            payload.tags,
+            json.dumps(payload.registry_ids),
+        ),
     )
     row = cursor.fetchone()
     if not row or row[0] is None:
@@ -156,17 +328,76 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
     return int(row[0])
 
 
+def _update_manager(conn, manager_id: int, payload: ManagerUpdate) -> bool:
+    """Update a manager record and return whether a row changed."""
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        return False
+
+    set_clauses: list[str] = []
+    params: list[object] = []
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+
+    for field, value in fields.items():
+        if field in {"aliases", "jurisdictions", "tags"}:
+            if isinstance(conn, sqlite3.Connection):
+                set_clauses.append(f"{field} = {placeholder}")
+                params.append(json.dumps(value))
+            else:
+                set_clauses.append(f"{field} = {placeholder}")
+                params.append(value)
+            continue
+        if field == "registry_ids":
+            if isinstance(conn, sqlite3.Connection):
+                set_clauses.append(f"{field} = {placeholder}")
+                params.append(json.dumps(value))
+            else:
+                set_clauses.append(f"{field} = {placeholder}::jsonb")
+                params.append(json.dumps(value))
+            continue
+        set_clauses.append(f"{field} = {placeholder}")
+        params.append(value)
+
+    set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+    params.append(manager_id)
+
+    cursor = conn.execute(
+        f"UPDATE managers SET {', '.join(set_clauses)} WHERE id = {placeholder}",
+        params,
+    )
+    if isinstance(conn, sqlite3.Connection):
+        conn.commit()
+    return cursor.rowcount > 0
+
+
+def _delete_manager(conn, manager_id: int) -> bool:
+    """Delete a manager by id and return whether a row was removed."""
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    cursor = conn.execute(f"DELETE FROM managers WHERE id = {placeholder}", (manager_id,))
+    if isinstance(conn, sqlite3.Connection):
+        conn.commit()
+    return cursor.rowcount > 0
+
+
 @cache_query("managers.count", skip_args=1)
-def _count_managers(conn, db_identity: str, department: str | None) -> int:
-    """Return the total number of managers, optionally filtered by department."""
-    if department:
-        placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-        cursor = conn.execute(
-            f"SELECT COUNT(*) FROM managers WHERE department = {placeholder}",
-            (department,),
-        )
-    else:
-        cursor = conn.execute("SELECT COUNT(*) FROM managers")
+def _count_managers(conn, db_identity: str, jurisdiction: str | None, tag: str | None) -> int:
+    """Return the total number of managers with optional filters."""
+    params: list[object] = []
+    clauses: list[str] = []
+    if jurisdiction:
+        if isinstance(conn, sqlite3.Connection):
+            clauses.append("EXISTS (SELECT 1 FROM json_each(jurisdictions) WHERE value = ?)")
+        else:
+            clauses.append("%s = ANY(jurisdictions)")
+        params.append(jurisdiction)
+    if tag:
+        if isinstance(conn, sqlite3.Connection):
+            clauses.append("EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)")
+        else:
+            clauses.append("%s = ANY(tags)")
+        params.append(tag)
+    where_clause = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    cursor = conn.execute(f"SELECT COUNT(*) FROM managers{where_clause}", params)
     row = cursor.fetchone()
     if not row or row[0] is None:
         return 0
@@ -179,18 +410,30 @@ def _fetch_managers(
     db_identity: str,
     limit: int,
     offset: int,
-    department: str | None,
-) -> list[tuple[int, str, str, str | None]]:
+    jurisdiction: str | None,
+    tag: str | None,
+) -> list[tuple[object, ...]]:
     """Return managers ordered by id with pagination applied."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-    where_clause = ""
     params: list[object] = []
-    if department:
-        where_clause = f"WHERE department = {placeholder}"
-        params.append(department)
+    clauses: list[str] = []
+    if jurisdiction:
+        if isinstance(conn, sqlite3.Connection):
+            clauses.append("EXISTS (SELECT 1 FROM json_each(jurisdictions) WHERE value = ?)")
+        else:
+            clauses.append("%s = ANY(jurisdictions)")
+        params.append(jurisdiction)
+    if tag:
+        if isinstance(conn, sqlite3.Connection):
+            clauses.append("EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)")
+        else:
+            clauses.append("%s = ANY(tags)")
+        params.append(tag)
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     params.extend([limit, offset])
     cursor = conn.execute(
-        f"SELECT id, name, role, department FROM managers {where_clause} "
+        f"SELECT id, name, cik, lei, aliases, jurisdictions, tags, registry_ids, created_at, updated_at "
+        f"FROM managers {where_clause} "
         f"ORDER BY id LIMIT {placeholder} OFFSET {placeholder}",
         params,
     )
@@ -198,13 +441,14 @@ def _fetch_managers(
 
 
 @cache_query("managers.item", skip_args=1)
-def _fetch_manager(
-    conn, db_identity: str, manager_id: int
-) -> tuple[int, str, str, str | None] | None:
+def _fetch_manager(conn, db_identity: str, manager_id: int) -> tuple[object, ...] | None:
     """Return a single manager row by id."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor = conn.execute(
-        f"SELECT id, name, role, department FROM managers WHERE id = {placeholder}",
+        (
+            f"SELECT id, name, cik, lei, aliases, jurisdictions, tags, registry_ids, created_at, updated_at "
+            f"FROM managers WHERE id = {placeholder}"
+        ),
         (manager_id,),
     )
     return cursor.fetchone()
@@ -215,9 +459,112 @@ def _validate_manager_payload(payload: ManagerCreate) -> list[dict[str, str]]:
     errors: list[dict[str, str]] = []
     if not payload.name.strip():
         errors.append({"field": "name", "message": REQUIRED_FIELD_ERRORS["name"]})
-    if not payload.role.strip():
-        errors.append({"field": "role", "message": REQUIRED_FIELD_ERRORS["role"]})
+    if (
+        payload.cik is not None
+        and payload.cik.strip()
+        and not CIK_PATTERN.match(payload.cik.strip())
+    ):
+        errors.append({"field": "cik", "message": "CIK must be a 10-digit zero-padded string."})
     return errors
+
+
+def _validate_manager_update_payload(payload: ManagerUpdate) -> list[dict[str, str]]:
+    """Apply validation checks for partial updates."""
+    errors: list[dict[str, str]] = []
+    provided_fields = payload.model_dump(exclude_unset=True)
+    if not provided_fields:
+        errors.append({"field": "body", "message": "At least one field must be provided."})
+        return errors
+    if payload.name is not None and not payload.name.strip():
+        errors.append({"field": "name", "message": REQUIRED_FIELD_ERRORS["name"]})
+    if (
+        payload.cik is not None
+        and payload.cik.strip()
+        and not CIK_PATTERN.match(payload.cik.strip())
+    ):
+        errors.append({"field": "cik", "message": "CIK must be a 10-digit zero-padded string."})
+    return errors
+
+
+def _normalize_tags(values: list[str]) -> list[str]:
+    """Trim, dedupe, and drop empty tag values while preserving order."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        tag = value.strip()
+        if not tag or tag in seen:
+            continue
+        seen.add(tag)
+        normalized.append(tag)
+    return normalized
+
+
+def _merge_tags(existing: list[str], add: list[str], remove: list[str]) -> list[str]:
+    """Merge add/remove tag operations onto an existing tag list."""
+    tags = _normalize_tags(existing)
+    for tag in add:
+        if tag not in tags:
+            tags.append(tag)
+    if not remove:
+        return tags
+    remove_set = set(remove)
+    return [tag for tag in tags if tag not in remove_set]
+
+
+def _fetch_manager_stats_rows(conn: Any) -> list[tuple[Any, ...]]:
+    """Fetch columns needed for manager summary stats with schema fallback."""
+    try:
+        cursor = conn.execute("SELECT cik, lei, jurisdictions, tags, jurisdiction FROM managers")
+        return cursor.fetchall()
+    except DB_ERROR_TYPES as exc:
+        message = str(exc).lower()
+        missing_jurisdiction = (
+            "no such column: jurisdiction" in message
+            or 'column "jurisdiction" does not exist' in message
+        )
+        if not missing_jurisdiction:
+            raise
+        cursor = conn.execute("SELECT cik, lei, jurisdictions, tags FROM managers")
+        rows = cursor.fetchall()
+        return [(row[0], row[1], row[2], row[3], None) for row in rows]
+
+
+def _build_manager_stats(rows: list[tuple[Any, ...]]) -> ManagerStatsResponse:
+    """Aggregate manager universe stats from normalized DB rows."""
+    by_jurisdiction: dict[str, int] = {}
+    by_tag: dict[str, int] = {}
+    with_cik = 0
+    with_lei = 0
+
+    for cik, lei, jurisdictions_raw, tags_raw, jurisdiction_raw in rows:
+        cik_value = str(cik).strip() if cik is not None else ""
+        if cik_value:
+            with_cik += 1
+
+        lei_value = str(lei).strip() if lei is not None else ""
+        if lei_value:
+            with_lei += 1
+
+        jurisdiction_values = _normalize_tags(_json_array(jurisdictions_raw))
+        if not jurisdiction_values and jurisdiction_raw is not None:
+            fallback_value = str(jurisdiction_raw).strip()
+            if fallback_value:
+                jurisdiction_values = [fallback_value]
+        jurisdiction_values = _normalize_tags([value.lower() for value in jurisdiction_values])
+        for jurisdiction in jurisdiction_values:
+            by_jurisdiction[jurisdiction] = by_jurisdiction.get(jurisdiction, 0) + 1
+
+        tag_values = _normalize_tags([value.lower() for value in _json_array(tags_raw)])
+        for tag in tag_values:
+            by_tag[tag] = by_tag.get(tag, 0) + 1
+
+    return ManagerStatsResponse(
+        total_managers=len(rows),
+        by_jurisdiction=dict(sorted(by_jurisdiction.items())),
+        by_tag=dict(sorted(by_tag.items())),
+        with_cik=with_cik,
+        with_lei=with_lei,
+    )
 
 
 def _require_valid_manager(handler):
@@ -270,17 +617,21 @@ def _parse_bulk_csv_payloads(content: str) -> tuple[list[dict[str, object]], lis
     """Parse CSV content into raw payload dictionaries."""
     reader = csv.DictReader(io.StringIO(content))
     if reader.fieldnames is None:
-        return [], ["name", "role"]
+        return [], ["name"]
     normalized_fields = {
         (field or "").strip().lower(): field for field in reader.fieldnames if field
     }
-    required_headers = ["name", "role"]
+    required_headers = ["name"]
     missing_headers = [header for header in required_headers if header not in normalized_fields]
     if missing_headers:
         return [], missing_headers
     name_key = normalized_fields["name"]
-    role_key = normalized_fields["role"]
-    department_key = normalized_fields.get("department")
+    cik_key = normalized_fields.get("cik")
+    lei_key = normalized_fields.get("lei")
+    aliases_key = normalized_fields.get("aliases")
+    jurisdictions_key = normalized_fields.get("jurisdictions")
+    tags_key = normalized_fields.get("tags")
+    registry_ids_key = normalized_fields.get("registry_ids")
     payloads: list[dict[str, object]] = []
     for row in reader:
         # Skip rows that are entirely empty to avoid noise in error reports.
@@ -289,8 +640,14 @@ def _parse_bulk_csv_payloads(content: str) -> tuple[list[dict[str, object]], lis
         payloads.append(
             {
                 "name": row.get(name_key, "") or "",
-                "role": row.get(role_key, "") or "",
-                "department": row.get(department_key) if department_key else None,
+                "cik": (row.get(cik_key, "") or "").strip() if cik_key else None,
+                "lei": (row.get(lei_key, "") or "").strip() if lei_key else None,
+                "aliases": _json_array(row.get(aliases_key)) if aliases_key else [],
+                "jurisdictions": (
+                    _json_array(row.get(jurisdictions_key)) if jurisdictions_key else []
+                ),
+                "tags": _json_array(row.get(tags_key)) if tags_key else [],
+                "registry_ids": _json_dict(row.get(registry_ids_key)) if registry_ids_key else {},
             }
         )
     return payloads, []
@@ -369,13 +726,13 @@ def _bulk_request_payload_too_large(max_bytes: int) -> JSONResponse:
             "content": {
                 "application/json": {
                     "examples": {
-                        "missing-role": {
-                            "summary": "Missing role",
+                        "missing-name": {
+                            "summary": "Missing name",
                             "value": {
                                 "errors": [
                                     {
-                                        "field": "role",
-                                        "message": "Role is required.",
+                                        "field": "name",
+                                        "message": "Name is required.",
                                     }
                                 ]
                             },
@@ -396,9 +753,13 @@ async def create_manager(
                 "basic": {
                     "summary": "New manager",
                     "value": {
-                        "name": "Grace Hopper",
-                        "role": "Engineering Director",
-                        "department": "Engineering",
+                        "name": "Elliott Investment Management L.P.",
+                        "cik": "0001791786",
+                        "lei": "549300U3N12T57QLOU60",
+                        "aliases": ["Elliott Management"],
+                        "jurisdictions": ["us"],
+                        "tags": ["activist"],
+                        "registry_ids": {"fca_frn": "122927"},
                     },
                 }
             },
@@ -406,24 +767,34 @@ async def create_manager(
     ],
 ):
     """Create a manager record after validating required fields."""
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
     conn = None
     try:
         conn = connect_db()
         # Ensure schema exists before storing the record.
         _ensure_manager_table(conn)
         manager_id = _insert_manager(conn, payload)
+        row = _fetch_manager(conn, db_identity, manager_id)
         invalidate_cache_prefix("managers")
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
         if conn is not None:
             conn.close()
-    return {
-        "id": manager_id,
-        "name": payload.name,
-        "role": payload.role,
-        "department": payload.department,
-    }
+    if row is not None:
+        return _to_manager_response(row)
+    return ManagerResponse(
+        manager_id=manager_id,
+        name=payload.name,
+        cik=payload.cik,
+        lei=payload.lei,
+        aliases=payload.aliases,
+        jurisdictions=payload.jurisdictions,
+        tags=payload.tags,
+        registry_ids=payload.registry_ids,
+        created_at=None,
+        updated_at=None,
+    )
 
 
 @router.get(
@@ -455,6 +826,40 @@ async def create_manager(
             },
         }
     },
+    openapi_extra={
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "investment-managers": {
+                                "summary": "Investment manager page",
+                                "value": {
+                                    "items": [
+                                        {
+                                            "manager_id": 101,
+                                            "name": "Elliott Investment Management L.P.",
+                                            "cik": "0001791786",
+                                            "lei": "549300U3N12T57QLOU60",
+                                            "aliases": ["Elliott Management"],
+                                            "jurisdictions": ["us"],
+                                            "tags": ["activist"],
+                                            "registry_ids": {"fca_frn": "122927"},
+                                            "created_at": "2026-02-01T10:00:00Z",
+                                            "updated_at": "2026-02-01T10:00:00Z",
+                                        }
+                                    ],
+                                    "total": 1,
+                                    "limit": 25,
+                                    "offset": 0,
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
 )
 async def list_managers(
     limit: int = Query(
@@ -468,7 +873,8 @@ async def list_managers(
         ge=0,
         description="Number of managers to skip",
     ),
-    department: str | None = Query(None, description="Filter managers by department"),
+    jurisdiction: str | None = Query(None, description="Filter managers by jurisdiction"),
+    tag: str | None = Query(None, description="Filter managers by tag"),
 ):
     """Return a paginated list of managers."""
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
@@ -477,13 +883,21 @@ async def list_managers(
         conn = connect_db()
         # Ensure the table exists so empty databases still return metadata.
         _ensure_manager_table(conn)
-        normalized_department = department.strip() if department else None
-        total = _count_managers(conn, db_identity, normalized_department)
+        normalized_jurisdiction = jurisdiction.strip() or None if jurisdiction else None
+        normalized_tag = tag.strip() or None if tag else None
+        total = _count_managers(conn, db_identity, normalized_jurisdiction, normalized_tag)
         # Default to a 25-row page while preserving the client-requested limit in metadata.
         remaining = max(total - offset, 0)
         page_limit = min(limit, remaining)
         if page_limit:
-            rows = _fetch_managers(conn, db_identity, page_limit, offset, normalized_department)
+            rows = _fetch_managers(
+                conn,
+                db_identity,
+                page_limit,
+                offset,
+                normalized_jurisdiction,
+                normalized_tag,
+            )
         else:
             rows = []
         response_limit = limit
@@ -492,9 +906,7 @@ async def list_managers(
     finally:
         if conn is not None:
             conn.close()
-    items = [
-        ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3]) for row in rows
-    ]
+    items = [_to_manager_response(row) for row in rows]
     return ManagerListResponse(items=items, total=total, limit=response_limit, offset=offset)
 
 
@@ -520,9 +932,10 @@ async def list_managers(
                         "basic": {
                             "value": [
                                 {
-                                    "name": "Grace Hopper",
-                                    "role": "Engineering Director",
-                                    "department": "Engineering",
+                                    "name": "Elliott Investment Management L.P.",
+                                    "cik": "0001791786",
+                                    "jurisdictions": ["us"],
+                                    "tags": ["activist"],
                                 }
                             ]
                         }
@@ -608,10 +1021,16 @@ async def bulk_import_managers(
                     BulkImportSuccess(
                         index=index,
                         manager=ManagerResponse(
-                            id=manager_id,
+                            manager_id=manager_id,
                             name=payload.name,
-                            role=payload.role,
-                            department=payload.department,
+                            cik=payload.cik,
+                            lei=payload.lei,
+                            aliases=payload.aliases,
+                            jurisdictions=payload.jurisdictions,
+                            tags=payload.tags,
+                            registry_ids=payload.registry_ids,
+                            created_at=None,
+                            updated_at=None,
                         ),
                     )
                 )
@@ -629,6 +1048,93 @@ async def bulk_import_managers(
         successes=successes,
         failures=failures,
     )
+
+
+@router.post(
+    "/managers/import/universe",
+    status_code=200,
+    response_model=UniverseImportResponse,
+    summary="Import manager universe records",
+    description=(
+        "Import a JSON array of manager universe records with CIK-based upsert behavior. "
+        "Valid records create or update managers by CIK; invalid records are skipped."
+    ),
+)
+async def import_manager_universe(
+    records: Annotated[Any, Body(..., description="Array of manager records")],
+):
+    """Upsert manager universe records using CIK as the unique key."""
+    if not isinstance(records, list):
+        return _bulk_request_error("body", "Request body must be a JSON array.")
+
+    if not records:
+        return UniverseImportResponse(created=0, updated=0, skipped=0)
+
+    conn = None
+    created = 0
+    updated = 0
+    skipped = 0
+    try:
+        conn = connect_db()
+        _ensure_universe_schema(conn)
+        for index, record in enumerate(records):
+            if not isinstance(record, dict):
+                skipped += 1
+                logger.warning("Universe import skipped record %s: record must be an object", index)
+                continue
+            name = str(record.get("name", "")).strip()
+            cik = _normalize_cik(record.get("cik"))
+            jurisdiction = str(record.get("jurisdiction", "")).strip().lower()
+            if not name or not cik or not jurisdiction:
+                skipped += 1
+                logger.warning(
+                    "Universe import skipped record %s: requires name, cik, jurisdiction",
+                    index,
+                )
+                continue
+
+            existed = _manager_exists_for_cik(conn, cik)
+            if existed:
+                updated += 1
+            else:
+                created += 1
+
+            _upsert_universe_record(conn, name, cik, jurisdiction)
+
+        conn.commit()
+        invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return UniverseImportResponse(created=created, updated=updated, skipped=skipped)
+
+
+@router.get(
+    "/managers/stats",
+    response_model=ManagerStatsResponse,
+    summary="Retrieve manager universe stats",
+    description=(
+        "Return aggregate manager counts across the current universe, including "
+        "jurisdiction and tag breakdowns."
+    ),
+)
+async def get_manager_stats():
+    """Return aggregate manager universe statistics."""
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        rows = _fetch_manager_stats_rows(conn)
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return _build_manager_stats(rows)
 
 
 @router.get(
@@ -674,6 +1180,33 @@ async def bulk_import_managers(
             },
         },
     },
+    openapi_extra={
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "investment-manager": {
+                                "summary": "Investment manager",
+                                "value": {
+                                    "manager_id": 101,
+                                    "name": "Elliott Investment Management L.P.",
+                                    "cik": "0001791786",
+                                    "lei": "549300U3N12T57QLOU60",
+                                    "aliases": ["Elliott Management"],
+                                    "jurisdictions": ["us"],
+                                    "tags": ["activist"],
+                                    "registry_ids": {"fca_frn": "122927"},
+                                    "created_at": "2026-02-01T10:00:00Z",
+                                    "updated_at": "2026-02-01T10:00:00Z",
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
 )
 async def get_manager(
     id: int = Path(..., ge=1, description="Manager identifier"),
@@ -693,7 +1226,162 @@ async def get_manager(
             conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
-    return ManagerResponse(id=row[0], name=row[1], role=row[2], department=row[3])
+    return _to_manager_response(row)
+
+
+@router.patch(
+    "/managers/{id}",
+    response_model=ManagerResponse,
+    summary="Update a manager",
+    description="Partially update manager fields and return the updated record.",
+    responses={
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        404: {"model": NotFoundResponse, "description": "Manager not found"},
+    },
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "update-tags-and-lei": {
+                            "summary": "Update manager metadata",
+                            "value": {
+                                "lei": "549300U3N12T57QLOU60",
+                                "aliases": ["Elliott Management"],
+                                "tags": ["event-driven"],
+                            },
+                        }
+                    }
+                }
+            }
+        }
+    },
+)
+async def patch_manager(
+    payload: ManagerUpdate,
+    id: int = Path(..., ge=1, description="Manager identifier"),
+):
+    """Partially update a manager by id."""
+    errors = _validate_manager_update_payload(payload)
+    if errors:
+        return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
+
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        updated = _update_manager(conn, id, payload)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Manager not found")
+        row = _fetch_manager(conn, db_identity, id)
+        invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Manager not found")
+    return _to_manager_response(row)
+
+
+@router.patch(
+    "/managers/{id}/tags",
+    response_model=ManagerResponse,
+    summary="Append or remove manager tags",
+    description=(
+        "Append and/or remove tags for a manager without replacing the rest of the record."
+    ),
+    responses={
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        404: {"model": NotFoundResponse, "description": "Manager not found"},
+    },
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "add-and-remove-tags": {
+                            "summary": "Append and remove tags",
+                            "value": {"add": ["event-driven"], "remove": ["activist"]},
+                        }
+                    }
+                }
+            }
+        }
+    },
+)
+async def patch_manager_tags(
+    payload: ManagerTagsPatch,
+    id: int = Path(..., ge=1, description="Manager identifier"),
+):
+    """Append/remove manager tags and return the updated manager."""
+    add_tags = _normalize_tags(payload.add)
+    remove_tags = _normalize_tags(payload.remove)
+    if not add_tags and not remove_tags:
+        errors = [
+            {
+                "field": "body",
+                "message": "At least one non-empty tag must be provided in add or remove.",
+            }
+        ]
+        return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
+
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        existing_row = _fetch_manager(conn, db_identity, id)
+        if existing_row is None:
+            raise HTTPException(status_code=404, detail="Manager not found")
+
+        existing_tags = _json_array(existing_row[6])
+        merged_tags = _merge_tags(existing_tags, add_tags, remove_tags)
+        if merged_tags != existing_tags:
+            _update_manager(conn, id, ManagerUpdate(tags=merged_tags))
+            invalidate_cache_prefix("managers")
+            row = _fetch_manager(conn, db_identity, id)
+        else:
+            row = existing_row
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Manager not found")
+    return _to_manager_response(row)
+
+
+@router.delete(
+    "/managers/{id}",
+    status_code=204,
+    summary="Delete a manager",
+    description="Delete a manager by id.",
+    responses={404: {"model": NotFoundResponse, "description": "Manager not found"}},
+)
+async def delete_manager(
+    id: int = Path(..., ge=1, description="Manager identifier"),
+):
+    """Delete a manager by id."""
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        deleted = _delete_manager(conn, id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Manager not found")
+        invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+    return Response(status_code=204)
 
 
 # Commit-message checklist:

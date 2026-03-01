@@ -5,17 +5,17 @@ Integration helpers for applying semantic labels to issues.
 
 from __future__ import annotations
 
-import importlib
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 try:
-    label_matcher_module = importlib.import_module("scripts.langchain.label_matcher")
+    from scripts.langchain import label_matcher as _label_matcher
 except ModuleNotFoundError:
-    label_matcher_module = importlib.import_module("label_matcher")
-label_matcher = label_matcher_module
+    import label_matcher as _label_matcher  # type: ignore[no-redef]
+
+label_matcher = _label_matcher
 
 
 @dataclass
@@ -53,7 +53,7 @@ def label_issue(
     if label_store is None:
         return []
 
-    matches = label_matcher_module.find_similar_labels(
+    matches = label_matcher.find_similar_labels(
         label_store, issue_text, threshold=threshold, k=k
     )
     names = _select_label_names(matches, max_labels=max_labels)
@@ -75,11 +75,11 @@ def _build_label_store(labels: Iterable[Any]) -> Any | None:
     if not label_records:
         return None
 
-    vector_store = label_matcher_module.build_label_vector_store(label_records)
+    vector_store = label_matcher.build_label_vector_store(label_records)
     if vector_store is not None:
         return vector_store
 
-    return label_matcher_module.LabelVectorStore(
+    return label_matcher.LabelVectorStore(
         store=object(),
         provider="keyword",
         model="keyword",
@@ -111,20 +111,20 @@ def _collect_label_records(labels: Iterable[Any]) -> list[Any]:
 
 
 def _coerce_label_record(item: Any) -> Any | None:
-    if isinstance(item, label_matcher_module.LabelRecord):
+    if isinstance(item, label_matcher.LabelRecord):
         return item
     if isinstance(item, (str, bytes)):
         name = item.decode("utf-8", errors="replace") if isinstance(item, bytes) else item
         name = name.strip()
         if not name:
             return None
-        return label_matcher_module.LabelRecord(name=name)
+        return label_matcher.LabelRecord(name=name)
     if isinstance(item, Mapping):
         name = str(item.get("name") or item.get("label") or "").strip()
         if not name:
             return None
         description = item.get("description")
-        return label_matcher_module.LabelRecord(
+        return label_matcher.LabelRecord(
             name=name,
             description=str(description) if description is not None else None,
         )
@@ -132,7 +132,7 @@ def _coerce_label_record(item: Any) -> Any | None:
     if not name:
         return None
     description = getattr(item, "description", None)
-    return label_matcher_module.LabelRecord(
+    return label_matcher.LabelRecord(
         name=name,
         description=str(description) if description is not None else None,
     )

@@ -10,18 +10,20 @@ Run with:
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 try:
-    _injection_guard = importlib.import_module("scripts.langchain.injection_guard")
+    from scripts.langchain.injection_guard import check_prompt_injection as _check_prompt_injection
 except ImportError:  # pragma: no cover - fallback for direct invocation
-    _injection_guard = importlib.import_module("injection_guard")
-check_prompt_injection = _injection_guard.check_prompt_injection
+    from injection_guard import (
+        check_prompt_injection as _check_prompt_injection,  # type: ignore[no-redef]
+    )
+
+check_prompt_injection = _check_prompt_injection
 
 # Maximum issue body size to prevent OpenAI rate limit errors (30k TPM limit)
 # ~4 chars per token, so 50k chars ≈ 12.5k tokens, leaving headroom for prompt + output
@@ -392,15 +394,15 @@ def _validate_and_refine_tasks(formatted: str, *, use_llm: bool) -> tuple[str, s
         return formatted, None
 
     try:
-        task_validator_module = importlib.import_module("scripts.langchain.task_validator")
+        from scripts.langchain import task_validator as _task_validator
     except ImportError:
         try:
-            task_validator_module = importlib.import_module("task_validator")
+            import task_validator as _task_validator  # type: ignore[no-redef]
         except ImportError:
             return formatted, None
 
     # Run validation
-    result = task_validator_module.validate_tasks(tasks, context=formatted, use_llm=use_llm)
+    result = _task_validator.validate_tasks(tasks, context=formatted, use_llm=use_llm)
 
     # If no changes, return original
     if set(result.tasks) == set(tasks) and len(result.tasks) == len(tasks):
@@ -482,7 +484,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
 
                 prompt = _load_prompt()
                 template = ChatPromptTemplate.from_template(prompt)
-                chain: Any = cast(Any, template) | cast(Any, client)
+                chain: Any = template | client  # type: ignore[operator]
                 try:
                     response = chain.invoke({"issue_body": issue_body})
                 except Exception as e:
@@ -491,7 +493,7 @@ def format_issue_body(issue_body: str, *, use_llm: bool = True) -> dict[str, Any
                         fallback_info = _get_llm_client(force_openai=True)
                         if fallback_info:
                             client, provider = fallback_info
-                            chain = cast(Any, template) | cast(Any, client)
+                            chain = template | client  # type: ignore[operator]
                             response = chain.invoke({"issue_body": issue_body})
                         else:
                             raise

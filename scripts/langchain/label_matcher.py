@@ -5,7 +5,6 @@ Semantic label matching helpers for issue intake.
 
 from __future__ import annotations
 
-import importlib
 import logging
 import os
 import re
@@ -14,9 +13,11 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
-    semantic_matcher_module = importlib.import_module("scripts.langchain.semantic_matcher")
+    from scripts.langchain import semantic_matcher as _semantic_matcher
 except ModuleNotFoundError:
-    semantic_matcher_module = importlib.import_module("semantic_matcher")
+    import semantic_matcher as _semantic_matcher  # type: ignore[no-redef]
+
+semantic_matcher = _semantic_matcher
 
 
 @dataclass(frozen=True)
@@ -272,7 +273,7 @@ def build_label_vector_store(
     if not label_records:
         return None
 
-    resolved = client_info or semantic_matcher_module.get_embedding_client(model=model)
+    resolved = client_info or semantic_matcher.get_embedding_client(model=model)
     if resolved is None:
         logger.info("No embedding provider available for label matching.")
         return None
@@ -438,9 +439,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        keyword_only = _keyword_matches(label_store.labels, query, threshold=threshold)
-        keyword_only.sort(key=lambda match: match.score, reverse=True)
-        return keyword_only
+        keyword_hits = _keyword_matches(label_store.labels, query, threshold=threshold)
+        keyword_hits.sort(key=lambda match: match.score, reverse=True)
+        return keyword_hits
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:

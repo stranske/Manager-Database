@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sqlite3
 from contextlib import asynccontextmanager
@@ -8,6 +9,21 @@ import pytest
 import etl.daily_diff_flow as daily_flow
 import etl.edgar_flow as edgar_flow
 import etl.summariser_flow as summariser_flow
+
+
+def seed_manager(db_path, cik, manager_id=1):
+    conn = sqlite3.connect(db_path)
+    conn.execute("""CREATE TABLE IF NOT EXISTS managers (
+            manager_id INTEGER PRIMARY KEY,
+            name TEXT,
+            cik TEXT UNIQUE
+        )""")
+    conn.execute(
+        "INSERT INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
+        (manager_id, "Manager", cik),
+    )
+    conn.commit()
+    conn.close()
 
 
 # Fixed date for deterministic flow defaults.
@@ -112,6 +128,7 @@ async def test_fetch_and_store_uploads_raw_and_persists_rows(tmp_path, monkeypat
     monkeypatch.setattr(edgar_flow, "S3", DummyS3())
     monkeypatch.setattr(edgar_flow, "BUCKET", "filings-test")
     monkeypatch.setattr(edgar_flow, "store_document", fake_store_document)
+    seed_manager(db_path, "0001")
 
     rows = await edgar_flow.fetch_and_store.fn("0001", "2024-01-01")
 
@@ -120,20 +137,23 @@ async def test_fetch_and_store_uploads_raw_and_persists_rows(tmp_path, monkeypat
         {"nameOfIssuer": "CorpB", "cusip": "BBB", "value": 20, "sshPrnamt": 2},
     ]
     assert recorded["stored"] == "<xml>raw</xml>"
+    expected_prefix = hashlib.sha256(b"<xml>raw</xml>").hexdigest()[:16]
     assert recorded["s3"] == {
         "Bucket": "filings-test",
-        "Key": "raw/0001.xml",
+        "Key": f"raw/edgar/{expected_prefix}_0001.xml",
         "Body": "<xml>raw</xml>",
         "ServerSideEncryption": "AES256",
     }
     conn = sqlite3.connect(db_path)
+    filing = conn.execute("SELECT filing_id, manager_id, source, raw_key FROM filings").fetchone()
     rows = conn.execute(
-        "SELECT accession, nameOfIssuer, cusip, value, sshPrnamt FROM holdings"
+        "SELECT filing_id, name_of_issuer, cusip, value_usd, shares FROM holdings ORDER BY cusip"
     ).fetchall()
     conn.close()
+    assert filing == (1, 1, "edgar", f"raw/edgar/{expected_prefix}_0001.xml")
     assert rows == [
-        ("0001", "CorpA", "AAA", 10, 1),
-        ("0001", "CorpB", "BBB", 20, 2),
+        (1, "CorpA", "AAA", 10, 1),
+        (1, "CorpB", "BBB", 20, 2),
     ]
 
 
@@ -143,36 +163,62 @@ def test_daily_diff_flow_defaults_use_env_and_yesterday(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
     calls = []
 
-    def fake_compute(cik, date_value, db_path):
-        calls.append((cik, date_value, db_path))
+    def fake_compute(date_value, db_path, cik_list=None):
+        calls.append((date_value, db_path, cik_list))
 
     # Capture inputs without touching the DB.
     monkeypatch.setattr(daily_flow, "compute", fake_compute)
 
     daily_flow.daily_diff_flow.fn(cik_list=None, date=None)
 
-    assert calls == [
-        ("1", "2024-05-01", str(tmp_path / "dev.db")),
-        ("2", "2024-05-01", str(tmp_path / "dev.db")),
-    ]
+    assert calls == [("2024-05-01", str(tmp_path / "dev.db"), ["1", "2"])]
 
 
 def test_compute_inserts_additions_and_exits(tmp_path, monkeypatch):
-    def fake_diff_holdings(cik, db_path):
-        return {"AAA"}, {"BBB"}
+    def fake_diff_holdings(_manager_id, _conn):
+        return [
+            {
+                "cusip": "AAA",
+                "delta_type": "ADD",
+                "shares_prev": None,
+                "shares_curr": 10,
+                "value_prev": None,
+                "value_curr": 100,
+            },
+            {
+                "cusip": "BBB",
+                "delta_type": "EXIT",
+                "shares_prev": 10,
+                "shares_curr": None,
+                "value_prev": 100,
+                "value_curr": None,
+            },
+        ]
 
     # Mock diffing to exercise both add/exit inserts.
     monkeypatch.setattr(daily_flow, "diff_holdings", fake_diff_holdings)
     db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT UNIQUE)"
+    )
+    conn.execute(
+        "INSERT INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
+        (1, "Manager", "0000"),
+    )
+    conn.commit()
+    conn.close()
 
-    daily_flow.compute.fn("0000", "2024-05-01", str(db_path))
+    daily_flow.compute.fn("2024-05-01", str(db_path))
 
     conn = sqlite3.connect(db_path)
-    rows = conn.execute("SELECT cik, cusip, change FROM daily_diff ORDER BY change").fetchall()
+    rows = conn.execute(
+        "SELECT manager_id, cusip, delta_type FROM daily_diffs ORDER BY delta_type"
+    ).fetchall()
     conn.close()
     assert rows == [
-        ("0000", "AAA", "ADD"),
-        ("0000", "BBB", "EXIT"),
+        (1, "AAA", "ADD"),
+        (1, "BBB", "EXIT"),
     ]
 
 

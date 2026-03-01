@@ -137,7 +137,7 @@ def generate_embeddings(
     if resolved is None:
         return None
 
-    vectors = resolved.client.embed_documents(items)
+    vectors = resolved.client.embed_documents(items)  # type: ignore[attr-defined]
     dimensions = len(vectors[0]) if vectors else None
     return EmbeddingResult(
         vectors=vectors,

@@ -5,7 +5,6 @@ Build FAISS vector stores for issue deduplication.
 
 from __future__ import annotations
 
-import importlib
 import logging
 import os
 from collections.abc import Iterable, Mapping
@@ -13,9 +12,11 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
-    semantic_matcher_module = importlib.import_module("scripts.langchain.semantic_matcher")
+    from scripts.langchain import semantic_matcher as _semantic_matcher
 except ModuleNotFoundError:
-    semantic_matcher_module = importlib.import_module("semantic_matcher")
+    import semantic_matcher as _semantic_matcher  # type: ignore[no-redef]
+
+semantic_matcher = _semantic_matcher
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,7 @@ def build_issue_vector_store(
     if not issue_records:
         return None
 
-    resolved = client_info or semantic_matcher_module.get_embedding_client(model=model)
+    resolved = client_info or semantic_matcher.get_embedding_client(model=model)
     if resolved is None:
         logger.info("No embedding provider available for issue deduplication.")
         return None
