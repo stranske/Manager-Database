@@ -63,6 +63,18 @@ async def _patch_manager(manager_id: int, payload: dict):
         await app.router.shutdown()
 
 
+async def _patch_manager_tags(manager_id: int, payload: dict):
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.patch(f"/managers/{manager_id}/tags", json=payload)
+    finally:
+        await app.router.shutdown()
+
+
 async def _delete_manager(manager_id: int):
     await app.router.startup()
     try:
@@ -653,6 +665,62 @@ def test_manager_patch_returns_404_for_missing_id(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     patch_resp = asyncio.run(_patch_manager(999, {"tags": ["activist"]}))
+    assert patch_resp.status_code == 404
+    assert patch_resp.json()["detail"] == "Manager not found"
+
+
+def test_manager_tags_patch_adds_and_removes_without_replacing_record(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(
+        _post_manager(
+            {
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist", "quant"],
+            }
+        )
+    )
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(
+        _patch_manager_tags(
+            manager_id,
+            {
+                "add": ["event-driven", "activist"],
+                "remove": ["quant"],
+            },
+        )
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["manager_id"] == manager_id
+    assert body["name"] == "Elliott Investment Management L.P."
+    assert body["cik"] == "0001791786"
+    assert body["jurisdictions"] == ["us"]
+    assert body["tags"] == ["activist", "event-driven"]
+
+
+def test_manager_tags_patch_requires_non_empty_add_or_remove(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(_post_manager({"name": "Elliott Investment Management L.P."}))
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(_patch_manager_tags(manager_id, {"add": ["   "], "remove": []}))
+    assert patch_resp.status_code == 400
+    payload = patch_resp.json()
+    assert payload["errors"][0]["field"] == "body"
+
+
+def test_manager_tags_patch_returns_404_for_missing_id(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    patch_resp = asyncio.run(_patch_manager_tags(999, {"add": ["activist"]}))
     assert patch_resp.status_code == 404
     assert patch_resp.json()["detail"] == "Manager not found"
 

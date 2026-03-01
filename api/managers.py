@@ -89,6 +89,13 @@ class ManagerUpdate(BaseModel):
     registry_ids: dict[str, str] | None = Field(None, description="External registry IDs")
 
 
+class ManagerTagsPatch(BaseModel):
+    """Payload for appending/removing manager tags."""
+
+    add: list[str] = Field(default_factory=list, description="Tags to append if missing")
+    remove: list[str] = Field(default_factory=list, description="Tags to remove if present")
+
+
 class NotFoundResponse(BaseModel):
     """Response payload for missing resources."""
 
@@ -476,6 +483,31 @@ def _validate_manager_update_payload(payload: ManagerUpdate) -> list[dict[str, s
     ):
         errors.append({"field": "cik", "message": "CIK must be a 10-digit zero-padded string."})
     return errors
+
+
+def _normalize_tags(values: list[str]) -> list[str]:
+    """Trim, dedupe, and drop empty tag values while preserving order."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        tag = value.strip()
+        if not tag or tag in seen:
+            continue
+        seen.add(tag)
+        normalized.append(tag)
+    return normalized
+
+
+def _merge_tags(existing: list[str], add: list[str], remove: list[str]) -> list[str]:
+    """Merge add/remove tag operations onto an existing tag list."""
+    tags = _normalize_tags(existing)
+    for tag in add:
+        if tag not in tags:
+            tags.append(tag)
+    if not remove:
+        return tags
+    remove_set = set(remove)
+    return [tag for tag in tags if tag not in remove_set]
 
 
 def _require_valid_manager(handler):
@@ -1162,6 +1194,73 @@ async def patch_manager(
             raise HTTPException(status_code=404, detail="Manager not found")
         row = _fetch_manager(conn, db_identity, id)
         invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Manager not found")
+    return _to_manager_response(row)
+
+
+@router.patch(
+    "/managers/{id}/tags",
+    response_model=ManagerResponse,
+    summary="Append or remove manager tags",
+    description=(
+        "Append and/or remove tags for a manager without replacing the rest of the record."
+    ),
+    responses={
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        404: {"model": NotFoundResponse, "description": "Manager not found"},
+    },
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "add-and-remove-tags": {
+                            "summary": "Append and remove tags",
+                            "value": {"add": ["event-driven"], "remove": ["activist"]},
+                        }
+                    }
+                }
+            }
+        }
+    },
+)
+async def patch_manager_tags(
+    payload: ManagerTagsPatch,
+    id: int = Path(..., ge=1, description="Manager identifier"),
+):
+    """Append/remove manager tags and return the updated manager."""
+    add_tags = _normalize_tags(payload.add)
+    remove_tags = _normalize_tags(payload.remove)
+    if not add_tags and not remove_tags:
+        errors = [
+            {
+                "field": "body",
+                "message": "At least one non-empty tag must be provided in add or remove.",
+            }
+        ]
+        return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
+
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        existing_row = _fetch_manager(conn, db_identity, id)
+        if existing_row is None:
+            raise HTTPException(status_code=404, detail="Manager not found")
+
+        merged_tags = _merge_tags(_json_array(existing_row[6]), add_tags, remove_tags)
+        if merged_tags != _json_array(existing_row[6]):
+            _update_manager(conn, id, ManagerUpdate(tags=merged_tags))
+            invalidate_cache_prefix("managers")
+        row = _fetch_manager(conn, db_identity, id)
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
