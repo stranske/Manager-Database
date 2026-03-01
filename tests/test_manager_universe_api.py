@@ -67,3 +67,33 @@ def test_universe_import_requires_array_body(tmp_path, monkeypatch):
     assert response.status_code == 400
     payload = response.json()
     assert payload["errors"][0]["field"] == "body"
+
+
+def test_universe_import_skips_non_object_records(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(
+        _post_universe(
+            [
+                {
+                    "name": "Pershing Square Capital Management, L.P.",
+                    "cik": "0001336528",
+                    "jurisdiction": "us",
+                },
+                "invalid-record",
+                None,
+                42,
+            ]
+        )
+    )
+    assert response.status_code == 200
+    assert response.json() == {"created": 1, "updated": 0, "skipped": 3}
+
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute("SELECT name, cik, jurisdiction FROM managers").fetchall()
+    finally:
+        conn.close()
+
+    assert rows == [("Pershing Square Capital Management, L.P.", "0001336528", "us")]

@@ -970,9 +970,12 @@ async def bulk_import_managers(
     ),
 )
 async def import_manager_universe(
-    records: Annotated[list[dict[str, Any]], Body(..., description="Array of manager records")],
+    records: Annotated[Any, Body(..., description="Array of manager records")],
 ):
     """Upsert manager universe records using CIK as the unique key."""
+    if not isinstance(records, list):
+        return _bulk_request_error("body", "Request body must be a JSON array.")
+
     if not records:
         return UniverseImportResponse(created=0, updated=0, skipped=0)
 
