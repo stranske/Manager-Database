@@ -19,20 +19,49 @@ async def test_news_flow_uses_default_sources(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "news.db"))
     conn = sqlite3.connect(tmp_path / "news.db")
     _create_managers_table(conn)
+    _create_news_items_table(conn)
     conn.commit()
     conn.close()
+    list_calls = []
 
     async def fake_list_new_items(source, since):
-        return []
+        list_calls.append((source, since))
+        return [
+            {
+                "published_at": f"2026-01-01T00:00:0{len(list_calls)}+00:00",
+                "source": source,
+                "headline": f"{source} headline",
+                "url": f"https://example.com/{source}",
+                "body_snippet": f"{source} snippet",
+            }
+        ]
+
+    def fake_tag(item):
+        tagged = dict(item)
+        tagged["topics"] = ["markets"]
+        tagged["confidence"] = 0.9
+        return tagged
 
     monkeypatch.setattr(news_flow.news, "list_new_items", fake_list_new_items)
+    monkeypatch.setattr(news_flow.news, "tag", fake_tag)
 
     result = await news_flow.news_flow.fn()
+    verify_conn = sqlite3.connect(tmp_path / "news.db")
+    try:
+        rows = verify_conn.execute("""SELECT source, headline, url, topics, confidence
+               FROM news_items ORDER BY source""").fetchall()
+    finally:
+        verify_conn.close()
 
     assert result["sources"] == ["rss", "gdelt"]
     assert result["since"] is None
-    assert result["fetched"] == 0
-    assert result["inserted"] == 0
+    assert list_calls == [("rss", None), ("gdelt", None)]
+    assert result["fetched"] == 2
+    assert result["inserted"] == 2
+    assert rows == [
+        ("gdelt", "gdelt headline", "https://example.com/gdelt", '["markets"]', 0.9),
+        ("rss", "rss headline", "https://example.com/rss", '["markets"]', 0.9),
+    ]
 
 
 @pytest.mark.asyncio
