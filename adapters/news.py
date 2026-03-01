@@ -1,0 +1,321 @@
+"""News ingestion adapter scaffold."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+import re
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
+from time import monotonic, struct_time
+from typing import Any
+
+import httpx
+
+from .base import tracked_call
+
+try:
+    import feedparser
+except ImportError:  # pragma: no cover - dependency added in follow-up task
+    feedparser = None
+
+logger = logging.getLogger(__name__)
+DEFAULT_RSS_FEEDS = (
+    "https://www.sec.gov/news/pressreleases.rss",
+    "https://www.sec.gov/rss/litigation/litreleases.xml",
+)
+GDELT_DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
+TOPIC_KEYWORDS: dict[str, list[str]] = {
+    "activist": ["activist", "proxy fight", "board seat", "13D"],
+    "regulatory": ["SEC", "enforcement", "fine", "penalty", "settlement"],
+    "earnings": ["earnings", "quarterly", "revenue", "profit"],
+    "personnel": ["hired", "appointed", "resigned", "CEO", "CIO"],
+    "merger": ["merger", "acquisition", "deal", "takeover", "bid"],
+    "fund_launch": ["new fund", "launch", "strategy"],
+}
+
+
+async def list_new_items(source: str, since: str) -> list[dict[str, Any]]:
+    """Discover new news items from a source since a watermark timestamp.
+
+    Args:
+        source: One of ``rss``, ``gdelt``, ``sec_press``, ``enforcement``.
+        since: ISO timestamp watermark.
+
+    Returns:
+        List of dicts with keys: headline, url, published_at, source, body_snippet.
+    """
+
+    if source in {"rss", "sec_press", "enforcement"}:
+        return await _fetch_rss(since)
+    if source == "gdelt":
+        return await _fetch_gdelt(since)
+    raise ValueError(f"Unsupported news source: {source}")
+
+
+async def download(item: dict[str, Any]) -> str:
+    """Fetch the full article text for a news item."""
+    url = str(item.get("url", "")).strip()
+    if not url:
+        return ""
+
+    source = str(item.get("source", "news")).strip() or "news"
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            async with tracked_call(source, url) as log:
+                response = await client.get(url)
+                log(response)
+            response.raise_for_status()
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.warning("News download failed for %s: %s", url, exc)
+        return ""
+
+    text = _strip_html(response.text)
+    return text[:2000]
+
+
+def tag(item: dict[str, Any]) -> dict[str, Any]:
+    """Add topic tags and confidence score to a news item."""
+
+    text = " ".join(
+        str(item.get(key, ""))
+        for key in ("headline", "body_snippet", "body", "summary")
+        if item.get(key)
+    ).lower()
+    if not text.strip():
+        item["topics"] = []
+        item["confidence"] = 0.0
+        return item
+
+    topic_keywords = _configured_topic_keywords()
+    topics: list[str] = []
+    matched_keywords = 0
+    total_keywords_in_text = len(re.findall(r"[a-z0-9']+", text))
+
+    for topic, keywords in topic_keywords.items():
+        topic_matched = False
+        for keyword in keywords:
+            if keyword.lower() in text:
+                matched_keywords += 1
+                topic_matched = True
+        if topic_matched:
+            topics.append(topic)
+
+    confidence = 0.0
+    if total_keywords_in_text > 0:
+        confidence = min(matched_keywords / total_keywords_in_text, 1.0)
+    item["topics"] = topics
+    item["confidence"] = confidence
+    return item
+
+
+async def _fetch_rss(since: str) -> list[dict[str, Any]]:
+    """Fetch RSS/Atom items newer than the watermark timestamp."""
+
+    parser = feedparser
+    if parser is None:
+        logger.warning("feedparser is not installed; skipping RSS fetch")
+        return []
+
+    since_dt = _parse_iso_timestamp(since)
+    feed_urls = _configured_rss_feeds()
+    collected: list[dict[str, Any]] = []
+
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        for feed_url in feed_urls:
+            try:
+                async with tracked_call("rss", feed_url) as log:
+                    response = await client.get(feed_url)
+                    log(response)
+                response.raise_for_status()
+            except (httpx.HTTPError, httpx.TimeoutException) as exc:
+                logger.warning("RSS feed request failed for %s: %s", feed_url, exc)
+                continue
+
+            parsed_feed = parser.parse(response.content)
+            if getattr(parsed_feed, "bozo", False):
+                logger.warning("RSS parse warning for %s", feed_url)
+            for entry in parsed_feed.entries:
+                published_dt = _entry_timestamp(entry)
+                if published_dt is None or published_dt <= since_dt:
+                    continue
+
+                headline = str(entry.get("title", "")).strip()
+                link = str(entry.get("link", "")).strip()
+                summary = str(entry.get("summary", "")).strip()
+                collected.append(
+                    {
+                        "headline": headline,
+                        "url": link,
+                        "published_at": published_dt.isoformat(),
+                        "source": "rss",
+                        "body_snippet": summary,
+                    }
+                )
+
+    collected.sort(key=lambda item: item["published_at"], reverse=True)
+    return collected
+
+
+async def _fetch_gdelt(since: str) -> list[dict[str, Any]]:
+    """Fetch GDELT items newer than the watermark timestamp."""
+
+    since_dt = _parse_iso_timestamp(since)
+    manager_names = _configured_gdelt_managers()
+    if not manager_names:
+        return []
+
+    collected: list[dict[str, Any]] = []
+    last_request_at: float | None = None
+
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+        for manager_name in manager_names:
+            if last_request_at is not None:
+                elapsed = monotonic() - last_request_at
+                if elapsed < 1.0:
+                    await asyncio.sleep(1.0 - elapsed)
+
+            params: dict[str, str | int] = {
+                "query": manager_name,
+                "mode": "artlist",
+                "maxrecords": 50,
+                "format": "json",
+            }
+            endpoint = (
+                f"{GDELT_DOC_API}?query={manager_name}&mode=artlist&maxrecords=50&format=json"
+            )
+            try:
+                async with tracked_call("gdelt", endpoint) as log:
+                    response = await client.get(GDELT_DOC_API, params=params)
+                    log(response)
+                response.raise_for_status()
+            except (httpx.HTTPError, httpx.TimeoutException) as exc:
+                logger.warning("GDELT request failed for %s: %s", manager_name, exc)
+                last_request_at = monotonic()
+                continue
+            last_request_at = monotonic()
+
+            payload = response.json()
+            articles = payload.get("articles") or []
+            for article in articles:
+                published_dt = _gdelt_timestamp(article.get("seendate"))
+                if published_dt is None or published_dt <= since_dt:
+                    continue
+                collected.append(
+                    {
+                        "headline": str(article.get("title", "")).strip(),
+                        "url": str(article.get("url", "")).strip(),
+                        "published_at": published_dt.isoformat(),
+                        "source": "gdelt",
+                        "body_snippet": "",
+                        "socialimage": str(article.get("socialimage", "")).strip(),
+                        "domain": str(article.get("domain", "")).strip(),
+                    }
+                )
+
+    collected.sort(key=lambda item: item["published_at"], reverse=True)
+    return collected
+
+
+def _configured_rss_feeds() -> list[str]:
+    env_value = os.getenv("NEWS_RSS_FEEDS", "")
+    if not env_value.strip():
+        return list(DEFAULT_RSS_FEEDS)
+    configured = [url.strip() for url in env_value.split(",") if url.strip()]
+    if not configured:
+        return list(DEFAULT_RSS_FEEDS)
+    return configured
+
+
+def _configured_gdelt_managers() -> list[str]:
+    env_value = os.getenv("NEWS_GDELT_MANAGERS", "")
+    if not env_value.strip():
+        return []
+    return [name.strip() for name in env_value.split(",") if name.strip()]
+
+
+def _configured_topic_keywords() -> dict[str, list[str]]:
+    env_value = os.getenv("NEWS_TOPIC_KEYWORDS", "")
+    if not env_value.strip():
+        return TOPIC_KEYWORDS
+    try:
+        parsed = json.loads(env_value)
+    except json.JSONDecodeError:
+        logger.warning("Invalid NEWS_TOPIC_KEYWORDS JSON; using defaults")
+        return TOPIC_KEYWORDS
+
+    if not isinstance(parsed, dict):
+        logger.warning("NEWS_TOPIC_KEYWORDS must be a JSON object; using defaults")
+        return TOPIC_KEYWORDS
+
+    configured: dict[str, list[str]] = {}
+    for topic, values in parsed.items():
+        if not isinstance(topic, str) or not isinstance(values, list):
+            continue
+        normalized = [str(value).strip() for value in values if str(value).strip()]
+        if normalized:
+            configured[topic] = normalized
+    if configured:
+        return configured
+    return TOPIC_KEYWORDS
+
+
+def _parse_iso_timestamp(value: str) -> datetime:
+    cleaned = value.strip()
+    if cleaned.endswith("Z"):
+        cleaned = f"{cleaned[:-1]}+00:00"
+    parsed = datetime.fromisoformat(cleaned)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _entry_timestamp(entry: Any) -> datetime | None:
+    parsed_value = entry.get("published_parsed") or entry.get("updated_parsed")
+    if isinstance(parsed_value, struct_time):
+        return datetime(*parsed_value[:6], tzinfo=UTC)
+
+    raw_value = entry.get("published") or entry.get("updated")
+    if not raw_value:
+        return None
+    try:
+        parsed = parsedate_to_datetime(str(raw_value))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _gdelt_timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.strptime(str(value), "%Y%m%d%H%M%S")
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC)
+
+
+class _HTMLTextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        if data:
+            self.parts.append(data)
+
+
+def _strip_html(value: str) -> str:
+    extractor = _HTMLTextExtractor()
+    try:
+        extractor.feed(value)
+        extractor.close()
+    except Exception:  # pragma: no cover - fallback for malformed HTML edge-cases
+        return ""
+    text = " ".join(extractor.parts)
+    return re.sub(r"\s+", " ", text).strip()
