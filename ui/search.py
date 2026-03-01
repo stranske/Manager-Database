@@ -103,6 +103,16 @@ def _entity_badge_html(entity_type: str) -> str:
     )
 
 
+def _format_result_meta_html(result: SearchResult) -> str:
+    manager_text = f" | Manager: {escape(result.manager_name)}" if result.manager_name else ""
+    ts_text = f" | {escape(result.timestamp)}" if result.timestamp else ""
+    badge_html = _entity_badge_html(result.entity_type)
+    return (
+        f"{badge_html} "
+        f"<span style='color:#6B7280'>Relevance {result.relevance:.2f}{manager_text}{ts_text}</span>"
+    )
+
+
 def _group_results_by_entity_type(
     results: list[SearchResult],
 ) -> list[tuple[str, list[SearchResult]]]:
@@ -121,12 +131,8 @@ def _group_results_by_entity_type(
 
 
 def _render_result(result: SearchResult) -> None:
-    manager_text = f" | Manager: {escape(result.manager_name)}" if result.manager_name else ""
-    ts_text = f" | {escape(result.timestamp)}" if result.timestamp else ""
     st.markdown(f"**{result.headline}**")
-    badge_html = _entity_badge_html(result.entity_type)
-    meta_html = f"{badge_html} <span style='color:#6B7280'>Relevance {result.relevance:.2f}{manager_text}{ts_text}</span>"
-    st.markdown(meta_html, unsafe_allow_html=True)
+    st.markdown(_format_result_meta_html(result), unsafe_allow_html=True)
     if result.snippet:
         st.write(result.snippet)
     if result.url:

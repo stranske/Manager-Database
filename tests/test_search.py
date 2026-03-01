@@ -10,6 +10,7 @@ from api.search import SearchResult, universal_search
 from ui.search import (
     _count_results_by_entity_type,
     _entity_badge_html,
+    _format_result_meta_html,
     _group_results_by_entity_type,
     search_news,
 )
@@ -361,3 +362,23 @@ def test_entity_badge_html_contains_uppercase_entity_type():
 
     assert "NEWS" in badge
     assert "border-radius:999px" in badge
+
+
+def test_format_result_meta_html_includes_badge_relevance_and_context():
+    result = SearchResult(
+        entity_type="news",
+        entity_id=1,
+        manager_name="Elliott Management",
+        headline="Elliott launches campaign",
+        snippet="Body",
+        relevance=0.92,
+        url=None,
+        timestamp="2025-04-05",
+    )
+
+    meta_html = _format_result_meta_html(result)
+
+    assert "NEWS" in meta_html
+    assert "Relevance 0.92" in meta_html
+    assert "Manager: Elliott Management" in meta_html
+    assert "2025-04-05" in meta_html
