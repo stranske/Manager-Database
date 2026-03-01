@@ -82,7 +82,9 @@ async def _fetch_rss(since: str) -> list[dict[str, Any]]:
                 logger.warning("RSS feed request failed for %s: %s", feed_url, exc)
                 continue
 
-            parsed_feed = parser.parse(response.text)
+            parsed_feed = parser.parse(response.content)
+            if getattr(parsed_feed, "bozo", False):
+                logger.warning("RSS parse warning for %s", feed_url)
             for entry in parsed_feed.entries:
                 published_dt = _entry_timestamp(entry)
                 if published_dt is None or published_dt <= since_dt:

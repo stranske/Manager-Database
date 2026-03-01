@@ -25,6 +25,7 @@ async def test_fetch_rss_parses_entries_filters_by_since_and_logs_calls(monkeypa
     ]
     called_endpoints = []
     log_calls = []
+    parsed_payloads = []
 
     @asynccontextmanager
     async def dummy_tracked_call(source, endpoint, **_kwargs):
@@ -50,9 +51,12 @@ async def test_fetch_rss_parses_entries_filters_by_since_and_logs_calls(monkeypa
 
     monkeypatch.setattr(news.httpx, "AsyncClient", DummyClient)
     monkeypatch.setattr(news, "tracked_call", dummy_tracked_call)
-    monkeypatch.setattr(
-        news, "feedparser", SimpleNamespace(parse=lambda _text: SimpleNamespace(entries=entries))
-    )
+
+    def parse_feed(payload):
+        parsed_payloads.append(payload)
+        return SimpleNamespace(entries=entries, bozo=False)
+
+    monkeypatch.setattr(news, "feedparser", SimpleNamespace(parse=parse_feed))
     monkeypatch.setenv(
         "NEWS_RSS_FEEDS",
         "https://feed-one.test/rss, https://feed-two.test/rss",
@@ -70,6 +74,7 @@ async def test_fetch_rss_parses_entries_filters_by_since_and_logs_calls(monkeypa
         ("rss", "https://feed-two.test/rss"),
     ]
     assert log_calls == [200, 200]
+    assert parsed_payloads == [b"<xml/>", b"<xml/>"]
 
 
 def test_configured_rss_feeds_uses_defaults_when_env_missing(monkeypatch):
