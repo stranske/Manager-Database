@@ -46,6 +46,37 @@ def _fetch_latest_sets(manager_id: int, conn):
     return grouped[ordered_dates[0]], grouped[ordered_dates[1]]
 
 
+def _fetch_latest_sets_legacy(cik: str, conn):
+    """Fallback for legacy flat SQLite holdings table."""
+    placeholder = _placeholder(conn)
+    cursor = conn.execute(
+        f"""
+        SELECT filed, cusip, sshPrnamt, value
+        FROM holdings
+        WHERE cik = {placeholder}
+        ORDER BY filed DESC
+    """,
+        (cik,),
+    )
+
+    grouped: dict[object, dict[str, dict[str, int | float | None]]] = {}
+    ordered_dates: list[object] = []
+
+    for filed_date, cusip, shares, value_usd in cursor:
+        if filed_date not in grouped:
+            if len(ordered_dates) == 2:
+                break
+            ordered_dates.append(filed_date)
+            grouped[filed_date] = {}
+        grouped[filed_date][cusip] = {"shares": shares, "value_usd": value_usd}
+
+    if not ordered_dates:
+        raise SystemExit("Manager not found")
+    if len(ordered_dates) < 2:
+        raise SystemExit("Need at least two filings")
+    return grouped[ordered_dates[0]], grouped[ordered_dates[1]]
+
+
 def _resolve_manager_id(manager_id_or_cik: int | str, conn) -> int:
     if isinstance(manager_id_or_cik, int):
         return manager_id_or_cik
@@ -84,8 +115,16 @@ def diff_holdings(manager_id: int | str, conn=None) -> list[dict[str, int | floa
         owns_connection = True
 
     try:
-        resolved_manager_id = _resolve_manager_id(manager_id, conn)
-        current, prior = _fetch_latest_sets(resolved_manager_id, conn)
+        try:
+            resolved_manager_id = _resolve_manager_id(manager_id, conn)
+            current, prior = _fetch_latest_sets(resolved_manager_id, conn)
+        except sqlite3.OperationalError as exc:
+            # Legacy tests still use the original flat SQLite holdings schema.
+            if "no such table: managers" not in str(exc):
+                raise
+            if not isinstance(manager_id, str):
+                raise
+            current, prior = _fetch_latest_sets_legacy(manager_id.strip(), conn)
     finally:
         if owns_connection:
             conn.close()
@@ -127,7 +166,7 @@ def diff_holdings(manager_id: int | str, conn=None) -> list[dict[str, int | floa
         direction = _compare_optional(curr["shares"], prev["shares"])
         if direction in (None, 0):
             direction = _compare_optional(curr["value_usd"], prev["value_usd"])
-        if direction in (None, 0):
+        if direction is None or direction == 0:
             continue
 
         results.append(

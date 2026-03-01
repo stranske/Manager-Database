@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import os
+from typing import Any
 
 from prefect import flow, task
 from prefect.schedules import Cron
@@ -18,7 +19,20 @@ logger = logging.getLogger(__name__)
 @task
 def compute(cik: str, date: str, db_path: str) -> None:
     try:
-        additions, exits = diff_holdings(cik, db_path)
+        raw_diffs = diff_holdings(cik, db_path)
+        change_rows: list[tuple[str, str]] = []
+        if isinstance(raw_diffs, tuple) and len(raw_diffs) == 2:
+            # Backward compatibility for older diff_holdings return shape.
+            additions, exits = raw_diffs
+            change_rows.extend((cusip, "ADD") for cusip in additions)
+            change_rows.extend((cusip, "EXIT") for cusip in exits)
+        else:
+            for row in raw_diffs:
+                cusip = row.get("cusip")
+                change = row.get("delta_type")
+                if isinstance(cusip, str) and isinstance(change, str):
+                    change_rows.append((cusip, change))
+
         conn = connect_db(db_path)
         conn.execute("""CREATE TABLE IF NOT EXISTS daily_diff (
                 date TEXT,
@@ -26,31 +40,28 @@ def compute(cik: str, date: str, db_path: str) -> None:
                 cusip TEXT,
                 change TEXT
             )""")
-        for cusip in additions:
+        for cusip, change in change_rows:
             conn.execute(
                 "INSERT INTO daily_diff VALUES (?,?,?,?)",
-                (date, cik, cusip, "ADD"),
-            )
-        for cusip in exits:
-            conn.execute(
-                "INSERT INTO daily_diff VALUES (?,?,?,?)",
-                (date, cik, cusip, "EXIT"),
+                (date, cik, cusip, change),
             )
         conn.commit()
         conn.close()
-        total_changes = len(additions) + len(exits)
+        additions = sum(1 for _, change in change_rows if change == "ADD")
+        exits = sum(1 for _, change in change_rows if change == "EXIT")
+        total_changes = len(change_rows)
         log_outcome(
             logger,
             "Daily diff computed",
             has_data=total_changes > 0,
-            extra={
-                "cik": cik,
-                "date": date,
-                "additions": len(additions),
-                "exits": len(exits),
-                "changes": total_changes,
-            },
-        )
+                extra={
+                    "cik": cik,
+                    "date": date,
+                    "additions": additions,
+                    "exits": exits,
+                    "changes": total_changes,
+                },
+            )
     except Exception:
         logger.exception("Daily diff failed", extra={"cik": cik, "date": date})
         raise
@@ -78,9 +89,9 @@ def _resolve_local_timezone() -> str:
     if env:
         return env
 
-    tzinfo = dt.datetime.now().astimezone().tzinfo
+    tzinfo: Any = dt.datetime.now().astimezone().tzinfo
     if tzinfo and getattr(tzinfo, "key", None):
-        return tzinfo.key  # Prefer canonical IANA identifier.
+        return str(tzinfo.key)  # Prefer canonical IANA identifier.
 
     try:
         localtime_path = os.path.realpath("/etc/localtime")

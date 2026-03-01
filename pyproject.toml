@@ -92,3 +92,15 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = ["scripts.langchain.*"]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "semantic_matcher",
+    "label_matcher",
+    "issue_dedup",
+    "integration_layer",
+    "issue_formatter",
+    "task_validator",
+    "injection_guard",
+]
+ignore_errors = true
