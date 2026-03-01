@@ -80,24 +80,22 @@ async def download(item: dict[str, Any]) -> str:
 def tag(item: dict[str, Any]) -> dict[str, Any]:
     """Add topic tags and confidence score to a news item."""
 
-    enriched = dict(item)
     text = " ".join(
-        str(enriched.get(key, ""))
+        str(item.get(key, ""))
         for key in ("headline", "body_snippet", "body", "summary")
-        if enriched.get(key)
+        if item.get(key)
     ).lower()
     if not text.strip():
-        enriched["topics"] = []
-        enriched["confidence"] = 0.0
-        return enriched
+        item["topics"] = []
+        item["confidence"] = 0.0
+        return item
 
     topic_keywords = _configured_topic_keywords()
     topics: list[str] = []
     matched_keywords = 0
-    total_keywords = 0
+    total_keywords_in_text = len(re.findall(r"[a-z0-9']+", text))
 
     for topic, keywords in topic_keywords.items():
-        total_keywords += len(keywords)
         topic_matched = False
         for keyword in keywords:
             if keyword.lower() in text:
@@ -107,11 +105,11 @@ def tag(item: dict[str, Any]) -> dict[str, Any]:
             topics.append(topic)
 
     confidence = 0.0
-    if total_keywords > 0:
-        confidence = min(matched_keywords / total_keywords, 1.0)
-    enriched["topics"] = topics
-    enriched["confidence"] = confidence
-    return enriched
+    if total_keywords_in_text > 0:
+        confidence = min(matched_keywords / total_keywords_in_text, 1.0)
+    item["topics"] = topics
+    item["confidence"] = confidence
+    return item
 
 
 async def _fetch_rss(since: str) -> list[dict[str, Any]]:

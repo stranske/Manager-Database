@@ -304,8 +304,9 @@ def test_tag_adds_topics_and_confidence():
 
     tagged = news.tag(item)
 
+    assert tagged is item
     assert set(tagged["topics"]) == {"regulatory", "merger", "fund_launch"}
-    assert tagged["confidence"] == pytest.approx(7 / 26)
+    assert tagged["confidence"] == pytest.approx(7 / 16)
 
 
 @pytest.mark.asyncio
