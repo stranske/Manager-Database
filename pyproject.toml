@@ -8,6 +8,7 @@ requires-python = ">=3.11"
 authors = [{ name = "stranske" }]
 
 dependencies = [
+    "alembic",
     "httpx",
     "prefect",
     "jsonschema>=4.17.3,<4.27.0",

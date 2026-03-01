@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import os
-from typing import Any
 
 from prefect import flow, task
 from prefect.schedules import Cron
@@ -89,9 +88,10 @@ def _resolve_local_timezone() -> str:
     if env:
         return env
 
-    tzinfo: Any = dt.datetime.now().astimezone().tzinfo
-    if tzinfo and getattr(tzinfo, "key", None):
-        return str(tzinfo.key)  # Prefer canonical IANA identifier.
+    tzinfo = dt.datetime.now().astimezone().tzinfo
+    tz_key = getattr(tzinfo, "key", None) if tzinfo else None
+    if isinstance(tz_key, str) and tz_key:
+        return tz_key  # Prefer canonical IANA identifier.
 
     try:
         localtime_path = os.path.realpath("/etc/localtime")
