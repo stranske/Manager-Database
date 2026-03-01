@@ -9,6 +9,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import api.chat as chat_api_module
 from fastapi.encoders import jsonable_encoder
+from fastapi.testclient import TestClient
 from api.search import SearchResult, universal_search
 from ui.search import (
     _count_results_by_entity_type,
@@ -314,6 +315,60 @@ def test_api_search_filtered_results_are_json_serializable(tmp_path: Path, monke
     results = chat_api_module.search_api(q="Elliott", entity_type="news", limit=20)
     payload = jsonable_encoder(results)
 
+    assert payload
+    assert {item["entity_type"] for item in payload} == {"news"}
+
+
+def test_api_search_http_endpoint_returns_searchresult_payload(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "search_api_http_client.db"
+    _seed_api_search_db(db_path)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "embeddings",
+        SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
+    )
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
+
+    with TestClient(chat_api_module.app) as client:
+        response = client.get("/api/search", params={"q": "Elliott", "limit": 20})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, list)
+    assert payload
+    assert isinstance(payload[0], dict)
+    assert {
+        "entity_type",
+        "entity_id",
+        "manager_name",
+        "headline",
+        "snippet",
+        "relevance",
+        "url",
+        "timestamp",
+    }.issubset(payload[0].keys())
+
+
+def test_api_search_http_endpoint_filters_news_entity_type(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "search_api_http_client_filter.db"
+    _seed_api_search_db(db_path)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "embeddings",
+        SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
+    )
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
+
+    with TestClient(chat_api_module.app) as client:
+        response = client.get(
+            "/api/search",
+            params={"q": "Elliott", "entity_type": "news", "limit": 20},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
     assert payload
     assert {item["entity_type"] for item in payload} == {"news"}
 
