@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from time import struct_time
 from typing import Any
@@ -125,14 +125,14 @@ def _parse_iso_timestamp(value: str) -> datetime:
         cleaned = f"{cleaned[:-1]}+00:00"
     parsed = datetime.fromisoformat(cleaned)
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _entry_timestamp(entry: Any) -> datetime | None:
     parsed_value = entry.get("published_parsed") or entry.get("updated_parsed")
     if isinstance(parsed_value, struct_time):
-        return datetime(*parsed_value[:6], tzinfo=timezone.utc)
+        return datetime(*parsed_value[:6], tzinfo=UTC)
 
     raw_value = entry.get("published") or entry.get("updated")
     if not raw_value:
@@ -142,5 +142,5 @@ def _entry_timestamp(entry: Any) -> datetime | None:
     except (TypeError, ValueError):
         return None
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
