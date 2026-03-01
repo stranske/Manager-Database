@@ -803,6 +803,34 @@ def test_manager_tags_patch_supports_remove_only(tmp_path, monkeypatch):
     assert body["tags"] == ["activist"]
 
 
+def test_manager_tags_patch_supports_add_only_and_dedupes(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(
+        _post_manager(
+            {
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist"],
+            }
+        )
+    )
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    patch_resp = asyncio.run(
+        _patch_manager_tags(manager_id, {"add": ["event-driven", "event-driven", "  "]})
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["manager_id"] == manager_id
+    assert body["name"] == "Elliott Investment Management L.P."
+    assert body["cik"] == "0001791786"
+    assert body["jurisdictions"] == ["us"]
+    assert body["tags"] == ["activist", "event-driven"]
+
+
 def test_manager_delete_removes_record(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
