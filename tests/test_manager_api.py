@@ -83,6 +83,8 @@ def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     assert resp.status_code == 201
     created = resp.json()
     assert created["manager_id"] > 0
+    assert created["created_at"]
+    assert created["updated_at"]
     conn = sqlite3.connect(db_path)
     try:
         # Verify the record was persisted with the expected values.

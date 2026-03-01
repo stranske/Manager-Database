@@ -514,30 +514,34 @@ async def create_manager(
     ],
 ):
     """Create a manager record after validating required fields."""
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
     conn = None
     try:
         conn = connect_db()
         # Ensure schema exists before storing the record.
         _ensure_manager_table(conn)
         manager_id = _insert_manager(conn, payload)
+        row = _fetch_manager(conn, db_identity, manager_id)
         invalidate_cache_prefix("managers")
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
         if conn is not None:
             conn.close()
-    return {
-        "manager_id": manager_id,
-        "name": payload.name,
-        "cik": payload.cik,
-        "lei": payload.lei,
-        "aliases": payload.aliases,
-        "jurisdictions": payload.jurisdictions,
-        "tags": payload.tags,
-        "registry_ids": payload.registry_ids,
-        "created_at": None,
-        "updated_at": None,
-    }
+    if row is not None:
+        return _to_manager_response(row)
+    return ManagerResponse(
+        manager_id=manager_id,
+        name=payload.name,
+        cik=payload.cik,
+        lei=payload.lei,
+        aliases=payload.aliases,
+        jurisdictions=payload.jurisdictions,
+        tags=payload.tags,
+        registry_ids=payload.registry_ids,
+        created_at=None,
+        updated_at=None,
+    )
 
 
 @router.get(
