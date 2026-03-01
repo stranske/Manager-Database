@@ -148,11 +148,11 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 31/39 tasks complete, 8 remaining
+**Progress:** 34/39 tasks complete, 5 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
+The previous iteration changed **5 file(s)** but did not update task checkboxes.
 
 **Before continuing, you MUST:**
 1. Review the recent commits to understand what was changed
@@ -208,7 +208,7 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
   - [x] Results displayed in a single list grouped by entity type (with expandable sections)
   - [x] Each result shows: entity type badge, headline, snippet, manager name, timestamp
   - [x] Clickable results navigate to the relevant detail page
-- [ ] Add search result count by entity type as summary metrics above results
+- [x] Add search result count by entity type as summary metrics above results
 - [x] Create \`tests/test_search.py\`:
   - [x] Seed data across all entity types
   - [x] Verify search returns results from multiple entity types
@@ -219,22 +219,19 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
 ### Acceptance Criteria
 The PR is complete when ALL of these are satisfied:
 
-- [ ] A single search query (e.g., "Elliott") returns results from managers, filings, news, and documents
+- [x] A single search query (e.g., "Elliott") returns results from managers, filings, news, and documents
 - [ ] Results are ranked by relevance with entity type badges
 - [ ] \`GET /api/search?q=Elliott\` returns a JSON array of \`SearchResult\` objects
 - [ ] \`GET /api/search?q=Elliott&entity_type=news\` filters to news results only
 - [ ] The Streamlit search page shows unified results from all entity types
 - [ ] Search works in both Postgres (FTS) and SQLite (LIKE fallback) modes
-- [ ] Tests pass with seeded data across all entity types
+- [x] Tests pass with seeded data across all entity types
 
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Define \`SearchResult\` model:
-- Implement FTS search for each entity type (Postgres):
-- Implement FTS search for SQLite fallback:
-
-### Suggested Next Task
 - Use LIKE queries for basic text matching
+- Add search result count by entity type as summary metrics above results
+- no-focus
 
 ---

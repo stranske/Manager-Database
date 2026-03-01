@@ -107,7 +107,10 @@ def test_universal_search_returns_ranked_multi_entity_results():
     conn.execute("CREATE TABLE news (headline TEXT, source TEXT, published TEXT)")
     conn.execute("CREATE TABLE documents (id INTEGER PRIMARY KEY, content TEXT, embedding TEXT)")
     conn.execute(
-        "CREATE TABLE holdings (cik TEXT, accession TEXT, filed TEXT, nameOfIssuer TEXT, cusip TEXT, value INTEGER, sshPrnamt INTEGER)"
+        "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, raw_key TEXT, period_end TEXT, url TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings (holding_id INTEGER PRIMARY KEY, filing_id INTEGER, name_of_issuer TEXT, cusip TEXT)"
     )
     conn.execute(
         "INSERT INTO managers(id, name, role) VALUES (1, 'Elliott Management', 'Activist')"
@@ -119,13 +122,16 @@ def test_universal_search_returns_ranked_multi_entity_results():
         "INSERT INTO documents(id, content, embedding) VALUES (1, 'Internal Elliott investment memo', '[]')"
     )
     conn.execute(
-        "INSERT INTO holdings(cik, accession, filed, nameOfIssuer, cusip, value, sshPrnamt) VALUES ('0001', 'ACC-1', '2025-01-01', 'Elliott Corp', '123456789', 10, 5)"
+        "INSERT INTO filings(filing_id, manager_id, type, raw_key, period_end, url) VALUES (10, 1, '13F-HR', 'raw-10', '2025-01-01', NULL)"
+    )
+    conn.execute(
+        "INSERT INTO holdings(holding_id, filing_id, name_of_issuer, cusip) VALUES (20, 10, 'Elliott Corp', '123456789')"
     )
 
     results = universal_search("Elliott", conn, limit=20)
 
     entity_types = {item.entity_type for item in results}
-    assert {"manager", "news", "document", "holding"}.issubset(entity_types)
+    assert {"manager", "filing", "news", "document", "holding"}.issubset(entity_types)
     assert results == sorted(results, key=lambda item: item.relevance, reverse=True)
 
 
@@ -196,7 +202,10 @@ def _seed_api_search_db(db_path: Path) -> None:
     conn.execute("CREATE TABLE news (headline TEXT, source TEXT, published TEXT)")
     conn.execute("CREATE TABLE documents (id INTEGER PRIMARY KEY, content TEXT, embedding TEXT)")
     conn.execute(
-        "CREATE TABLE holdings (cik TEXT, accession TEXT, filed TEXT, nameOfIssuer TEXT, cusip TEXT, value INTEGER, sshPrnamt INTEGER)"
+        "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, raw_key TEXT, period_end TEXT, url TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings (holding_id INTEGER PRIMARY KEY, filing_id INTEGER, name_of_issuer TEXT, cusip TEXT)"
     )
     conn.execute(
         "INSERT INTO managers(id, name, role) VALUES (1, 'Elliott Management', 'Activist')"
@@ -208,7 +217,10 @@ def _seed_api_search_db(db_path: Path) -> None:
         "INSERT INTO documents(id, content, embedding) VALUES (1, 'Internal Elliott strategy memo', '[]')"
     )
     conn.execute(
-        "INSERT INTO holdings(cik, accession, filed, nameOfIssuer, cusip, value, sshPrnamt) VALUES ('0001', 'ACC-1', '2025-01-01', 'Elliott Corp', '123456789', 10, 5)"
+        "INSERT INTO filings(filing_id, manager_id, type, raw_key, period_end, url) VALUES (10, 1, '13F-HR', 'raw-10', '2025-01-01', NULL)"
+    )
+    conn.execute(
+        "INSERT INTO holdings(holding_id, filing_id, name_of_issuer, cusip) VALUES (20, 10, 'Elliott Corp', '123456789')"
     )
     conn.commit()
     conn.close()
@@ -227,6 +239,8 @@ def test_api_search_endpoint_returns_results(tmp_path: Path, monkeypatch):
     results = chat_api_module.search_api(q="Elliott", limit=20, entity_type=None)
 
     assert results
+    entity_types = {item.entity_type for item in results}
+    assert {"manager", "filing", "news", "document"}.issubset(entity_types)
     assert {"entity_type", "entity_id", "headline", "snippet", "relevance"}.issubset(
         results[0].model_dump().keys()
     )
