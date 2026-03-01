@@ -102,6 +102,25 @@ def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     )
 
 
+def test_manager_create_accepts_investment_payload_shape(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payload = {
+        "name": "Elliott Investment Management L.P.",
+        "cik": "0001791786",
+        "jurisdictions": ["us"],
+        "tags": ["activist"],
+    }
+
+    resp = asyncio.run(_post_manager(payload))
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["name"] == payload["name"]
+    assert body["cik"] == payload["cik"]
+    assert body["jurisdictions"] == payload["jurisdictions"]
+    assert body["tags"] == payload["tags"]
+
+
 def test_manager_list_returns_paginated_results(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -195,6 +214,45 @@ def test_manager_list_defaults_return_first_page(tmp_path, monkeypatch):
     assert body["limit"] == 25
     assert body["offset"] == 0
     assert [item["name"] for item in body["items"]] == [f"Manager {idx}" for idx in range(25)]
+
+
+def test_manager_list_returns_new_manager_shape(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resp = asyncio.run(
+        _post_manager(
+            {
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist"],
+            }
+        )
+    )
+    assert resp.status_code == 201
+
+    listed = asyncio.run(_get_managers())
+    assert listed.status_code == 200
+    item = listed.json()["items"][0]
+    assert set(item.keys()) == {
+        "manager_id",
+        "name",
+        "cik",
+        "lei",
+        "aliases",
+        "jurisdictions",
+        "tags",
+        "registry_ids",
+        "created_at",
+        "updated_at",
+    }
+    assert item["name"] == "Elliott Investment Management L.P."
+    assert item["cik"] == "0001791786"
+    assert item["lei"] is None
+    assert item["aliases"] == []
+    assert item["jurisdictions"] == ["us"]
+    assert item["tags"] == ["activist"]
+    assert item["registry_ids"] == {}
 
 
 def test_manager_list_filter_by_jurisdiction_returns_subset(tmp_path, monkeypatch):
@@ -375,6 +433,37 @@ def test_manager_get_returns_single_manager(tmp_path, monkeypatch):
     assert fetched["manager_id"] == created["manager_id"]
     assert fetched["name"] == payload["name"]
     assert fetched["tags"] == payload["tags"]
+
+
+def test_manager_get_returns_full_investment_manager_record(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payload = {
+        "name": "Elliott Investment Management L.P.",
+        "cik": "0001791786",
+        "lei": "549300U3N12T57QLOU60",
+        "aliases": ["Elliott Management"],
+        "jurisdictions": ["us"],
+        "tags": ["activist"],
+        "registry_ids": {"fca_frn": "122927"},
+    }
+    resp = asyncio.run(_post_manager(payload))
+    assert resp.status_code == 201
+    created = resp.json()
+
+    get_resp = asyncio.run(_get_manager(created["manager_id"]))
+    assert get_resp.status_code == 200
+    fetched = get_resp.json()
+    assert fetched["manager_id"] == created["manager_id"]
+    assert fetched["name"] == payload["name"]
+    assert fetched["cik"] == payload["cik"]
+    assert fetched["lei"] == payload["lei"]
+    assert fetched["aliases"] == payload["aliases"]
+    assert fetched["jurisdictions"] == payload["jurisdictions"]
+    assert fetched["tags"] == payload["tags"]
+    assert fetched["registry_ids"] == payload["registry_ids"]
+    assert fetched["created_at"]
+    assert fetched["updated_at"]
 
 
 def test_manager_get_returns_404_for_missing_id(tmp_path, monkeypatch):
