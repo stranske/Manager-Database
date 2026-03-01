@@ -8,6 +8,76 @@ from api.search import universal_search
 from ui.search import search_news
 
 
+class _FakeCursor:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self):
+        return list(self._rows)
+
+
+class _FakePostgresConn:
+    def __init__(self):
+        self.queries: list[str] = []
+
+    def execute(self, sql, params=()):
+        sql_text = " ".join(str(sql).split())
+        self.queries.append(sql_text)
+        lowered = sql_text.lower()
+        if "select to_regclass" in lowered:
+            table_name = params[0]
+            return _FakeCursor([(table_name,)])
+        if "information_schema.columns" in lowered:
+            table_name = params[0]
+            columns_map = {
+                "managers": [("manager_id",), ("name",), ("aliases",)],
+                "filings": [
+                    ("filing_id",),
+                    ("manager_id",),
+                    ("type",),
+                    ("raw_key",),
+                    ("period_end",),
+                    ("url",),
+                ],
+                "holdings": [("holding_id",), ("filing_id",), ("name_of_issuer",), ("cusip",)],
+                "news_items": [("news_id",), ("manager_id",), ("headline",), ("body_snippet",)],
+                "documents": [("doc_id",), ("manager_id",), ("filename",), ("text",)],
+            }
+            return _FakeCursor(columns_map.get(table_name, []))
+        if "from managers m" in lowered:
+            return _FakeCursor([(1, "Elliott Management", "Elliott", 0.9)])
+        if "from filings f" in lowered:
+            return _FakeCursor(
+                [(2, "Elliott Management", "13F-HR", "raw-1", "2025-03-31", None, 0.8)]
+            )
+        if "from holdings h" in lowered:
+            return _FakeCursor(
+                [(3, "Elliott Management", "Elliott Corp", "123456789", "2025-04-01", 0.6, 0.0)]
+            )
+        if "from news_items n" in lowered:
+            return _FakeCursor(
+                [
+                    (
+                        4,
+                        "Elliott Management",
+                        "Elliott launches campaign",
+                        "Body",
+                        None,
+                        "2025-04-05",
+                        0.95,
+                    )
+                ]
+            )
+        if "from documents d" in lowered:
+            return _FakeCursor(
+                [(5, "Elliott Management", "memo.txt", "Elliott strategy memo", "2025-04-03", 0.5)]
+            )
+        return _FakeCursor([])
+
+
 def setup_db(tmp_path: Path) -> str:
     db_path = tmp_path / "dev.db"
     conn = sqlite3.connect(db_path)
@@ -55,3 +125,12 @@ def test_universal_search_returns_ranked_multi_entity_results():
     entity_types = {item.entity_type for item in results}
     assert {"manager", "news", "document", "holding"}.issubset(entity_types)
     assert results == sorted(results, key=lambda item: item.relevance, reverse=True)
+
+
+def test_universal_search_postgres_fts_queries_and_results():
+    conn = _FakePostgresConn()
+    results = universal_search("Elliott", conn, limit=10)
+
+    entity_types = {item.entity_type for item in results}
+    assert {"manager", "filing", "holding", "news", "document"}.issubset(entity_types)
+    assert any("to_tsvector" in query.lower() for query in conn.queries)
