@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 
 import etl.news_flow as news_flow
@@ -81,3 +83,62 @@ async def test_fetch_news_falls_back_to_original_item_when_tag_returns_none(monk
 
     assert calls["list"] == [("gdelt", None)]
     assert result == [{"headline": "item", "source": "gdelt"}]
+
+
+def test_match_entities_links_items_by_name_and_alias():
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.execute("""CREATE TABLE managers (
+                manager_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                aliases TEXT
+            )""")
+        conn.executemany(
+            "INSERT INTO managers(manager_id, name, aliases) VALUES (?, ?, ?)",
+            [
+                (1, "Alpha Capital", '["AlphaCap", "Alpha"]'),
+                (2, "Beta Partners", '["Beta"]'),
+            ],
+        )
+        items = [
+            {
+                "headline": "Alpha Capital launches a new strategy",
+                "body_snippet": "",
+                "source": "rss",
+            },
+            {
+                "headline": "Market update",
+                "body_snippet": "Analysts cite Beta as a major buyer",
+                "source": "rss",
+            },
+            {"headline": "General market recap", "body_snippet": "", "source": "rss"},
+        ]
+
+        result = news_flow.match_entities.fn(items, conn)
+
+        assert result[0]["manager_id"] == 1
+        assert result[1]["manager_id"] == 2
+        assert "manager_id" not in result[2]
+    finally:
+        conn.close()
+
+
+def test_match_entities_supports_postgres_array_literal_aliases():
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.execute("""CREATE TABLE managers (
+                manager_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                aliases TEXT
+            )""")
+        conn.execute(
+            "INSERT INTO managers(manager_id, name, aliases) VALUES (?, ?, ?)",
+            (10, "Gamma Advisors", '{"Gamma","GAM"}'),
+        )
+        items = [{"headline": "GAM updates portfolio", "body_snippet": "", "source": "gdelt"}]
+
+        result = news_flow.match_entities.fn(items, conn)
+
+        assert result[0]["manager_id"] == 10
+    finally:
+        conn.close()
