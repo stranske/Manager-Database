@@ -7,6 +7,7 @@ import httpx
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from api import managers as managers_module
 from api.chat import app
 
 
@@ -77,11 +78,15 @@ async def _delete_manager(manager_id: int):
 def test_manager_empty_name_returns_400(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
-    resp = asyncio.run(_post_manager({"name": "", "jurisdictions": ["us"]}))
+    resp = asyncio.run(_post_manager({"name": ""}))
     assert resp.status_code == 400
     payload = resp.json()
     assert payload["errors"][0]["field"] == "name"
     assert "required" in payload["errors"][0]["message"].lower()
+
+
+def test_required_field_errors_contains_name_only():
+    assert managers_module.REQUIRED_FIELD_ERRORS == {"name": "Name is required."}
 
 
 def test_manager_invalid_cik_returns_400(tmp_path, monkeypatch):
