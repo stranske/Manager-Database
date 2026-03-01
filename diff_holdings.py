@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import sqlite3
 import sys
-import argparse
 from typing import Any
 
 from adapters.base import connect_db
