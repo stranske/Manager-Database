@@ -45,7 +45,6 @@ REQUIRED_FIELD_ERRORS = {
     "name": "Name is required.",
 }
 DEFAULT_BULK_IMPORT_MAX_BYTES = 2_000_000
-DEFAULT_UNIVERSE_ROLE = "Manager"
 CIK_PATTERN = re.compile(r"^\d{10}$")
 
 
@@ -252,28 +251,28 @@ def _upsert_universe_record(conn: Any, name: str, cik: str, jurisdiction: str) -
     if isinstance(conn, sqlite3.Connection):
         conn.execute(
             """
-            INSERT INTO managers(name, role, cik, jurisdiction, updated_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO managers(name, cik, jurisdiction, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(cik)
             DO UPDATE SET
                 name = excluded.name,
                 jurisdiction = excluded.jurisdiction,
                 updated_at = CURRENT_TIMESTAMP
             """,
-            (name, DEFAULT_UNIVERSE_ROLE, cik, jurisdiction),
+            (name, cik, jurisdiction),
         )
         return
     conn.execute(
         """
-        INSERT INTO managers(name, role, cik, jurisdiction, updated_at)
-        VALUES (%s, %s, %s, %s, now())
+        INSERT INTO managers(name, cik, jurisdiction, updated_at)
+        VALUES (%s, %s, %s, now())
         ON CONFLICT(cik)
         DO UPDATE SET
             name = EXCLUDED.name,
             jurisdiction = EXCLUDED.jurisdiction,
             updated_at = now()
         """,
-        (name, DEFAULT_UNIVERSE_ROLE, cik, jurisdiction),
+        (name, cik, jurisdiction),
     )
 
 
