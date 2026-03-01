@@ -114,3 +114,183 @@ async def test_list_new_items_rss_delegates_to_fetch_rss(monkeypatch):
     result = await news.list_new_items("rss", "2026-01-01T00:00:00")
 
     assert result == expected
+
+
+@pytest.mark.asyncio
+async def test_list_new_items_gdelt_delegates_to_fetch_gdelt(monkeypatch):
+    expected = [
+        {
+            "headline": "Alpha",
+            "url": "https://example.test/alpha",
+            "published_at": "2026-01-03T12:30:00+00:00",
+        }
+    ]
+
+    async def fake_fetch_gdelt(since):
+        assert since == "2026-01-01T00:00:00"
+        return expected
+
+    monkeypatch.setattr(news, "_fetch_gdelt", fake_fetch_gdelt)
+
+    result = await news.list_new_items("gdelt", "2026-01-01T00:00:00")
+
+    assert result == expected
+
+
+def test_configured_gdelt_managers_reads_env(monkeypatch):
+    monkeypatch.setenv("NEWS_GDELT_MANAGERS", "Alpha Capital, Beta Partners , ")
+    assert news._configured_gdelt_managers() == ["Alpha Capital", "Beta Partners"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_gdelt_parses_articles_filters_by_since_and_logs_calls(monkeypatch):
+    called_endpoints = []
+    log_calls = []
+
+    @asynccontextmanager
+    async def dummy_tracked_call(source, endpoint, **_kwargs):
+        called_endpoints.append((source, endpoint))
+
+        def _log(resp):
+            log_calls.append(resp.status_code)
+
+        yield _log
+
+    responses = {
+        "Alpha": {
+            "articles": [
+                {
+                    "title": "Alpha beats estimates",
+                    "url": "https://example.test/alpha",
+                    "seendate": "20260103123000",
+                    "socialimage": "https://img.test/alpha.jpg",
+                    "domain": "example.test",
+                },
+                {
+                    "title": "Old alpha item",
+                    "url": "https://example.test/old-alpha",
+                    "seendate": "20251231115959",
+                    "socialimage": "",
+                    "domain": "example.test",
+                },
+            ]
+        },
+        "Beta": {
+            "articles": [
+                {
+                    "title": "Bad date item",
+                    "url": "https://example.test/bad-date",
+                    "seendate": "not-a-date",
+                    "socialimage": "",
+                    "domain": "example.test",
+                },
+                {
+                    "title": "Beta launches new strategy",
+                    "url": "https://example.test/beta",
+                    "seendate": "20260104153000",
+                    "socialimage": "https://img.test/beta.jpg",
+                    "domain": "news.test",
+                },
+            ]
+        },
+    }
+
+    class DummyClient:
+        def __init__(self, *args, **kwargs):
+            _ = args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url, params=None):
+            assert params is not None
+            manager = params["query"]
+            payload = responses[manager]
+            return httpx.Response(
+                200,
+                request=httpx.Request("GET", news.GDELT_DOC_API, params=params),
+                json=payload,
+            )
+
+    monkeypatch.setattr(news.httpx, "AsyncClient", DummyClient)
+    monkeypatch.setattr(news, "tracked_call", dummy_tracked_call)
+    monkeypatch.setenv("NEWS_GDELT_MANAGERS", "Alpha,Beta")
+
+    items = await news._fetch_gdelt("2026-01-01T00:00:00")
+
+    assert len(items) == 2
+    assert {item["headline"] for item in items} == {
+        "Alpha beats estimates",
+        "Beta launches new strategy",
+    }
+    assert all(item["source"] == "gdelt" for item in items)
+    assert all(item["body_snippet"] == "" for item in items)
+    assert {item["domain"] for item in items} == {"example.test", "news.test"}
+    assert {item["socialimage"] for item in items} == {
+        "https://img.test/alpha.jpg",
+        "https://img.test/beta.jpg",
+    }
+    assert called_endpoints == [
+        (
+            "gdelt",
+            "https://api.gdeltproject.org/api/v2/doc/doc?query=Alpha&mode=artlist&maxrecords=50&format=json",
+        ),
+        (
+            "gdelt",
+            "https://api.gdeltproject.org/api/v2/doc/doc?query=Beta&mode=artlist&maxrecords=50&format=json",
+        ),
+    ]
+    assert log_calls == [200, 200]
+    assert items[0]["published_at"] > items[1]["published_at"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_gdelt_rate_limits_requests(monkeypatch):
+    sleep_calls = []
+
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monotonic_values = iter([10.0, 10.2, 11.5])
+
+    def fake_monotonic():
+        return next(monotonic_values)
+
+    @asynccontextmanager
+    async def dummy_tracked_call(_source, _endpoint, **_kwargs):
+        def _log(_resp):
+            return None
+
+        yield _log
+
+    class DummyClient:
+        def __init__(self, *args, **kwargs):
+            _ = args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url, params=None):
+            _ = params
+            return httpx.Response(
+                200,
+                request=httpx.Request("GET", news.GDELT_DOC_API),
+                json={"articles": []},
+            )
+
+    monkeypatch.setattr(news, "tracked_call", dummy_tracked_call)
+    monkeypatch.setattr(news.httpx, "AsyncClient", DummyClient)
+    monkeypatch.setattr(news, "monotonic", fake_monotonic)
+    monkeypatch.setattr(news.asyncio, "sleep", fake_sleep)
+    monkeypatch.setenv("NEWS_GDELT_MANAGERS", "A,B")
+
+    await news._fetch_gdelt("2026-01-01T00:00:00")
+
+    assert len(sleep_calls) == 1
+    assert sleep_calls[0] == pytest.approx(0.8)
