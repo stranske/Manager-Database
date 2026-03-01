@@ -5,6 +5,7 @@ Semantic label matching helpers for issue intake.
 
 from __future__ import annotations
 
+import importlib
 import logging
 import os
 import re
@@ -13,9 +14,9 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
-    from scripts.langchain import semantic_matcher
+    semantic_matcher_module = importlib.import_module("scripts.langchain.semantic_matcher")
 except ModuleNotFoundError:
-    import semantic_matcher
+    semantic_matcher_module = importlib.import_module("semantic_matcher")
 
 
 @dataclass(frozen=True)
@@ -253,7 +254,7 @@ def _label_text(label: LabelRecord) -> str:
 def build_label_vector_store(
     labels: Iterable[Any],
     *,
-    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
+    client_info: Any | None = None,
     model: str | None = None,
 ) -> LabelVectorStore | None:
     label_records: list[LabelRecord] = []
@@ -271,7 +272,7 @@ def build_label_vector_store(
     if not label_records:
         return None
 
-    resolved = client_info or semantic_matcher.get_embedding_client(model=model)
+    resolved = client_info or semantic_matcher_module.get_embedding_client(model=model)
     if resolved is None:
         logger.info("No embedding provider available for label matching.")
         return None
@@ -437,9 +438,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        matches.sort(key=lambda match: match.score, reverse=True)
-        return matches
+        keyword_only = _keyword_matches(label_store.labels, query, threshold=threshold)
+        keyword_only.sort(key=lambda match: match.score, reverse=True)
+        return keyword_only
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:

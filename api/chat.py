@@ -16,8 +16,7 @@ from typing import Any, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
-from fastapi import FastAPI, Query, Request
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
@@ -287,7 +286,7 @@ def _load_prompt_injection_error_class() -> type[Exception]:
     """Load PromptInjectionError from the expected module when available."""
     try:
         module = importlib.import_module("llm.injection")
-        return getattr(module, "PromptInjectionError")
+        return module.PromptInjectionError
     except Exception:
         return _PromptInjectionError
 
@@ -299,7 +298,7 @@ def _build_chat_client_info():
     """Build chat client metadata from available provider modules."""
     try:
         module = importlib.import_module("llm.client")
-        build_fn = getattr(module, "build_chat_client")
+        build_fn = module.build_chat_client
         return build_fn()
     except Exception:
         from tools.langchain_client import build_chat_client
@@ -311,7 +310,7 @@ def _classify_intent(question: str) -> str:
     """Classify user intent or use a deterministic fallback classifier."""
     try:
         module = importlib.import_module("chains.intent")
-        classify_intent = getattr(module, "classify_intent")
+        classify_intent = module.classify_intent
         chain_name = classify_intent(question)
         if chain_name in VALID_CHAIN_NAMES:
             return chain_name
@@ -461,7 +460,7 @@ async def chat_api(request: ChatRequest) -> ChatResponse:
     except PROMPT_INJECTION_ERROR as exc:  # type: ignore[misc]
         raise HTTPException(
             status_code=400, detail=f"Input rejected: {getattr(exc, 'reasons', exc)}"
-        )
+        ) from exc
 
 
 @app.post("/api/chat/filing-summary", response_model=ChatResponse)
