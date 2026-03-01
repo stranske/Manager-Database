@@ -43,7 +43,7 @@ def seed_managers() -> int:
                         jurisdictions = EXCLUDED.jurisdictions,
                         tags = EXCLUDED.tags,
                         updated_at = now()
-                    RETURNING manager_id
+                    RETURNING (xmax = 0) AS inserted
                     """,
                     (
                         manager["name"],
@@ -53,15 +53,16 @@ def seed_managers() -> int:
                         manager["tags"],
                     ),
                 )
-                cur.fetchone()
-                inserted += 1
+                row = cur.fetchone()
+                if row and row[0]:
+                    inserted += 1
         conn.commit()
     return inserted
 
 
 def main() -> None:
     count = seed_managers()
-    print(f"Seeded {count} manager records.")
+    print(f"Inserted {count} new manager records.")
 
 
 if __name__ == "__main__":
