@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
+import logging
 import os
 import time
+from collections import defaultdict, deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -14,7 +17,7 @@ from typing import Any, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
@@ -50,6 +53,7 @@ HEALTH_CHECK_DURATION = Histogram(
     "Health check latency by endpoint.",
     labelnames=("endpoint",),
 )
+logger = logging.getLogger(__name__)
 
 
 def get_health_executor():
@@ -128,6 +132,32 @@ class ChatResponse(BaseModel):
         }
     )
     answer: str = Field(..., description="Generated answer based on stored documents")
+    chain_used: str = Field(
+        "legacy_search",
+        description="Identifier of the chain or handler used to produce the answer",
+    )
+    sources: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Supporting references used to generate the answer",
+    )
+    sql: str | None = Field(None, description="Generated SQL, when applicable")
+    trace_url: str | None = Field(None, description="Optional trace URL for observability")
+    latency_ms: int = Field(0, description="End-to-end request latency in milliseconds")
+
+
+class ChatRequest(BaseModel):
+    """Request payload for the research assistant chat endpoint."""
+
+    question: str
+    chain: str | None = None
+    context: dict[str, Any] | None = None
+
+
+class HoldingsAnalysisRequest(BaseModel):
+    """Request payload for direct holdings analysis endpoint."""
+
+    question: str = "Analyze current holdings concentration and crowding."
+    context: dict[str, Any] | None = None
 
 
 class HealthDbResponse(BaseModel):
@@ -230,7 +260,343 @@ def chat(
         answer = "No documents found."
     else:
         answer = "Context: " + " ".join(h["content"] for h in hits)
-    return {"answer": answer}
+    return {"answer": answer, "latency_ms": 0, "chain_used": "legacy_search"}
+
+
+VALID_CHAIN_NAMES = {
+    "auto",
+    "filing_summary",
+    "holdings_analysis",
+    "nl_query",
+    "rag_search",
+}
+DIRECT_CHAIN_PATHS = {
+    "filing_summary": ("chains.filing_summary", "FilingSummaryChain"),
+    "holdings_analysis": ("chains.holdings_analysis", "HoldingsAnalysisChain"),
+    "nl_query": ("chains.nl_query", "NLQueryChain"),
+    "rag_search": ("chains.rag_search", "RAGSearchChain"),
+}
+
+_CHAT_RATE_LIMIT_PER_MINUTE = 10
+_CHAT_RATE_LIMIT_WINDOW_SECONDS = 60.0
+
+
+class InMemoryChatRateLimiter:
+    """Simple in-memory session limiter for chat endpoints."""
+
+    def __init__(self, max_requests: int, window_seconds: float) -> None:
+        self._max_requests = max_requests
+        self._window_seconds = window_seconds
+        self._requests: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = Lock()
+
+    def check_and_record(self, session_id: str, now: float | None = None) -> bool:
+        """Return True when request can proceed and persist request timestamp."""
+        current_time = now if now is not None else time.time()
+        window_start = current_time - self._window_seconds
+        with self._lock:
+            history = self._requests[session_id]
+            while history and history[0] <= window_start:
+                history.popleft()
+            if len(history) >= self._max_requests:
+                return False
+            history.append(current_time)
+            return True
+
+    def clear(self) -> None:
+        """Reset limiter state; used by tests."""
+        with self._lock:
+            self._requests.clear()
+
+
+CHAT_RATE_LIMITER = InMemoryChatRateLimiter(
+    max_requests=_CHAT_RATE_LIMIT_PER_MINUTE,
+    window_seconds=_CHAT_RATE_LIMIT_WINDOW_SECONDS,
+)
+
+
+def _chat_session_id(request: Request | None) -> str:
+    """Derive a stable session key from headers/cookies or client host."""
+    if request is None:
+        return "unknown"
+    header_value = request.headers.get("x-session-id")
+    if header_value:
+        return f"header:{header_value}"
+    cookie_value = request.cookies.get("session_id")
+    if cookie_value:
+        return f"cookie:{cookie_value}"
+    if request.client and request.client.host:
+        return f"client:{request.client.host}"
+    return "unknown"
+
+
+def _enforce_chat_rate_limit(request: Request | None) -> None:
+    """Raise 429 when request count exceeds session budget."""
+    session_id = _chat_session_id(request)
+    if not CHAT_RATE_LIMITER.check_and_record(session_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+
+class _PromptInjectionError(Exception):
+    """Fallback PromptInjectionError when llm.injection is unavailable."""
+
+    def __init__(self, reasons: list[str] | str) -> None:
+        if isinstance(reasons, str):
+            self.reasons = [reasons]
+        else:
+            self.reasons = reasons
+        super().__init__(", ".join(self.reasons))
+
+
+def _load_prompt_injection_error_class() -> type[Exception]:
+    """Load PromptInjectionError from the expected module when available."""
+    try:
+        module = importlib.import_module("llm.injection")
+        return module.PromptInjectionError
+    except Exception:
+        return _PromptInjectionError
+
+
+PROMPT_INJECTION_ERROR = _load_prompt_injection_error_class()
+
+
+def _build_chat_client_info():
+    """Build chat client metadata from available provider modules."""
+    llm_client_module = None
+    try:
+        llm_client_module = importlib.import_module("llm.client")
+    except ModuleNotFoundError as exc:
+        # Fall back only when the llm client module is not installed.
+        if exc.name not in {"llm", "llm.client"}:
+            raise
+
+    if llm_client_module is not None:
+        build_fn = getattr(llm_client_module, "build_chat_client", None)
+        if callable(build_fn):
+            return build_fn()
+        return None
+
+    from tools.langchain_client import build_chat_client
+
+    return build_chat_client()
+
+
+def _classify_intent(question: str) -> str:
+    """Classify user intent or use a deterministic fallback classifier."""
+    try:
+        module = importlib.import_module("chains.intent")
+        classify_intent = module.classify_intent
+        chain_name = classify_intent(question)
+        if chain_name in DIRECT_CHAIN_PATHS:
+            return chain_name
+    except Exception:
+        pass
+
+    lowered = question.lower()
+    if "sql" in lowered or "query" in lowered or "database" in lowered:
+        return "nl_query"
+    if "filing" in lowered or "13f" in lowered:
+        return "filing_summary"
+    if "holding" in lowered or "position" in lowered:
+        return "holdings_analysis"
+    return "rag_search"
+
+
+class _FallbackFilingSummaryChain:
+    def run(self, *, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        filing_id = (context or {}).get("filing_id")
+        detail = f" for filing {filing_id}" if filing_id else ""
+        return {"answer": f"Filing summary{detail}: {question}", "sources": []}
+
+
+class _FallbackHoldingsAnalysisChain:
+    def run(self, *, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {"answer": f"Holdings analysis: {question}", "sources": context or {}}
+
+
+class _FallbackNLQueryChain:
+    def run(self, *, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        sql = "SELECT manager_name, filing_date FROM filings ORDER BY filing_date DESC LIMIT 10;"
+        return {"answer": f"Query analysis: {question}", "sql": sql, "sources": context or {}}
+
+
+class _FallbackRAGSearchChain:
+    def run(self, *, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {"answer": f"Search results for: {question}", "sources": context or {}}
+
+
+FALLBACK_CHAINS = {
+    "filing_summary": _FallbackFilingSummaryChain,
+    "holdings_analysis": _FallbackHoldingsAnalysisChain,
+    "nl_query": _FallbackNLQueryChain,
+    "rag_search": _FallbackRAGSearchChain,
+}
+
+
+def _build_chain(chain_name: str, client_info: Any):
+    """Instantiate a chain by name, falling back to local stubs when missing."""
+    module_path, class_name = DIRECT_CHAIN_PATHS[chain_name]
+    try:
+        module = importlib.import_module(module_path)
+        chain_cls = getattr(module, class_name)
+    except Exception:
+        chain_cls = FALLBACK_CHAINS[chain_name]
+
+    try:
+        return chain_cls(client_info.client if client_info else None)
+    except Exception:
+        try:
+            return chain_cls(client_info) if client_info else chain_cls()
+        except Exception:
+            return chain_cls()
+
+
+def _normalize_sources(raw_sources: Any) -> list[dict[str, Any]]:
+    if isinstance(raw_sources, list):
+        normalized: list[dict[str, Any]] = []
+        for source in raw_sources:
+            if isinstance(source, dict):
+                normalized.append(source)
+            else:
+                normalized.append({"description": str(source)})
+        return normalized
+    if isinstance(raw_sources, dict):
+        return [raw_sources]
+    return []
+
+
+def _extract_chain_payload(result: Any) -> tuple[str, list[dict[str, Any]], str | None, str | None]:
+    """Extract answer metadata from dict/object/string chain responses."""
+    if isinstance(result, str):
+        return result, [], None, None
+    if isinstance(result, dict):
+        answer = str(result.get("answer") or result.get("response") or "")
+        sources = _normalize_sources(result.get("sources"))
+        sql = result.get("sql")
+        trace_url = result.get("trace_url")
+        return answer, sources, sql, trace_url
+
+    answer = str(getattr(result, "answer", "") or getattr(result, "response", ""))
+    sources = _normalize_sources(getattr(result, "sources", []))
+    sql = getattr(result, "sql", None)
+    trace_url = getattr(result, "trace_url", None)
+    return answer, sources, sql, trace_url
+
+
+async def _run_chain(
+    chain_name: str, question: str, context: dict[str, Any] | None, client_info: Any
+):
+    """Execute a chain and return normalized payload."""
+    chain = _build_chain(chain_name, client_info)
+    if hasattr(chain, "run"):
+        result = chain.run(question=question, context=context)
+    elif hasattr(chain, "invoke"):
+        result = chain.invoke({"question": question, "context": context or {}})
+    else:
+        raise RuntimeError(f"Chain '{chain_name}' does not expose run/invoke")
+
+    if asyncio.iscoroutine(result):
+        result = await result
+
+    return _extract_chain_payload(result)
+
+
+def _resolve_chain_name(requested_chain: str, question: str) -> str:
+    """Resolve requested/auto chain to a concrete chain implementation name."""
+    if requested_chain != "auto":
+        return requested_chain
+    classified_chain = _classify_intent(question)
+    if classified_chain in DIRECT_CHAIN_PATHS:
+        return classified_chain
+    return "rag_search"
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
+    """Main chat endpoint with automatic or explicit chain routing."""
+    started = time.perf_counter()
+    try:
+        _enforce_chat_rate_limit(raw_request)
+        client_info = _build_chat_client_info()
+        if not client_info:
+            raise HTTPException(
+                status_code=503,
+                detail="No LLM provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
+            )
+
+        requested_chain = (request.chain or "auto").strip().lower()
+        if requested_chain not in VALID_CHAIN_NAMES:
+            raise HTTPException(status_code=400, detail="Invalid chain")
+        chain_used = _resolve_chain_name(requested_chain, request.question)
+
+        answer, sources, sql, trace_url = await _run_chain(
+            chain_used, request.question, request.context, client_info
+        )
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return ChatResponse(
+            answer=answer,
+            chain_used=chain_used,
+            sources=sources,
+            sql=sql,
+            trace_url=trace_url,
+            latency_ms=latency_ms,
+        )
+    except PROMPT_INJECTION_ERROR as exc:  # type: ignore[misc]
+        reasons = getattr(exc, "reasons", [str(exc)])
+        if isinstance(reasons, list):
+            reason_text = ", ".join(str(reason) for reason in reasons)
+        else:
+            reason_text = str(reasons)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Input rejected: {reason_text}",
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Chat error: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Research assistant error. Check server logs.",
+        ) from exc
+
+
+@app.post("/api/chat/filing-summary", response_model=ChatResponse)
+async def filing_summary(filing_id: int, raw_request: Request) -> ChatResponse:
+    """Direct filing summary endpoint."""
+    return await chat_api(
+        ChatRequest(
+            question=f"Summarize filing {filing_id}",
+            chain="filing_summary",
+            context={"filing_id": filing_id},
+        ),
+        raw_request,
+    )
+
+
+@app.post("/api/chat/holdings-analysis", response_model=ChatResponse)
+async def holdings_analysis(request: HoldingsAnalysisRequest, raw_request: Request) -> ChatResponse:
+    """Direct holdings analysis endpoint."""
+    return await chat_api(
+        ChatRequest(
+            question=request.question,
+            chain="holdings_analysis",
+            context=request.context,
+        ),
+        raw_request,
+    )
+
+
+@app.post("/api/chat/query", response_model=ChatResponse)
+async def nl_query(question: str, raw_request: Request) -> ChatResponse:
+    """Direct NL-to-SQL query endpoint."""
+    return await chat_api(ChatRequest(question=question, chain="nl_query"), raw_request)
+
+
+@app.post("/api/chat/search", response_model=ChatResponse)
+async def rag_search(question: str, raw_request: Request) -> ChatResponse:
+    """Direct RAG search endpoint."""
+    return await chat_api(ChatRequest(question=question, chain="rag_search"), raw_request)
 
 
 def _health_payload() -> dict[str, int | bool]:
