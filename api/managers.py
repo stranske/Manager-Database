@@ -25,6 +25,8 @@ from api.models import (
     BulkImportSuccess,
     ManagerListResponse,
     ManagerResponse,
+    ManagerStatsResponse,
+    UniverseImportResponse,
 )
 
 router = APIRouter()
@@ -86,6 +88,13 @@ class ManagerUpdate(BaseModel):
     jurisdictions: list[str] | None = Field(None, description="Filing jurisdictions (us, uk, ca)")
     tags: list[str] | None = Field(None, description="Classification tags")
     registry_ids: dict[str, str] | None = Field(None, description="External registry IDs")
+
+
+class ManagerTagsPatch(BaseModel):
+    """Payload for appending/removing manager tags."""
+
+    add: list[str] = Field(default_factory=list, description="Tags to append if missing")
+    remove: list[str] = Field(default_factory=list, description="Tags to remove if present")
 
 
 class NotFoundResponse(BaseModel):
@@ -192,6 +201,88 @@ def _to_manager_response(row: tuple[object, ...]) -> ManagerResponse:
         registry_ids=_json_dict(row[7]),
         created_at=str(row[8]) if row[8] is not None else None,
         updated_at=str(row[9]) if row[9] is not None else None,
+    )
+
+
+def _normalize_cik(raw: Any) -> str:
+    cik = "" if raw is None else str(raw).strip()
+    if not cik:
+        return ""
+    digits = "".join(ch for ch in cik if ch.isdigit())
+    if not digits:
+        return ""
+    return digits.zfill(10)
+
+
+def _ensure_universe_schema(conn: Any) -> None:
+    """Ensure managers table has the columns/index needed for universe imports."""
+    _ensure_manager_table(conn)
+    if isinstance(conn, sqlite3.Connection):
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        if "cik" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN cik TEXT")
+        if "jurisdiction" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN jurisdiction TEXT")
+        if "created_at" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN created_at TIMESTAMP")
+            conn.execute(
+                "UPDATE managers SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"
+            )
+        if "updated_at" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN updated_at TIMESTAMP")
+            conn.execute(
+                "UPDATE managers SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL"
+            )
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
+        conn.commit()
+        return
+
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS cik text")
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdiction text")
+    conn.execute(
+        "ALTER TABLE managers ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now()"
+    )
+    conn.execute(
+        "ALTER TABLE managers ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()"
+    )
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
+
+
+def _manager_exists_for_cik(conn: Any, cik: str) -> bool:
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    row = conn.execute(
+        f"SELECT 1 FROM managers WHERE cik = {placeholder} LIMIT 1",
+        (cik,),
+    ).fetchone()
+    return bool(row)
+
+
+def _upsert_universe_record(conn: Any, name: str, cik: str, jurisdiction: str) -> None:
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute(
+            """
+            INSERT INTO managers(name, cik, jurisdiction, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(cik)
+            DO UPDATE SET
+                name = excluded.name,
+                jurisdiction = excluded.jurisdiction,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (name, cik, jurisdiction),
+        )
+        return
+    conn.execute(
+        """
+        INSERT INTO managers(name, cik, jurisdiction, updated_at)
+        VALUES (%s, %s, %s, now())
+        ON CONFLICT(cik)
+        DO UPDATE SET
+            name = EXCLUDED.name,
+            jurisdiction = EXCLUDED.jurisdiction,
+            updated_at = now()
+        """,
+        (name, cik, jurisdiction),
     )
 
 
@@ -393,6 +484,87 @@ def _validate_manager_update_payload(payload: ManagerUpdate) -> list[dict[str, s
     ):
         errors.append({"field": "cik", "message": "CIK must be a 10-digit zero-padded string."})
     return errors
+
+
+def _normalize_tags(values: list[str]) -> list[str]:
+    """Trim, dedupe, and drop empty tag values while preserving order."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        tag = value.strip()
+        if not tag or tag in seen:
+            continue
+        seen.add(tag)
+        normalized.append(tag)
+    return normalized
+
+
+def _merge_tags(existing: list[str], add: list[str], remove: list[str]) -> list[str]:
+    """Merge add/remove tag operations onto an existing tag list."""
+    tags = _normalize_tags(existing)
+    for tag in add:
+        if tag not in tags:
+            tags.append(tag)
+    if not remove:
+        return tags
+    remove_set = set(remove)
+    return [tag for tag in tags if tag not in remove_set]
+
+
+def _fetch_manager_stats_rows(conn: Any) -> list[tuple[Any, ...]]:
+    """Fetch columns needed for manager summary stats with schema fallback."""
+    try:
+        cursor = conn.execute("SELECT cik, lei, jurisdictions, tags, jurisdiction FROM managers")
+        return cursor.fetchall()
+    except DB_ERROR_TYPES as exc:
+        message = str(exc).lower()
+        missing_jurisdiction = (
+            "no such column: jurisdiction" in message
+            or 'column "jurisdiction" does not exist' in message
+        )
+        if not missing_jurisdiction:
+            raise
+        cursor = conn.execute("SELECT cik, lei, jurisdictions, tags FROM managers")
+        rows = cursor.fetchall()
+        return [(row[0], row[1], row[2], row[3], None) for row in rows]
+
+
+def _build_manager_stats(rows: list[tuple[Any, ...]]) -> ManagerStatsResponse:
+    """Aggregate manager universe stats from normalized DB rows."""
+    by_jurisdiction: dict[str, int] = {}
+    by_tag: dict[str, int] = {}
+    with_cik = 0
+    with_lei = 0
+
+    for cik, lei, jurisdictions_raw, tags_raw, jurisdiction_raw in rows:
+        cik_value = str(cik).strip() if cik is not None else ""
+        if cik_value:
+            with_cik += 1
+
+        lei_value = str(lei).strip() if lei is not None else ""
+        if lei_value:
+            with_lei += 1
+
+        jurisdiction_values = _normalize_tags(_json_array(jurisdictions_raw))
+        if not jurisdiction_values and jurisdiction_raw is not None:
+            fallback_value = str(jurisdiction_raw).strip()
+            if fallback_value:
+                jurisdiction_values = [fallback_value]
+        jurisdiction_values = _normalize_tags([value.lower() for value in jurisdiction_values])
+        for jurisdiction in jurisdiction_values:
+            by_jurisdiction[jurisdiction] = by_jurisdiction.get(jurisdiction, 0) + 1
+
+        tag_values = _normalize_tags([value.lower() for value in _json_array(tags_raw)])
+        for tag in tag_values:
+            by_tag[tag] = by_tag.get(tag, 0) + 1
+
+    return ManagerStatsResponse(
+        total_managers=len(rows),
+        by_jurisdiction=dict(sorted(by_jurisdiction.items())),
+        by_tag=dict(sorted(by_tag.items())),
+        with_cik=with_cik,
+        with_lei=with_lei,
+    )
 
 
 def _require_valid_manager(handler):
@@ -878,6 +1050,93 @@ async def bulk_import_managers(
     )
 
 
+@router.post(
+    "/managers/import/universe",
+    status_code=200,
+    response_model=UniverseImportResponse,
+    summary="Import manager universe records",
+    description=(
+        "Import a JSON array of manager universe records with CIK-based upsert behavior. "
+        "Valid records create or update managers by CIK; invalid records are skipped."
+    ),
+)
+async def import_manager_universe(
+    records: Annotated[Any, Body(..., description="Array of manager records")],
+):
+    """Upsert manager universe records using CIK as the unique key."""
+    if not isinstance(records, list):
+        return _bulk_request_error("body", "Request body must be a JSON array.")
+
+    if not records:
+        return UniverseImportResponse(created=0, updated=0, skipped=0)
+
+    conn = None
+    created = 0
+    updated = 0
+    skipped = 0
+    try:
+        conn = connect_db()
+        _ensure_universe_schema(conn)
+        for index, record in enumerate(records):
+            if not isinstance(record, dict):
+                skipped += 1
+                logger.warning("Universe import skipped record %s: record must be an object", index)
+                continue
+            name = str(record.get("name", "")).strip()
+            cik = _normalize_cik(record.get("cik"))
+            jurisdiction = str(record.get("jurisdiction", "")).strip().lower()
+            if not name or not cik or not jurisdiction:
+                skipped += 1
+                logger.warning(
+                    "Universe import skipped record %s: requires name, cik, jurisdiction",
+                    index,
+                )
+                continue
+
+            existed = _manager_exists_for_cik(conn, cik)
+            if existed:
+                updated += 1
+            else:
+                created += 1
+
+            _upsert_universe_record(conn, name, cik, jurisdiction)
+
+        conn.commit()
+        invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return UniverseImportResponse(created=created, updated=updated, skipped=skipped)
+
+
+@router.get(
+    "/managers/stats",
+    response_model=ManagerStatsResponse,
+    summary="Retrieve manager universe stats",
+    description=(
+        "Return aggregate manager counts across the current universe, including "
+        "jurisdiction and tag breakdowns."
+    ),
+)
+async def get_manager_stats():
+    """Return aggregate manager universe statistics."""
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        rows = _fetch_manager_stats_rows(conn)
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return _build_manager_stats(rows)
+
+
 @router.get(
     "/managers/{id}",
     response_model=ManagerResponse,
@@ -1017,6 +1276,76 @@ async def patch_manager(
             raise HTTPException(status_code=404, detail="Manager not found")
         row = _fetch_manager(conn, db_identity, id)
         invalidate_cache_prefix("managers")
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Manager not found")
+    return _to_manager_response(row)
+
+
+@router.patch(
+    "/managers/{id}/tags",
+    response_model=ManagerResponse,
+    summary="Append or remove manager tags",
+    description=(
+        "Append and/or remove tags for a manager without replacing the rest of the record."
+    ),
+    responses={
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        404: {"model": NotFoundResponse, "description": "Manager not found"},
+    },
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "add-and-remove-tags": {
+                            "summary": "Append and remove tags",
+                            "value": {"add": ["event-driven"], "remove": ["activist"]},
+                        }
+                    }
+                }
+            }
+        }
+    },
+)
+async def patch_manager_tags(
+    payload: ManagerTagsPatch,
+    id: int = Path(..., ge=1, description="Manager identifier"),
+):
+    """Append/remove manager tags and return the updated manager."""
+    add_tags = _normalize_tags(payload.add)
+    remove_tags = _normalize_tags(payload.remove)
+    if not add_tags and not remove_tags:
+        errors = [
+            {
+                "field": "body",
+                "message": "At least one non-empty tag must be provided in add or remove.",
+            }
+        ]
+        return JSONResponse(status_code=400, content={"errors": errors, "error": errors})
+
+    db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        existing_row = _fetch_manager(conn, db_identity, id)
+        if existing_row is None:
+            raise HTTPException(status_code=404, detail="Manager not found")
+
+        existing_tags = _json_array(existing_row[6])
+        merged_tags = _merge_tags(existing_tags, add_tags, remove_tags)
+        if merged_tags != existing_tags:
+            _update_manager(conn, id, ManagerUpdate(tags=merged_tags))
+            invalidate_cache_prefix("managers")
+            row = _fetch_manager(conn, db_identity, id)
+        else:
+            row = existing_row
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:

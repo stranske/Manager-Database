@@ -108,6 +108,27 @@ def test_openapi_managers_schema():
     manager_patch_schema = schema["paths"]["/managers/{id}"]["patch"]
     patch_examples = manager_patch_schema["requestBody"]["content"]["application/json"]["examples"]
     assert patch_examples["update-tags-and-lei"]["value"]["tags"] == ["event-driven"]
+    manager_tags_patch_schema = schema["paths"]["/managers/{id}/tags"]["patch"]
+    assert manager_tags_patch_schema["summary"] == "Append or remove manager tags"
+    tags_patch_request_schema = manager_tags_patch_schema["requestBody"]["content"][
+        "application/json"
+    ]["schema"]
+    assert tags_patch_request_schema["$ref"] == "#/components/schemas/ManagerTagsPatch"
+    tags_patch_examples = manager_tags_patch_schema["requestBody"]["content"]["application/json"][
+        "examples"
+    ]
+    assert tags_patch_examples["add-and-remove-tags"]["value"] == {
+        "add": ["event-driven"],
+        "remove": ["activist"],
+    }
+    tags_patch_response_schema = manager_tags_patch_schema["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
+    assert tags_patch_response_schema["$ref"] == "#/components/schemas/ManagerResponse"
+    tags_patch_not_found_schema = manager_tags_patch_schema["responses"]["404"]["content"][
+        "application/json"
+    ]["schema"]
+    assert tags_patch_not_found_schema["$ref"] == "#/components/schemas/NotFoundResponse"
 
     bulk_schema = schema["paths"]["/api/managers/bulk"]["post"]
     assert bulk_schema["summary"] == "Bulk import managers"
