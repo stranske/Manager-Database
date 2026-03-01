@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections import Counter
+from html import escape
 
 import pandas as pd
 import streamlit as st
@@ -72,6 +73,14 @@ _ENTITY_LABELS: dict[str, str] = {
     "document": "Documents",
 }
 
+_ENTITY_BADGE_COLORS: dict[str, tuple[str, str]] = {
+    "manager": ("#1F2937", "#E5E7EB"),
+    "filing": ("#1E3A8A", "#DBEAFE"),
+    "holding": ("#854D0E", "#FEF3C7"),
+    "news": ("#166534", "#DCFCE7"),
+    "document": ("#6D28D9", "#EDE9FE"),
+}
+
 
 def _count_results_by_entity_type(results: list[SearchResult]) -> dict[str, int]:
     counts = Counter(item.entity_type for item in results)
@@ -85,11 +94,39 @@ def _count_results_by_entity_type(results: list[SearchResult]) -> dict[str, int]
     return ordered
 
 
+def _entity_badge_html(entity_type: str) -> str:
+    bg, fg = _ENTITY_BADGE_COLORS.get(entity_type, ("#374151", "#F3F4F6"))
+    label = escape(entity_type.upper())
+    return (
+        "<span style='display:inline-block;padding:0.1rem 0.5rem;border-radius:999px;"
+        f"background:{bg};color:{fg};font-size:0.72rem;font-weight:700'>{label}</span>"
+    )
+
+
+def _group_results_by_entity_type(
+    results: list[SearchResult],
+) -> list[tuple[str, list[SearchResult]]]:
+    grouped: dict[str, list[SearchResult]] = {}
+    for result in results:
+        grouped.setdefault(result.entity_type, []).append(result)
+    return sorted(
+        grouped.items(),
+        key=lambda item: (
+            max(result.relevance for result in item[1]),
+            -len(item[1]),
+            _ENTITY_LABELS.get(item[0], item[0]),
+        ),
+        reverse=True,
+    )
+
+
 def _render_result(result: SearchResult) -> None:
-    manager_text = f" | Manager: {result.manager_name}" if result.manager_name else ""
-    ts_text = f" | {result.timestamp}" if result.timestamp else ""
+    manager_text = f" | Manager: {escape(result.manager_name)}" if result.manager_name else ""
+    ts_text = f" | {escape(result.timestamp)}" if result.timestamp else ""
     st.markdown(f"**{result.headline}**")
-    st.caption(f"{result.entity_type.upper()}{manager_text}{ts_text}")
+    badge_html = _entity_badge_html(result.entity_type)
+    meta_html = f"{badge_html} <span style='color:#6B7280'>Relevance {result.relevance:.2f}{manager_text}{ts_text}</span>"
+    st.markdown(meta_html, unsafe_allow_html=True)
     if result.snippet:
         st.write(result.snippet)
     if result.url:
@@ -122,12 +159,11 @@ def main() -> None:
             metric_columns[idx].metric(_ENTITY_LABELS.get(entity_type, entity_type.title()), count)
 
         st.subheader("Results")
-        for entity_type in _ENTITY_LABELS:
-            grouped = [item for item in results if item.entity_type == entity_type]
-            if not grouped:
-                continue
-            with st.expander(f"{_ENTITY_LABELS[entity_type]} ({len(grouped)})", expanded=True):
-                for item in grouped:
+        st.caption("Results are sorted by relevance and grouped by entity type.")
+        for entity_type, grouped in _group_results_by_entity_type(results):
+            label = _ENTITY_LABELS.get(entity_type, entity_type.title())
+            with st.expander(f"{label} ({len(grouped)})", expanded=True):
+                for item in sorted(grouped, key=lambda r: r.relevance, reverse=True):
                     _render_result(item)
 
 

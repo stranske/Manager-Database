@@ -7,7 +7,12 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import api.chat as chat_api_module
 from api.search import SearchResult, universal_search
-from ui.search import _count_results_by_entity_type, search_news
+from ui.search import (
+    _count_results_by_entity_type,
+    _entity_badge_html,
+    _group_results_by_entity_type,
+    search_news,
+)
 
 
 class _FakeCursor:
@@ -310,3 +315,49 @@ def test_count_results_by_entity_type_orders_known_types():
     assert list(counts.keys()) == ["manager", "news"]
     assert counts["manager"] == 1
     assert counts["news"] == 2
+
+
+def test_group_results_by_entity_type_orders_by_top_relevance():
+    results = [
+        SearchResult(
+            entity_type="holding",
+            entity_id=1,
+            manager_name=None,
+            headline="h",
+            snippet="",
+            relevance=0.65,
+            url=None,
+            timestamp=None,
+        ),
+        SearchResult(
+            entity_type="news",
+            entity_id=2,
+            manager_name=None,
+            headline="n",
+            snippet="",
+            relevance=0.9,
+            url=None,
+            timestamp=None,
+        ),
+        SearchResult(
+            entity_type="filing",
+            entity_id=3,
+            manager_name=None,
+            headline="f",
+            snippet="",
+            relevance=0.8,
+            url=None,
+            timestamp=None,
+        ),
+    ]
+
+    grouped = _group_results_by_entity_type(results)
+
+    assert [entity_type for entity_type, _ in grouped] == ["news", "filing", "holding"]
+
+
+def test_entity_badge_html_contains_uppercase_entity_type():
+    badge = _entity_badge_html("news")
+
+    assert "NEWS" in badge
+    assert "border-radius:999px" in badge
