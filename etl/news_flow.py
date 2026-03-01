@@ -116,7 +116,8 @@ def _resolve_sources(sources: list[str] | None) -> list[str]:
     if sources is not None:
         return sources
     env_sources = os.getenv("NEWS_SOURCES", "rss,gdelt")
-    return [source.strip() for source in env_sources.split(",") if source.strip()]
+    parsed_sources = [source.strip() for source in env_sources.split(",") if source.strip()]
+    return parsed_sources or ["rss", "gdelt"]
 
 
 def _placeholder(conn: Any) -> str:

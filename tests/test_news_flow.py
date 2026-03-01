@@ -108,6 +108,31 @@ async def test_news_flow_defaults_to_rss_and_gdelt_when_env_missing(monkeypatch,
 
 
 @pytest.mark.asyncio
+async def test_news_flow_defaults_to_rss_and_gdelt_when_env_empty(monkeypatch, tmp_path):
+    monkeypatch.setenv("NEWS_SOURCES", " , ")
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "news.db"))
+    conn = sqlite3.connect(tmp_path / "news.db")
+    _create_managers_table(conn)
+    _create_news_items_table(conn)
+    conn.commit()
+    conn.close()
+    calls = []
+
+    async def fake_list_new_items(source, since):
+        calls.append((source, since))
+        return []
+
+    monkeypatch.setattr(news_flow.news, "list_new_items", fake_list_new_items)
+
+    result = await news_flow.news_flow.fn()
+
+    assert result["sources"] == ["rss", "gdelt"]
+    assert result["fetched"] == 0
+    assert result["inserted"] == 0
+    assert calls == [("rss", None), ("gdelt", None)]
+
+
+@pytest.mark.asyncio
 async def test_news_flow_respects_explicit_sources(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "news.db"))
     conn = sqlite3.connect(tmp_path / "news.db")
