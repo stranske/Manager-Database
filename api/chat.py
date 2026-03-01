@@ -8,8 +8,8 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable
 from collections import defaultdict, deque
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from threading import Lock
