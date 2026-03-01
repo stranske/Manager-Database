@@ -72,13 +72,17 @@ def store_document(
             register_vector(conn)
         conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
         conn.execute("""CREATE TABLE IF NOT EXISTS documents (
-                id SERIAL PRIMARY KEY,
-                content TEXT,
-                sha256 TEXT UNIQUE,
-                embedding vector(384)
+                doc_id bigserial PRIMARY KEY,
+                manager_id bigint REFERENCES managers(manager_id),
+                kind text NOT NULL DEFAULT 'note',
+                filename text,
+                sha256 text,
+                text text,
+                embedding vector(384),
+                created_at timestamptz DEFAULT now()
             )""")
         existing = conn.execute(
-            "SELECT id FROM documents WHERE sha256 = %s",
+            "SELECT doc_id FROM documents WHERE sha256 = %s",
             (sha256,),
         ).fetchone()
         if existing:
@@ -87,8 +91,11 @@ def store_document(
             return int(existing[0])
         emb = Vector(embed_text(text)) if register_vector else embed_text(text)
         result = conn.execute(
-            "INSERT INTO documents(content, sha256, embedding) VALUES (%s,%s,%s) RETURNING id",
-            (text, sha256, emb),
+            (
+                "INSERT INTO documents(manager_id, kind, filename, sha256, text, embedding) "
+                "VALUES (%s,%s,%s,%s,%s,%s) RETURNING doc_id"
+            ),
+            (manager_id, kind, filename, sha256, text, emb),
         )
         row = result.fetchone()
         if row is None:

@@ -77,7 +77,7 @@ def test_store_and_search_pgvector(monkeypatch):
 
         def execute(self, sql, params=None):
             self.executed.append((sql, params))
-            if sql.startswith("SELECT id FROM documents WHERE sha256"):
+            if sql.startswith("SELECT doc_id FROM documents WHERE sha256"):
                 return type("Result", (), {"fetchone": lambda self: None})()
             if sql.startswith("SELECT"):
                 return type("Result", (), {"fetchall": lambda self: [("hello", 0.1)]})()
