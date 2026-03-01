@@ -48,8 +48,10 @@ async def test_news_flow_uses_default_sources(monkeypatch, tmp_path):
     result = await news_flow.news_flow.fn()
     verify_conn = sqlite3.connect(tmp_path / "news.db")
     try:
-        rows = verify_conn.execute("""SELECT source, headline, url, topics, confidence
-               FROM news_items ORDER BY source""").fetchall()
+        rows = verify_conn.execute(
+            """SELECT source, published_at, headline, url, body_snippet, topics, confidence
+               FROM news_items ORDER BY source"""
+        ).fetchall()
     finally:
         verify_conn.close()
 
@@ -59,9 +61,50 @@ async def test_news_flow_uses_default_sources(monkeypatch, tmp_path):
     assert result["fetched"] == 2
     assert result["inserted"] == 2
     assert rows == [
-        ("gdelt", "gdelt headline", "https://example.com/gdelt", '["markets"]', 0.9),
-        ("rss", "rss headline", "https://example.com/rss", '["markets"]', 0.9),
+        (
+            "gdelt",
+            "2026-01-01T00:00:02+00:00",
+            "gdelt headline",
+            "https://example.com/gdelt",
+            "gdelt snippet",
+            '["markets"]',
+            0.9,
+        ),
+        (
+            "rss",
+            "2026-01-01T00:00:01+00:00",
+            "rss headline",
+            "https://example.com/rss",
+            "rss snippet",
+            '["markets"]',
+            0.9,
+        ),
     ]
+
+
+@pytest.mark.asyncio
+async def test_news_flow_defaults_to_rss_and_gdelt_when_env_missing(monkeypatch, tmp_path):
+    monkeypatch.delenv("NEWS_SOURCES", raising=False)
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "news.db"))
+    conn = sqlite3.connect(tmp_path / "news.db")
+    _create_managers_table(conn)
+    _create_news_items_table(conn)
+    conn.commit()
+    conn.close()
+    calls = []
+
+    async def fake_list_new_items(source, since):
+        calls.append((source, since))
+        return []
+
+    monkeypatch.setattr(news_flow.news, "list_new_items", fake_list_new_items)
+
+    result = await news_flow.news_flow.fn()
+
+    assert result["sources"] == ["rss", "gdelt"]
+    assert result["fetched"] == 0
+    assert result["inserted"] == 0
+    assert calls == [("rss", None), ("gdelt", None)]
 
 
 @pytest.mark.asyncio
