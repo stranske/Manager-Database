@@ -79,6 +79,7 @@ def test_openapi_managers_schema():
     assert list_parameters["offset"]["schema"]["default"] == 0
     assert "jurisdiction" in list_parameters
     assert "tag" in list_parameters
+    assert "department" not in list_parameters
 
     manager_detail_schema = schema["paths"]["/managers/{id}"]["get"]
     assert manager_detail_schema["summary"] == "Retrieve a manager"
