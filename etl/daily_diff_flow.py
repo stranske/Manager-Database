@@ -79,8 +79,9 @@ def _resolve_local_timezone() -> str:
         return env
 
     tzinfo = dt.datetime.now().astimezone().tzinfo
-    if tzinfo and getattr(tzinfo, "key", None):
-        return tzinfo.key  # Prefer canonical IANA identifier.
+    tz_key = getattr(tzinfo, "key", None) if tzinfo else None
+    if isinstance(tz_key, str) and tz_key:
+        return tz_key  # Prefer canonical IANA identifier.
 
     try:
         localtime_path = os.path.realpath("/etc/localtime")

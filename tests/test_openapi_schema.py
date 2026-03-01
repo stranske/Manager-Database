@@ -52,15 +52,15 @@ def test_openapi_managers_schema():
     request_schema = manager_schema["requestBody"]["content"]["application/json"]["schema"]
     assert request_schema["$ref"] == "#/components/schemas/ManagerCreate"
     manager_create = schema["components"]["schemas"]["ManagerCreate"]
-    assert manager_create["examples"][0]["name"] == "Grace Hopper"
+    assert manager_create["examples"][0]["name"] == "Elliott Investment Management L.P."
 
     response_schema = manager_schema["responses"]["201"]["content"]["application/json"]["schema"]
     assert response_schema["$ref"] == "#/components/schemas/ManagerResponse"
     manager_component = schema["components"]["schemas"]["ManagerResponse"]
-    assert manager_component["examples"][0]["role"] == "Engineering Director"
+    assert manager_component["examples"][0]["cik"] == "0001791786"
 
     error_examples = manager_schema["responses"]["400"]["content"]["application/json"]["examples"]
-    assert error_examples["missing-role"]["value"]["errors"][0]["field"] == "role"
+    assert error_examples["missing-name"]["value"]["errors"][0]["field"] == "name"
 
     manager_list_schema = schema["paths"]["/managers"]["get"]
     assert manager_list_schema["summary"] == "List managers"
@@ -68,6 +68,13 @@ def test_openapi_managers_schema():
         "schema"
     ]
     assert list_response_schema["$ref"] == "#/components/schemas/ManagerListResponse"
+    list_examples = manager_list_schema["responses"]["200"]["content"]["application/json"][
+        "examples"
+    ]
+    assert (
+        list_examples["investment-managers"]["value"]["items"][0]["name"]
+        == "Elliott Investment Management L.P."
+    )
     # Validate list endpoint documents request validation errors.
     list_error_schema = manager_list_schema["responses"]["400"]["content"]["application/json"][
         "schema"
@@ -77,7 +84,7 @@ def test_openapi_managers_schema():
     # Default pagination should reflect the 25-row page size.
     assert list_parameters["limit"]["schema"]["default"] == 25
     assert list_parameters["offset"]["schema"]["default"] == 0
-    assert "department" in list_parameters
+    assert set(list_parameters) == {"limit", "offset", "jurisdiction", "tag"}
 
     manager_detail_schema = schema["paths"]["/managers/{id}"]["get"]
     assert manager_detail_schema["summary"] == "Retrieve a manager"
@@ -85,6 +92,10 @@ def test_openapi_managers_schema():
         "application/json"
     ]["schema"]
     assert detail_response_schema["$ref"] == "#/components/schemas/ManagerResponse"
+    detail_examples = manager_detail_schema["responses"]["200"]["content"]["application/json"][
+        "examples"
+    ]
+    assert detail_examples["investment-manager"]["value"]["cik"] == "0001791786"
     # Validate detail endpoint exposes path validation errors.
     detail_error_schema = manager_detail_schema["responses"]["400"]["content"]["application/json"][
         "schema"
@@ -94,6 +105,9 @@ def test_openapi_managers_schema():
         "schema"
     ]
     assert not_found_schema["$ref"] == "#/components/schemas/NotFoundResponse"
+    manager_patch_schema = schema["paths"]["/managers/{id}"]["patch"]
+    patch_examples = manager_patch_schema["requestBody"]["content"]["application/json"]["examples"]
+    assert patch_examples["update-tags-and-lei"]["value"]["tags"] == ["event-driven"]
 
     bulk_schema = schema["paths"]["/api/managers/bulk"]["post"]
     assert bulk_schema["summary"] == "Bulk import managers"
