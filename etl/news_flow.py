@@ -11,8 +11,8 @@ from typing import Any
 
 from prefect import flow, task
 
-from adapters.base import connect_db
 from adapters import news
+from adapters.base import connect_db
 from etl.logging_setup import configure_logging, log_outcome
 
 configure_logging("news_flow")
