@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
 from typing import Any
 
 from prefect import flow, task
@@ -61,22 +60,20 @@ def _normalize_aliases(raw_aliases: Any) -> list[str]:
     return [value]
 
 
-def _placeholder(conn: Any) -> str:
-    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
-
-
 @task
 def match_entities(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:
     """Link news items to managers by name/alias substring matching."""
-    placeholder = _placeholder(conn)
-    rows = conn.execute(
-        f"SELECT manager_id, name, aliases FROM managers WHERE name IS NOT NULL AND name <> {placeholder}",
-        ("",),
-    ).fetchall()
+    rows = conn.execute("SELECT manager_id, name, aliases FROM managers").fetchall()
 
     manager_terms: list[tuple[int, list[str]]] = []
     for manager_id, name, aliases in rows:
-        terms = [str(name).strip().lower()]
+        if manager_id is None:
+            continue
+        terms: list[str] = []
+        if name is not None:
+            cleaned_name = str(name).strip().lower()
+            if cleaned_name:
+                terms.append(cleaned_name)
         terms.extend(alias.lower() for alias in _normalize_aliases(aliases))
         deduped = [term for term in dict.fromkeys(terms) if term]
         if deduped:
@@ -97,6 +94,7 @@ def match_entities(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any
             item["manager_id"] = matched_manager_id
             matched += 1
         else:
+            item["manager_id"] = None
             unmatched += 1
 
     logger.info(

@@ -118,7 +118,7 @@ def test_match_entities_links_items_by_name_and_alias():
 
         assert result[0]["manager_id"] == 1
         assert result[1]["manager_id"] == 2
-        assert "manager_id" not in result[2]
+        assert result[2]["manager_id"] is None
     finally:
         conn.close()
 
