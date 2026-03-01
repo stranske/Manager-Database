@@ -301,3 +301,75 @@ def test_history_renders_saved_assistant_metadata(monkeypatch):
     assert "[Trace](https://trace.local/1)" in fake_st.captions
     assert ("SELECT 1;", "sql") in fake_st.code_calls
     assert "🔍 Generated SQL" in fake_st.expander_labels
+
+
+def test_call_chat_api_sends_expected_payload_and_session_header(monkeypatch):
+    research = _load_research_module()
+    fake_st = FakeStreamlit()
+    fake_st.session_state.chat_session_id = "session-123"
+    monkeypatch.setattr(research, "st", fake_st)
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {
+                "answer": "ok",
+                "chain_used": "nl_query",
+                "sources": [],
+                "sql": None,
+                "trace_url": None,
+                "latency_ms": 5,
+            }
+
+    def _fake_post(url, *, json, headers, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        captured["headers"] = headers
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(research.requests, "post", _fake_post)
+
+    result = research._call_chat_api(
+        "Show latest filings",
+        "Database Query",
+        {"manager_name": "Example Capital"},
+    )
+
+    assert captured["url"] == research.CHAT_API_URL
+    assert captured["json"] == {
+        "question": "Show latest filings",
+        "chain": "nl_query",
+        "context": {"manager_name": "Example Capital"},
+    }
+    assert captured["headers"] == {"x-session-id": "session-123"}
+    assert captured["timeout"] == research.REQUEST_TIMEOUT_SECONDS
+    assert result["answer"] == "ok"
+
+
+def test_call_chat_api_raises_runtime_error_for_http_failure(monkeypatch):
+    research = _load_research_module()
+    fake_st = FakeStreamlit()
+    fake_st.session_state.chat_session_id = "session-err"
+    monkeypatch.setattr(research, "st", fake_st)
+
+    class FailingResponse:
+        status_code = 503
+        text = "service unavailable"
+
+        @staticmethod
+        def json():
+            return {"detail": "No LLM provider configured"}
+
+    monkeypatch.setattr(research.requests, "post", lambda *args, **kwargs: FailingResponse())
+
+    try:
+        research._call_chat_api("hello", "Auto (recommended)", None)
+        assert False, "Expected RuntimeError"
+    except RuntimeError as exc:
+        assert "503" in str(exc)
+        assert "No LLM provider configured" in str(exc)
