@@ -177,10 +177,9 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: diff_holdings.py <CIK_or_manager_id>")
         sys.exit(1)
-    identifier = sys.argv[1]
-    # Accept either a CIK or a numeric manager_id from the CLI.
-    arg: int | str = int(identifier) if identifier.isdigit() else identifier
-    for row in diff_holdings(arg):
+    # Always pass as string — _resolve_manager_id handles CIK lookup
+    # and numeric fallback without losing leading zeros.
+    for row in diff_holdings(sys.argv[1]):
         print(
             f"{row['cusip']}: {row['delta_type']} "
             f"(shares {row['shares_prev']} -> {row['shares_curr']}, "

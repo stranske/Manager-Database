@@ -87,9 +87,13 @@ def _refresh_matview(conn: Any) -> None:
     if _is_postgres(conn):
         try:
             conn.execute("REFRESH MATERIALIZED VIEW mv_daily_report")
-        except Exception:
-            # View may not exist yet in fresh environments.
-            logger.debug("mv_daily_report refresh skipped (view may not exist)")
+        except Exception as exc:
+            # Only suppress "does not exist" errors (fresh environments
+            # without the Alembic migration applied); re-raise real failures.
+            if "does not exist" in str(exc).lower():
+                logger.debug("mv_daily_report refresh skipped (view does not exist)")
+            else:
+                raise
 
 
 def _fetch_all_manager_ids(conn: Any) -> list[int]:
@@ -122,6 +126,11 @@ def daily_diff_flow(date: str | None = None) -> None:
         if not manager_ids:
             logger.warning("No managers found in database")
             return
+
+        # Postgres runs with autocommit=True, so an explicit transaction is
+        # required to make the DELETE-then-INSERT cycle atomic per batch.
+        if _is_postgres(conn):
+            conn.execute("BEGIN")
 
         total_changes = 0
         managers_processed = 0
