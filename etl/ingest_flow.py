@@ -168,7 +168,14 @@ def _filing_type(
     parsed_rows: list[dict[str, Any]], filing: dict[str, Any], jurisdiction: str
 ) -> str:
     if jurisdiction == "uk":
-        return str(parsed_rows[0].get("filing_type") or "unknown") if parsed_rows else "unknown"
+        if not parsed_rows:
+            return "unknown"
+        first_row = parsed_rows[0]
+        for key in ("filing_type", "type", "form_type", "form"):
+            value = first_row.get(key)
+            if value:
+                return str(value)
+        return "unknown"
     return str(filing.get("form") or "13F-HR")
 
 
@@ -298,7 +305,9 @@ async def fetch_and_store(
         )
 
         should_keep_results = row_count < max_results
-        if _looks_like_holdings_rows(parsed_rows):
+        # UK filings are metadata-driven (e.g., CS01/AR01) and should be
+        # stored as parsed payload on the filings row, not expanded holdings.
+        if jurisdiction != "uk" and _looks_like_holdings_rows(parsed_rows):
             row_count += _insert_holdings_rows(
                 conn,
                 filing_id=filing_id,
