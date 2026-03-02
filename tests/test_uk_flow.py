@@ -1,9 +1,12 @@
 import importlib
 import json
 import sqlite3
+from contextlib import asynccontextmanager
 
+import httpx
 import pytest
 
+from adapters import uk as uk_adapter
 import etl.ingest_flow as ingest_flow
 import etl.uk_flow as uk_flow
 
@@ -36,6 +39,42 @@ class MockCompaniesHouseAdapter:
                 "status": "ok",
             }
         ]
+
+
+class _MockCompaniesHouseClient:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def get(self, url: str, params: dict[str, str] | None = None):
+        request = httpx.Request("GET", url, params=params)
+        if url.endswith("/filing-history"):
+            assert params == {"category": "annual-return", "since": "2024-01-01"}
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "items": [
+                        {
+                            "transaction_id": "txn-uk-api-001",
+                            "date": "2024-01-05T10:00:00Z",
+                        }
+                    ]
+                },
+            )
+        if "document?format=pdf" in url:
+            pdf = (
+                b"%PDF-1.4\n"
+                b"(Confirmation Statement CS01)\n"
+                b"(Company name in full: Example Widgets Ltd)\n"
+                b"(Company number: 12345678)\n"
+                b"(Date of filing: 2024-01-05)\n"
+                b"%%EOF"
+            )
+            return httpx.Response(200, request=request, content=pdf)
+        return httpx.Response(404, request=request)
 
 
 @pytest.mark.asyncio
@@ -98,6 +137,62 @@ async def test_uk_flow_inserts_uk_filing_with_payload_keys(tmp_path, monkeypatch
     assert payload[0]["filing_type"] == "CS01"
     assert payload[0]["status"] == "ok"
     assert payload[0]["errors"] == []
+
+
+@pytest.mark.asyncio
+async def test_uk_flow_mocks_companies_house_api_and_inserts_filing(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (id INTEGER PRIMARY KEY AUTOINCREMENT, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO managers(cik, registry_ids) VALUES (?, ?)",
+        ("", json.dumps({"uk_company_number": "12345678"})),
+    )
+    conn.commit()
+    conn.close()
+
+    @asynccontextmanager
+    async def dummy_tracked_call(*args, **kwargs):
+        def _log(_resp):
+            return None
+
+        yield _log
+
+    monkeypatch.setattr(ingest_flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(ingest_flow, "RAW_DIR", raw_dir)
+    monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: uk_adapter)
+    monkeypatch.setattr(uk_adapter.httpx, "AsyncClient", _MockCompaniesHouseClient)
+    monkeypatch.setattr(uk_adapter, "tracked_call", dummy_tracked_call)
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+
+    rows = await ingest_flow.fetch_and_store.fn(
+        "12345678",
+        "2024-01-01",
+        jurisdiction="uk",
+        db_path=str(db_path),
+    )
+
+    assert len(rows) == 1
+
+    conn = sqlite3.connect(db_path)
+    filing = conn.execute(
+        "SELECT manager_id, source, external_id, type, parsed_payload FROM filings"
+    ).fetchone()
+    conn.close()
+
+    assert filing is not None
+    assert filing[:4] == (1, "uk", "txn-uk-api-001", "confirmation_statement")
+    payload = json.loads(filing[4])
+    assert payload[0]["company_number"] == "12345678"
+    assert payload[0]["company_name"] == "Example Widgets Ltd"
+    assert payload[0]["filing_date"] == "2024-01-05"
+    assert payload[0]["filing_type"] == "confirmation_statement"
 
 
 @pytest.mark.asyncio
