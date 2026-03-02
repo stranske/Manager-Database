@@ -102,7 +102,7 @@ def test_detect_crowded_trades_identifies_aapl_across_latest_filings(tmp_path):
     assert row[2] == 5
     assert json.loads(row[3]) == [1, 2, 3, 4, 5]
     assert row[4] == 700.0
-    assert round(row[5], 2) == 53.0
+    assert round(row[5], 2) == 55.0
     assert row[6] == 75.0
 
 

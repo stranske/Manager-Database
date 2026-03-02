@@ -21,7 +21,7 @@ def _is_postgresql() -> bool:
     return op.get_bind().dialect.name == "postgresql"
 
 
-def _manager_ids_type() -> sa.TypeEngine:
+def _manager_ids_type():
     if _is_postgresql():
         return sa.ARRAY(sa.BigInteger())
     return sa.Text()
