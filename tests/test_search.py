@@ -2,6 +2,7 @@ import sqlite3
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -203,6 +204,26 @@ def test_universal_search_sqlite_matches_filings_by_manager_name():
     results = universal_search("Elliott", conn, limit=20)
 
     assert any(item.entity_type == "filing" and item.entity_id == 10 for item in results)
+    filing_result = next(item for item in results if item.entity_type == "filing")
+    assert filing_result.manager_name == "Elliott Management"
+
+
+def test_universal_search_sqlite_resolves_manager_name_for_news_items():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute(
+        "CREATE TABLE news_items (news_id INTEGER PRIMARY KEY, manager_id INTEGER, headline TEXT, body_snippet TEXT, url TEXT, published_at TEXT)"
+    )
+    conn.execute("INSERT INTO managers(id, name) VALUES (1, 'Elliott Management')")
+    conn.execute(
+        "INSERT INTO news_items(news_id, manager_id, headline, body_snippet, url, published_at) "
+        "VALUES (11, 1, 'Elliott update', 'Body', NULL, '2025-01-01')"
+    )
+
+    results = universal_search("Elliott", conn, limit=20)
+
+    news_result = next(item for item in results if item.entity_type == "news")
+    assert news_result.manager_name == "Elliott Management"
 
 
 def _seed_api_search_db(db_path: Path) -> None:
@@ -477,3 +498,116 @@ def test_format_result_meta_html_includes_badge_relevance_and_context():
     assert "Relevance 0.92" in meta_html
     assert "Manager: Elliott Management" in meta_html
     assert "2025-04-05" in meta_html
+
+
+def test_search_ui_main_renders_unified_grouped_results(monkeypatch):
+    import ui.search as search_ui
+
+    class _FakeColumn:
+        def __init__(self):
+            self.metrics: list[tuple[str, int]] = []
+
+        def metric(self, label: str, value: int) -> None:
+            self.metrics.append((label, value))
+
+    class _FakeExpander:
+        def __init__(self, collector: list[str], label: str):
+            self._collector = collector
+            self._label = label
+
+        def __enter__(self):
+            self._collector.append(self._label)
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self):
+            self.subheaders: list[str] = []
+            self.expanders: list[str] = []
+            self.columns_calls: list[int] = []
+            self.columns_created: list[list[_FakeColumn]] = []
+
+        def header(self, _text: str) -> None:
+            return None
+
+        def text_input(self, _label: str) -> str:
+            return "Elliott"
+
+        def number_input(self, _label: str, **_kwargs) -> int:
+            return 20
+
+        def subheader(self, text: str) -> None:
+            self.subheaders.append(text)
+
+        def columns(self, count: int) -> list[_FakeColumn]:
+            self.columns_calls.append(count)
+            cols = [_FakeColumn() for _ in range(count)]
+            self.columns_created.append(cols)
+            return cols
+
+        def caption(self, _text: str) -> None:
+            return None
+
+        def expander(self, label: str, **_kwargs):
+            return _FakeExpander(self.expanders, label)
+
+        def markdown(self, _text: str, **_kwargs) -> None:
+            return None
+
+        def write(self, _text: str) -> None:
+            return None
+
+        def link_button(self, _label: str, _url: str) -> None:
+            return None
+
+        def divider(self) -> None:
+            return None
+
+        def info(self, _text: str) -> None:
+            return None
+
+        def stop(self) -> None:
+            raise AssertionError("stop() should not be called when logged in")
+
+    fake_st = _FakeStreamlit()
+    fake_conn = Mock()
+
+    monkeypatch.setattr(search_ui, "st", fake_st)
+    monkeypatch.setattr(search_ui, "require_login", lambda: True)
+    monkeypatch.setattr(search_ui, "connect_db", lambda: fake_conn)
+    monkeypatch.setattr(
+        search_ui,
+        "universal_search",
+        lambda _q, _conn, _limit: [
+            SearchResult(
+                entity_type="news",
+                entity_id=1,
+                manager_name="Elliott Management",
+                headline="Elliott launches campaign",
+                snippet="Body",
+                relevance=0.95,
+                url="https://example.com/news/1",
+                timestamp="2025-01-01",
+            ),
+            SearchResult(
+                entity_type="filing",
+                entity_id=2,
+                manager_name="Elliott Management",
+                headline="13F-HR filing",
+                snippet="Raw key: raw-1",
+                relevance=0.8,
+                url=None,
+                timestamp="2025-01-01",
+            ),
+        ],
+    )
+
+    search_ui.main()
+
+    fake_conn.close.assert_called_once()
+    assert "Summary" in fake_st.subheaders
+    assert "Results" in fake_st.subheaders
+    assert "News (1)" in fake_st.expanders
+    assert "Filings (1)" in fake_st.expanders

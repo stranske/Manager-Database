@@ -99,6 +99,17 @@ def _score_result(
     return min(base + exact_bonus + hit_bonus + fts_bonus + vector_bonus, 1.0)
 
 
+def _sqlite_manager_name_map(conn: Any) -> dict[int, str]:
+    manager_columns = _get_columns(conn, "managers")
+    if not manager_columns or "name" not in manager_columns:
+        return {}
+    manager_id_col = "manager_id" if "manager_id" in manager_columns else "id"
+    rows = conn.execute(f"SELECT {manager_id_col}, name FROM managers").fetchall()
+    return {
+        int(manager_id): str(name) for manager_id, name in rows if manager_id is not None and name
+    }
+
+
 def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
     results: list[SearchResult] = []
 
@@ -331,6 +342,7 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
 def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
     results: list[SearchResult] = []
     like_token = f"%{query.strip()}%"
+    manager_name_by_id = _sqlite_manager_name_map(conn)
 
     manager_columns = _get_columns(conn, "managers")
     if manager_columns:
@@ -372,7 +384,9 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 SearchResult(
                     entity_type="news",
                     entity_id=int(entity_id),
-                    manager_name=str(manager_id) if manager_id is not None else None,
+                    manager_name=(
+                        manager_name_by_id.get(int(manager_id)) if manager_id is not None else None
+                    ),
                     headline=headline or "News item",
                     snippet=body_snippet or "",
                     relevance=_score_result("news", query, headline or "", body_snippet or ""),
@@ -423,7 +437,11 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     SearchResult(
                         entity_type="document",
                         entity_id=int(entity_id),
-                        manager_name=str(manager_id) if manager_id is not None else None,
+                        manager_name=(
+                            manager_name_by_id.get(int(manager_id))
+                            if manager_id is not None
+                            else None
+                        ),
                         headline=headline,
                         snippet=snippet,
                         relevance=_score_result("document", query, headline, snippet),
@@ -468,7 +486,11 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                         SearchResult(
                             entity_type="document",
                             entity_id=int(entity_id),
-                            manager_name=str(manager_id) if manager_id is not None else None,
+                            manager_name=(
+                                manager_name_by_id.get(int(manager_id))
+                                if manager_id is not None
+                                else None
+                            ),
                             headline=headline,
                             snippet=snippet,
                             relevance=_score_result(
@@ -509,7 +531,11 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     SearchResult(
                         entity_type="holding",
                         entity_id=int(entity_id),
-                        manager_name=str(manager_id) if manager_id is not None else None,
+                        manager_name=(
+                            manager_name_by_id.get(int(manager_id))
+                            if manager_id is not None
+                            else None
+                        ),
                         headline=headline,
                         snippet=snippet,
                         relevance=_score_result("holding", query, headline, snippet),
@@ -601,7 +627,9 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     entity_type="filing",
                     entity_id=int(filing_id),
                     manager_name=manager_name
-                    or (str(manager_id) if manager_id is not None else None),
+                    or (
+                        manager_name_by_id.get(int(manager_id)) if manager_id is not None else None
+                    ),
                     headline=headline,
                     snippet=snippet,
                     relevance=_score_result("filing", query, headline, snippet),
