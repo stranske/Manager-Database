@@ -22,6 +22,24 @@ async def _request(method: str, path: str, **kwargs):
         await app.router.shutdown()
 
 
+def test_alerts_router_is_registered():
+    route_paths = {route.path for route in app.routes}
+    expected_paths = {
+        "/api/alerts/rules",
+        "/api/alerts/rules/{rule_id}",
+        "/api/alerts/history",
+        "/api/alerts/unacknowledged/count",
+        "/api/alerts/history/{alert_id}/acknowledge",
+        "/api/alerts/history/acknowledge-all",
+    }
+    assert expected_paths.issubset(route_paths)
+
+    openapi = app.openapi()
+    for path in expected_paths:
+        path_item = openapi["paths"][path]
+        assert any("Alerts" in operation.get("tags", []) for operation in path_item.values())
+
+
 def _create_rule_payload(
     *,
     name: str = "Large Delta Rule",
