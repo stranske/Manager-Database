@@ -1,9 +1,8 @@
 import sqlite3
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from time import perf_counter
-
-import sys
 
 import pandas as pd
 import streamlit as st
@@ -856,7 +855,6 @@ def test_main_renders_alert_badge_and_metric(monkeypatch):
     assert ">3<" in fake_st.sidebar.markdowns[1]
     assert fake_st.sidebar.metrics == [("Unacknowledged Alerts", 3)]
     assert fake_st.headers == ["Holdings Delta"]
-
 
 
 class PerfExpander:
