@@ -15,22 +15,25 @@ from . import require_login
 def search_news(term: str) -> pd.DataFrame:
     conn = connect_db()
     if isinstance(conn, sqlite3.Connection):
-        conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS news_fts USING fts5(headline, content='news', content_rowid='rowid')"
-        )
-        conn.execute("INSERT INTO news_fts(news_fts) VALUES('rebuild')")
         query = (
-            "SELECT news.headline, news.source "
-            "FROM news_fts JOIN news ON news_fts.rowid = news.rowid "
-            "WHERE news_fts MATCH ? ORDER BY news.published DESC LIMIT 20"
+            "SELECT n.headline, n.url, n.published_at, n.source, n.topics, "
+            "m.name AS manager_name "
+            "FROM news_items n "
+            "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+            "WHERE n.headline LIKE ? OR COALESCE(n.body_snippet, '') LIKE ? "
+            "ORDER BY n.published_at DESC LIMIT 20"
         )
-        df = pd.read_sql_query(query, conn, params=(term,))
+        like_term = f"%{term}%"
+        df = pd.read_sql_query(query, conn, params=(like_term, like_term))
     else:
         query = (
-            "SELECT headline, source "
-            "FROM news "
-            "WHERE to_tsvector('english', headline) @@ plainto_tsquery('english', %s) "
-            "ORDER BY published DESC LIMIT 20"
+            "SELECT n.headline, n.url, n.published_at, n.source, n.topics, "
+            "m.name AS manager_name "
+            "FROM news_items n "
+            "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+            "WHERE to_tsvector('english', n.headline || ' ' || COALESCE(n.body_snippet, '')) "
+            "@@ plainto_tsquery('english', %s) "
+            "ORDER BY n.published_at DESC LIMIT 20"
         )
         df = pd.read_sql_query(query, conn, params=(term,))
     conn.close()
