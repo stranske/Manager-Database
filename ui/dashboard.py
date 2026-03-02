@@ -103,7 +103,7 @@ def load_managers() -> pd.DataFrame:
     return df
 
 
-def render_manager_selector() -> int | str | None:
+def render_manager_selector() -> int | None:
     managers = load_managers()
     options: list[int | str] = ["all"]
     labels: dict[int | str, str] = {"all": "All Managers"}
@@ -122,7 +122,11 @@ def render_manager_selector() -> int | str | None:
         format_func=lambda manager_id: labels.get(manager_id, str(manager_id)),
         key=selected_key,
     )
-    return None if selected == "all" else selected
+    if selected == "all":
+        return None
+    if isinstance(selected, int):
+        return selected
+    return None
 
 
 def render_filing_timeline(selected_manager_id: int | None) -> None:

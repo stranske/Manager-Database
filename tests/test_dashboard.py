@@ -1,18 +1,15 @@
 import sqlite3
-import sys
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
 from ui.dashboard import (
     load_delta,
     load_filing_timeline,
     load_latest_holdings_snapshot,
-    load_top_deltas,
     load_managers,
+    load_top_deltas,
     render_filing_timeline,
     render_latest_holdings_snapshot,
     render_manager_selector,
