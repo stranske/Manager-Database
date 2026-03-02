@@ -3,13 +3,12 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-import api.chat as chat_api_module
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
+
+import api.chat as chat_api_module
 from api.search import SearchResult, universal_search
 from ui.search import (
     _count_results_by_entity_type,

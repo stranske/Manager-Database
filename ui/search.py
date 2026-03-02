@@ -83,7 +83,7 @@ _ENTITY_BADGE_COLORS: dict[str, tuple[str, str]] = {
 
 
 def _count_results_by_entity_type(results: list[SearchResult]) -> dict[str, int]:
-    counts = Counter(item.entity_type for item in results)
+    counts: Counter[str] = Counter(item.entity_type for item in results)
     ordered: dict[str, int] = {}
     for entity_type in _ENTITY_LABELS:
         if counts.get(entity_type, 0) > 0:
