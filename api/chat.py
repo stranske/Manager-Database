@@ -27,6 +27,7 @@ from adapters.base import connect_db
 from api.data import router as data_router
 from api.managers import router as managers_router
 from api.memory_profiler import start_memory_profiler, stop_memory_profiler
+from api.search import SearchEntityType, SearchResult, universal_search
 
 app = FastAPI()
 # Tag manager endpoints so they group clearly in the Swagger UI.
@@ -261,6 +262,45 @@ def chat(
     else:
         answer = "Context: " + " ".join(h["content"] for h in hits)
     return {"answer": answer, "latency_ms": 0, "chain_used": "legacy_search"}
+
+
+_SEARCH_ENTITY_TYPE_QUERY = Query(
+    None,
+    description="Optional result type filter",
+)
+
+
+@app.get(
+    "/api/search",
+    response_model=list[SearchResult],
+    summary="Universal search across managers, filings, holdings, news, and documents",
+    description=(
+        "Run a unified search query and return ranked results across supported entity types."
+    ),
+)
+async def search_api(
+    q: str = Query(
+        ...,
+        min_length=1,
+        description="Search query text",
+        examples=cast(
+            Any,
+            {
+                "manager": {
+                    "summary": "Manager query",
+                    "value": "Elliott",
+                }
+            },
+        ),
+    ),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of results to return"),
+    entity_type: SearchEntityType | None = _SEARCH_ENTITY_TYPE_QUERY,
+) -> list[SearchResult]:
+    conn = connect_db()
+    try:
+        return universal_search(q, conn, limit=limit, entity_type=entity_type)
+    finally:
+        conn.close()
 
 
 VALID_CHAIN_NAMES = {
