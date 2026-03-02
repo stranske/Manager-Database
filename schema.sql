@@ -169,6 +169,26 @@ CREATE TABLE IF NOT EXISTS crowded_trades (
 CREATE INDEX IF NOT EXISTS idx_crowded_date ON crowded_trades(report_date DESC);
 CREATE INDEX IF NOT EXISTS idx_crowded_count ON crowded_trades(manager_count DESC);
 
+CREATE TABLE IF NOT EXISTS contrarian_signals (
+    signal_id bigserial PRIMARY KEY,
+    manager_id bigint NOT NULL REFERENCES managers(manager_id),
+    cusip text NOT NULL,
+    name_of_issuer text,
+    direction text NOT NULL CHECK (direction IN ('BUY', 'SELL', 'INCREASE', 'DECREASE')),
+    consensus_direction text NOT NULL CHECK (
+        consensus_direction IN ('BUY', 'SELL', 'INCREASE', 'DECREASE', 'HOLD')
+    ),
+    manager_delta_shares bigint,
+    manager_delta_value numeric(16,2),
+    consensus_count int,
+    report_date date NOT NULL,
+    detected_at timestamptz DEFAULT now(),
+    UNIQUE (manager_id, cusip, report_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contrarian_manager ON contrarian_signals(manager_id);
+CREATE INDEX IF NOT EXISTS idx_contrarian_date ON contrarian_signals(report_date DESC);
+
 DO $$
 BEGIN
   IF NOT EXISTS (

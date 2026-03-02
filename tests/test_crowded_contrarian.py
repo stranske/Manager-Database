@@ -1,7 +1,7 @@
 import json
 import sqlite3
 
-from etl.conviction_flow import detect_crowded_trades
+from etl.conviction_flow import conviction_flow, detect_contrarian_signals, detect_crowded_trades
 
 
 def _setup_db(tmp_path, manager_count: int) -> str:
@@ -39,6 +39,34 @@ def _setup_db(tmp_path, manager_count: int) -> str:
         "report_date TEXT NOT NULL, "
         "computed_at TEXT DEFAULT CURRENT_TIMESTAMP, "
         "UNIQUE(cusip, report_date))"
+    )
+    conn.execute(
+        "CREATE TABLE daily_diffs ("
+        "diff_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "manager_id INTEGER NOT NULL, "
+        "report_date TEXT NOT NULL, "
+        "cusip TEXT NOT NULL, "
+        "name_of_issuer TEXT, "
+        "delta_type TEXT NOT NULL, "
+        "shares_prev INTEGER, "
+        "shares_curr INTEGER, "
+        "value_prev REAL, "
+        "value_curr REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE contrarian_signals ("
+        "signal_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "manager_id INTEGER NOT NULL, "
+        "cusip TEXT NOT NULL, "
+        "name_of_issuer TEXT, "
+        "direction TEXT NOT NULL, "
+        "consensus_direction TEXT NOT NULL, "
+        "manager_delta_shares INTEGER, "
+        "manager_delta_value REAL, "
+        "consensus_count INTEGER, "
+        "report_date TEXT NOT NULL, "
+        "detected_at TEXT DEFAULT CURRENT_TIMESTAMP, "
+        "UNIQUE(manager_id, cusip, report_date))"
     )
 
     for manager_id in range(1, manager_count + 1):
@@ -203,3 +231,146 @@ def test_detect_crowded_trades_ignores_future_filings(tmp_path):
     assert inserted == 1
     assert row[0] == 5
     assert json.loads(row[1]) == [1, 2, 3, 4, 5]
+
+
+def test_detect_contrarian_signals_flags_seller_against_buy_consensus(tmp_path):
+    db_path = _setup_db(tmp_path, manager_count=5)
+    conn = sqlite3.connect(db_path)
+    report_date = "2024-05-01"
+
+    for manager_id in (1, 2, 3, 4):
+        conn.execute(
+            "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+            "shares_prev, shares_curr, value_prev, value_curr) "
+            "VALUES (?, ?, '88160R101', 'Tesla Inc', 'BUY', NULL, 10, NULL, 100)",
+            (manager_id, report_date),
+        )
+    conn.execute(
+        "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        "VALUES (5, ?, '88160R101', 'Tesla Inc', 'SELL', 10, NULL, 100, NULL)",
+        (report_date,),
+    )
+    conn.commit()
+
+    inserted = detect_contrarian_signals.fn(report_date, conn=conn)
+    row = conn.execute(
+        "SELECT manager_id, cusip, direction, consensus_direction, "
+        "manager_delta_shares, manager_delta_value, consensus_count "
+        "FROM contrarian_signals WHERE report_date = ?",
+        (report_date,),
+    ).fetchone()
+    conn.close()
+
+    assert inserted == 1
+    assert row[0] == 5
+    assert row[1] == "88160R101"
+    assert row[2] == "SELL"
+    assert row[3] == "BUY"
+    assert row[4] == -10
+    assert row[5] == -100.0
+    assert row[6] == 4
+
+
+def test_detect_contrarian_signals_skips_split_consensus(tmp_path):
+    db_path = _setup_db(tmp_path, manager_count=4)
+    conn = sqlite3.connect(db_path)
+    report_date = "2024-05-01"
+
+    for manager_id in (1, 2):
+        conn.execute(
+            "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+            "shares_prev, shares_curr, value_prev, value_curr) "
+            "VALUES (?, ?, '88160R101', 'Tesla Inc', 'BUY', NULL, 10, NULL, 100)",
+            (manager_id, report_date),
+        )
+    for manager_id in (3, 4):
+        conn.execute(
+            "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+            "shares_prev, shares_curr, value_prev, value_curr) "
+            "VALUES (?, ?, '88160R101', 'Tesla Inc', 'SELL', 10, NULL, 100, NULL)",
+            (manager_id, report_date),
+        )
+    conn.commit()
+
+    inserted = detect_contrarian_signals.fn(report_date, conn=conn)
+    count = conn.execute("SELECT COUNT(*) FROM contrarian_signals").fetchone()[0]
+    conn.close()
+
+    assert inserted == 0
+    assert count == 0
+
+
+def test_detect_contrarian_signals_is_idempotent_for_same_report_date(tmp_path):
+    db_path = _setup_db(tmp_path, manager_count=5)
+    conn = sqlite3.connect(db_path)
+    report_date = "2024-05-01"
+
+    for manager_id in (1, 2, 3, 4):
+        conn.execute(
+            "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+            "shares_prev, shares_curr, value_prev, value_curr) "
+            "VALUES (?, ?, '88160R101', 'Tesla Inc', 'BUY', NULL, 10, NULL, 100)",
+            (manager_id, report_date),
+        )
+    conn.execute(
+        "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        "VALUES (5, ?, '88160R101', 'Tesla Inc', 'SELL', 10, NULL, 100, NULL)",
+        (report_date,),
+    )
+    conn.commit()
+
+    first = detect_contrarian_signals.fn(report_date, conn=conn)
+
+    conn.execute(
+        "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        "VALUES (6, ?, '88160R101', 'Tesla Inc', 'SELL', 20, NULL, 200, NULL)",
+        (report_date,),
+    )
+    conn.commit()
+
+    second = detect_contrarian_signals.fn(report_date, conn=conn)
+    rows = conn.execute(
+        "SELECT manager_id, direction, consensus_count "
+        "FROM contrarian_signals WHERE report_date = ? ORDER BY manager_id",
+        (report_date,),
+    ).fetchall()
+    conn.close()
+
+    assert first == 1
+    assert second == 2
+    assert rows == [(5, "SELL", 4), (6, "SELL", 4)]
+
+
+def test_conviction_flow_runs_scoring_then_crowded_then_contrarian(monkeypatch):
+    calls = []
+
+    def _fake_score(report_date, conn=None):
+        del conn
+        calls.append(("score", report_date))
+        return 10
+
+    def _fake_crowded(report_date, min_managers=None, conn=None):
+        del conn
+        calls.append(("crowded", report_date, min_managers))
+        return 3
+
+    def _fake_contrarian(report_date, conn=None):
+        del conn
+        calls.append(("contrarian", report_date))
+        return 1
+
+    monkeypatch.setattr("etl.conviction_flow.score_conviction_positions.fn", _fake_score)
+    monkeypatch.setattr("etl.conviction_flow.detect_crowded_trades.fn", _fake_crowded)
+    monkeypatch.setattr("etl.conviction_flow.detect_contrarian_signals.fn", _fake_contrarian)
+
+    result = conviction_flow.fn(report_date="2024-05-01", min_managers=4)
+
+    assert calls == [
+        ("score", "2024-05-01"),
+        ("crowded", "2024-05-01", 4),
+        ("contrarian", "2024-05-01"),
+    ]
+    assert result == {"scored_positions": 10, "crowded_trades": 3, "contrarian_signals": 1}
