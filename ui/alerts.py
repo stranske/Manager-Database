@@ -12,8 +12,6 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from adapters.base import connect_db
-
 from . import require_login
 
 ALERT_EVENT_TYPES = ["large_delta", "new_filing", "manager_update"]
@@ -53,18 +51,34 @@ def _api_request(
 
 @st.cache_data(show_spinner=False)
 def _load_managers() -> list[tuple[int, str]]:
-    conn = connect_db()
-    try:
-        conn.execute("""CREATE TABLE IF NOT EXISTS managers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                role TEXT NOT NULL,
-                department TEXT
-            )""")
-        rows = conn.execute("SELECT id, name FROM managers ORDER BY name ASC").fetchall()
-    finally:
-        conn.close()
-    return [(int(row[0]), str(row[1])) for row in rows]
+    items: list[dict[str, Any]] = []
+    offset = 0
+    limit = 100
+    while True:
+        ok, payload = _api_request("GET", "/managers", params={"limit": limit, "offset": offset})
+        if not ok:
+            break
+        if isinstance(payload, dict):
+            page_items = payload.get("items") or []
+            total = int(payload.get("total") or 0)
+        elif isinstance(payload, list):
+            page_items = payload
+            total = len(page_items)
+        else:
+            break
+        if not isinstance(page_items, list):
+            break
+        items.extend(item for item in page_items if isinstance(item, dict))
+        offset += len(page_items)
+        if not page_items or offset >= total:
+            break
+
+    managers = [
+        (int(item["id"]), str(item["name"]))
+        for item in items
+        if item.get("id") is not None and item.get("name")
+    ]
+    return sorted(set(managers), key=lambda manager: manager[1].lower())
 
 
 @st.cache_data(show_spinner=False)
@@ -101,21 +115,48 @@ def _load_alerts(
 
 
 def _clear_alert_caches() -> None:
+    _load_managers.clear()
     _load_rules.clear()
     _load_alerts.clear()
 
 
-def _condition_inputs(event_type: str) -> dict[str, Any]:
+def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
+    defaults = defaults or {}
     if event_type == "large_delta":
-        delta_type = st.selectbox("delta_type", ["buy", "sell", "net"], index=0)
-        value_usd_gt = st.number_input("value_usd_gt", min_value=0.0, value=100000.0, step=10000.0)
+        delta_type_options = ["buy", "sell", "net"]
+        default_delta_type = str(defaults.get("delta_type") or "buy")
+        delta_index = (
+            delta_type_options.index(default_delta_type)
+            if default_delta_type in delta_type_options
+            else 0
+        )
+        delta_type = st.selectbox("delta_type", delta_type_options, index=delta_index)
+        value_usd_gt = st.number_input(
+            "value_usd_gt",
+            min_value=0.0,
+            value=float(defaults.get("value_usd_gt") or 100000.0),
+            step=10000.0,
+        )
         return {"delta_type": delta_type, "value_usd_gt": value_usd_gt}
     if event_type == "new_filing":
-        filing_type = st.selectbox("filing_type", ["13F-HR", "13D", "13G"], index=0)
-        source = st.selectbox("source", ["sec", "manual"], index=0)
+        filing_options = ["13F-HR", "13D", "13G"]
+        default_filing = str(defaults.get("filing_type") or "13F-HR")
+        filing_index = (
+            filing_options.index(default_filing) if default_filing in filing_options else 0
+        )
+        filing_type = st.selectbox("filing_type", filing_options, index=filing_index)
+        source_options = ["sec", "manual"]
+        default_source = str(defaults.get("source") or "sec")
+        source_index = (
+            source_options.index(default_source) if default_source in source_options else 0
+        )
+        source = st.selectbox("source", source_options, index=source_index)
         return {"filing_type": filing_type, "source": source}
-    field = st.selectbox("field", ["role", "department", "name"], index=0)
-    changed_to = st.text_input("changed_to", value="")
+    field_options = ["role", "department", "name"]
+    default_field = str(defaults.get("field") or "role")
+    field_index = field_options.index(default_field) if default_field in field_options else 0
+    field = st.selectbox("field", field_options, index=field_index)
+    changed_to = st.text_input("changed_to", value=str(defaults.get("changed_to") or ""))
     return {"field": field, "changed_to": changed_to}
 
 
@@ -201,7 +242,47 @@ def _render_rule_builder() -> None:
             else:
                 st.error(f"Unable to delete rule #{rule['rule_id']}: {payload}")
 
-        cols[3].code(json.dumps(rule["condition_json"], separators=(",", ":")))
+        with cols[3].expander("Edit", expanded=False):
+            st.caption(f"event_type: `{rule['event_type']}`")
+            with st.form(f"edit_rule_{rule['rule_id']}"):
+                edit_name = st.text_input(
+                    "name", value=rule["name"], key=f"edit_name_{rule['rule_id']}"
+                )
+                st.caption("Condition")
+                edit_condition = _condition_inputs(
+                    rule["event_type"], defaults=rule.get("condition_json") or {}
+                )
+                edit_channels = st.multiselect(
+                    "channels",
+                    ALERT_CHANNELS,
+                    default=rule.get("channels") or [],
+                    key=f"edit_channels_{rule['rule_id']}",
+                )
+                edit_enabled = st.checkbox(
+                    "enabled",
+                    value=bool(rule["enabled"]),
+                    key=f"edit_enabled_{rule['rule_id']}",
+                )
+                save = st.form_submit_button("Save Rule")
+            st.code(json.dumps(rule["condition_json"], separators=(",", ":")))
+
+            if save:
+                ok, payload = _api_request(
+                    "PUT",
+                    f"/api/alerts/rules/{rule['rule_id']}",
+                    json_body={
+                        "name": edit_name,
+                        "condition_json": edit_condition,
+                        "channels": edit_channels,
+                        "enabled": edit_enabled,
+                    },
+                )
+                if ok:
+                    st.success(f"Updated rule #{rule['rule_id']}")
+                    _clear_alert_caches()
+                    st.rerun()
+                else:
+                    st.error(f"Unable to update rule #{rule['rule_id']}: {payload}")
 
 
 def _render_alert_inbox() -> None:
