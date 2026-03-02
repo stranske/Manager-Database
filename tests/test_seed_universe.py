@@ -27,7 +27,9 @@ def _run_seed(
 def _fetch_rows(db_path: Path):
     conn = sqlite3.connect(db_path)
     try:
-        return conn.execute("SELECT name, cik, jurisdiction FROM managers ORDER BY cik").fetchall()
+        return conn.execute(
+            "SELECT name, cik, jurisdiction, jurisdictions FROM managers ORDER BY cik"
+        ).fetchall()
     finally:
         conn.close()
 
@@ -50,8 +52,8 @@ def test_seed_universe_json_upsert_is_idempotent(tmp_path):
 
     rows = _fetch_rows(tmp_path / "seed.db")
     assert rows == [
-        ("Berkshire Hathaway", "0001067983", "us"),
-        ("Bridgewater Associates", "0001350694", "us"),
+        ("Berkshire Hathaway", "0001067983", "us", '["us"]'),
+        ("Bridgewater Associates", "0001350694", "us", '["us"]'),
     ]
 
 

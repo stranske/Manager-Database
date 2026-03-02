@@ -51,6 +51,7 @@ def _ensure_universe_schema(conn: Any) -> None:
                 department TEXT,
                 cik TEXT,
                 jurisdiction TEXT,
+                jurisdictions TEXT NOT NULL DEFAULT '[]',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -60,6 +61,8 @@ def _ensure_universe_schema(conn: Any) -> None:
             conn.execute("ALTER TABLE managers ADD COLUMN cik TEXT")
         if "jurisdiction" not in columns:
             conn.execute("ALTER TABLE managers ADD COLUMN jurisdiction TEXT")
+        if "jurisdictions" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN jurisdictions TEXT NOT NULL DEFAULT '[]'")
         if "created_at" not in columns:
             conn.execute("ALTER TABLE managers ADD COLUMN created_at TIMESTAMP")
             conn.execute(
@@ -82,12 +85,14 @@ def _ensure_universe_schema(conn: Any) -> None:
             department text,
             cik text,
             jurisdiction text,
+            jurisdictions text[] DEFAULT '{}',
             created_at timestamptz DEFAULT now(),
             updated_at timestamptz DEFAULT now()
         )
         """)
     conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS cik text")
     conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdiction text")
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdictions text[] DEFAULT '{}'")
     conn.execute(
         "ALTER TABLE managers ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now()"
     )
@@ -97,11 +102,97 @@ def _ensure_universe_schema(conn: Any) -> None:
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
 
 
+def _manager_columns(conn: Any) -> set[str]:
+    if isinstance(conn, sqlite3.Connection):
+        return {
+            str(row[1]).lower() for row in conn.execute("PRAGMA table_info(managers)").fetchall()
+        }
+
+    rows = conn.execute("""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'managers'
+          AND table_schema = 'public'
+        """).fetchall()
+    return {str(row[0]).lower() for row in rows if row and row[0] is not None}
+
+
 def _existing_ciks(conn: Any) -> set[str]:
     rows = conn.execute(
         "SELECT cik FROM managers WHERE cik IS NOT NULL AND TRIM(cik) != ''"
     ).fetchall()
     return {str(row[0]).strip() for row in rows if row and row[0] is not None}
+
+
+def _upsert_universe_record(
+    conn: Any,
+    *,
+    name: str,
+    cik: str,
+    jurisdiction: str,
+    include_role: bool,
+) -> None:
+    jurisdictions = [jurisdiction]
+    if isinstance(conn, sqlite3.Connection):
+        if include_role:
+            conn.execute(
+                """
+                INSERT INTO managers(name, role, cik, jurisdiction, jurisdictions, updated_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(cik)
+                DO UPDATE SET
+                    name = excluded.name,
+                    jurisdiction = excluded.jurisdiction,
+                    jurisdictions = excluded.jurisdictions,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (name, DEFAULT_ROLE, cik, jurisdiction, json.dumps(jurisdictions)),
+            )
+            return
+        conn.execute(
+            """
+            INSERT INTO managers(name, cik, jurisdiction, jurisdictions, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(cik)
+            DO UPDATE SET
+                name = excluded.name,
+                jurisdiction = excluded.jurisdiction,
+                jurisdictions = excluded.jurisdictions,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (name, cik, jurisdiction, json.dumps(jurisdictions)),
+        )
+        return
+
+    if include_role:
+        conn.execute(
+            """
+            INSERT INTO managers(name, role, cik, jurisdiction, jurisdictions, updated_at)
+            VALUES (%s, %s, %s, %s, %s, now())
+            ON CONFLICT(cik)
+            DO UPDATE SET
+                name = EXCLUDED.name,
+                jurisdiction = EXCLUDED.jurisdiction,
+                jurisdictions = EXCLUDED.jurisdictions,
+                updated_at = now()
+            """,
+            (name, DEFAULT_ROLE, cik, jurisdiction, jurisdictions),
+        )
+        return
+
+    conn.execute(
+        """
+        INSERT INTO managers(name, cik, jurisdiction, jurisdictions, updated_at)
+        VALUES (%s, %s, %s, %s, now())
+        ON CONFLICT(cik)
+        DO UPDATE SET
+            name = EXCLUDED.name,
+            jurisdiction = EXCLUDED.jurisdiction,
+            jurisdictions = EXCLUDED.jurisdictions,
+            updated_at = now()
+        """,
+        (name, cik, jurisdiction, jurisdictions),
+    )
 
 
 def seed_universe(file_path: Path, *, dry_run: bool = False) -> tuple[int, int, int]:
@@ -113,6 +204,7 @@ def seed_universe(file_path: Path, *, dry_run: bool = False) -> tuple[int, int, 
     try:
         _ensure_universe_schema(conn)
         known_ciks = _existing_ciks(conn)
+        include_role = "role" in _manager_columns(conn)
 
         for idx, record in enumerate(records):
             name = str(record.get("name", "")).strip()
@@ -133,32 +225,13 @@ def seed_universe(file_path: Path, *, dry_run: bool = False) -> tuple[int, int, 
             if dry_run:
                 continue
 
-            if isinstance(conn, sqlite3.Connection):
-                conn.execute(
-                    """
-                    INSERT INTO managers(name, role, cik, jurisdiction, updated_at)
-                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    ON CONFLICT(cik)
-                    DO UPDATE SET
-                        name = excluded.name,
-                        jurisdiction = excluded.jurisdiction,
-                        updated_at = CURRENT_TIMESTAMP
-                    """,
-                    (name, DEFAULT_ROLE, cik, jurisdiction),
-                )
-            else:
-                conn.execute(
-                    """
-                    INSERT INTO managers(name, role, cik, jurisdiction, updated_at)
-                    VALUES (%s, %s, %s, %s, now())
-                    ON CONFLICT(cik)
-                    DO UPDATE SET
-                        name = EXCLUDED.name,
-                        jurisdiction = EXCLUDED.jurisdiction,
-                        updated_at = now()
-                    """,
-                    (name, DEFAULT_ROLE, cik, jurisdiction),
-                )
+            _upsert_universe_record(
+                conn,
+                name=name,
+                cik=cik,
+                jurisdiction=jurisdiction,
+                include_role=include_role,
+            )
 
         if dry_run:
             print("Dry run complete. No rows written.")
