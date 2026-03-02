@@ -264,6 +264,12 @@ def chat(
     return {"answer": answer, "latency_ms": 0, "chain_used": "legacy_search"}
 
 
+_SEARCH_ENTITY_TYPE_QUERY = Query(
+    None,
+    description="Optional result type filter",
+)
+
+
 @app.get(
     "/api/search",
     response_model=list[SearchResult],
@@ -288,10 +294,7 @@ def search_api(
         ),
     ),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of results to return"),
-    entity_type: SearchEntityType | None = Query(
-        None,
-        description="Optional result type filter",
-    ),
+    entity_type: SearchEntityType | None = _SEARCH_ENTITY_TYPE_QUERY,
 ) -> list[SearchResult]:
     conn = connect_db()
     try:
