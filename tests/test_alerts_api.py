@@ -212,6 +212,55 @@ def test_alert_rule_soft_delete_preserves_history(tmp_path, monkeypatch):
     assert history[0]["acknowledged"] is False
 
 
+def test_alert_rule_soft_delete_keeps_rule_row_and_history_rows(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    create_response = asyncio.run(
+        _request(
+            "POST",
+            "/api/alerts/rules",
+            json=_create_rule_payload(name="Soft Delete DB Integrity Rule"),
+        )
+    )
+    assert create_response.status_code == 201
+    created_rule = create_response.json()
+    rule_id = created_rule["rule_id"]
+
+    _seed_alert_for_rule(
+        db_path,
+        rule_id=rule_id,
+        rule_name=created_rule["name"],
+        acknowledged=False,
+    )
+    _seed_alert_for_rule(
+        db_path,
+        rule_id=rule_id,
+        rule_name=created_rule["name"],
+        acknowledged=True,
+    )
+
+    delete_response = asyncio.run(_request("DELETE", f"/api/alerts/rules/{rule_id}"))
+    assert delete_response.status_code == 200
+
+    conn = sqlite3.connect(db_path)
+    try:
+        rule_row = conn.execute(
+            "SELECT rule_id, enabled FROM alert_rules WHERE rule_id = ?",
+            (rule_id,),
+        ).fetchone()
+        assert rule_row == (rule_id, 0)
+
+        history_count = conn.execute(
+            "SELECT COUNT(*) FROM alert_history WHERE rule_id = ?",
+            (rule_id,),
+        ).fetchone()
+        assert history_count is not None
+        assert history_count[0] == 2
+    finally:
+        conn.close()
+
+
 def test_alert_rule_list_filters(tmp_path, monkeypatch):
     db_path = tmp_path / "alerts.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
