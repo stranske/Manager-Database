@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import altair as alt
@@ -390,18 +390,13 @@ def render_qc_flags(selected_manager_id: int | None) -> None:
         filing_days = (now_utc - filing_dt.to_pydatetime().replace(tzinfo=UTC)).days
         if is_13f_filer and filing_days > 120:
             filing_delta = f"+{filing_days - 120}d past 120d SLA"
-            filing_delta_color = "inverse"
         else:
             filing_delta = f"-{max(120 - filing_days, 0)}d to 120d SLA"
-            filing_delta_color = "inverse"
         filing_value = filing_date.strftime("%Y-%m-%d")
     else:
         filing_value = "N/A"
         filing_delta = "+1 missing filing date"
-        filing_delta_color = "inverse"
-    col_filing.metric(
-        "Last Filing Date", filing_value, delta=filing_delta, delta_color=filing_delta_color
-    )
+    col_filing.metric("Last Filing Date", filing_value, delta=filing_delta, delta_color="inverse")
 
     holdings_count = int(qc.get("latest_holdings_count", 0) or 0)
     holdings_delta = "-0 empty filing warnings"
