@@ -71,6 +71,21 @@ def test_store_document_deduplicates_by_sha256(tmp_path, monkeypatch):
     assert count == 1
 
 
+def test_store_document_creates_sha256_unique_index_sqlite(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    store_document("index me", str(db_path))
+
+    conn = sqlite3.connect(db_path)
+    indexes = conn.execute("PRAGMA index_list(documents)").fetchall()
+    conn.close()
+
+    index_by_name = {row[1]: row for row in indexes}
+    assert "idx_documents_sha256_unique" in index_by_name
+    # SQLite PRAGMA index_list returns uniqueness at position 2.
+    assert index_by_name["idx_documents_sha256_unique"][2] == 1
+
+
 def test_search_documents_manager_filter_and_shape(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
@@ -96,6 +111,61 @@ def test_search_documents_manager_filter_and_shape(tmp_path, monkeypatch):
     assert results[0]["manager_name"] == "Grace Hopper"
     assert isinstance(results[0]["doc_id"], int)
     assert isinstance(results[0]["distance"], float)
+
+
+def test_search_documents_manager_filter_with_manager_id_pk(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+    conn.execute("INSERT INTO managers(manager_id, name) VALUES (10, 'Grace Hopper')")
+    conn.execute("INSERT INTO managers(manager_id, name) VALUES (11, 'Ada Lovelace')")
+    conn.execute("""CREATE TABLE documents (
+            doc_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manager_id INTEGER,
+            kind TEXT NOT NULL DEFAULT 'note',
+            filename TEXT,
+            sha256 TEXT,
+            text TEXT,
+            embedding TEXT
+        )""")
+    conn.commit()
+    conn.close()
+
+    store_document(
+        "portfolio canonical", str(db_path), manager_id=10, kind="filing_text", filename="c.xml"
+    )
+    store_document(
+        "portfolio other", str(db_path), manager_id=11, kind="filing_text", filename="d.xml"
+    )
+
+    results = search_documents("portfolio", str(db_path), manager_id=10)
+    assert len(results) == 1
+    assert results[0]["content"] == "portfolio canonical"
+    assert results[0]["manager_name"] == "Grace Hopper"
+
+
+def test_search_documents_manager_filter_without_manager_name_column(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, cik TEXT, registry_ids TEXT)")
+    conn.execute("INSERT INTO managers(id, cik, registry_ids) VALUES (21, '0000000021', '{}')")
+    conn.commit()
+    conn.close()
+
+    store_document(
+        "portfolio anonymized",
+        str(db_path),
+        manager_id=21,
+        kind="filing_text",
+        filename="anon.xml",
+    )
+
+    results = search_documents("portfolio", str(db_path), manager_id=21)
+    assert len(results) == 1
+    assert results[0]["content"] == "portfolio anonymized"
+    assert results[0]["manager_name"] is None
 
 
 def test_store_document_and_search_legacy_schema(tmp_path, monkeypatch):
@@ -199,5 +269,43 @@ def test_store_and_search_pgvector(monkeypatch):
             "distance": 0.1,
         }
     ]
+    assert conn.committed is True
+    assert conn.closed is True
+
+
+def test_store_document_pgvector_conflict_returns_existing(monkeypatch):
+    class Connection:
+        def __init__(self):
+            self.info = object()
+            self.executed = []
+            self.committed = False
+            self.closed = False
+
+        def execute(self, sql, params=None):
+            self.executed.append((sql, params))
+            if sql.startswith("INSERT INTO documents"):
+                return type("Result", (), {"fetchone": lambda self: None})()
+            if sql.startswith("SELECT doc_id FROM documents WHERE sha256"):
+                return type("Result", (), {"fetchone": lambda self: (42,)})()
+            return type("Result", (), {"fetchall": lambda self: []})()
+
+        def commit(self):
+            self.committed = True
+
+        def close(self):
+            self.closed = True
+
+    conn = Connection()
+    monkeypatch.setattr("embeddings.connect_db", lambda _path=None: conn)
+    monkeypatch.setattr("embeddings.register_vector", None)
+    monkeypatch.setattr("embeddings.embed_text", lambda _text: [0.2, 0.8])
+
+    doc_id = store_document("same text", "ignored.db")
+
+    assert doc_id == 42
+    assert any(
+        "ON CONFLICT (sha256) WHERE sha256 IS NOT NULL DO NOTHING" in sql
+        for sql, _params in conn.executed
+    )
     assert conn.committed is True
     assert conn.closed is True

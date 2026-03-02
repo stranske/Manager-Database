@@ -81,26 +81,31 @@ def store_document(
                 embedding vector(384),
                 created_at timestamptz DEFAULT now()
             )""")
-        existing = conn.execute(
-            "SELECT doc_id FROM documents WHERE sha256 = %s",
-            (sha256,),
-        ).fetchone()
-        if existing:
-            conn.commit()
-            conn.close()
-            return int(existing[0])
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_sha256_unique "
+            "ON documents (sha256) WHERE sha256 IS NOT NULL"
+        )
         emb = Vector(embed_text(text)) if register_vector else embed_text(text)
         result = conn.execute(
             (
                 "INSERT INTO documents(manager_id, kind, filename, sha256, text, embedding) "
-                "VALUES (%s,%s,%s,%s,%s,%s) RETURNING doc_id"
+                "VALUES (%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (sha256) WHERE sha256 IS NOT NULL DO NOTHING "
+                "RETURNING doc_id"
             ),
             (manager_id, kind, filename, sha256, text, emb),
         )
         row = result.fetchone()
-        if row is None:
-            raise RuntimeError("Failed to insert document")
-        doc_id = int(row[0])
+        if row is not None:
+            doc_id = int(row[0])
+        else:
+            existing = conn.execute(
+                "SELECT doc_id FROM documents WHERE sha256 = %s",
+                (sha256,),
+            ).fetchone()
+            if existing is None:
+                raise RuntimeError("Failed to insert or resolve existing document")
+            doc_id = int(existing[0])
     else:
         conn.execute("""CREATE TABLE IF NOT EXISTS documents (
                 doc_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,14 +121,10 @@ def store_document(
         id_col = "doc_id" if "doc_id" in columns else "id"
         text_col = "text" if "text" in columns else "content"
         if "sha256" in columns:
-            existing = conn.execute(
-                f"SELECT {id_col} FROM documents WHERE sha256 = ?",
-                (sha256,),
-            ).fetchone()
-            if existing:
-                conn.commit()
-                conn.close()
-                return int(existing[0])
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_sha256_unique "
+                "ON documents (sha256) WHERE sha256 IS NOT NULL"
+            )
         emb = json.dumps(embed_text(text))
         insert_cols: list[str] = []
         insert_values: list[Any] = []
@@ -144,11 +145,21 @@ def store_document(
         insert_cols.append("embedding")
         insert_values.append(emb)
         placeholders = ",".join("?" for _ in insert_cols)
+        insert_verb = "INSERT OR IGNORE" if "sha256" in columns else "INSERT"
         cur = conn.execute(
-            f"INSERT INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})",
+            f"{insert_verb} INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})",
             insert_values,
         )
-        doc_id = int(cur.lastrowid)
+        if "sha256" in columns:
+            existing = conn.execute(
+                f"SELECT {id_col} FROM documents WHERE sha256 = ?",
+                (sha256,),
+            ).fetchone()
+            if existing is None:
+                raise RuntimeError("Failed to insert or resolve existing document")
+            doc_id = int(existing[0])
+        else:
+            doc_id = int(cur.lastrowid)
     conn.commit()
     conn.close()
     return doc_id
@@ -177,7 +188,7 @@ def search_documents(
         rows = conn.execute(
             (
                 "SELECT d.doc_id, d.text, d.kind, d.filename, m.name, d.embedding <=> %s AS dist "
-                "FROM documents d LEFT JOIN managers m ON d.manager_id = m.id "
+                "FROM documents d LEFT JOIN managers m ON d.manager_id = m.manager_id "
                 f"{where_clause} "
                 "ORDER BY dist LIMIT %s"
             ),
@@ -209,6 +220,14 @@ def search_documents(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='managers'"
         ).fetchone()
     )
+    manager_pk_col = None
+    manager_columns: set[str] = set()
+    if has_manager_id and manager_table_exists:
+        manager_columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        if "manager_id" in manager_columns:
+            manager_pk_col = "manager_id"
+        elif "id" in manager_columns:
+            manager_pk_col = "id"
     if manager_id is not None and not has_manager_id:
         conn.close()
         return []
@@ -219,11 +238,9 @@ def search_documents(
         sqlite_params.append(manager_id)
     kind_expr = "COALESCE(d.kind, 'note')" if "kind" in columns else "'note'"
     filename_expr = "d.filename" if "filename" in columns else "NULL"
-    manager_name_expr = "m.name" if has_manager_id and manager_table_exists else "NULL"
+    manager_name_expr = "m.name" if manager_pk_col and "name" in manager_columns else "NULL"
     join_clause = (
-        "LEFT JOIN managers m ON d.manager_id = m.id"
-        if has_manager_id and manager_table_exists
-        else ""
+        f"LEFT JOIN managers m ON d.manager_id = m.{manager_pk_col}" if manager_pk_col else ""
     )
     cur = conn.execute(
         (

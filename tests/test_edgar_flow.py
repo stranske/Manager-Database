@@ -229,7 +229,7 @@ async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
             "<xml></xml>",
             {
                 "db_path": str(db_path),
-                "manager_id": None,
+                "manager_id": 100,
                 "kind": "filing_text",
                 "filename": "1.xml",
             },
