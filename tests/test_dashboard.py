@@ -19,6 +19,7 @@ from ui.dashboard import (
     render_manager_selector,
     render_news_stream,
     render_qc_flags,
+    render_manager_dashboard,
     render_top_deltas,
 )
 
@@ -523,3 +524,77 @@ def test_render_qc_flags_requires_manager_selection(monkeypatch):
     render_qc_flags(None)
     assert fake_st.subheaders == ["QC Flags"]
     assert fake_st.info_calls == ["Select a manager to view data quality flags."]
+
+
+class LayoutColumn:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class LayoutExpander:
+    def __init__(self, st_obj, label: str, expanded: bool):
+        self._st = st_obj
+        self._label = label
+        self._expanded = expanded
+
+    def __enter__(self):
+        self._st.expander_calls.append((self._label, self._expanded))
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class LayoutStreamlit:
+    def __init__(self):
+        self.columns_calls = []
+        self.expander_calls = []
+
+    def columns(self, spec, gap=None):
+        self.columns_calls.append((spec, gap))
+        return [LayoutColumn(), LayoutColumn()]
+
+    def expander(self, label, expanded=False):
+        return LayoutExpander(self, label, expanded)
+
+
+def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
+    fake_st = LayoutStreamlit()
+    monkeypatch.setattr("ui.dashboard.st", fake_st)
+
+    calls = []
+
+    def _recorder(section_name):
+        def _inner(manager_id, show_heading=True):
+            calls.append((section_name, manager_id, show_heading))
+
+        return _inner
+
+    monkeypatch.setattr("ui.dashboard.render_filing_timeline", _recorder("filing_timeline"))
+    monkeypatch.setattr(
+        "ui.dashboard.render_latest_holdings_snapshot", _recorder("holdings_snapshot")
+    )
+    monkeypatch.setattr("ui.dashboard.render_top_deltas", _recorder("top_deltas"))
+    monkeypatch.setattr("ui.dashboard.render_news_stream", _recorder("news_stream"))
+    monkeypatch.setattr("ui.dashboard.render_qc_flags", _recorder("qc_flags"))
+
+    render_manager_dashboard(7)
+
+    assert fake_st.columns_calls == [((3, 2), "large")]
+    assert fake_st.expander_calls == [
+        ("Filing Timeline", True),
+        ("Latest Holdings Snapshot", True),
+        ("Top Deltas", True),
+        ("News Stream", True),
+        ("QC Flags", True),
+    ]
+    assert calls == [
+        ("filing_timeline", 7, False),
+        ("holdings_snapshot", 7, False),
+        ("top_deltas", 7, False),
+        ("news_stream", 7, False),
+        ("qc_flags", 7, False),
+    ]

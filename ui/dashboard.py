@@ -221,8 +221,9 @@ def render_manager_selector() -> int | None:
     return None
 
 
-def render_filing_timeline(selected_manager_id: int | None) -> None:
-    st.subheader("Filing Timeline")
+def render_filing_timeline(selected_manager_id: int | None, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Filing Timeline")
     if selected_manager_id is None:
         st.info("Select a manager to view filing timeline details.")
         return
@@ -250,8 +251,11 @@ def render_filing_timeline(selected_manager_id: int | None) -> None:
     st.dataframe(filings, use_container_width=True)
 
 
-def render_latest_holdings_snapshot(selected_manager_id: int | None) -> None:
-    st.subheader("Latest Holdings Snapshot")
+def render_latest_holdings_snapshot(
+    selected_manager_id: int | None, show_heading: bool = True
+) -> None:
+    if show_heading:
+        st.subheader("Latest Holdings Snapshot")
     if selected_manager_id is None:
         st.info("Select a manager to view the latest holdings snapshot.")
         return
@@ -276,8 +280,9 @@ def _delta_type_color(delta_type: str) -> str:
     return "color: #6C757D"
 
 
-def render_top_deltas(selected_manager_id: int | None) -> None:
-    st.subheader("Top Deltas")
+def render_top_deltas(selected_manager_id: int | None, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Top Deltas")
     if selected_manager_id is None:
         st.info("Select a manager to view top position changes.")
         return
@@ -337,8 +342,9 @@ def _topic_badges(topics_value: Any) -> str:
     return " ".join(f"`{topic}`" for topic in topics[:5])
 
 
-def render_news_stream(selected_manager_id: int | None) -> None:
-    st.subheader("News Stream")
+def render_news_stream(selected_manager_id: int | None, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("News Stream")
     if selected_manager_id is None:
         st.info("Select a manager to view recent news.")
         return
@@ -373,8 +379,9 @@ def render_news_stream(selected_manager_id: int | None) -> None:
             st.caption(meta_line)
 
 
-def render_qc_flags(selected_manager_id: int | None) -> None:
-    st.subheader("QC Flags")
+def render_qc_flags(selected_manager_id: int | None, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("QC Flags")
     if selected_manager_id is None:
         st.info("Select a manager to view data quality flags.")
         return
@@ -571,8 +578,9 @@ def load_all_managers_summary() -> dict[str, Any]:
     return summary
 
 
-def render_all_managers_summary() -> None:
-    st.subheader("All Managers Summary")
+def render_all_managers_summary(show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("All Managers Summary")
     summary = load_all_managers_summary()
 
     col_managers, col_filings, col_holdings, col_news = st.columns(4)
@@ -624,19 +632,24 @@ def render_all_managers_summary() -> None:
         st.caption("No stale manager warnings.")
 
 
-def main() -> None:
-    if not require_login():
-        st.stop()
-    st.header("Holdings Delta")
-    selected_manager_id = render_manager_selector()
-    if selected_manager_id is None:
-        render_all_managers_summary()
-        return
-    render_filing_timeline(selected_manager_id)
-    render_latest_holdings_snapshot(selected_manager_id)
-    render_top_deltas(selected_manager_id)
-    render_news_stream(selected_manager_id)
-    render_qc_flags(selected_manager_id)
+def render_manager_dashboard(selected_manager_id: int) -> None:
+    left_col, right_col = st.columns((3, 2), gap="large")
+    with left_col:
+        with st.expander("Filing Timeline", expanded=True):
+            render_filing_timeline(selected_manager_id, show_heading=False)
+        with st.expander("Latest Holdings Snapshot", expanded=True):
+            render_latest_holdings_snapshot(selected_manager_id, show_heading=False)
+        with st.expander("Top Deltas", expanded=True):
+            render_top_deltas(selected_manager_id, show_heading=False)
+
+    with right_col:
+        with st.expander("News Stream", expanded=True):
+            render_news_stream(selected_manager_id, show_heading=False)
+        with st.expander("QC Flags", expanded=True):
+            render_qc_flags(selected_manager_id, show_heading=False)
+
+
+def render_historical_filing_trend() -> None:
     df = load_delta()
     if df.empty:
         st.info("No data available")
@@ -644,6 +657,21 @@ def main() -> None:
     chart = alt.Chart(df).mark_line().encode(x="date:T", y="filings:Q")
     st.altair_chart(chart, use_container_width=True)
     st.dataframe(df)
+
+
+def main() -> None:
+    if not require_login():
+        st.stop()
+    st.header("Holdings Delta")
+    selected_manager_id = render_manager_selector()
+    if selected_manager_id is None:
+        with st.expander("All Managers Summary", expanded=True):
+            render_all_managers_summary(show_heading=False)
+    else:
+        render_manager_dashboard(selected_manager_id)
+
+    with st.expander("Historical Filing Trend", expanded=False):
+        render_historical_filing_trend()
 
 
 if __name__ == "__main__":
