@@ -16,10 +16,10 @@ from ui.dashboard import (
     load_top_deltas,
     render_filing_timeline,
     render_latest_holdings_snapshot,
+    render_manager_dashboard,
     render_manager_selector,
     render_news_stream,
     render_qc_flags,
-    render_manager_dashboard,
     render_top_deltas,
 )
 
