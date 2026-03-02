@@ -111,6 +111,7 @@ def _manager_columns(conn: Any) -> set[str]:
         SELECT column_name
         FROM information_schema.columns
         WHERE table_name = 'managers'
+          AND table_schema = 'public'
         """
     ).fetchall()
     return {str(row[0]).lower() for row in rows if row and row[0] is not None}
