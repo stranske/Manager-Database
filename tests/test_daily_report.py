@@ -4,7 +4,14 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from ui.daily_report import format_news_table, load_diffs, load_news, parse_topics, topic_choices
+from ui.daily_report import (
+    format_news_table,
+    headline_markdown,
+    load_diffs,
+    load_news,
+    parse_topics,
+    topic_choices,
+)
 
 
 def setup_db(tmp_path: Path) -> str:
@@ -79,3 +86,9 @@ def test_format_news_table():
     assert table.iloc[0]["Manager"] == "Manager One"
     assert table.iloc[0]["Headline"] == "Headline1"
     assert table.iloc[0]["Topics"] == "earnings, merger"
+
+
+def test_headline_markdown():
+    link = headline_markdown("Deal [Update]", "https://example.com/news(item)")
+    assert link == "[Deal \\[Update\\]](<https://example.com/news(item)>)"
+    assert headline_markdown("No URL", "") == "No URL"

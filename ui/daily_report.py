@@ -1,4 +1,5 @@
 import datetime as dt
+import html
 import sqlite3
 
 import pandas as pd
@@ -99,6 +100,18 @@ def topic_badges(value: object) -> str:
     return "".join(badges) if badges else "<span style='color:#666;'>-</span>"
 
 
+def headline_markdown(headline: object, url: object) -> str:
+    text = html.escape(str(headline).strip()) if headline else "Untitled"
+    text = text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+    if not url:
+        return text
+    raw_url = str(url).strip()
+    if not raw_url:
+        return text
+    # Wrap the URL in <> so markdown handles parentheses in links correctly.
+    return f"[{text}](<{raw_url}>)"
+
+
 def main():
     if not require_login():
         st.stop()
@@ -146,9 +159,7 @@ def main():
             source = row.get("source") or "Unknown"
             timestamp = pd.to_datetime(row.get("published_at"), errors="coerce")
             time_text = timestamp.strftime("%H:%M") if pd.notna(timestamp) else "-"
-            title = row.get("headline") or "Untitled"
-            url = row.get("url")
-            title_md = f"[{title}]({url})" if url else title
+            title_md = headline_markdown(row.get("headline"), row.get("url"))
             st.markdown(
                 f"**{time_text}** | **{manager}** | {title_md} | *{source}*  \n{topic_badges(row.get('topics'))}",
                 unsafe_allow_html=True,
