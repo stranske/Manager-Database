@@ -34,6 +34,18 @@ async def _get_manager_stats():
         await app.router.shutdown()
 
 
+async def _get_managers(params: dict[str, str] | None = None):
+    await app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.get("/managers", params=params)
+    finally:
+        await app.router.shutdown()
+
+
 def test_universe_import_creates_updates_and_skips_records(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -60,14 +72,16 @@ def test_universe_import_creates_updates_and_skips_records(tmp_path, monkeypatch
 
     conn = sqlite3.connect(db_path)
     try:
-        rows = conn.execute("SELECT name, cik, jurisdiction FROM managers ORDER BY cik").fetchall()
+        rows = conn.execute(
+            "SELECT name, cik, jurisdiction, jurisdictions FROM managers ORDER BY cik"
+        ).fetchall()
     finally:
         conn.close()
 
     assert rows == [
-        ("Berkshire Hathaway Inc.", "0001067983", "us"),
-        ("Bridgewater Associates", "0001350694", "us"),
-        ("Citadel Advisors", "0001423053", "us"),
+        ("Berkshire Hathaway Inc.", "0001067983", "us", '["us"]'),
+        ("Bridgewater Associates", "0001350694", "us", '["us"]'),
+        ("Citadel Advisors", "0001423053", "us", '["us"]'),
     ]
 
 
@@ -104,11 +118,11 @@ def test_universe_import_skips_non_object_records(tmp_path, monkeypatch):
 
     conn = sqlite3.connect(db_path)
     try:
-        rows = conn.execute("SELECT name, cik, jurisdiction FROM managers").fetchall()
+        rows = conn.execute("SELECT name, cik, jurisdiction, jurisdictions FROM managers").fetchall()
     finally:
         conn.close()
 
-    assert rows == [("Pershing Square Capital Management, L.P.", "0001336528", "us")]
+    assert rows == [("Pershing Square Capital Management, L.P.", "0001336528", "us", '["us"]')]
 
 
 def test_universe_import_empty_array_returns_zero_counts(tmp_path, monkeypatch):
@@ -137,11 +151,13 @@ def test_universe_import_upserts_on_cik_conflict_within_single_request(tmp_path,
 
     conn = sqlite3.connect(db_path)
     try:
-        rows = conn.execute("SELECT name, cik, jurisdiction FROM managers ORDER BY cik").fetchall()
+        rows = conn.execute(
+            "SELECT name, cik, jurisdiction, jurisdictions FROM managers ORDER BY cik"
+        ).fetchall()
     finally:
         conn.close()
 
-    assert rows == [("Berkshire Hathaway Inc.", "0001067983", "us")]
+    assert rows == [("Berkshire Hathaway Inc.", "0001067983", "us", '["us"]')]
 
 
 def test_manager_stats_uses_universe_jurisdiction_column(tmp_path, monkeypatch):
@@ -166,3 +182,24 @@ def test_manager_stats_uses_universe_jurisdiction_column(tmp_path, monkeypatch):
         "with_cik": 2,
         "with_lei": 0,
     }
+
+
+def test_universe_import_populates_jurisdictions_for_list_filter(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    response = asyncio.run(
+        _post_universe(
+            [
+                {"name": "Berkshire Hathaway", "cik": "0001067983", "jurisdiction": "us"},
+                {"name": "TCI Fund Management", "cik": "0001647251", "jurisdiction": "uk"},
+            ]
+        )
+    )
+    assert response.status_code == 200
+
+    filtered = asyncio.run(_get_managers({"jurisdiction": "us"}))
+    assert filtered.status_code == 200
+    payload = filtered.json()
+    assert payload["total"] == 1
+    assert [item["name"] for item in payload["items"]] == ["Berkshire Hathaway"]
+    assert payload["items"][0]["jurisdictions"] == ["us"]

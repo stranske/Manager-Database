@@ -223,6 +223,8 @@ def _ensure_universe_schema(conn: Any) -> None:
             conn.execute("ALTER TABLE managers ADD COLUMN cik TEXT")
         if "jurisdiction" not in columns:
             conn.execute("ALTER TABLE managers ADD COLUMN jurisdiction TEXT")
+        if "jurisdictions" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN jurisdictions TEXT NOT NULL DEFAULT '[]'")
         if "created_at" not in columns:
             conn.execute("ALTER TABLE managers ADD COLUMN created_at TIMESTAMP")
             conn.execute(
@@ -239,6 +241,7 @@ def _ensure_universe_schema(conn: Any) -> None:
 
     conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS cik text")
     conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdiction text")
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdictions text[] DEFAULT '{}' ")
     conn.execute(
         "ALTER TABLE managers ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now()"
     )
@@ -258,31 +261,34 @@ def _manager_exists_for_cik(conn: Any, cik: str) -> bool:
 
 
 def _upsert_universe_record(conn: Any, name: str, cik: str, jurisdiction: str) -> None:
+    jurisdictions = [jurisdiction]
     if isinstance(conn, sqlite3.Connection):
         conn.execute(
             """
-            INSERT INTO managers(name, cik, jurisdiction, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO managers(name, cik, jurisdiction, jurisdictions, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(cik)
             DO UPDATE SET
                 name = excluded.name,
                 jurisdiction = excluded.jurisdiction,
+                jurisdictions = excluded.jurisdictions,
                 updated_at = CURRENT_TIMESTAMP
             """,
-            (name, cik, jurisdiction),
+            (name, cik, jurisdiction, json.dumps(jurisdictions)),
         )
         return
     conn.execute(
         """
-        INSERT INTO managers(name, cik, jurisdiction, updated_at)
-        VALUES (%s, %s, %s, now())
+        INSERT INTO managers(name, cik, jurisdiction, jurisdictions, updated_at)
+        VALUES (%s, %s, %s, %s, now())
         ON CONFLICT(cik)
         DO UPDATE SET
             name = EXCLUDED.name,
             jurisdiction = EXCLUDED.jurisdiction,
+            jurisdictions = EXCLUDED.jurisdictions,
             updated_at = now()
         """,
-        (name, cik, jurisdiction),
+        (name, cik, jurisdiction, jurisdictions),
     )
 
 
