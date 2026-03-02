@@ -50,6 +50,13 @@ def _fast_health_timeouts(monkeypatch):
     monkeypatch.setenv("DB_HEALTH_TIMEOUT_S", "0.1")
     monkeypatch.setenv("MINIO_HEALTH_TIMEOUT_S", "0.1")
     monkeypatch.setenv("REDIS_HEALTH_TIMEOUT_S", "0.1")
+    # Reset global breakers per test to avoid cross-test leakage under parallel CI workers.
+    monkeypatch.setattr(
+        chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
+    )
+    monkeypatch.setattr(
+        chat, "_REDIS_CIRCUIT", chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60.0)
+    )
 
 
 def test_health_detailed_ok(tmp_path, monkeypatch):
