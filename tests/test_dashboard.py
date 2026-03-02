@@ -331,6 +331,18 @@ def test_load_news_stream_filters_and_orders(tmp_path: Path, monkeypatch):
     assert list(df["source"]) == ["MarketWire", "SEC Feed"]
 
 
+def test_load_news_stream_all_managers_returns_recent_items(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    df = load_news_stream(None, limit=10)
+    assert list(df["headline"]) == [
+        "Issuer B expands international footprint",
+        "Issuer A announces restructuring",
+        "Issuer Z exits position",
+    ]
+    assert list(df["manager_name"]) == ["Alpha Partners", "Alpha Partners", "Zulu Capital"]
+
+
 def test_load_qc_flags_returns_expected_summary(tmp_path: Path, monkeypatch):
     db_path = setup_db(tmp_path)
     monkeypatch.setenv("DB_PATH", db_path)
@@ -539,7 +551,6 @@ class NewsStreamStreamlit:
         self.subheaders = []
         self.info_calls = []
         self.markdowns = []
-        self.captions = []
 
     def subheader(self, text):
         self.subheaders.append(text)
@@ -550,16 +561,13 @@ class NewsStreamStreamlit:
     def markdown(self, text):
         self.markdowns.append(text)
 
-    def caption(self, text):
-        self.captions.append(text)
-
 
 def test_render_news_stream_outputs_links_timestamps_and_topics(monkeypatch):
     fake_st = NewsStreamStreamlit()
     monkeypatch.setattr("ui.dashboard.st", fake_st)
     monkeypatch.setattr(
         "ui.dashboard.load_news_stream",
-        lambda manager_id: pd.DataFrame(
+        lambda manager_id, limit=10: pd.DataFrame(
             [
                 {
                     "headline": "Issuer B expands international footprint",
@@ -574,13 +582,38 @@ def test_render_news_stream_outputs_links_timestamps_and_topics(monkeypatch):
     )
 
     render_news_stream(1)
-    assert fake_st.subheaders == ["News Stream"]
+    assert fake_st.subheaders == ["News"]
     assert fake_st.info_calls == []
     assert fake_st.markdowns == [
-        "- [Issuer B expands international footprint](https://example.com/issuer-b)"
+        "- 2024-03-16 08:00 | [Issuer B expands international footprint](https://example.com/issuer-b) `strategy` `expansion`"
     ]
-    assert fake_st.captions == [
-        "2024-03-16 08:00 | MarketWire | confidence 0.92 `strategy` `expansion`"
+
+
+def test_render_news_stream_all_managers_includes_manager_name(monkeypatch):
+    fake_st = NewsStreamStreamlit()
+    monkeypatch.setattr("ui.dashboard.st", fake_st)
+    monkeypatch.setattr(
+        "ui.dashboard.load_news_stream",
+        lambda manager_id, limit=10: pd.DataFrame(
+            [
+                {
+                    "headline": "Issuer Z exits position",
+                    "url": "https://example.com/issuer-z",
+                    "published_at": "2024-03-14 09:15:00",
+                    "source": "MarketWire",
+                    "topics": "portfolio",
+                    "confidence": 0.75,
+                    "manager_name": "Zulu Capital",
+                }
+            ]
+        ),
+    )
+
+    render_news_stream(None)
+    assert fake_st.subheaders == ["News"]
+    assert fake_st.info_calls == []
+    assert fake_st.markdowns == [
+        "- 2024-03-14 09:15 | Zulu Capital | [Issuer Z exits position](https://example.com/issuer-z) `portfolio`"
     ]
 
 
@@ -718,7 +751,7 @@ def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
         ("Filing Timeline", True),
         ("Latest Holdings Snapshot", True),
         ("Top Deltas", True),
-        ("News Stream", True),
+        ("News", True),
         ("QC Flags", True),
     ]
     assert calls == [
