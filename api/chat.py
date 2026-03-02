@@ -260,7 +260,13 @@ def chat(
     if not hits:
         answer = "No documents found."
     else:
-        answer = "Context: " + " ".join(h["content"] for h in hits)
+        snippets = []
+        for hit in hits:
+            kind = hit.get("kind") or "note"
+            filename = hit.get("filename") or "unknown"
+            manager_name = hit.get("manager_name") or "unassigned"
+            snippets.append(f"[{kind} | {filename} | manager: {manager_name}] {hit['content']}")
+        answer = "Context: " + " ".join(snippets)
     return {"answer": answer, "latency_ms": 0, "chain_used": "legacy_search"}
 
 

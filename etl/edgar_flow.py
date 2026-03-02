@@ -87,8 +87,15 @@ def _ensure_legacy_tables(conn: Any) -> None:
         )""")
     conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
             holding_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filing_id INTEGER NOT NULL,
+            filing_id INTEGER,
+            manager_id INTEGER,
+            cik TEXT,
+            accession TEXT,
+            filed DATE,
+            nameOfIssuer TEXT,
             cusip TEXT,
+            value INTEGER,
+            sshPrnamt INTEGER,
             name_of_issuer TEXT,
             shares INTEGER,
             value_usd INTEGER,
@@ -97,8 +104,10 @@ def _ensure_legacy_tables(conn: Any) -> None:
 
 
 def _upsert_filing_legacy(
-    conn: Any, manager_id: int, filing_type: str, filed_date: str | None, raw_key: str
+    conn: Any, manager_id: int | None, filing_type: str, filed_date: str | None, raw_key: str
 ) -> int:
+    if manager_id is None:
+        return 0
     conn.execute(
         "INSERT OR IGNORE INTO filings(manager_id, type, filed_date, source, raw_key) "
         "VALUES (?, ?, ?, ?, ?)",
@@ -108,17 +117,38 @@ def _upsert_filing_legacy(
     return int(row[0]) if row and row[0] is not None else 0
 
 
-def _insert_holding_legacy(conn: Any, filing_id: int, row: dict[str, Any]) -> None:
+def _insert_holding_legacy(
+    conn: Any,
+    filing_id: int,
+    row: dict[str, Any],
+    *,
+    manager_id: int | None,
+    cik: str,
+    accession: str,
+    filed_date: str | None,
+) -> None:
+    columns = _columns(conn, "holdings")
+    values: dict[str, Any] = {
+        "filing_id": filing_id,
+        "manager_id": manager_id,
+        "cik": cik,
+        "accession": accession,
+        "filed": filed_date,
+        "nameOfIssuer": row.get("nameOfIssuer"),
+        "cusip": row.get("cusip"),
+        "value": int(row.get("value") or 0),
+        "sshPrnamt": int(row.get("sshPrnamt") or 0),
+        "name_of_issuer": row.get("nameOfIssuer"),
+        "shares": int(row.get("sshPrnamt") or 0),
+        "value_usd": int(row.get("value") or 0),
+    }
+    insert_columns = [column for column in values if column in columns]
+    if not insert_columns:
+        return
     conn.execute(
-        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (
-            filing_id,
-            row.get("cusip"),
-            row.get("nameOfIssuer"),
-            int(row.get("sshPrnamt") or 0),
-            int(row.get("value") or 0),
-        ),
+        f"INSERT INTO holdings({', '.join(insert_columns)}) "
+        f"VALUES ({', '.join('?' for _ in insert_columns)})",
+        [values[column] for column in insert_columns],
     )
 
 
@@ -126,10 +156,16 @@ def _insert_holding_legacy(conn: Any, filing_id: int, row: dict[str, Any]) -> No
 async def fetch_and_store(cik: str, since: str):
     filings = await ADAPTER.list_new_filings(cik, since)
     conn = connect_db(DB_PATH)
+    filings_existed = bool(
+        conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='filings'"
+        ).fetchone()[0]
+    )
     _ensure_legacy_tables(conn)
 
+    manager_cols = _columns(conn, "managers")
     manager_id = _manager_id_for_cik(conn, cik)
-    if manager_id is None:
+    if manager_cols and manager_id is None:
         logger.warning("Manager not found; skipping filings", extra={"cik": cik})
         conn.close()
         return []
@@ -144,7 +180,16 @@ async def fetch_and_store(cik: str, since: str):
 
         S3.put_object(Bucket=BUCKET, Key=raw_key, Body=raw, ServerSideEncryption="AES256")
         if isinstance(raw, str):
-            store_document(raw)
+            try:
+                store_document(
+                    raw,
+                    db_path=DB_PATH,
+                    manager_id=None if filings_existed else manager_id,
+                    kind="filing_text",
+                    filename=f"{accession}.xml",
+                )
+            except TypeError:
+                store_document(raw)
 
         parsed_rows = await ADAPTER.parse(raw)
         filing_id = _upsert_filing_legacy(
@@ -155,10 +200,17 @@ async def fetch_and_store(cik: str, since: str):
             raw_key=raw_key,
         )
         for row in parsed_rows:
-            _insert_holding_legacy(conn, filing_id, row)
+            _insert_holding_legacy(
+                conn,
+                filing_id,
+                row,
+                manager_id=manager_id,
+                cik=cik,
+                accession=accession,
+                filed_date=filing.get("filed"),
+            )
         conn.commit()
         all_rows.extend(parsed_rows)
-
     conn.close()
     return all_rows
 
