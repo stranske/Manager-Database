@@ -13,7 +13,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -27,7 +27,7 @@ from adapters.base import connect_db
 from api.data import router as data_router
 from api.managers import router as managers_router
 from api.memory_profiler import start_memory_profiler, stop_memory_profiler
-from api.search import SearchResult, universal_search
+from api.search import SearchEntityType, SearchResult, universal_search
 
 app = FastAPI()
 # Tag manager endpoints so they group clearly in the Swagger UI.
@@ -288,23 +288,17 @@ def search_api(
         ),
     ),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of results to return"),
-    entity_type: Literal["filing", "holding", "news", "document", "manager"] | None = Query(
+    entity_type: SearchEntityType | None = Query(
         None,
         description="Optional result type filter",
     ),
 ) -> list[SearchResult]:
     conn = connect_db()
     try:
-        # Pull a larger candidate set when filtering so the requested type is not
-        # unintentionally excluded by the pre-filter limit.
-        candidate_limit = max(limit, 100) if entity_type is not None else limit
-        results = universal_search(q, conn, limit=candidate_limit)
+        results = universal_search(q, conn, limit=limit, entity_type=entity_type)
     finally:
         conn.close()
-
-    if entity_type is not None:
-        results = [item for item in results if item.entity_type == entity_type]
-    return results[:limit]
+    return results
 
 
 VALID_CHAIN_NAMES = {

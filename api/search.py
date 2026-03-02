@@ -7,11 +7,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+SearchEntityType = Literal["filing", "holding", "news", "document", "manager"]
+
 
 class SearchResult(BaseModel):
     """Unified search result payload."""
 
-    entity_type: Literal["filing", "holding", "news", "document", "manager"]
+    entity_type: SearchEntityType
     entity_id: int
     manager_name: str | None
     headline: str
@@ -28,6 +30,8 @@ _BASE_RELEVANCE = {
     "holding": 0.4,
     "manager": 0.3,
 }
+
+_VALID_ENTITY_TYPES: set[str] = {"filing", "holding", "news", "document", "manager"}
 
 
 def _is_sqlite(conn: Any) -> bool:
@@ -641,7 +645,12 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
     return results
 
 
-def universal_search(query: str, conn: Any, limit: int = 20) -> list[SearchResult]:
+def universal_search(
+    query: str,
+    conn: Any,
+    limit: int = 20,
+    entity_type: SearchEntityType | None = None,
+) -> list[SearchResult]:
     """Search across all entity types and return ranked results."""
     if not query.strip() or limit <= 0:
         return []
@@ -652,8 +661,15 @@ def universal_search(query: str, conn: Any, limit: int = 20) -> list[SearchResul
         else _search_postgres(query, conn, limit)
     )
 
+    allowed_entity_types = (
+        {entity_type}
+        if entity_type in _VALID_ENTITY_TYPES
+        else (_VALID_ENTITY_TYPES if entity_type is None else set())
+    )
     deduped: dict[tuple[str, int], SearchResult] = {}
     for item in results:
+        if item.entity_type not in allowed_entity_types:
+            continue
         key = (item.entity_type, item.entity_id)
         existing = deduped.get(key)
         if existing is None or item.relevance > existing.relevance:

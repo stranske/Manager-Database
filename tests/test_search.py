@@ -145,6 +145,33 @@ def test_universal_search_returns_ranked_multi_entity_results():
     assert results == sorted(results, key=lambda item: item.relevance, reverse=True)
 
 
+def test_universal_search_filters_results_by_entity_type():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
+    conn.execute("CREATE TABLE news (headline TEXT, source TEXT, published TEXT)")
+    conn.execute("CREATE TABLE documents (id INTEGER PRIMARY KEY, content TEXT, embedding TEXT)")
+    conn.execute(
+        "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, raw_key TEXT, period_end TEXT, url TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings (holding_id INTEGER PRIMARY KEY, filing_id INTEGER, name_of_issuer TEXT, cusip TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO managers(id, name, role) VALUES (1, 'Elliott Management', 'Activist')"
+    )
+    conn.execute(
+        "INSERT INTO news(headline, source, published) VALUES ('Elliott targets XYZ board', 'WSJ', '2025-01-02')"
+    )
+    conn.execute(
+        "INSERT INTO documents(id, content, embedding) VALUES (1, 'Internal Elliott investment memo', '[]')"
+    )
+
+    results = universal_search("Elliott", conn, limit=20, entity_type="news")
+
+    assert results
+    assert {item.entity_type for item in results} == {"news"}
+
+
 def test_universal_search_postgres_fts_queries_and_results():
     conn = _FakePostgresConn()
     results = universal_search("Elliott", conn, limit=10)
