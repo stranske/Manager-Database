@@ -50,9 +50,22 @@ def _ensure_daily_diffs_table(conn: Any) -> None:
     try:
         conn.execute("SELECT 1 FROM daily_diffs LIMIT 1")
     except Exception as exc:
-        raise RuntimeError(
-            "daily_diffs table is missing on Postgres; apply schema migrations first"
-        ) from exc
+        # Only treat clearly-identified "missing table" errors as a schema issue.
+        message = str(exc)
+        exc_type_name = exc.__class__.__name__
+        pgcode = getattr(exc, "pgcode", None)
+        # psycopg UndefinedTable typically has SQLSTATE 42P01 and/or a recognizable name/message.
+        is_missing_table = (
+            "does not exist" in message
+            or pgcode == "42P01"
+            or "UndefinedTable" in exc_type_name
+        )
+        if is_missing_table:
+            raise RuntimeError(
+                "daily_diffs table is missing on Postgres; apply schema migrations first"
+            ) from exc
+        # For all other errors (permissions, connectivity, syntax, etc.), re-raise the original.
+        raise
 
 
 def _delete_existing_diffs(conn: Any, manager_id: int, report_date: str) -> None:
