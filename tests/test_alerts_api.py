@@ -104,6 +104,34 @@ def _seed_alert_history(db_path: Path) -> None:
         conn.close()
 
 
+def _seed_alert_for_rule(
+    db_path: Path,
+    *,
+    rule_id: int,
+    rule_name: str,
+    event_type: str = "large_delta",
+    acknowledged: bool = False,
+) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """INSERT INTO alert_history(
+                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                rule_id,
+                rule_name,
+                event_type,
+                '{"symbol":"ABC","delta":150000}',
+                '["email"]',
+                1 if acknowledged else 0,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def test_alert_rule_crud_and_soft_delete(tmp_path, monkeypatch):
     db_path = tmp_path / "alerts.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -146,6 +174,42 @@ def test_alert_rule_crud_and_soft_delete(tmp_path, monkeypatch):
     post_delete = asyncio.run(_request("GET", f"/api/alerts/rules/{rule_id}"))
     assert post_delete.status_code == 200
     assert post_delete.json()["enabled"] is False
+
+
+def test_alert_rule_soft_delete_preserves_history(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    create_response = asyncio.run(
+        _request(
+            "POST",
+            "/api/alerts/rules",
+            json=_create_rule_payload(name="Preserve History Rule"),
+        )
+    )
+    assert create_response.status_code == 201
+    created_rule = create_response.json()
+    rule_id = created_rule["rule_id"]
+
+    _seed_alert_for_rule(
+        db_path,
+        rule_id=rule_id,
+        rule_name=created_rule["name"],
+    )
+
+    delete_response = asyncio.run(_request("DELETE", f"/api/alerts/rules/{rule_id}"))
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"rule_id": rule_id, "enabled": False}
+
+    history_response = asyncio.run(
+        _request("GET", "/api/alerts/history", params={"event_type": "large_delta", "limit": 10})
+    )
+    assert history_response.status_code == 200
+    history = history_response.json()
+    assert len(history) == 1
+    assert history[0]["rule_name"] == "Preserve History Rule"
+    assert history[0]["event_type"] == "large_delta"
+    assert history[0]["acknowledged"] is False
 
 
 def test_alert_rule_list_filters(tmp_path, monkeypatch):
@@ -264,3 +328,14 @@ def test_alert_acknowledge_and_count_flow(tmp_path, monkeypatch):
     final_count = asyncio.run(_request("GET", "/api/alerts/unacknowledged/count"))
     assert final_count.status_code == 200
     assert final_count.json() == {"count": 0}
+
+
+def test_alert_history_invalid_event_type_rejected(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(
+        _request("GET", "/api/alerts/history", params={"event_type": "not_supported"})
+    )
+    assert response.status_code == 400
+    assert "Unsupported event_type" in response.json()["detail"]
