@@ -1,6 +1,6 @@
+import asyncio
 import sqlite3
 import sys
-import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -369,7 +369,9 @@ def test_api_search_filtered_results_are_json_serializable(tmp_path: Path, monke
     assert {item["entity_type"] for item in payload} == {"news"}
 
 
-async def _http_get(path: str, *, params: dict[str, object] | None = None) -> httpx.Response:
+async def _http_get(
+    path: str, *, params: dict[str, str | int | float | bool | None] | None = None
+) -> httpx.Response:
     await chat_api_module.app.router.startup()
     try:
         transport = httpx.ASGITransport(app=chat_api_module.app)
