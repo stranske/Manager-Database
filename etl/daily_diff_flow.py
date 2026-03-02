@@ -26,7 +26,11 @@ def _is_postgres(conn: Any) -> bool:
 
 
 def _ensure_daily_diffs_table(conn: Any) -> None:
-    """Create the daily_diffs table on SQLite (Postgres uses Alembic migrations)."""
+    """Ensure daily_diffs exists for the active backend.
+
+    SQLite test/dev runs create the table on demand. Postgres relies on
+    canonical schema migrations and should fail fast if the table is missing.
+    """
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS daily_diffs (
                 diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +45,14 @@ def _ensure_daily_diffs_table(conn: Any) -> None:
                 value_curr REAL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )""")
+        return
+
+    try:
+        conn.execute("SELECT 1 FROM daily_diffs LIMIT 1")
+    except Exception as exc:
+        raise RuntimeError(
+            "daily_diffs table is missing on Postgres; apply schema migrations first"
+        ) from exc
 
 
 def _delete_existing_diffs(conn: Any, manager_id: int, report_date: str) -> None:
