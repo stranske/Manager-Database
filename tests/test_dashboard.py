@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from time import perf_counter
 
 import pandas as pd
 import streamlit as st
@@ -14,7 +15,9 @@ from ui.dashboard import (
     load_news_stream,
     load_qc_flags,
     load_top_deltas,
+    render_all_managers_summary,
     render_filing_timeline,
+    render_historical_filing_trend,
     render_latest_holdings_snapshot,
     render_manager_dashboard,
     render_manager_selector,
@@ -112,6 +115,133 @@ def setup_db(tmp_path: Path) -> str:
         "INSERT INTO api_usage(ts, source, endpoint, status, bytes, latency_ms, cost_usd) "
         "VALUES (?,?,?,?,?,?,?)",
         usage_rows,
+    )
+    conn.commit()
+    conn.close()
+    return str(db_path)
+
+
+def setup_performance_db(tmp_path: Path, manager_count: int = 10) -> str:
+    db_path = tmp_path / "perf.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute(
+        "CREATE TABLE holdings (cik TEXT, accession TEXT, filed DATE, nameOfIssuer TEXT, "
+        "cusip TEXT, value INTEGER, sshPrnamt INTEGER, filing_id INTEGER, "
+        "name_of_issuer TEXT, shares INTEGER, value_usd REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, filed_date DATE, period_end DATE, source TEXT, raw_key TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE daily_diffs ("
+        "manager_id INTEGER, report_date DATE, cusip TEXT, name_of_issuer TEXT, "
+        "delta_type TEXT, shares_prev REAL, shares_curr REAL, value_prev REAL, value_curr REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE news_items ("
+        "manager_id INTEGER, headline TEXT, url TEXT, published_at DATETIME, "
+        "source TEXT, topics TEXT, confidence REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE api_usage ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, ts DATETIME, source TEXT, endpoint TEXT, "
+        "status INT, bytes INT, latency_ms INT, cost_usd REAL)"
+    )
+
+    manager_rows = [
+        (manager_id, f"Manager {manager_id:02d}") for manager_id in range(1, manager_count + 1)
+    ]
+    conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
+
+    filing_id = 1
+    for manager_id in range(1, manager_count + 1):
+        filing_rows = [
+            (
+                filing_id,
+                manager_id,
+                "13F-HR",
+                "2026-02-14",
+                "2025-12-31",
+                "sec",
+                f"raw/{filing_id}",
+            ),
+            (
+                filing_id + 1,
+                manager_id,
+                "13F-HR/A",
+                "2025-11-14",
+                "2025-09-30",
+                "sec",
+                f"raw/{filing_id + 1}",
+            ),
+        ]
+        conn.executemany("INSERT INTO filings VALUES (?,?,?,?,?,?,?)", filing_rows)
+
+        holdings_rows = []
+        for idx in range(1, 11):
+            holdings_rows.append(
+                (
+                    str(manager_id),
+                    f"a{filing_id}-{idx}",
+                    "2026-02-14",
+                    f"Corp {manager_id}-{idx}",
+                    f"{manager_id:02d}{idx:04d}",
+                    idx * 100,
+                    idx * 10,
+                    filing_id,
+                    f"Issuer {manager_id}-{idx}",
+                    idx * 100,
+                    float(idx * 100000),
+                )
+            )
+        conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?,?)", holdings_rows)
+
+        diff_rows = []
+        for idx in range(1, 11):
+            diff_rows.append(
+                (
+                    manager_id,
+                    "2026-02-14",
+                    f"{manager_id:02d}{idx:04d}",
+                    f"Issuer {manager_id}-{idx}",
+                    "INCREASE" if idx % 2 else "DECREASE",
+                    idx * 50,
+                    idx * 100,
+                    float(idx * 50000),
+                    float(idx * 110000),
+                )
+            )
+        conn.executemany("INSERT INTO daily_diffs VALUES (?,?,?,?,?,?,?,?,?)", diff_rows)
+
+        news_rows = [
+            (
+                manager_id,
+                f"Manager {manager_id:02d} portfolio update",
+                f"https://example.com/m{manager_id}/update",
+                "2026-02-20 10:00:00",
+                "Newswire",
+                "portfolio,filing",
+                0.9,
+            ),
+            (
+                manager_id,
+                f"Manager {manager_id:02d} adds positions",
+                f"https://example.com/m{manager_id}/adds",
+                "2026-02-18 09:00:00",
+                "Newswire",
+                "positions,analysis",
+                0.85,
+            ),
+        ]
+        conn.executemany("INSERT INTO news_items VALUES (?,?,?,?,?,?,?)", news_rows)
+
+        filing_id += 2
+
+    conn.execute(
+        "INSERT INTO api_usage(ts, source, endpoint, status, bytes, latency_ms, cost_usd) "
+        "VALUES (?,?,?,?,?,?,?)",
+        ("2026-02-20 12:30:00", "etl", "/edgar", 200, 2048, 150, 0.0),
     )
     conn.commit()
     conn.close()
@@ -598,3 +728,93 @@ def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
         ("news_stream", 7, False),
         ("qc_flags", 7, False),
     ]
+
+
+class PerfColumn:
+    def metric(self, *_args, **_kwargs):
+        return None
+
+    def caption(self, *_args, **_kwargs):
+        return None
+
+    def altair_chart(self, *_args, **_kwargs):
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class PerfExpander:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class PerfStreamlit:
+    def __init__(self):
+        self.session_state = {}
+
+    def header(self, *_args, **_kwargs):
+        return None
+
+    def selectbox(self, _label, options, index, format_func, key):
+        self.session_state.setdefault(key, options[index])
+        return self.session_state[key]
+
+    def columns(self, spec, gap=None):
+        if isinstance(spec, int):
+            return [PerfColumn() for _ in range(spec)]
+        return [PerfColumn() for _ in range(len(spec))]
+
+    def expander(self, *_args, **_kwargs):
+        return PerfExpander()
+
+    def subheader(self, *_args, **_kwargs):
+        return None
+
+    def info(self, *_args, **_kwargs):
+        return None
+
+    def altair_chart(self, *_args, **_kwargs):
+        return None
+
+    def dataframe(self, *_args, **_kwargs):
+        return None
+
+    def markdown(self, *_args, **_kwargs):
+        return None
+
+    def caption(self, *_args, **_kwargs):
+        return None
+
+    def metric(self, *_args, **_kwargs):
+        return None
+
+    def stop(self):
+        raise AssertionError("stop() should not be called during dashboard performance test")
+
+
+def test_dashboard_render_under_two_seconds_with_ten_managers(tmp_path: Path, monkeypatch):
+    db_path = setup_performance_db(tmp_path, manager_count=10)
+    monkeypatch.setenv("DB_PATH", db_path)
+    st.cache_data.clear()
+
+    fake_st = PerfStreamlit()
+    monkeypatch.setattr("ui.dashboard.st", fake_st)
+    monkeypatch.setattr("ui.dashboard.require_login", lambda: True)
+
+    start = perf_counter()
+    selected_manager = render_manager_selector()
+    assert selected_manager is None
+    render_all_managers_summary(show_heading=False)
+    fake_st.session_state["selected_manager_id"] = 1
+    render_manager_dashboard(1)
+    render_historical_filing_trend()
+    elapsed = perf_counter() - start
+
+    assert elapsed < 2.0, f"Dashboard render path exceeded 2 seconds: {elapsed:.3f}s"
