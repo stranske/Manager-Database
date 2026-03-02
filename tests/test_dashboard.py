@@ -11,10 +11,12 @@ from ui.dashboard import (
     load_delta,
     load_filing_timeline,
     load_latest_holdings_snapshot,
+    load_top_deltas,
     load_managers,
     render_filing_timeline,
     render_latest_holdings_snapshot,
     render_manager_selector,
+    render_top_deltas,
 )
 
 
@@ -30,6 +32,11 @@ def setup_db(tmp_path: Path) -> str:
     conn.execute(
         "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, filed_date DATE, period_end DATE, source TEXT, raw_key TEXT)"
     )
+    conn.execute(
+        "CREATE TABLE daily_diffs ("
+        "manager_id INTEGER, report_date DATE, cusip TEXT, name_of_issuer TEXT, "
+        "delta_type TEXT, shares_prev REAL, shares_curr REAL, value_prev REAL, value_curr REAL)"
+    )
     manager_rows = [
         (2, "Zulu Capital"),
         (1, "Alpha Partners"),
@@ -44,9 +51,16 @@ def setup_db(tmp_path: Path) -> str:
         (2, 1, "13F-HR/A", "2024-02-15", "2023-12-31", "sec", "raw/2"),
         (3, 2, "13F-HR", "2024-01-15", "2023-12-31", "sec", "raw/3"),
     ]
+    delta_rows = [
+        (1, "2024-03-15", "BBB", "Issuer B", "INCREASE", 100, 200, 1000, 4000),
+        (1, "2024-03-15", "AAA", "Issuer A", "DECREASE", 300, 100, 5000, 1200),
+        (1, "2024-02-15", "CCC", "Issuer C", "ADD", 0, 50, 0, 700),
+        (2, "2024-03-15", "ZZZ", "Issuer Z", "EXIT", 120, 0, 1800, 0),
+    ]
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
     conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.executemany("INSERT INTO filings VALUES (?,?,?,?,?,?,?)", filing_rows)
+    conn.executemany("INSERT INTO daily_diffs VALUES (?,?,?,?,?,?,?,?,?)", delta_rows)
     conn.commit()
     conn.close()
     return str(db_path)
@@ -114,6 +128,14 @@ def test_load_latest_holdings_snapshot_filters_and_orders(tmp_path: Path, monkey
     df = load_latest_holdings_snapshot(1)
     assert list(df["name_of_issuer"]) == ["Issuer B", "Issuer A", "Issuer C"]
     assert list(df["value_usd"]) == [3000.0, 1500.0, 700.0]
+
+
+def test_load_top_deltas_filters_latest_report_date_and_orders(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    df = load_top_deltas(1)
+    assert list(df["cusip"]) == ["AAA", "BBB"]
+    assert list(df["delta_type"]) == ["DECREASE", "INCREASE"]
 
 
 class TimelineStreamlit:
@@ -224,3 +246,59 @@ def test_render_latest_holdings_snapshot_outputs_metrics_and_table(monkeypatch):
     assert len(fake_st.tables) == 1
     assert fake_st.columns_objects[0][0].metrics == [("Total Positions", "2")]
     assert fake_st.columns_objects[0][1].metrics == [("Total AUM (USD)", "$4,500")]
+
+
+class TopDeltasStreamlit:
+    def __init__(self):
+        self.subheaders = []
+        self.info_calls = []
+        self.charts = []
+        self.tables = []
+
+    def subheader(self, text):
+        self.subheaders.append(text)
+
+    def info(self, text):
+        self.info_calls.append(text)
+
+    def altair_chart(self, chart, use_container_width):
+        self.charts.append((chart, use_container_width))
+
+    def dataframe(self, df, use_container_width):
+        self.tables.append((df, use_container_width))
+
+
+def test_render_top_deltas_outputs_chart_and_table(monkeypatch):
+    fake_st = TopDeltasStreamlit()
+    monkeypatch.setattr("ui.dashboard.st", fake_st)
+    monkeypatch.setattr(
+        "ui.dashboard.load_top_deltas",
+        lambda manager_id: pd.DataFrame(
+            [
+                {
+                    "cusip": "BBB",
+                    "name_of_issuer": "Issuer B",
+                    "delta_type": "INCREASE",
+                    "shares_prev": 100,
+                    "shares_curr": 200,
+                    "value_prev": 1000,
+                    "value_curr": 4000,
+                },
+                {
+                    "cusip": "AAA",
+                    "name_of_issuer": "Issuer A",
+                    "delta_type": "DECREASE",
+                    "shares_prev": 300,
+                    "shares_curr": 100,
+                    "value_prev": 5000,
+                    "value_curr": 1200,
+                },
+            ]
+        ),
+    )
+
+    render_top_deltas(1)
+    assert fake_st.subheaders == ["Top Deltas"]
+    assert fake_st.info_calls == []
+    assert len(fake_st.charts) == 1
+    assert len(fake_st.tables) == 1

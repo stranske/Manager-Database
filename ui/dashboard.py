@@ -60,6 +60,35 @@ def load_latest_holdings_snapshot(manager_id: int) -> pd.DataFrame:
     return df
 
 
+def load_top_deltas(manager_id: int) -> pd.DataFrame:
+    conn = connect_db()
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    query = (
+        "SELECT cusip, name_of_issuer, delta_type, shares_prev, shares_curr, value_prev, value_curr "
+        "FROM daily_diffs "
+        f"WHERE manager_id = {placeholder} "
+        f"AND report_date = (SELECT MAX(report_date) FROM daily_diffs WHERE manager_id = {placeholder}) "
+        "ORDER BY ABS(COALESCE(value_curr,0) - COALESCE(value_prev,0)) DESC "
+        "LIMIT 10"
+    )
+    try:
+        df = pd.read_sql_query(query, conn, params=(manager_id, manager_id))
+    except Exception:
+        df = pd.DataFrame(
+            columns=[
+                "cusip",
+                "name_of_issuer",
+                "delta_type",
+                "shares_prev",
+                "shares_curr",
+                "value_prev",
+                "value_curr",
+            ]
+        )
+    conn.close()
+    return df
+
+
 @st.cache_data(show_spinner=False)
 def load_managers() -> pd.DataFrame:
     conn = connect_db()
@@ -143,6 +172,68 @@ def render_latest_holdings_snapshot(selected_manager_id: int | None) -> None:
     st.dataframe(holdings, use_container_width=True)
 
 
+def _delta_type_color(delta_type: str) -> str:
+    if delta_type in {"ADD", "INCREASE"}:
+        return "color: #198754; font-weight: 700"
+    if delta_type in {"EXIT", "DECREASE"}:
+        return "color: #C1121F; font-weight: 700"
+    return "color: #6C757D"
+
+
+def render_top_deltas(selected_manager_id: int | None) -> None:
+    st.subheader("Top Deltas")
+    if selected_manager_id is None:
+        st.info("Select a manager to view top position changes.")
+        return
+
+    deltas = load_top_deltas(selected_manager_id)
+    if deltas.empty:
+        st.info("No daily deltas found for the selected manager.")
+        return
+
+    deltas = deltas.copy()
+    deltas["value_prev"] = pd.to_numeric(deltas["value_prev"], errors="coerce").fillna(0.0)
+    deltas["value_curr"] = pd.to_numeric(deltas["value_curr"], errors="coerce").fillna(0.0)
+    deltas["delta_value"] = deltas["value_curr"] - deltas["value_prev"]
+    deltas["abs_delta_value"] = deltas["delta_value"].abs()
+
+    color_scale = alt.Scale(
+        domain=["ADD", "INCREASE", "DECREASE", "EXIT"],
+        range=["#198754", "#198754", "#C1121F", "#C1121F"],
+    )
+    delta_chart = (
+        alt.Chart(deltas)
+        .mark_bar()
+        .encode(
+            x=alt.X("abs_delta_value:Q", title="Absolute Value Change (USD)"),
+            y=alt.Y("name_of_issuer:N", sort="-x", title="Issuer"),
+            color=alt.Color("delta_type:N", scale=color_scale, title="Delta Type"),
+            tooltip=[
+                "name_of_issuer",
+                "cusip",
+                "delta_type",
+                alt.Tooltip("delta_value:Q", title="Value Change"),
+                "value_prev",
+                "value_curr",
+            ],
+        )
+    )
+    st.altair_chart(delta_chart, use_container_width=True)
+
+    table_cols = [
+        "name_of_issuer",
+        "cusip",
+        "delta_type",
+        "shares_prev",
+        "shares_curr",
+        "value_prev",
+        "value_curr",
+        "delta_value",
+    ]
+    styled = deltas[table_cols].style.map(_delta_type_color, subset=["delta_type"])
+    st.dataframe(styled, use_container_width=True)
+
+
 def main() -> None:
     if not require_login():
         st.stop()
@@ -150,6 +241,7 @@ def main() -> None:
     selected_manager_id = render_manager_selector()
     render_filing_timeline(selected_manager_id)
     render_latest_holdings_snapshot(selected_manager_id)
+    render_top_deltas(selected_manager_id)
     df = load_delta()
     if df.empty:
         st.info("No data available")
