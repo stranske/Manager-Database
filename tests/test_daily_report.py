@@ -5,8 +5,8 @@ import pandas as pd
 import streamlit as st
 
 from ui.daily_report import (
-    format_shares_delta,
     format_news_table,
+    format_shares_delta,
     headline_markdown,
     load_diffs,
     load_news,

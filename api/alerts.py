@@ -6,9 +6,9 @@ import json
 import logging
 import sqlite3
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Body, HTTPException, Path, Query
 from pydantic import BaseModel, Field, field_validator
 
 from adapters.base import connect_db
@@ -400,8 +400,8 @@ async def get_rule(
 
 @router.put("/api/alerts/rules/{rule_id}", response_model=AlertRuleResponse)
 async def update_rule(
+    update: Annotated[AlertRuleUpdate, Body(...)],
     rule_id: int = Path(..., ge=1, description="Alert rule identifier"),
-    update: AlertRuleUpdate = ...,
 ) -> AlertRuleResponse:
     """Update an existing alert rule."""
     if (
