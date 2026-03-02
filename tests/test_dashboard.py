@@ -9,10 +9,12 @@ from ui.dashboard import (
     load_filing_timeline,
     load_latest_holdings_snapshot,
     load_managers,
+    load_news_stream,
     load_top_deltas,
     render_filing_timeline,
     render_latest_holdings_snapshot,
     render_manager_selector,
+    render_news_stream,
     render_top_deltas,
 )
 
@@ -34,6 +36,11 @@ def setup_db(tmp_path: Path) -> str:
         "manager_id INTEGER, report_date DATE, cusip TEXT, name_of_issuer TEXT, "
         "delta_type TEXT, shares_prev REAL, shares_curr REAL, value_prev REAL, value_curr REAL)"
     )
+    conn.execute(
+        "CREATE TABLE news_items ("
+        "manager_id INTEGER, headline TEXT, url TEXT, published_at DATETIME, "
+        "source TEXT, topics TEXT, confidence REAL)"
+    )
     manager_rows = [
         (2, "Zulu Capital"),
         (1, "Alpha Partners"),
@@ -54,10 +61,40 @@ def setup_db(tmp_path: Path) -> str:
         (1, "2024-02-15", "CCC", "Issuer C", "ADD", 0, 50, 0, 700),
         (2, "2024-03-15", "ZZZ", "Issuer Z", "EXIT", 120, 0, 1800, 0),
     ]
+    news_rows = [
+        (
+            1,
+            "Issuer B expands international footprint",
+            "https://example.com/issuer-b",
+            "2024-03-16 08:00:00",
+            "MarketWire",
+            "strategy,expansion",
+            0.92,
+        ),
+        (
+            1,
+            "Issuer A announces restructuring",
+            "https://example.com/issuer-a",
+            "2024-03-15 10:30:00",
+            "SEC Feed",
+            "governance,filing",
+            0.88,
+        ),
+        (
+            2,
+            "Issuer Z exits position",
+            "https://example.com/issuer-z",
+            "2024-03-14 09:15:00",
+            "MarketWire",
+            "portfolio",
+            0.75,
+        ),
+    ]
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
     conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.executemany("INSERT INTO filings VALUES (?,?,?,?,?,?,?)", filing_rows)
     conn.executemany("INSERT INTO daily_diffs VALUES (?,?,?,?,?,?,?,?,?)", delta_rows)
+    conn.executemany("INSERT INTO news_items VALUES (?,?,?,?,?,?,?)", news_rows)
     conn.commit()
     conn.close()
     return str(db_path)
@@ -133,6 +170,17 @@ def test_load_top_deltas_filters_latest_report_date_and_orders(tmp_path: Path, m
     df = load_top_deltas(1)
     assert list(df["cusip"]) == ["AAA", "BBB"]
     assert list(df["delta_type"]) == ["DECREASE", "INCREASE"]
+
+
+def test_load_news_stream_filters_and_orders(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    df = load_news_stream(1)
+    assert list(df["headline"]) == [
+        "Issuer B expands international footprint",
+        "Issuer A announces restructuring",
+    ]
+    assert list(df["source"]) == ["MarketWire", "SEC Feed"]
 
 
 class TimelineStreamlit:
@@ -299,3 +347,53 @@ def test_render_top_deltas_outputs_chart_and_table(monkeypatch):
     assert fake_st.info_calls == []
     assert len(fake_st.charts) == 1
     assert len(fake_st.tables) == 1
+
+
+class NewsStreamStreamlit:
+    def __init__(self):
+        self.subheaders = []
+        self.info_calls = []
+        self.markdowns = []
+        self.captions = []
+
+    def subheader(self, text):
+        self.subheaders.append(text)
+
+    def info(self, text):
+        self.info_calls.append(text)
+
+    def markdown(self, text):
+        self.markdowns.append(text)
+
+    def caption(self, text):
+        self.captions.append(text)
+
+
+def test_render_news_stream_outputs_links_timestamps_and_topics(monkeypatch):
+    fake_st = NewsStreamStreamlit()
+    monkeypatch.setattr("ui.dashboard.st", fake_st)
+    monkeypatch.setattr(
+        "ui.dashboard.load_news_stream",
+        lambda manager_id: pd.DataFrame(
+            [
+                {
+                    "headline": "Issuer B expands international footprint",
+                    "url": "https://example.com/issuer-b",
+                    "published_at": "2024-03-16 08:00:00",
+                    "source": "MarketWire",
+                    "topics": "strategy,expansion",
+                    "confidence": 0.92,
+                }
+            ]
+        ),
+    )
+
+    render_news_stream(1)
+    assert fake_st.subheaders == ["News Stream"]
+    assert fake_st.info_calls == []
+    assert fake_st.markdowns == [
+        "- [Issuer B expands international footprint](https://example.com/issuer-b)"
+    ]
+    assert fake_st.captions == [
+        "2024-03-16 08:00 | MarketWire | confidence 0.92 `strategy` `expansion`"
+    ]

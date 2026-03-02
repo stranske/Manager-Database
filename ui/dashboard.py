@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from typing import Any
 
 import altair as alt
 import pandas as pd
@@ -84,6 +85,26 @@ def load_top_deltas(manager_id: int) -> pd.DataFrame:
                 "value_prev",
                 "value_curr",
             ]
+        )
+    conn.close()
+    return df
+
+
+def load_news_stream(manager_id: int) -> pd.DataFrame:
+    conn = connect_db()
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    query = (
+        "SELECT headline, url, published_at, source, topics, confidence "
+        "FROM news_items "
+        f"WHERE manager_id = {placeholder} "
+        "ORDER BY published_at DESC "
+        "LIMIT 15"
+    )
+    try:
+        df = pd.read_sql_query(query, conn, params=(manager_id,))
+    except Exception:
+        df = pd.DataFrame(
+            columns=["headline", "url", "published_at", "source", "topics", "confidence"]
         )
     conn.close()
     return df
@@ -238,6 +259,49 @@ def render_top_deltas(selected_manager_id: int | None) -> None:
     st.dataframe(styled, use_container_width=True)
 
 
+def _topic_badges(topics_value: Any) -> str:
+    if topics_value is None or pd.isna(topics_value):
+        return ""
+    topics = [topic.strip() for topic in str(topics_value).split(",") if topic.strip()]
+    return " ".join(f"`{topic}`" for topic in topics[:5])
+
+
+def render_news_stream(selected_manager_id: int | None) -> None:
+    st.subheader("News Stream")
+    if selected_manager_id is None:
+        st.info("Select a manager to view recent news.")
+        return
+
+    news_items = load_news_stream(selected_manager_id)
+    if news_items.empty:
+        st.info("No recent news found for the selected manager.")
+        return
+
+    news_items = news_items.copy()
+    news_items["published_at"] = pd.to_datetime(news_items["published_at"], errors="coerce")
+    for item in news_items.itertuples(index=False):
+        headline = str(item.headline) if item.headline else "Untitled"
+        url = str(item.url).strip() if item.url else ""
+        if url:
+            st.markdown(f"- [{headline}]({url})")
+        else:
+            st.markdown(f"- {headline}")
+
+        meta_parts = []
+        if pd.notna(item.published_at):
+            meta_parts.append(item.published_at.strftime("%Y-%m-%d %H:%M"))
+        if item.source:
+            meta_parts.append(str(item.source))
+        if pd.notna(item.confidence):
+            meta_parts.append(f"confidence {float(item.confidence):.2f}")
+        badges = _topic_badges(item.topics)
+        meta_line = " | ".join(meta_parts)
+        if badges:
+            meta_line = f"{meta_line} {badges}" if meta_line else badges
+        if meta_line:
+            st.caption(meta_line)
+
+
 def main() -> None:
     if not require_login():
         st.stop()
@@ -246,6 +310,7 @@ def main() -> None:
     render_filing_timeline(selected_manager_id)
     render_latest_holdings_snapshot(selected_manager_id)
     render_top_deltas(selected_manager_id)
+    render_news_stream(selected_manager_id)
     df = load_delta()
     if df.empty:
         st.info("No data available")
