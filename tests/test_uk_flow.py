@@ -100,6 +100,76 @@ async def test_uk_flow_inserts_uk_filing_with_payload_keys(tmp_path, monkeypatch
     assert payload[0]["errors"] == []
 
 
+@pytest.mark.asyncio
+async def test_uk_flow_inserts_into_canonical_filings_schema(tmp_path, monkeypatch):
+    db_path = tmp_path / "canonical.db"
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT NOT NULL, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE filings ("
+        "filing_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "manager_id INTEGER NOT NULL, "
+        "type TEXT NOT NULL, "
+        "filed_date TEXT, "
+        "source TEXT NOT NULL, "
+        "raw_key TEXT UNIQUE, "
+        "parsed_payload TEXT, "
+        "FOREIGN KEY(manager_id) REFERENCES managers(manager_id)"
+        ")"
+    )
+    conn.execute(
+        "CREATE TABLE holdings ("
+        "holding_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "filing_id INTEGER NOT NULL, "
+        "cusip TEXT, "
+        "name_of_issuer TEXT, "
+        "shares INTEGER, "
+        "value_usd INTEGER, "
+        "FOREIGN KEY(filing_id) REFERENCES filings(filing_id)"
+        ")"
+    )
+    conn.execute(
+        "INSERT INTO managers(manager_id, name, cik, registry_ids) VALUES (?, ?, ?, ?)",
+        (42, "Example Widgets Ltd", "", json.dumps({"uk_company_number": "12345678"})),
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(ingest_flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(ingest_flow, "RAW_DIR", raw_dir)
+    monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: MockCompaniesHouseAdapter())
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+
+    rows = await ingest_flow.fetch_and_store.fn(
+        "12345678",
+        "2024-01-01",
+        jurisdiction="uk",
+        db_path=str(db_path),
+    )
+
+    assert len(rows) == 1
+
+    conn = sqlite3.connect(db_path)
+    filing = conn.execute(
+        "SELECT manager_id, source, type, raw_key, parsed_payload FROM filings"
+    ).fetchone()
+    holdings_count = conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0]
+    conn.close()
+
+    assert filing is not None
+    assert filing[:4] == (42, "uk", "CS01", "uk:txn-uk-001")
+    payload = json.loads(filing[4])
+    assert payload[0]["company_number"] == "12345678"
+    assert payload[0]["filing_type"] == "CS01"
+    assert holdings_count == 0
+
+
 def test_uk_flow_deployment_uses_nightly_defaults(monkeypatch):
     monkeypatch.delenv("UK_FLOW_CRON", raising=False)
     monkeypatch.delenv("UK_FLOW_TIMEZONE", raising=False)

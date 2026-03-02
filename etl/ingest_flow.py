@@ -62,6 +62,29 @@ def _placeholder(conn: Any) -> str:
     return "?" if _is_sqlite(conn) else "%s"
 
 
+def _table_columns(conn: Any, table: str) -> set[str]:
+    try:
+        if _is_sqlite(conn):
+            rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+            return {str(row[1]) for row in rows}
+        rows = conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = %s",
+            (table,),
+        ).fetchall()
+        return {str(row[0]) for row in rows}
+    except Exception:
+        return set()
+
+
+def _manager_id_column(conn: Any) -> str | None:
+    columns = _table_columns(conn, "managers")
+    if "manager_id" in columns:
+        return "manager_id"
+    if "id" in columns:
+        return "id"
+    return None
+
+
 def _ensure_filing_tables(conn: Any) -> None:
     if _is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS filings (
@@ -73,10 +96,16 @@ def _ensure_filing_tables(conn: Any) -> None:
                 type TEXT,
                 parsed_payload TEXT
             )""")
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS filings_source_external_idx "
-            "ON filings(source, external_id)"
-        )
+        filing_columns = _table_columns(conn, "filings")
+        if {"source", "external_id"}.issubset(filing_columns):
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS filings_source_external_idx "
+                "ON filings(source, external_id)"
+            )
+        elif "raw_key" in filing_columns:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS filings_raw_key_idx " "ON filings(raw_key)"
+            )
         conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 filing_id INTEGER,
@@ -99,10 +128,14 @@ def _ensure_filing_tables(conn: Any) -> None:
             type text,
             parsed_payload jsonb
         )""")
-    conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS filings_source_external_idx "
-        "ON filings(source, external_id)"
-    )
+    filing_columns = _table_columns(conn, "filings")
+    if {"source", "external_id"}.issubset(filing_columns):
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS filings_source_external_idx "
+            "ON filings(source, external_id)"
+        )
+    elif "raw_key" in filing_columns:
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS filings_raw_key_idx ON filings(raw_key)")
     conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
             id bigserial PRIMARY KEY,
             filing_id bigint,
@@ -118,23 +151,26 @@ def _ensure_filing_tables(conn: Any) -> None:
 
 
 def _lookup_manager_id(conn: Any, jurisdiction: str, identifier: str) -> int | None:
+    id_column = _manager_id_column(conn)
+    if not id_column:
+        return None
     marker = _placeholder(conn)
     try:
         if jurisdiction in {"us", "ca"}:
             row = conn.execute(
-                f"SELECT id FROM managers WHERE cik = {marker} LIMIT 1",
+                f"SELECT {id_column} FROM managers WHERE cik = {marker} LIMIT 1",
                 (identifier,),
             ).fetchone()
         elif jurisdiction == "uk":
             if _is_sqlite(conn):
                 row = conn.execute(
-                    "SELECT id FROM managers "
+                    f"SELECT {id_column} FROM managers "
                     "WHERE json_extract(registry_ids, '$.uk_company_number') = ? LIMIT 1",
                     (identifier,),
                 ).fetchone()
             else:
                 row = conn.execute(
-                    "SELECT id FROM managers "
+                    f"SELECT {id_column} FROM managers "
                     "WHERE registry_ids->>'uk_company_number' = %s LIMIT 1",
                     (identifier,),
                 ).fetchone()
@@ -197,29 +233,63 @@ def _insert_filing(
     parsed_rows: list[dict[str, Any]],
 ) -> int:
     payload = json.dumps(parsed_rows)
+    filing_columns = _table_columns(conn, "filings")
+    id_column = "filing_id" if "filing_id" in filing_columns else "id"
+    raw_key = f"{source}:{external_id}"
+    has_external_id = "external_id" in filing_columns
+
     if _is_sqlite(conn):
+        if has_external_id:
+            sql = (
+                "INSERT OR REPLACE INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
+                "VALUES (?, ?, ?, ?, ?, ?)"
+            )
+            cursor = conn.execute(
+                sql,
+                (manager_id, source, external_id, filed_date, filing_type, payload),
+            )
+            return int(cursor.lastrowid or 0)
         sql = (
-            "INSERT OR REPLACE INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
+            "INSERT OR REPLACE INTO filings(manager_id, source, type, filed_date, raw_key, parsed_payload) "
             "VALUES (?, ?, ?, ?, ?, ?)"
         )
-        cursor = conn.execute(
+        conn.execute(
+            sql,
+            (manager_id, source, filing_type, filed_date, raw_key, payload),
+        )
+        row = conn.execute(
+            f"SELECT {id_column} FROM filings WHERE raw_key = ?", (raw_key,)
+        ).fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+    if has_external_id:
+        sql = (
+            "INSERT INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
+            "VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
+            "ON CONFLICT (source, external_id) DO UPDATE SET "
+            "manager_id = EXCLUDED.manager_id, "
+            "filed_date = EXCLUDED.filed_date, "
+            "type = EXCLUDED.type, "
+            "parsed_payload = EXCLUDED.parsed_payload "
+            f"RETURNING {id_column}"
+        )
+        row = conn.execute(
             sql,
             (manager_id, source, external_id, filed_date, filing_type, payload),
-        )
-        return int(cursor.lastrowid or 0)
+        ).fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
     sql = (
-        "INSERT INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
+        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload) "
         "VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
-        "ON CONFLICT (source, external_id) DO UPDATE SET "
+        "ON CONFLICT (raw_key) DO UPDATE SET "
         "manager_id = EXCLUDED.manager_id, "
         "filed_date = EXCLUDED.filed_date, "
         "type = EXCLUDED.type, "
         "parsed_payload = EXCLUDED.parsed_payload "
-        "RETURNING id"
+        f"RETURNING {id_column}"
     )
     row = conn.execute(
         sql,
-        (manager_id, source, external_id, filed_date, filing_type, payload),
+        (manager_id, filing_type, filed_date, source, raw_key, payload),
     ).fetchone()
     return int(row[0]) if row and row[0] is not None else 0
 
@@ -235,28 +305,48 @@ def _insert_holdings_rows(
     parsed_rows: list[dict[str, Any]],
     jurisdiction: str,
 ) -> int:
+    holdings_columns = _table_columns(conn, "holdings")
+    canonical_holdings = {"name_of_issuer", "shares", "value_usd"}.issubset(holdings_columns)
     marker = _placeholder(conn)
-    sql = (
-        "INSERT INTO holdings(filing_id, manager_id, cik, accession, filed, nameOfIssuer, cusip, value, sshPrnamt) "
-        f"VALUES ({','.join([marker] * 9)})"
-    )
+    if canonical_holdings:
+        sql = (
+            "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
+            f"VALUES ({','.join([marker] * 5)})"
+        )
+    else:
+        sql = (
+            "INSERT INTO holdings(filing_id, manager_id, cik, accession, filed, nameOfIssuer, cusip, value, sshPrnamt) "
+            f"VALUES ({','.join([marker] * 9)})"
+        )
     inserted = 0
     cik_value = identifier if jurisdiction == "us" else None
     for row in parsed_rows:
-        conn.execute(
-            sql,
-            (
-                filing_id,
-                manager_id,
-                cik_value,
-                external_id,
-                filed_date,
-                row.get("nameOfIssuer"),
-                row.get("cusip"),
-                int(row.get("value") or 0),
-                int(row.get("sshPrnamt") or 0),
-            ),
-        )
+        if canonical_holdings:
+            conn.execute(
+                sql,
+                (
+                    filing_id,
+                    row.get("cusip"),
+                    row.get("nameOfIssuer"),
+                    int(row.get("sshPrnamt") or 0),
+                    int(row.get("value") or 0),
+                ),
+            )
+        else:
+            conn.execute(
+                sql,
+                (
+                    filing_id,
+                    manager_id,
+                    cik_value,
+                    external_id,
+                    filed_date,
+                    row.get("nameOfIssuer"),
+                    row.get("cusip"),
+                    int(row.get("value") or 0),
+                    int(row.get("sshPrnamt") or 0),
+                ),
+            )
         inserted += 1
     return inserted
 
@@ -294,6 +384,16 @@ async def fetch_and_store(
             store_document(raw)
 
         manager_id = _lookup_manager_id(conn, jurisdiction, identifier)
+        if manager_id is None:
+            logger.warning(
+                "Manager not found; skipping filing",
+                extra={
+                    "jurisdiction": jurisdiction,
+                    "identifier": identifier,
+                    "external_id": external_id,
+                },
+            )
+            continue
         filing_id = _insert_filing(
             conn,
             manager_id=manager_id,
