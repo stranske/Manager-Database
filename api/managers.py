@@ -241,7 +241,7 @@ def _ensure_universe_schema(conn: Any) -> None:
 
     conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS cik text")
     conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdiction text")
-    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdictions text[] DEFAULT '{}' ")
+    conn.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS jurisdictions text[] DEFAULT '{}'")
     conn.execute(
         "ALTER TABLE managers ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now()"
     )
