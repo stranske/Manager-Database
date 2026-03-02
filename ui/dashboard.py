@@ -41,6 +41,25 @@ def load_filing_timeline(manager_id: int) -> pd.DataFrame:
     return df
 
 
+def load_latest_holdings_snapshot(manager_id: int) -> pd.DataFrame:
+    conn = connect_db()
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    query = (
+        "SELECT h.name_of_issuer, h.cusip, h.shares, h.value_usd "
+        "FROM holdings h "
+        "JOIN filings f ON f.filing_id = h.filing_id "
+        f"WHERE f.manager_id = {placeholder} "
+        "ORDER BY f.filed_date DESC, h.value_usd DESC "
+        "LIMIT 50"
+    )
+    try:
+        df = pd.read_sql_query(query, conn, params=(manager_id,))
+    except Exception:
+        df = pd.DataFrame(columns=["name_of_issuer", "cusip", "shares", "value_usd"])
+    conn.close()
+    return df
+
+
 @st.cache_data(show_spinner=False)
 def load_managers() -> pd.DataFrame:
     conn = connect_db()
@@ -106,12 +125,31 @@ def render_filing_timeline(selected_manager_id: int | None) -> None:
     st.dataframe(filings, use_container_width=True)
 
 
+def render_latest_holdings_snapshot(selected_manager_id: int | None) -> None:
+    st.subheader("Latest Holdings Snapshot")
+    if selected_manager_id is None:
+        st.info("Select a manager to view the latest holdings snapshot.")
+        return
+
+    holdings = load_latest_holdings_snapshot(selected_manager_id)
+    if holdings.empty:
+        st.info("No holdings found for the selected manager.")
+        return
+
+    value_series = pd.to_numeric(holdings["value_usd"], errors="coerce").fillna(0.0)
+    col_positions, col_aum = st.columns(2)
+    col_positions.metric("Total Positions", f"{len(holdings):,}")
+    col_aum.metric("Total AUM (USD)", f"${value_series.sum():,.0f}")
+    st.dataframe(holdings, use_container_width=True)
+
+
 def main() -> None:
     if not require_login():
         st.stop()
     st.header("Holdings Delta")
     selected_manager_id = render_manager_selector()
     render_filing_timeline(selected_manager_id)
+    render_latest_holdings_snapshot(selected_manager_id)
     df = load_delta()
     if df.empty:
         st.info("No data available")
