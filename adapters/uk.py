@@ -191,10 +191,12 @@ def _iter_pdf_streams(raw: bytes) -> list[tuple[bytes, bytes]]:
 def _decode_pdf_stream(stream_dict: bytes, stream_data: bytes) -> bytes | None:
     filters = _parse_filters(stream_dict)
     if filters:
-        data = stream_data
+        data: bytes | None = stream_data
         applied = False
         for flt in filters:
             if flt == b"/FlateDecode":
+                if data is None:
+                    return None
                 data = _flate_decode(data, stream_dict)
                 if data is None:
                     return None
