@@ -219,7 +219,9 @@ def test_diff_holdings_uses_default_connect_db_when_conn_missing(monkeypatch):
 
     monkeypatch.setattr(diff_holdings_module, "connect_db", fake_connect_db)
     monkeypatch.setattr(diff_holdings_module, "_resolve_manager_id", lambda _identifier, _conn: 1)
-    monkeypatch.setattr(diff_holdings_module, "_fetch_latest_sets", lambda _manager_id, _conn: ({}, {}))
+    monkeypatch.setattr(
+        diff_holdings_module, "_fetch_latest_sets", lambda _manager_id, _conn: ({}, {})
+    )
 
     rows = diff_holdings_module.diff_holdings("0000000000")
 
