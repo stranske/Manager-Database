@@ -182,6 +182,13 @@ def _parse_timestamp(raw: Any) -> datetime:
     raise ValueError(f"Invalid timestamp value: {raw!r}")
 
 
+def _normalize_actor(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Query parameter 'by' must not be empty")
+    return normalized
+
+
 def _ensure_alert_tables(conn: Any) -> None:
     if _is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS alert_rules (
@@ -392,7 +399,10 @@ async def get_rule(
 
 
 @router.put("/api/alerts/rules/{rule_id}", response_model=AlertRuleResponse)
-async def update_rule(rule_id: int, update: AlertRuleUpdate) -> AlertRuleResponse:
+async def update_rule(
+    rule_id: int = Path(..., ge=1, description="Alert rule identifier"),
+    update: AlertRuleUpdate = ...,
+) -> AlertRuleResponse:
     """Update an existing alert rule."""
     if (
         update.name is None
@@ -457,7 +467,7 @@ async def update_rule(rule_id: int, update: AlertRuleUpdate) -> AlertRuleRespons
 
 
 @router.delete("/api/alerts/rules/{rule_id}")
-async def delete_rule(rule_id: int):
+async def delete_rule(rule_id: int = Path(..., ge=1, description="Alert rule identifier")):
     """Delete an alert rule (soft delete: set enabled=false)."""
     conn = None
     try:
@@ -550,8 +560,12 @@ async def unacknowledged_count() -> dict:
 
 
 @router.post("/api/alerts/history/{alert_id}/acknowledge", response_model=AlertHistoryResponse)
-async def acknowledge_alert(alert_id: int, by: str = "user") -> AlertHistoryResponse:
+async def acknowledge_alert(
+    alert_id: int = Path(..., ge=1, description="Alert history identifier"),
+    by: str = Query("user", min_length=1, max_length=120),
+) -> AlertHistoryResponse:
     """Mark an alert as acknowledged."""
+    by = _normalize_actor(by)
     conn = None
     try:
         conn = connect_db()
@@ -578,8 +592,9 @@ async def acknowledge_alert(alert_id: int, by: str = "user") -> AlertHistoryResp
 
 
 @router.post("/api/alerts/history/acknowledge-all")
-async def acknowledge_all(by: str = "user") -> dict:
+async def acknowledge_all(by: str = Query("user", min_length=1, max_length=120)) -> dict:
     """Acknowledge all unacknowledged alerts. Returns {"acknowledged": N}."""
+    by = _normalize_actor(by)
     conn = None
     try:
         conn = connect_db()

@@ -339,3 +339,55 @@ def test_alert_history_invalid_event_type_rejected(tmp_path, monkeypatch):
     )
     assert response.status_code == 400
     assert "Unsupported event_type" in response.json()["detail"]
+
+
+def test_alert_rule_id_path_validation_rejects_non_positive_ids(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    update_response = asyncio.run(_request("PUT", "/api/alerts/rules/0", json={"enabled": False}))
+    assert update_response.status_code == 400
+    assert update_response.json()["errors"][0]["field"] == "rule_id"
+
+    delete_response = asyncio.run(_request("DELETE", "/api/alerts/rules/-7"))
+    assert delete_response.status_code == 400
+    assert delete_response.json()["errors"][0]["field"] == "rule_id"
+
+
+def test_alert_acknowledge_validation_rejects_invalid_inputs(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    create_response = asyncio.run(
+        _request("POST", "/api/alerts/rules", json=_create_rule_payload())
+    )
+    assert create_response.status_code == 201
+    _seed_alert_history(db_path)
+
+    invalid_id = asyncio.run(
+        _request("POST", "/api/alerts/history/0/acknowledge", params={"by": "tester"})
+    )
+    assert invalid_id.status_code == 400
+    assert invalid_id.json()["errors"][0]["field"] == "alert_id"
+
+    alerts_response = asyncio.run(
+        _request(
+            "GET",
+            "/api/alerts/history",
+            params={"event_type": "large_delta", "acknowledged": False, "limit": 1},
+        )
+    )
+    assert alerts_response.status_code == 200
+    alert_id = alerts_response.json()[0]["alert_id"]
+
+    blank_actor = asyncio.run(
+        _request("POST", f"/api/alerts/history/{alert_id}/acknowledge", params={"by": "   "})
+    )
+    assert blank_actor.status_code == 400
+    assert blank_actor.json()["detail"] == "Query parameter 'by' must not be empty"
+
+    blank_bulk_actor = asyncio.run(
+        _request("POST", "/api/alerts/history/acknowledge-all", params={"by": "  "})
+    )
+    assert blank_bulk_actor.status_code == 400
+    assert blank_bulk_actor.json()["detail"] == "Query parameter 'by' must not be empty"
