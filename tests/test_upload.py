@@ -4,24 +4,30 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from ui.search import search_notes
 from ui.upload import save_note
+from utils.extract import extract_text
 
 
 def setup_db(tmp_path: Path) -> str:
     db_path = tmp_path / "dev.db"
     conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT, content TEXT)"
-    )
     conn.commit()
     conn.close()
     return str(db_path)
 
 
-def test_save_and_search(tmp_path: Path, monkeypatch):
+def test_save_note_stores_in_documents(tmp_path: Path, monkeypatch):
     db_path = setup_db(tmp_path)
     monkeypatch.setenv("DB_PATH", db_path)
-    save_note("hello world", "note.txt")
-    df = search_notes("hello")
-    assert list(df["filename"]) == ["note.txt"]
+    doc_id = save_note("hello world", "note.txt")
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "SELECT doc_id, filename, kind, content FROM documents WHERE doc_id = ?", (doc_id,)
+    ).fetchone()
+    conn.close()
+    assert row == (doc_id, "note.txt", "note", "hello world")
+
+
+def test_extract_text_txt_and_md():
+    assert extract_text(b"alpha", "a.txt") == "alpha"
+    assert extract_text(b"# heading", "a.md") == "# heading"

@@ -64,9 +64,27 @@ def test_store_and_search_pgvector(monkeypatch):
 
         def execute(self, sql, params=None):
             self.executed.append((sql, params))
-            if sql.startswith("SELECT"):
-                return type("Result", (), {"fetchall": lambda self: [("hello", 0.1)]})()
-            return type("Result", (), {"fetchall": lambda self: []})()
+            if sql.startswith("SELECT doc_id FROM documents WHERE content_sha"):
+                return type(
+                    "Result",
+                    (),
+                    {"fetchone": lambda self: None, "fetchall": lambda self: []},
+                )()
+            if sql.startswith("INSERT INTO documents"):
+                return type(
+                    "Result",
+                    (),
+                    {"fetchone": lambda self: (1,), "fetchall": lambda self: []},
+                )()
+            if sql.startswith("SELECT content, embedding <=>"):
+                return type(
+                    "Result",
+                    (),
+                    {"fetchone": lambda self: None, "fetchall": lambda self: [("hello", 0.1)]},
+                )()
+            return type(
+                "Result", (), {"fetchone": lambda self: None, "fetchall": lambda self: []}
+            )()
 
         def commit(self):
             self.committed = True
