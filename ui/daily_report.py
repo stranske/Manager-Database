@@ -133,14 +133,16 @@ def headline_markdown(headline: object, url: object) -> str:
 def format_shares_delta(shares_prev: object, shares_curr: object) -> str:
     prev = pd.to_numeric(pd.Series([shares_prev]), errors="coerce").iloc[0]
     curr = pd.to_numeric(pd.Series([shares_curr]), errors="coerce").iloc[0]
-    if pd.isna(prev) or pd.isna(curr):
+    if pd.isna(prev) and pd.isna(curr):
         return "<span style='color:#666;'>-</span>"
-    delta = int(round(curr - prev))
+    prev_value = 0 if pd.isna(prev) else prev
+    curr_value = 0 if pd.isna(curr) else curr
+    delta = int(round(curr_value - prev_value))
     if delta > 0:
-        return f"<span style='color:green;'>&uarr; +{delta:,}</span>"
+        return f"<span style='color:green;'>↑ +{delta:,}</span>"
     if delta < 0:
-        return f"<span style='color:red;'>&darr; {delta:,}</span>"
-    return "<span style='color:#666;'>&rarr; 0</span>"
+        return f"<span style='color:red;'>↓ {delta:,}</span>"
+    return "<span style='color:#666;'>→ 0</span>"
 
 
 def main():

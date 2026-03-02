@@ -97,7 +97,9 @@ def test_headline_markdown():
 
 
 def test_format_shares_delta_arrows():
-    assert format_shares_delta(1000, 2500) == "<span style='color:green;'>&uarr; +1,500</span>"
-    assert format_shares_delta(3000, 2200) == "<span style='color:red;'>&darr; -800</span>"
-    assert format_shares_delta(1500, 1500) == "<span style='color:#666;'>&rarr; 0</span>"
-    assert format_shares_delta(None, 1500) == "<span style='color:#666;'>-</span>"
+    assert format_shares_delta(1000, 2500) == "<span style='color:green;'>↑ +1,500</span>"
+    assert format_shares_delta(3000, 2200) == "<span style='color:red;'>↓ -800</span>"
+    assert format_shares_delta(1500, 1500) == "<span style='color:#666;'>→ 0</span>"
+    assert format_shares_delta(None, 1500) == "<span style='color:green;'>↑ +1,500</span>"
+    assert format_shares_delta(800, None) == "<span style='color:red;'>↓ -800</span>"
+    assert format_shares_delta(None, None) == "<span style='color:#666;'>-</span>"
