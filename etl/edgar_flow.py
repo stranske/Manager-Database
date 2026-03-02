@@ -156,11 +156,6 @@ def _insert_holding_legacy(
 async def fetch_and_store(cik: str, since: str):
     filings = await ADAPTER.list_new_filings(cik, since)
     conn = connect_db(DB_PATH)
-    filings_existed = bool(
-        conn.execute(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='filings'"
-        ).fetchone()[0]
-    )
     _ensure_legacy_tables(conn)
 
     manager_cols = _columns(conn, "managers")
@@ -184,7 +179,7 @@ async def fetch_and_store(cik: str, since: str):
                 store_document(
                     raw,
                     db_path=DB_PATH,
-                    manager_id=None if filings_existed else manager_id,
+                    manager_id=manager_id,
                     kind="filing_text",
                     filename=f"{accession}.xml",
                 )

@@ -81,6 +81,13 @@ def store_document(
                 embedding vector(384),
                 created_at timestamptz DEFAULT now()
             )""")
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_sha256_unique "
+                "ON documents (sha256) WHERE sha256 IS NOT NULL"
+            )
+        except Exception:
+            pass
         existing = conn.execute(
             "SELECT doc_id FROM documents WHERE sha256 = %s",
             (sha256,),
@@ -115,6 +122,11 @@ def store_document(
         columns = {row[1] for row in conn.execute("PRAGMA table_info(documents)").fetchall()}
         id_col = "doc_id" if "doc_id" in columns else "id"
         text_col = "text" if "text" in columns else "content"
+        if "sha256" in columns:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_sha256_unique "
+                "ON documents (sha256) WHERE sha256 IS NOT NULL"
+            )
         if "sha256" in columns:
             existing = conn.execute(
                 f"SELECT {id_col} FROM documents WHERE sha256 = ?",
@@ -177,7 +189,7 @@ def search_documents(
         rows = conn.execute(
             (
                 "SELECT d.doc_id, d.text, d.kind, d.filename, m.name, d.embedding <=> %s AS dist "
-                "FROM documents d LEFT JOIN managers m ON d.manager_id = m.id "
+                "FROM documents d LEFT JOIN managers m ON d.manager_id = m.manager_id "
                 f"{where_clause} "
                 "ORDER BY dist LIMIT %s"
             ),
@@ -209,6 +221,13 @@ def search_documents(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='managers'"
         ).fetchone()
     )
+    manager_pk_col = None
+    if has_manager_id and manager_table_exists:
+        manager_columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        if "manager_id" in manager_columns:
+            manager_pk_col = "manager_id"
+        elif "id" in manager_columns:
+            manager_pk_col = "id"
     if manager_id is not None and not has_manager_id:
         conn.close()
         return []
@@ -219,11 +238,9 @@ def search_documents(
         sqlite_params.append(manager_id)
     kind_expr = "COALESCE(d.kind, 'note')" if "kind" in columns else "'note'"
     filename_expr = "d.filename" if "filename" in columns else "NULL"
-    manager_name_expr = "m.name" if has_manager_id and manager_table_exists else "NULL"
+    manager_name_expr = "m.name" if manager_pk_col else "NULL"
     join_clause = (
-        "LEFT JOIN managers m ON d.manager_id = m.id"
-        if has_manager_id and manager_table_exists
-        else ""
+        f"LEFT JOIN managers m ON d.manager_id = m.{manager_pk_col}" if manager_pk_col else ""
     )
     cur = conn.execute(
         (
