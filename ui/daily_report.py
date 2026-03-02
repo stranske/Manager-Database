@@ -1,4 +1,5 @@
 import datetime as dt
+import sqlite3
 
 import pandas as pd
 import streamlit as st
@@ -11,8 +12,26 @@ from . import require_login
 @st.cache_data(show_spinner=False)
 def load_diffs(date: str) -> pd.DataFrame:
     conn = connect_db()
-    query = "SELECT cik, cusip, change FROM daily_diff WHERE date = ?"
-    df = pd.read_sql_query(query, conn, params=(date,))
+    is_sqlite = isinstance(conn, sqlite3.Connection)
+    placeholder = "?" if is_sqlite else "%s"
+    view_query = f"""SELECT manager_name, cusip, name_of_issuer, delta_type,
+         shares_prev, shares_curr, value_prev, value_curr
+  FROM mv_daily_report
+  WHERE report_date = {placeholder}
+  ORDER BY manager_name, delta_type"""
+    fallback_query = f"""SELECT cik AS manager_name, cusip, '' AS name_of_issuer, change AS delta_type,
+         NULL AS shares_prev, NULL AS shares_curr, NULL AS value_prev, NULL AS value_curr
+  FROM daily_diff
+  WHERE date = {placeholder}
+  ORDER BY manager_name, delta_type"""
+    try:
+        df = pd.read_sql_query(view_query, conn, params=(date,))
+    except Exception as exc:
+        if is_sqlite and "no such table" in str(exc).lower() and "mv_daily_report" in str(exc):
+            df = pd.read_sql_query(fallback_query, conn, params=(date,))
+        else:
+            conn.close()
+            raise
     conn.close()
     return df
 
@@ -42,10 +61,12 @@ def main():
             "ADD": "<span style='color:green'>&uarr;</span>",
             "EXIT": "<span style='color:red'>&darr;</span>",
         }
-        df["Δ"] = df["change"].map(arrow)
-        html = df[["cik", "cusip", "Δ"]].to_html(escape=False, index=False)
+        df["Δ"] = df["delta_type"].map(arrow)
+        html = df[["manager_name", "cusip", "name_of_issuer", "Δ"]].to_html(
+            escape=False, index=False
+        )
         st.markdown(html, unsafe_allow_html=True)
-        csv = df[["cik", "cusip", "change"]].to_csv(index=False).encode("utf-8")
+        csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, file_name=f"diff_{date_str}.csv", mime="text/csv")
     with tab2:
         news = load_news(date_str)

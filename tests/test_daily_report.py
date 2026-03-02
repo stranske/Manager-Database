@@ -33,5 +33,6 @@ def test_load_diffs_and_news(tmp_path, monkeypatch):
     diffs = load_diffs("2024-05-01")
     news = load_news("2024-05-01")
     assert len(diffs) == 2
-    assert set(diffs["change"]) == {"ADD", "EXIT"}
+    assert set(diffs["delta_type"]) == {"ADD", "EXIT"}
+    assert set(diffs["manager_name"]) == {"0"}
     assert len(news) == 2
