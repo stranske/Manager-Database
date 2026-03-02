@@ -1,6 +1,8 @@
+import importlib
 import json
 import sqlite3
 
+import etl.conviction_flow as conviction_module
 from etl.conviction_flow import conviction_flow, detect_contrarian_signals, detect_crowded_trades
 
 
@@ -374,3 +376,28 @@ def test_conviction_flow_runs_scoring_then_crowded_then_contrarian(monkeypatch):
         ("contrarian", "2024-05-01"),
     ]
     assert result == {"scored_positions": 10, "crowded_trades": 3, "contrarian_signals": 1}
+
+
+def test_conviction_flow_deployment_uses_nightly_defaults(monkeypatch):
+    monkeypatch.delenv("CONVICTION_FLOW_CRON", raising=False)
+    monkeypatch.delenv("CONVICTION_FLOW_TIMEZONE", raising=False)
+    monkeypatch.setenv("TZ", "UTC")
+    module = importlib.reload(conviction_module)
+
+    assert module.CONVICTION_FLOW_NIGHTLY_CRON == "0 2 * * *"
+    assert module.CONVICTION_FLOW_TIMEZONE == "UTC"
+    schedule = module.conviction_flow_deployment.schedules[0].schedule
+    assert schedule.cron == "0 2 * * *"
+    assert schedule.timezone == "UTC"
+
+
+def test_conviction_flow_deployment_allows_env_overrides(monkeypatch):
+    monkeypatch.setenv("CONVICTION_FLOW_CRON", "15 3 * * *")
+    monkeypatch.setenv("CONVICTION_FLOW_TIMEZONE", "America/New_York")
+    module = importlib.reload(conviction_module)
+
+    assert module.CONVICTION_FLOW_NIGHTLY_CRON == "15 3 * * *"
+    assert module.CONVICTION_FLOW_TIMEZONE == "America/New_York"
+    schedule = module.conviction_flow_deployment.schedules[0].schedule
+    assert schedule.cron == "15 3 * * *"
+    assert schedule.timezone == "America/New_York"

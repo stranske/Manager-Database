@@ -8,6 +8,7 @@ import sqlite3
 from typing import Any
 
 from prefect import flow, task
+from prefect.schedules import Cron
 
 from adapters.base import connect_db
 from etl.logging_setup import configure_logging
@@ -446,3 +447,11 @@ def conviction_flow(
 
 if __name__ == "__main__":
     conviction_flow()
+
+
+CONVICTION_FLOW_NIGHTLY_CRON = os.getenv("CONVICTION_FLOW_CRON", "0 2 * * *")
+CONVICTION_FLOW_TIMEZONE = os.getenv("CONVICTION_FLOW_TIMEZONE", os.getenv("TZ", "UTC"))
+conviction_flow_deployment = conviction_flow.to_deployment(
+    "conviction-nightly",
+    schedule=Cron(CONVICTION_FLOW_NIGHTLY_CRON, timezone=CONVICTION_FLOW_TIMEZONE),
+)
