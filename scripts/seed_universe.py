@@ -104,16 +104,16 @@ def _ensure_universe_schema(conn: Any) -> None:
 
 def _manager_columns(conn: Any) -> set[str]:
     if isinstance(conn, sqlite3.Connection):
-        return {str(row[1]).lower() for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        return {
+            str(row[1]).lower() for row in conn.execute("PRAGMA table_info(managers)").fetchall()
+        }
 
-    rows = conn.execute(
-        """
+    rows = conn.execute("""
         SELECT column_name
         FROM information_schema.columns
         WHERE table_name = 'managers'
           AND table_schema = 'public'
-        """
-    ).fetchall()
+        """).fetchall()
     return {str(row[0]).lower() for row in rows if row and row[0] is not None}
 
 

@@ -118,7 +118,9 @@ def test_universe_import_skips_non_object_records(tmp_path, monkeypatch):
 
     conn = sqlite3.connect(db_path)
     try:
-        rows = conn.execute("SELECT name, cik, jurisdiction, jurisdictions FROM managers").fetchall()
+        rows = conn.execute(
+            "SELECT name, cik, jurisdiction, jurisdictions FROM managers"
+        ).fetchall()
     finally:
         conn.close()
 
