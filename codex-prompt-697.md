@@ -148,7 +148,7 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 24/27 tasks complete, 3 remaining
+**Progress:** 27/27 tasks complete, 0 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
@@ -210,9 +210,9 @@ The PR is complete when ALL of these are satisfied:
 
 - [x] Daily report "Filings & Diffs" tab queries \`mv_daily_report\` instead of joining tables directly
 - [x] The materialized view is refreshed automatically after the daily diff flow runs
-- [ ] Summary metrics (total changes, adds, exits) appear at the top of the page
-- [ ] Delta values are formatted with colored arrows and percentage changes
-- [ ] Page renders in <500ms with 10 managers of test data
+- [x] Summary metrics (total changes, adds, exits) appear at the top of the page
+- [x] Delta values are formatted with colored arrows and percentage changes
+- [x] Page renders in <500ms with 10 managers of test data
 - [x] SQLite fallback works (direct query when view doesn't exist)
 
 ### Recently Attempted Tasks
