@@ -46,7 +46,7 @@ class _RerunTriggered(Exception):
 
 
 class _FakeColumn:
-    def __init__(self, parent: "_FakeStreamlit", index: int):
+    def __init__(self, parent: _FakeStreamlit, index: int):
         self._parent = parent
         self._index = index
 
