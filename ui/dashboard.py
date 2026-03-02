@@ -590,7 +590,7 @@ def render_all_managers_summary() -> None:
             ("holdings", "Holdings"),
             ("news_items", "News"),
         ]
-        for col, (field, label) in zip(spark_cols, spark_specs):
+        for col, (field, label) in zip(spark_cols, spark_specs, strict=False):
             col.caption(label)
             spark_chart = (
                 alt.Chart(activity)
