@@ -23,3 +23,21 @@ CREATE TABLE IF NOT EXISTS documents (
     content text,
     embedding double precision[]
 );
+
+CREATE TABLE IF NOT EXISTS conviction_scores (
+    score_id bigserial PRIMARY KEY,
+    manager_id bigint NOT NULL REFERENCES managers(manager_id),
+    filing_id bigint NOT NULL REFERENCES filings(filing_id),
+    cusip text NOT NULL,
+    name_of_issuer text,
+    shares bigint,
+    value_usd numeric(16,2),
+    conviction_pct numeric(8,4),
+    portfolio_weight numeric(8,6),
+    computed_at timestamptz DEFAULT now(),
+    UNIQUE (filing_id, cusip)
+);
+
+CREATE INDEX idx_conviction_manager ON conviction_scores(manager_id);
+CREATE INDEX idx_conviction_cusip ON conviction_scores(cusip);
+CREATE INDEX idx_conviction_pct ON conviction_scores(conviction_pct DESC);
