@@ -55,6 +55,10 @@ def _normalize_text(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", text.strip())
 
 
+def _normalize_for_detection(text: str) -> str:
+    return _normalize_text(text).lower()
+
+
 def _maybe_decode_base64(text: str) -> str | None:
     """Attempt base64 decode (standard and URL-safe). Return decoded text or None."""
 
@@ -249,7 +253,7 @@ def detect_prompt_injection(instruction: str) -> list[str]:
     if not normalized:
         return []
 
-    variants = {variant.lower() for variant in _decoded_variants(normalized)}
+    variants = {_normalize_for_detection(variant) for variant in _decoded_variants(normalized)}
     return [
         reason
         for reason, pattern in INJECTION_PATTERNS.items()
