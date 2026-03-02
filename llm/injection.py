@@ -250,12 +250,11 @@ def detect_prompt_injection(instruction: str) -> list[str]:
         return []
 
     variants = {variant.lower() for variant in _decoded_variants(normalized)}
-    matched = {
+    return [
         reason
         for reason, pattern in INJECTION_PATTERNS.items()
         if any(pattern.search(variant) for variant in variants)
-    }
-    return sorted(matched)
+    ]
 
 
 DEFAULT_BLOCK_SUMMARY = "Unsafe instruction blocked by prompt-injection guard."
