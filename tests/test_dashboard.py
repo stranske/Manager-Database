@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -10,11 +11,13 @@ from ui.dashboard import (
     load_latest_holdings_snapshot,
     load_managers,
     load_news_stream,
+    load_qc_flags,
     load_top_deltas,
     render_filing_timeline,
     render_latest_holdings_snapshot,
     render_manager_selector,
     render_news_stream,
+    render_qc_flags,
     render_top_deltas,
 )
 
@@ -40,6 +43,11 @@ def setup_db(tmp_path: Path) -> str:
         "CREATE TABLE news_items ("
         "manager_id INTEGER, headline TEXT, url TEXT, published_at DATETIME, "
         "source TEXT, topics TEXT, confidence REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE api_usage ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, ts DATETIME, source TEXT, endpoint TEXT, "
+        "status INT, bytes INT, latency_ms INT, cost_usd REAL)"
     )
     manager_rows = [
         (2, "Zulu Capital"),
@@ -90,11 +98,19 @@ def setup_db(tmp_path: Path) -> str:
             0.75,
         ),
     ]
+    usage_rows = [
+        ("2024-03-20 12:30:00", "etl", "/edgar", 200, 1024, 150, 0.0),
+    ]
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
     conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.executemany("INSERT INTO filings VALUES (?,?,?,?,?,?,?)", filing_rows)
     conn.executemany("INSERT INTO daily_diffs VALUES (?,?,?,?,?,?,?,?,?)", delta_rows)
     conn.executemany("INSERT INTO news_items VALUES (?,?,?,?,?,?,?)", news_rows)
+    conn.executemany(
+        "INSERT INTO api_usage(ts, source, endpoint, status, bytes, latency_ms, cost_usd) "
+        "VALUES (?,?,?,?,?,?,?)",
+        usage_rows,
+    )
     conn.commit()
     conn.close()
     return str(db_path)
@@ -181,6 +197,17 @@ def test_load_news_stream_filters_and_orders(tmp_path: Path, monkeypatch):
         "Issuer A announces restructuring",
     ]
     assert list(df["source"]) == ["MarketWire", "SEC Feed"]
+
+
+def test_load_qc_flags_returns_expected_summary(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    qc = load_qc_flags(1)
+    assert str(qc["last_filing_date"].date()) == "2024-03-15"
+    assert qc["is_13f_filer"] is True
+    assert qc["latest_holdings_count"] == 2
+    assert qc["news_count_30d"] == 0
+    assert str(qc["last_etl_run"]) == "2024-03-20 12:30:00"
 
 
 class TimelineStreamlit:
@@ -397,3 +424,75 @@ def test_render_news_stream_outputs_links_timestamps_and_topics(monkeypatch):
     assert fake_st.captions == [
         "2024-03-16 08:00 | MarketWire | confidence 0.92 `strategy` `expansion`"
     ]
+
+
+class QCMetricColumn:
+    def __init__(self):
+        self.metrics = []
+
+    def metric(self, label, value, delta=None, delta_color="normal"):
+        self.metrics.append(
+            {
+                "label": label,
+                "value": value,
+                "delta": delta,
+                "delta_color": delta_color,
+            }
+        )
+
+
+class QCFlagsStreamlit:
+    def __init__(self):
+        self.subheaders = []
+        self.info_calls = []
+        self.columns_args = []
+        self.columns_objects = []
+
+    def subheader(self, text):
+        self.subheaders.append(text)
+
+    def info(self, text):
+        self.info_calls.append(text)
+
+    def columns(self, n):
+        self.columns_args.append(n)
+        cols = [QCMetricColumn() for _ in range(n)]
+        self.columns_objects.append(cols)
+        return cols
+
+
+def test_render_qc_flags_outputs_metrics(monkeypatch):
+    fake_st = QCFlagsStreamlit()
+    monkeypatch.setattr("ui.dashboard.st", fake_st)
+    monkeypatch.setattr(
+        "ui.dashboard.load_qc_flags",
+        lambda manager_id: {
+            "last_filing_date": pd.Timestamp("2025-07-01"),
+            "is_13f_filer": True,
+            "latest_holdings_count": 0,
+            "news_count_30d": 3,
+            "last_etl_run": datetime.now(UTC) - timedelta(hours=30),
+        },
+    )
+
+    render_qc_flags(1)
+    assert fake_st.subheaders == ["QC Flags"]
+    assert fake_st.info_calls == []
+    assert fake_st.columns_args == [4]
+    labels = [m["label"] for col in fake_st.columns_objects[0] for m in col.metrics]
+    assert labels == [
+        "Last Filing Date",
+        "Holdings in Latest Filing",
+        "News Items (30d)",
+        "Data Freshness (ETL)",
+    ]
+    deltas = [m["delta"] for col in fake_st.columns_objects[0] for m in col.metrics]
+    assert "+1 empty filing warning" in deltas
+
+
+def test_render_qc_flags_requires_manager_selection(monkeypatch):
+    fake_st = QCFlagsStreamlit()
+    monkeypatch.setattr("ui.dashboard.st", fake_st)
+    render_qc_flags(None)
+    assert fake_st.subheaders == ["QC Flags"]
+    assert fake_st.info_calls == ["Select a manager to view data quality flags."]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 import sqlite3
 from typing import Any
 
@@ -108,6 +109,76 @@ def load_news_stream(manager_id: int) -> pd.DataFrame:
         )
     conn.close()
     return df
+
+
+def load_qc_flags(manager_id: int) -> dict[str, Any]:
+    conn = connect_db()
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    now_utc = datetime.now(UTC)
+
+    summary: dict[str, Any] = {
+        "last_filing_date": None,
+        "is_13f_filer": False,
+        "latest_holdings_count": 0,
+        "news_count_30d": 0,
+        "last_etl_run": None,
+    }
+    try:
+        latest_filing_query = (
+            "SELECT filed_date, type FROM filings "
+            f"WHERE manager_id = {placeholder} "
+            "ORDER BY filed_date DESC LIMIT 1"
+        )
+        latest_filing = pd.read_sql_query(latest_filing_query, conn, params=(manager_id,))
+        if not latest_filing.empty:
+            filing_date = pd.to_datetime(latest_filing.loc[0, "filed_date"], errors="coerce")
+            summary["last_filing_date"] = filing_date
+
+        is_13f_query = (
+            "SELECT COUNT(*) AS cnt FROM filings "
+            f"WHERE manager_id = {placeholder} AND UPPER(type) LIKE '13F%'"
+        )
+        is_13f_df = pd.read_sql_query(is_13f_query, conn, params=(manager_id,))
+        summary["is_13f_filer"] = int(is_13f_df.loc[0, "cnt"]) > 0
+
+        holdings_count_query = (
+            "SELECT COUNT(*) AS holdings_count "
+            "FROM holdings h "
+            "JOIN filings f ON f.filing_id = h.filing_id "
+            f"WHERE f.manager_id = {placeholder} "
+            f"AND f.filing_id = (SELECT filing_id FROM filings WHERE manager_id = {placeholder} "
+            "ORDER BY filed_date DESC LIMIT 1)"
+        )
+        holdings_count_df = pd.read_sql_query(
+            holdings_count_query,
+            conn,
+            params=(manager_id, manager_id),
+        )
+        summary["latest_holdings_count"] = int(holdings_count_df.loc[0, "holdings_count"])
+
+        threshold_30d = now_utc - timedelta(days=30)
+        news_count_query = (
+            "SELECT COUNT(*) AS news_count_30d "
+            "FROM news_items "
+            f"WHERE manager_id = {placeholder} AND published_at >= {placeholder}"
+        )
+        news_count_df = pd.read_sql_query(
+            news_count_query,
+            conn,
+            params=(manager_id, threshold_30d.isoformat(sep=" ")),
+        )
+        summary["news_count_30d"] = int(news_count_df.loc[0, "news_count_30d"])
+
+        last_etl_df = pd.read_sql_query("SELECT MAX(ts) AS last_etl_run FROM api_usage", conn)
+        if not last_etl_df.empty:
+            summary["last_etl_run"] = pd.to_datetime(
+                last_etl_df.loc[0, "last_etl_run"], errors="coerce"
+            )
+    except Exception:
+        pass
+    finally:
+        conn.close()
+    return summary
 
 
 @st.cache_data(show_spinner=False)
@@ -302,6 +373,78 @@ def render_news_stream(selected_manager_id: int | None) -> None:
             st.caption(meta_line)
 
 
+def render_qc_flags(selected_manager_id: int | None) -> None:
+    st.subheader("QC Flags")
+    if selected_manager_id is None:
+        st.info("Select a manager to view data quality flags.")
+        return
+
+    qc = load_qc_flags(selected_manager_id)
+    now_utc = datetime.now(UTC)
+    col_filing, col_holdings, col_news, col_freshness = st.columns(4)
+
+    filing_date = qc.get("last_filing_date")
+    is_13f_filer = bool(qc.get("is_13f_filer"))
+    if filing_date is not None and pd.notna(filing_date):
+        filing_dt = pd.to_datetime(filing_date, errors="coerce")
+        filing_days = (now_utc - filing_dt.to_pydatetime().replace(tzinfo=UTC)).days
+        if is_13f_filer and filing_days > 120:
+            filing_delta = f"+{filing_days - 120}d past 120d SLA"
+            filing_delta_color = "inverse"
+        else:
+            filing_delta = f"-{max(120 - filing_days, 0)}d to 120d SLA"
+            filing_delta_color = "inverse"
+        filing_value = filing_date.strftime("%Y-%m-%d")
+    else:
+        filing_value = "N/A"
+        filing_delta = "+1 missing filing date"
+        filing_delta_color = "inverse"
+    col_filing.metric(
+        "Last Filing Date", filing_value, delta=filing_delta, delta_color=filing_delta_color
+    )
+
+    holdings_count = int(qc.get("latest_holdings_count", 0) or 0)
+    holdings_delta = "-0 empty filing warnings"
+    if holdings_count == 0:
+        holdings_delta = "+1 empty filing warning"
+    col_holdings.metric(
+        "Holdings in Latest Filing",
+        f"{holdings_count:,}",
+        delta=holdings_delta,
+        delta_color="inverse",
+    )
+
+    news_count = int(qc.get("news_count_30d", 0) or 0)
+    news_delta = "-0 low-coverage warnings"
+    if news_count == 0:
+        news_delta = "+1 no news in last 30d"
+    col_news.metric(
+        "News Items (30d)",
+        f"{news_count:,}",
+        delta=news_delta,
+        delta_color="inverse",
+    )
+
+    last_etl_run = qc.get("last_etl_run")
+    freshness_value = "N/A"
+    freshness_delta = "+1 missing ETL telemetry"
+    if last_etl_run is not None and pd.notna(last_etl_run):
+        etl_dt = pd.to_datetime(last_etl_run, errors="coerce")
+        etl_ts = etl_dt.to_pydatetime().replace(tzinfo=UTC)
+        hours_old = max((now_utc - etl_ts).total_seconds() / 3600, 0)
+        freshness_value = etl_ts.strftime("%Y-%m-%d %H:%M UTC")
+        if hours_old > 24:
+            freshness_delta = f"+{int(hours_old - 24)}h past 24h target"
+        else:
+            freshness_delta = f"-{int(24 - hours_old)}h to stale"
+    col_freshness.metric(
+        "Data Freshness (ETL)",
+        freshness_value,
+        delta=freshness_delta,
+        delta_color="inverse",
+    )
+
+
 def main() -> None:
     if not require_login():
         st.stop()
@@ -311,6 +454,7 @@ def main() -> None:
     render_latest_holdings_snapshot(selected_manager_id)
     render_top_deltas(selected_manager_id)
     render_news_stream(selected_manager_id)
+    render_qc_flags(selected_manager_id)
     df = load_delta()
     if df.empty:
         st.info("No data available")
