@@ -29,7 +29,6 @@ def seed_manager(db_path, cik, manager_id=1):
     conn.close()
 
 
-
 def make_client(responder):
     class DummyClient:
         async def __aenter__(self):
