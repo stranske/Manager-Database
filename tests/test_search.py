@@ -1,13 +1,14 @@
 import sqlite3
 import sys
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import httpx
 from fastapi.encoders import jsonable_encoder
-from fastapi.testclient import TestClient
 
 import api.chat as chat_api_module
 from api.search import SearchResult, universal_search
@@ -293,7 +294,7 @@ def test_api_search_endpoint_returns_results(tmp_path: Path, monkeypatch):
         SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
     )
     monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
-    results = chat_api_module.search_api(q="Elliott", limit=20, entity_type=None)
+    results = asyncio.run(chat_api_module.search_api(q="Elliott", limit=20, entity_type=None))
 
     assert results
     entity_types = {item.entity_type for item in results}
@@ -318,10 +319,12 @@ def test_api_search_endpoint_filters_entity_type(tmp_path: Path, monkeypatch):
         SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
     )
     monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
-    results = chat_api_module.search_api(
-        q="Elliott",
-        entity_type="news",
-        limit=20,
+    results = asyncio.run(
+        chat_api_module.search_api(
+            q="Elliott",
+            entity_type="news",
+            limit=20,
+        )
     )
 
     assert results
@@ -338,7 +341,7 @@ def test_api_search_results_are_json_serializable(tmp_path: Path, monkeypatch):
         SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
     )
     monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
-    results = chat_api_module.search_api(q="Elliott", limit=20, entity_type=None)
+    results = asyncio.run(chat_api_module.search_api(q="Elliott", limit=20, entity_type=None))
     payload = jsonable_encoder(results)
 
     assert isinstance(payload, list)
@@ -359,11 +362,23 @@ def test_api_search_filtered_results_are_json_serializable(tmp_path: Path, monke
         SimpleNamespace(search_documents=lambda *_args, **_kwargs: []),
     )
     monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
-    results = chat_api_module.search_api(q="Elliott", entity_type="news", limit=20)
+    results = asyncio.run(chat_api_module.search_api(q="Elliott", entity_type="news", limit=20))
     payload = jsonable_encoder(results)
 
     assert payload
     assert {item["entity_type"] for item in payload} == {"news"}
+
+
+async def _http_get(path: str, *, params: dict[str, object] | None = None) -> httpx.Response:
+    await chat_api_module.app.router.startup()
+    try:
+        transport = httpx.ASGITransport(app=chat_api_module.app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.get(path, params=params)
+    finally:
+        await chat_api_module.app.router.shutdown()
 
 
 def test_api_search_http_endpoint_returns_searchresult_payload(tmp_path: Path, monkeypatch):
@@ -377,8 +392,7 @@ def test_api_search_http_endpoint_returns_searchresult_payload(tmp_path: Path, m
     )
     monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
 
-    with TestClient(chat_api_module.app) as client:
-        response = client.get("/api/search", params={"q": "Elliott", "limit": 20})
+    response = asyncio.run(_http_get("/api/search", params={"q": "Elliott", "limit": 20}))
 
     assert response.status_code == 200
     payload = response.json()
@@ -408,11 +422,12 @@ def test_api_search_http_endpoint_filters_news_entity_type(tmp_path: Path, monke
     )
     monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
 
-    with TestClient(chat_api_module.app) as client:
-        response = client.get(
+    response = asyncio.run(
+        _http_get(
             "/api/search",
             params={"q": "Elliott", "entity_type": "news", "limit": 20},
         )
+    )
 
     assert response.status_code == 200
     payload = response.json()

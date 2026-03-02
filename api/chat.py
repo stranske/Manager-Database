@@ -278,7 +278,7 @@ _SEARCH_ENTITY_TYPE_QUERY = Query(
         "Run a unified search query and return ranked results across supported entity types."
     ),
 )
-def search_api(
+async def search_api(
     q: str = Query(
         ...,
         min_length=1,
@@ -298,10 +298,9 @@ def search_api(
 ) -> list[SearchResult]:
     conn = connect_db()
     try:
-        results = universal_search(q, conn, limit=limit, entity_type=entity_type)
+        return universal_search(q, conn, limit=limit, entity_type=entity_type)
     finally:
         conn.close()
-    return results
 
 
 VALID_CHAIN_NAMES = {
