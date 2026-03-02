@@ -6,9 +6,9 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 
-from adapters import uk as uk_adapter
 import etl.ingest_flow as ingest_flow
 import etl.uk_flow as uk_flow
+from adapters import uk as uk_adapter
 
 
 class MockCompaniesHouseAdapter:
