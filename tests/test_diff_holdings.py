@@ -6,6 +6,7 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import diff_holdings as diff_holdings_module
 from diff_holdings import _fetch_latest_sets, diff_holdings
 
 
@@ -199,3 +200,28 @@ def test_fetch_latest_sets_uses_postgres_placeholders():
     assert "%s" in conn.sql
     assert "?" not in conn.sql
     assert conn.params == (7,)
+
+
+def test_diff_holdings_uses_default_connect_db_when_conn_missing(monkeypatch):
+    """When conn=None, diff_holdings should defer to connect_db() defaults."""
+
+    calls: list[object] = []
+
+    class DummyConn:
+        def close(self):
+            calls.append("closed")
+
+    dummy_conn = DummyConn()
+
+    def fake_connect_db(db_path=None):
+        calls.append(db_path)
+        return dummy_conn
+
+    monkeypatch.setattr(diff_holdings_module, "connect_db", fake_connect_db)
+    monkeypatch.setattr(diff_holdings_module, "_resolve_manager_id", lambda _identifier, _conn: 1)
+    monkeypatch.setattr(diff_holdings_module, "_fetch_latest_sets", lambda _manager_id, _conn: ({}, {}))
+
+    rows = diff_holdings_module.diff_holdings("0000000000")
+
+    assert rows == []
+    assert calls == [None, "closed"]
