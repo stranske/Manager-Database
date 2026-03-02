@@ -346,7 +346,7 @@ def test_detect_contrarian_signals_is_idempotent_for_same_report_date(tmp_path):
     assert rows == [(5, "SELL", 4), (6, "SELL", 4)]
 
 
-def test_conviction_flow_runs_scoring_then_crowded_then_contrarian(monkeypatch):
+def test_conviction_flow_runs_scoring_then_crowded_then_contrarian_then_alerts(monkeypatch):
     calls = []
 
     def _fake_score(report_date, conn=None):
@@ -364,9 +364,14 @@ def test_conviction_flow_runs_scoring_then_crowded_then_contrarian(monkeypatch):
         calls.append(("contrarian", report_date))
         return 1
 
+    def _fake_alerts(report_date, crowded_trades, contrarian_signals):
+        calls.append(("alerts", report_date, crowded_trades, contrarian_signals))
+        return crowded_trades + contrarian_signals
+
     monkeypatch.setattr("etl.conviction_flow.score_conviction_positions.fn", _fake_score)
     monkeypatch.setattr("etl.conviction_flow.detect_crowded_trades.fn", _fake_crowded)
     monkeypatch.setattr("etl.conviction_flow.detect_contrarian_signals.fn", _fake_contrarian)
+    monkeypatch.setattr("etl.conviction_flow.dispatch_conviction_alerts.fn", _fake_alerts)
 
     result = conviction_flow.fn(report_date="2024-05-01", min_managers=4)
 
@@ -374,8 +379,14 @@ def test_conviction_flow_runs_scoring_then_crowded_then_contrarian(monkeypatch):
         ("score", "2024-05-01"),
         ("crowded", "2024-05-01", 4),
         ("contrarian", "2024-05-01"),
+        ("alerts", "2024-05-01", 3, 1),
     ]
-    assert result == {"scored_positions": 10, "crowded_trades": 3, "contrarian_signals": 1}
+    assert result == {
+        "scored_positions": 10,
+        "crowded_trades": 3,
+        "contrarian_signals": 1,
+        "alerts_dispatched": 4,
+    }
 
 
 def test_conviction_flow_deployment_uses_nightly_defaults(monkeypatch):

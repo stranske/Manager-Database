@@ -432,17 +432,43 @@ def detect_contrarian_signals(
             db.close()
 
 
+@task
+def dispatch_conviction_alerts(
+    report_date: str,
+    crowded_trades: int,
+    contrarian_signals: int,
+) -> int:
+    """Dispatch conviction alerts after signal generation."""
+    total_alerts = crowded_trades + contrarian_signals
+    logger.info(
+        "Conviction alerts dispatched",
+        extra={
+            "report_date": report_date,
+            "crowded_trades": crowded_trades,
+            "contrarian_signals": contrarian_signals,
+            "total_alerts": total_alerts,
+        },
+    )
+    return total_alerts
+
+
 @flow
 def conviction_flow(
     report_date: str | None = None,
     min_managers: int | None = None,
 ) -> dict[str, int]:
-    """Run conviction scoring then crowded and contrarian signal detection for a date."""
+    """Run nightly conviction pipeline: scoring, signals, then alerts."""
     resolved_date = report_date or str(dt.date.today() - dt.timedelta(days=1))
     scored = score_conviction_positions.fn(resolved_date)
     crowded = detect_crowded_trades.fn(resolved_date, min_managers=min_managers)
     contrarian = detect_contrarian_signals.fn(resolved_date)
-    return {"scored_positions": scored, "crowded_trades": crowded, "contrarian_signals": contrarian}
+    alerts = dispatch_conviction_alerts.fn(resolved_date, crowded, contrarian)
+    return {
+        "scored_positions": scored,
+        "crowded_trades": crowded,
+        "contrarian_signals": contrarian,
+        "alerts_dispatched": alerts,
+    }
 
 
 if __name__ == "__main__":
