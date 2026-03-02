@@ -26,7 +26,11 @@ def _is_postgres(conn: Any) -> bool:
 
 
 def _ensure_daily_diffs_table(conn: Any) -> None:
-    """Create the daily_diffs table on SQLite (Postgres uses Alembic migrations)."""
+    """Ensure daily_diffs exists for the active backend.
+
+    SQLite test/dev runs create the table on demand. Postgres relies on
+    canonical schema migrations and should fail fast if the table is missing.
+    """
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS daily_diffs (
                 diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +45,25 @@ def _ensure_daily_diffs_table(conn: Any) -> None:
                 value_curr REAL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )""")
+        return
+
+    try:
+        conn.execute("SELECT 1 FROM daily_diffs LIMIT 1")
+    except Exception as exc:
+        # Only treat clearly-identified "missing table" errors as a schema issue.
+        message = str(exc)
+        exc_type_name = exc.__class__.__name__
+        pgcode = getattr(exc, "pgcode", None)
+        # psycopg UndefinedTable typically has SQLSTATE 42P01 and/or a recognizable name/message.
+        is_missing_table = (
+            "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_type_name
+        )
+        if is_missing_table:
+            raise RuntimeError(
+                "daily_diffs table is missing on Postgres; apply schema migrations first"
+            ) from exc
+        # For all other errors (permissions, connectivity, syntax, etc.), re-raise the original.
+        raise
 
 
 def _delete_existing_diffs(conn: Any, manager_id: int, report_date: str) -> None:
