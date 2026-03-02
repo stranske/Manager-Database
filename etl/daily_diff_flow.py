@@ -124,7 +124,9 @@ def _refresh_matview(conn: Any) -> None:
 
 def _fetch_all_manager_ids(conn: Any) -> list[int]:
     """Return all manager_ids from the managers table."""
-    rows = conn.execute("SELECT manager_id FROM managers ORDER BY manager_id").fetchall()
+    rows = conn.execute(
+        "SELECT manager_id FROM managers ORDER BY manager_id"
+    ).fetchall()
     return [r[0] for r in rows]
 
 
