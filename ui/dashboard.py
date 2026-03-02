@@ -440,11 +440,198 @@ def render_qc_flags(selected_manager_id: int | None) -> None:
     )
 
 
+def load_all_managers_summary() -> dict[str, Any]:
+    conn = connect_db()
+    summary: dict[str, Any] = {
+        "total_managers": 0,
+        "total_filings": 0,
+        "total_holdings": 0,
+        "total_news_items": 0,
+        "recent_activity": pd.DataFrame(
+            columns=["activity_date", "filings", "holdings", "news_items"]
+        ),
+        "stale_managers": pd.DataFrame(
+            columns=["manager_id", "name", "last_filing_date", "warning"]
+        ),
+    }
+    try:
+        totals_df = pd.read_sql_query(
+            (
+                "SELECT "
+                "(SELECT COUNT(*) FROM managers) AS total_managers, "
+                "(SELECT COUNT(*) FROM filings) AS total_filings, "
+                "(SELECT COUNT(*) FROM holdings) AS total_holdings, "
+                "(SELECT COUNT(*) FROM news_items) AS total_news_items"
+            ),
+            conn,
+        )
+        if not totals_df.empty:
+            totals = totals_df.iloc[0]
+            summary["total_managers"] = int(totals["total_managers"])
+            summary["total_filings"] = int(totals["total_filings"])
+            summary["total_holdings"] = int(totals["total_holdings"])
+            summary["total_news_items"] = int(totals["total_news_items"])
+
+        activity_df = pd.read_sql_query(
+            (
+                "SELECT activity_date, "
+                "SUM(filings_count) AS filings, "
+                "SUM(holdings_count) AS holdings, "
+                "SUM(news_count) AS news_items "
+                "FROM ("
+                "SELECT DATE(filed_date) AS activity_date, COUNT(*) AS filings_count, 0 AS holdings_count, 0 AS news_count "
+                "FROM filings GROUP BY DATE(filed_date) "
+                "UNION ALL "
+                "SELECT DATE(f.filed_date) AS activity_date, 0 AS filings_count, COUNT(*) AS holdings_count, 0 AS news_count "
+                "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id GROUP BY DATE(f.filed_date) "
+                "UNION ALL "
+                "SELECT DATE(published_at) AS activity_date, 0 AS filings_count, 0 AS holdings_count, COUNT(*) AS news_count "
+                "FROM news_items GROUP BY DATE(published_at)"
+                ") daily "
+                "GROUP BY activity_date "
+                "ORDER BY activity_date DESC LIMIT 30"
+            ),
+            conn,
+        )
+        if not activity_df.empty:
+            activity_df["activity_date"] = pd.to_datetime(
+                activity_df["activity_date"], errors="coerce"
+            )
+            summary["recent_activity"] = activity_df.sort_values("activity_date")
+
+        managers_df = pd.read_sql_query("SELECT manager_id, name FROM managers", conn)
+        filings_df = pd.read_sql_query(
+            "SELECT manager_id, filing_id, type, filed_date FROM filings", conn
+        )
+        holdings_by_filing = pd.read_sql_query(
+            "SELECT filing_id, COUNT(*) AS holdings_count FROM holdings GROUP BY filing_id",
+            conn,
+        )
+        now_utc = datetime.now(UTC)
+        warnings: list[dict[str, Any]] = []
+
+        if not managers_df.empty:
+            for manager in managers_df.itertuples(index=False):
+                manager_filings = filings_df[filings_df["manager_id"] == manager.manager_id].copy()
+                if manager_filings.empty:
+                    warnings.append(
+                        {
+                            "manager_id": manager.manager_id,
+                            "name": manager.name,
+                            "last_filing_date": None,
+                            "warning": "No filings available",
+                        }
+                    )
+                    continue
+
+                manager_filings["filed_date"] = pd.to_datetime(
+                    manager_filings["filed_date"], errors="coerce"
+                )
+                latest_filing = manager_filings.sort_values("filed_date", ascending=False).iloc[0]
+                latest_filing_id = int(latest_filing["filing_id"])
+                latest_holdings_count = holdings_by_filing.loc[
+                    holdings_by_filing["filing_id"] == latest_filing_id,
+                    "holdings_count",
+                ].sum()
+                latest_filing_ts = pd.to_datetime(latest_filing["filed_date"], errors="coerce")
+                days_since_filing = None
+                if pd.notna(latest_filing_ts):
+                    days_since_filing = (
+                        now_utc - latest_filing_ts.to_pydatetime().replace(tzinfo=UTC)
+                    ).days
+
+                warning_reasons: list[str] = []
+                is_13f_filer = (
+                    manager_filings["type"].astype(str).str.upper().str.startswith("13F").any()
+                )
+                if is_13f_filer and days_since_filing is not None and days_since_filing > 120:
+                    warning_reasons.append(f"13F filing stale by {days_since_filing - 120} days")
+                if int(latest_holdings_count) == 0:
+                    warning_reasons.append("Latest filing has zero holdings")
+
+                if warning_reasons:
+                    warnings.append(
+                        {
+                            "manager_id": manager.manager_id,
+                            "name": manager.name,
+                            "last_filing_date": latest_filing_ts,
+                            "warning": "; ".join(warning_reasons),
+                        }
+                    )
+
+        if warnings:
+            stale_df = pd.DataFrame(warnings).sort_values(
+                by=["last_filing_date", "name"], ascending=[True, True], na_position="first"
+            )
+            summary["stale_managers"] = stale_df
+    except Exception:
+        pass
+    finally:
+        conn.close()
+    return summary
+
+
+def render_all_managers_summary() -> None:
+    st.subheader("All Managers Summary")
+    summary = load_all_managers_summary()
+
+    col_managers, col_filings, col_holdings, col_news = st.columns(4)
+    col_managers.metric("Total Managers", f"{summary['total_managers']:,}")
+    col_filings.metric("Total Filings", f"{summary['total_filings']:,}")
+    col_holdings.metric("Total Holdings", f"{summary['total_holdings']:,}")
+    col_news.metric("Total News Items", f"{summary['total_news_items']:,}")
+
+    activity = summary["recent_activity"]
+    st.markdown("Recent Activity (30 days)")
+    if isinstance(activity, pd.DataFrame) and not activity.empty:
+        spark_cols = st.columns(3)
+        spark_specs = [
+            ("filings", "Filings"),
+            ("holdings", "Holdings"),
+            ("news_items", "News"),
+        ]
+        for col, (field, label) in zip(spark_cols, spark_specs):
+            col.caption(label)
+            spark_chart = (
+                alt.Chart(activity)
+                .mark_line(color="#1D4ED8")
+                .encode(
+                    x=alt.X("activity_date:T", axis=None),
+                    y=alt.Y(f"{field}:Q", axis=None),
+                    tooltip=[
+                        alt.Tooltip("activity_date:T", title="Date"),
+                        alt.Tooltip(f"{field}:Q", title=label),
+                    ],
+                )
+                .properties(height=70)
+            )
+            col.altair_chart(spark_chart, use_container_width=True)
+    else:
+        st.caption("No recent activity available.")
+
+    stale_managers = summary["stale_managers"]
+    st.markdown("Managers with QC Warnings")
+    if isinstance(stale_managers, pd.DataFrame) and not stale_managers.empty:
+        stale_display = stale_managers.copy()
+        stale_display["last_filing_date"] = pd.to_datetime(
+            stale_display["last_filing_date"], errors="coerce"
+        ).dt.strftime("%Y-%m-%d")
+        st.dataframe(
+            stale_display[["name", "last_filing_date", "warning"]],
+            use_container_width=True,
+        )
+    else:
+        st.caption("No stale manager warnings.")
+
+
 def main() -> None:
     if not require_login():
         st.stop()
     st.header("Holdings Delta")
     selected_manager_id = render_manager_selector()
+    if selected_manager_id is None:
+        render_all_managers_summary()
+        return
     render_filing_timeline(selected_manager_id)
     render_latest_holdings_snapshot(selected_manager_id)
     render_top_deltas(selected_manager_id)

@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from ui.dashboard import (
+    load_all_managers_summary,
     load_delta,
     load_filing_timeline,
     load_latest_holdings_snapshot,
@@ -208,6 +209,32 @@ def test_load_qc_flags_returns_expected_summary(tmp_path: Path, monkeypatch):
     assert qc["latest_holdings_count"] == 2
     assert qc["news_count_30d"] == 0
     assert str(qc["last_etl_run"]) == "2024-03-20 12:30:00"
+
+
+def test_load_all_managers_summary_aggregates_totals_and_activity(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    summary = load_all_managers_summary()
+    assert summary["total_managers"] == 2
+    assert summary["total_filings"] == 3
+    assert summary["total_holdings"] == 3
+    assert summary["total_news_items"] == 3
+    activity = summary["recent_activity"]
+    assert not activity.empty
+    assert list(activity.columns) == ["activity_date", "filings", "holdings", "news_items"]
+    assert int(activity["filings"].sum()) == 3
+    assert int(activity["holdings"].sum()) == 3
+    assert int(activity["news_items"].sum()) == 3
+
+
+def test_load_all_managers_summary_identifies_stale_manager_warnings(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    summary = load_all_managers_summary()
+    stale = summary["stale_managers"]
+    assert not stale.empty
+    assert set(stale["name"]) == {"Alpha Partners", "Zulu Capital"}
+    assert stale["warning"].str.contains("13F filing stale").all()
 
 
 class TimelineStreamlit:
