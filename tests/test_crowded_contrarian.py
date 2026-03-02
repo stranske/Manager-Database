@@ -177,3 +177,29 @@ def test_detect_crowded_trades_uses_env_threshold_when_unspecified(tmp_path, mon
 
     assert inserted == 0
     assert count == 0
+
+
+def test_detect_crowded_trades_ignores_future_filings(tmp_path):
+    db_path = _setup_db(tmp_path, manager_count=5)
+    conn = sqlite3.connect(db_path)
+
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source) "
+        "VALUES (12, 1, '13F-HR', '2024-06-30', '2024-07-15', 'edgar')"
+    )
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
+        "VALUES (12, '594918104', 'Microsoft Corp', 10, 100)"
+    )
+    conn.commit()
+
+    inserted = detect_crowded_trades.fn("2024-05-01", min_managers=3, conn=conn)
+    row = conn.execute(
+        "SELECT manager_count, manager_ids FROM crowded_trades "
+        "WHERE report_date = '2024-05-01' AND cusip = '037833100'"
+    ).fetchone()
+    conn.close()
+
+    assert inserted == 1
+    assert row[0] == 5
+    assert json.loads(row[1]) == [1, 2, 3, 4, 5]

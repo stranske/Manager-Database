@@ -55,8 +55,11 @@ def _ensure_crowded_trades_table(conn: Any) -> None:
 
 def _fetch_latest_conviction_rows(
     conn: Any,
+    report_date: str,
 ) -> list[tuple[int, str, str | None, float, float | None]]:
-    rows = conn.execute("""
+    ph = _placeholder(conn)
+    rows = conn.execute(
+        f"""
         WITH ranked_filings AS (
             SELECT
                 filing_id,
@@ -66,6 +69,7 @@ def _fetch_latest_conviction_rows(
                     ORDER BY COALESCE(filed_date, period_end) DESC, filing_id DESC
                 ) AS rn
             FROM filings
+            WHERE COALESCE(filed_date, period_end) <= {ph}
         ),
         manager_positions AS (
             SELECT
@@ -95,7 +99,9 @@ def _fetch_latest_conviction_rows(
             END AS conviction_pct
         FROM manager_positions p
         JOIN manager_totals t ON t.manager_id = p.manager_id
-        """).fetchall()
+        """,
+        (report_date,),
+    ).fetchall()
     return [
         (
             int(row[0]),
@@ -126,7 +132,7 @@ def detect_crowded_trades(
 
     try:
         _ensure_crowded_trades_table(db)
-        latest_rows = _fetch_latest_conviction_rows(db)
+        latest_rows = _fetch_latest_conviction_rows(db, report_date)
 
         grouped: dict[str, dict[str, Any]] = {}
         for manager_id, cusip, issuer, value_usd, conviction_pct in latest_rows:
