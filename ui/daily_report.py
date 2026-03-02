@@ -130,6 +130,19 @@ def headline_markdown(headline: object, url: object) -> str:
     return f"[{text}](<{raw_url}>)"
 
 
+def format_shares_delta(shares_prev: object, shares_curr: object) -> str:
+    prev = pd.to_numeric(pd.Series([shares_prev]), errors="coerce").iloc[0]
+    curr = pd.to_numeric(pd.Series([shares_curr]), errors="coerce").iloc[0]
+    if pd.isna(prev) or pd.isna(curr):
+        return "<span style='color:#666;'>-</span>"
+    delta = int(round(curr - prev))
+    if delta > 0:
+        return f"<span style='color:green;'>&uarr; +{delta:,}</span>"
+    if delta < 0:
+        return f"<span style='color:red;'>&darr; {delta:,}</span>"
+    return "<span style='color:#666;'>&rarr; 0</span>"
+
+
 def main():
     if not require_login():
         st.stop()
@@ -138,13 +151,10 @@ def main():
     tab1, tab2 = st.tabs(["Filings & Diffs", "News Pulse"])
     with tab1:
         df = load_diffs(date_str)
-        # map change to coloured arrows for on-screen table
-        arrow = {
-            "ADD": "<span style='color:green'>&uarr;</span>",
-            "EXIT": "<span style='color:red'>&darr;</span>",
-        }
-        df["Δ"] = df["delta_type"].map(arrow)
-        html = df[["manager_name", "cusip", "name_of_issuer", "Δ"]].to_html(
+        df["Shares Δ"] = df.apply(
+            lambda row: format_shares_delta(row.get("shares_prev"), row.get("shares_curr")), axis=1
+        )
+        html = df[["manager_name", "cusip", "name_of_issuer", "Shares Δ"]].to_html(
             escape=False, index=False
         )
         st.markdown(html, unsafe_allow_html=True)

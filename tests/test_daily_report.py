@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from ui.daily_report import (
+    format_shares_delta,
     format_news_table,
     headline_markdown,
     load_diffs,
@@ -93,3 +94,10 @@ def test_headline_markdown():
     link = headline_markdown("Deal [Update]", "https://example.com/news(item)")
     assert link == "[Deal \\[Update\\]](<https://example.com/news(item)>)"
     assert headline_markdown("No URL", "") == "No URL"
+
+
+def test_format_shares_delta_arrows():
+    assert format_shares_delta(1000, 2500) == "<span style='color:green;'>&uarr; +1,500</span>"
+    assert format_shares_delta(3000, 2200) == "<span style='color:red;'>&darr; -800</span>"
+    assert format_shares_delta(1500, 1500) == "<span style='color:#666;'>&rarr; 0</span>"
+    assert format_shares_delta(None, 1500) == "<span style='color:#666;'>-</span>"
