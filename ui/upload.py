@@ -51,6 +51,16 @@ def _kind_for_filename(filename: str) -> str:
     return "note"
 
 
+def _store_uploaded_text(text: str, filename: str, manager_id: int | None = None) -> int:
+    kind = _kind_for_filename(filename)
+    return store_document(
+        text,
+        manager_id=manager_id,
+        kind=kind,
+        filename=filename,
+    )
+
+
 def _recent_uploads(limit: int = 10) -> pd.DataFrame:
     conn = connect_db()
     try:
@@ -101,13 +111,7 @@ def main() -> None:
                 st.subheader("Extraction Preview")
                 st.text_area("First 500 chars", preview, height=200)
                 if st.button("Store Document"):
-                    kind = _kind_for_filename(uploaded.name)
-                    doc_id = store_document(
-                        text,
-                        manager_id=selected_manager,
-                        kind=kind,
-                        filename=uploaded.name,
-                    )
+                    doc_id = _store_uploaded_text(text, uploaded.name, selected_manager)
                     st.success(f"Uploaded document ID: {doc_id}")
 
     history = _recent_uploads()
