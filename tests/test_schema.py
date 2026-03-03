@@ -19,6 +19,8 @@ EXPECTED_TABLES = {
     "documents",
     "daily_diffs",
     "api_usage",
+    "crowded_trades",
+    "contrarian_signals",
 }
 # Two materialized views (regular views on SQLite)
 EXPECTED_VIEWS = {"monthly_usage", "mv_daily_report"}
@@ -121,3 +123,23 @@ def test_schema_downgrade_drops_tables(monkeypatch, tmp_path):
             ).fetchall()
         }
     assert EXPECTED_TABLES.isdisjoint(tables), f"Tables not dropped: {EXPECTED_TABLES & tables}"
+
+
+def test_analytics_indexes_exist(monkeypatch, tmp_path):
+    """Verify crowded/contrarian table indexes are created."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema.db"
+    config = _alembic_config(f"sqlite:///{db_path}")
+
+    command.upgrade(config, "head")
+
+    with sqlite3.connect(db_path) as conn:
+        crowded_indexes = {
+            row[1] for row in conn.execute("PRAGMA index_list('crowded_trades')").fetchall()
+        }
+        assert {"idx_crowded_date", "idx_crowded_count"}.issubset(crowded_indexes)
+
+        contrarian_indexes = {
+            row[1] for row in conn.execute("PRAGMA index_list('contrarian_signals')").fetchall()
+        }
+        assert {"idx_contrarian_manager", "idx_contrarian_date"}.issubset(contrarian_indexes)

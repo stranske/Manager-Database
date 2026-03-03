@@ -152,6 +152,43 @@ BEGIN
 END
 $$;
 
+CREATE TABLE IF NOT EXISTS crowded_trades (
+    crowd_id bigserial PRIMARY KEY,
+    cusip text NOT NULL,
+    name_of_issuer text,
+    manager_count int NOT NULL,
+    manager_ids bigint[] NOT NULL,
+    total_value_usd numeric(18,2),
+    avg_conviction_pct numeric(8,4),
+    max_conviction_pct numeric(8,4),
+    report_date date NOT NULL,
+    computed_at timestamptz DEFAULT now(),
+    UNIQUE (cusip, report_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_crowded_date ON crowded_trades(report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_crowded_count ON crowded_trades(manager_count DESC);
+
+CREATE TABLE IF NOT EXISTS contrarian_signals (
+    signal_id bigserial PRIMARY KEY,
+    manager_id bigint NOT NULL REFERENCES managers(manager_id),
+    cusip text NOT NULL,
+    name_of_issuer text,
+    direction text NOT NULL CHECK (direction IN ('BUY', 'SELL', 'INCREASE', 'DECREASE')),
+    consensus_direction text NOT NULL CHECK (
+        consensus_direction IN ('BUY', 'SELL', 'INCREASE', 'DECREASE', 'HOLD')
+    ),
+    manager_delta_shares bigint,
+    manager_delta_value numeric(16,2),
+    consensus_count int,
+    report_date date NOT NULL,
+    detected_at timestamptz DEFAULT now(),
+    UNIQUE (manager_id, cusip, report_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contrarian_manager ON contrarian_signals(manager_id);
+CREATE INDEX IF NOT EXISTS idx_contrarian_date ON contrarian_signals(report_date DESC);
+
 CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx
     ON mv_daily_report (report_date, manager_id, cusip, delta_type);
 
