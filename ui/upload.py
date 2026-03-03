@@ -34,7 +34,7 @@ def _load_managers() -> list[tuple[int, str]]:
             ).fetchall()
             if not tables:
                 return []
-        rows = conn.execute("SELECT id, name FROM managers ORDER BY name ASC").fetchall()
+        rows = conn.execute("SELECT manager_id, name FROM managers ORDER BY name ASC").fetchall()
         return [(int(row[0]), str(row[1])) for row in rows]
     except Exception:
         return []
@@ -67,7 +67,7 @@ def _recent_uploads(limit: int = 10) -> pd.DataFrame:
         query = (
             "SELECT d.doc_id, d.filename, d.kind, d.created_at, m.name AS manager_name "
             "FROM documents d "
-            "LEFT JOIN managers m ON m.id = d.manager_id "
+            "LEFT JOIN managers m ON m.manager_id = d.manager_id "
             "ORDER BY d.created_at DESC "
             "LIMIT ?"
         )
