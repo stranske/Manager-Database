@@ -58,6 +58,8 @@ markers = [
 
 [tool.black]
 line-length = 100
+workers = 1
+force-exclude = "(^|.*/)(\\.git|\\.hg|\\.mypy_cache|\\.nox|\\.tox|\\.venv|_build|buck-out|build|dist|node_modules|\\.workflows-lib)(/|$)"
 
 [tool.ruff]
 line-length = 100
