@@ -10,7 +10,7 @@ from alembic import command
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Canonical 7-table model
+# Canonical schema tables
 EXPECTED_TABLES = {
     "managers",
     "filings",
@@ -19,6 +19,7 @@ EXPECTED_TABLES = {
     "documents",
     "daily_diffs",
     "api_usage",
+    "conviction_scores",
 }
 # Two materialized views (regular views on SQLite)
 EXPECTED_VIEWS = {"monthly_usage", "mv_daily_report"}
@@ -32,7 +33,7 @@ def _alembic_config(db_url: str) -> Config:
 
 
 def test_schema_upgrade_creates_expected_objects(monkeypatch, tmp_path):
-    """Verify migration creates all 7 tables and 2 views."""
+    """Verify migration creates all canonical tables and views."""
     monkeypatch.delenv("DB_URL", raising=False)
     db_path = tmp_path / "schema.db"
     config = _alembic_config(f"sqlite:///{db_path}")
@@ -121,3 +122,31 @@ def test_schema_downgrade_drops_tables(monkeypatch, tmp_path):
             ).fetchall()
         }
     assert EXPECTED_TABLES.isdisjoint(tables), f"Tables not dropped: {EXPECTED_TABLES & tables}"
+
+
+def test_conviction_scores_schema_objects(monkeypatch, tmp_path):
+    """Verify migration 003 creates conviction_scores indexes and unique key."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema.db"
+    config = _alembic_config(f"sqlite:///{db_path}")
+
+    command.upgrade(config, "head")
+
+    with sqlite3.connect(db_path) as conn:
+        columns = {
+            row[1]: row[2].upper()
+            for row in conn.execute("PRAGMA table_info('conviction_scores')").fetchall()
+        }
+        assert columns["score_id"] == "BIGINT"
+        assert columns["manager_id"] == "BIGINT"
+        assert columns["filing_id"] == "BIGINT"
+        assert columns["cusip"] == "TEXT"
+        assert columns["conviction_pct"].startswith("NUMERIC")
+        assert columns["portfolio_weight"].startswith("NUMERIC")
+
+        indexes = {
+            row[1] for row in conn.execute("PRAGMA index_list('conviction_scores')").fetchall()
+        }
+        assert "idx_conviction_manager" in indexes
+        assert "idx_conviction_cusip" in indexes
+        assert "idx_conviction_pct" in indexes
