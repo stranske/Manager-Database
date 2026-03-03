@@ -6,10 +6,12 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import pytest
 from langchain_core.runnables import RunnableLambda
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import chains.holdings_analysis as holdings_analysis_module
 from chains.holdings_analysis import HoldingsAnalysisChain
 from tools.langchain_client import ClientInfo
 
@@ -44,6 +46,29 @@ class _MockDB:
 
     def commit(self) -> None:
         return None
+
+
+class _StructuredLLM:
+    def __init__(self, *, structured_result: dict[str, Any], fallback_text: str = "{}") -> None:
+        self._structured_result = structured_result
+        self._fallback_text = fallback_text
+
+    def __call__(self, _prompt: Any) -> str:
+        return self._fallback_text
+
+    def with_structured_output(self, _schema: type[Any]) -> RunnableLambda:
+        return RunnableLambda(lambda _payload: self._structured_result)
+
+
+class _FailingStructuredLLM:
+    def __init__(self, fallback_text: str) -> None:
+        self._fallback_text = fallback_text
+
+    def __call__(self, _prompt: Any) -> str:
+        return self._fallback_text
+
+    def with_structured_output(self, _schema: type[Any]) -> RunnableLambda:
+        return RunnableLambda(lambda _payload: (_ for _ in ()).throw(RuntimeError("boom")))
 
 
 def _make_chain(db: _MockDB, llm: Any) -> HoldingsAnalysisChain:
@@ -239,3 +264,126 @@ def test_injection_defense_blocks_malicious_question_before_llm_call() -> None:
     except ValueError as exc:
         assert "Prompt injection blocked" in str(exc)
         assert invoked["called"] is False
+
+
+def test_run_uses_structured_output_when_available() -> None:
+    holdings_query = (
+        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    overlap_query = "SELECT * FROM crowded_trades WHERE 1=1 ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+    cursor = _MockCursor(
+        {
+            (holdings_query, ()): [],
+            (daily_diffs_query, ()): [],
+            (conviction_query, ()): [],
+            (overlap_query, ()): [],
+        }
+    )
+    llm = _StructuredLLM(
+        structured_result={
+            "thesis": "Tech concentration remains high.",
+            "top_positions": [{"cusip": "037833100", "value_usd": 250000}],
+            "period_changes": [{"delta_type": "INCREASE", "cusip": "037833100"}],
+            "cross_manager_overlap": [{"cusip": "037833100", "holder_count": 5}],
+            "concentration_metrics": {"top_10_weight": 0.7},
+        }
+    )
+    chain = _make_chain(_MockDB(cursor), llm=llm)
+
+    result = chain.run("Summarize current concentration")
+
+    assert result.thesis == "Tech concentration remains high."
+    assert result.top_positions[0]["cusip"] == "037833100"
+    assert result.concentration_metrics["top_10_weight"] == 0.7
+
+
+def test_run_falls_back_to_json_parser_when_structured_output_fails() -> None:
+    holdings_query = (
+        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    overlap_query = "SELECT * FROM crowded_trades WHERE 1=1 ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+    cursor = _MockCursor(
+        {
+            (holdings_query, ()): [],
+            (daily_diffs_query, ()): [],
+            (conviction_query, ()): [],
+            (overlap_query, ()): [],
+        }
+    )
+    llm = _FailingStructuredLLM(
+        fallback_text=json.dumps(
+            {
+                "thesis": "Fallback parser used with valid JSON payload.",
+                "top_positions": [{"cusip": "594918104", "value_usd": 120000}],
+                "period_changes": [],
+                "cross_manager_overlap": None,
+                "concentration_metrics": {"top_10_weight": 0.55},
+            }
+        )
+    )
+    chain = _make_chain(_MockDB(cursor), llm=llm)
+
+    result = chain.run("What changed this quarter?")
+
+    assert result.thesis == "Fallback parser used with valid JSON payload."
+    assert result.top_positions[0]["cusip"] == "594918104"
+    assert result.concentration_metrics["top_10_weight"] == 0.55
+
+
+def test_holdings_analysis_tracing_context_is_entered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entered = {"value": False}
+
+    class _TracingContext:
+        def __enter__(self) -> dict[str, Any]:
+            entered["value"] = True
+            return {"name": "holdings-analysis"}
+
+        def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
+            return None
+
+    monkeypatch.setattr(
+        holdings_analysis_module,
+        "langsmith_tracing_context",
+        lambda **_kwargs: _TracingContext(),
+    )
+
+    holdings_query = (
+        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    overlap_query = "SELECT * FROM crowded_trades WHERE 1=1 ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+    cursor = _MockCursor(
+        {
+            (holdings_query, ()): [],
+            (daily_diffs_query, ()): [],
+            (conviction_query, ()): [],
+            (overlap_query, ()): [],
+        }
+    )
+    chain = _make_chain(_MockDB(cursor), llm=RunnableLambda(lambda _payload: "{}"))
+
+    chain.run("Show top positions")
+
+    assert entered["value"] is True
