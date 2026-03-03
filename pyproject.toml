@@ -24,6 +24,7 @@ dependencies = [
     # Prefect requires newer FastAPI; avoid conflicting pin.
     "fastapi",
     "uvicorn",
+    "pdfplumber",
 ]
 
 [project.optional-dependencies]
