@@ -22,7 +22,7 @@ def test_save_note_stores_in_documents(tmp_path: Path, monkeypatch):
     doc_id = save_note("hello world", "note.txt")
     conn = sqlite3.connect(db_path)
     row = conn.execute(
-        "SELECT doc_id, filename, kind, content FROM documents WHERE doc_id = ?", (doc_id,)
+        "SELECT doc_id, filename, kind, text FROM documents WHERE doc_id = ?", (doc_id,)
     ).fetchone()
     conn.close()
     assert row == (doc_id, "note.txt", "note", "hello world")
