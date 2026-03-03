@@ -2,6 +2,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from ui.upload import _store_uploaded_text
@@ -71,4 +73,38 @@ def test_pdf_upload_flow_stores_in_documents_and_not_notes(tmp_path: Path, monke
     conn.close()
 
     assert doc_row == (doc_id, "sample.pdf", "pdf")
+    assert notes_count == 0
+
+
+@pytest.mark.parametrize(
+    ("filename", "raw_bytes", "expected_kind"),
+    [
+        ("note.txt", b"plain note body", "note"),
+        ("memo.md", b"# memo heading", "memo"),
+        ("sample.pdf", FIXTURE_PDF.read_bytes(), "pdf"),
+    ],
+)
+def test_uploads_never_write_legacy_notes_table(
+    tmp_path: Path, monkeypatch, filename: str, raw_bytes: bytes, expected_kind: str
+):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE notes (filename TEXT, content TEXT)")
+    conn.commit()
+    conn.close()
+
+    text = extract_text(raw_bytes, filename)
+    doc_id = _store_uploaded_text(text, filename)
+
+    conn = sqlite3.connect(db_path)
+    doc_row = conn.execute(
+        "SELECT doc_id, filename, kind FROM documents WHERE doc_id = ?",
+        (doc_id,),
+    ).fetchone()
+    notes_count = conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
+    conn.close()
+
+    assert doc_row == (doc_id, filename, expected_kind)
     assert notes_count == 0
