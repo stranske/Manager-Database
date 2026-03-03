@@ -292,6 +292,7 @@ class FilingSummaryChain:
             "total_positions": total_positions,
             "total_value_usd": float(total_value_usd or 0),
             "top_holdings": top_holdings,
+            "diffs": diffs,
             "top_holdings_table": top_holdings_table,
             "delta_summary": delta_summary,
             "output_schema": json.dumps(
@@ -321,6 +322,15 @@ class FilingSummaryChain:
             except Exception:
                 pass
 
+        diffs = list(fallback_data.get("diffs") or [])
+        notable_changes = []
+        for diff in diffs[:5]:
+            delta_type = str(diff.get("delta_type") or "CHANGE").upper()
+            issuer = str(diff.get("name_of_issuer") or diff.get("cusip") or "UNKNOWN")
+            notable_changes.append(delta_type + ": " + issuer)
+        if not notable_changes:
+            notable_changes = ["Unable to parse structured response; generated fallback summary."]
+
         top_positions = [
             {
                 "name_of_issuer": item.get("name_of_issuer"),
@@ -331,6 +341,20 @@ class FilingSummaryChain:
             for item in fallback_data.get("top_holdings", [])[:10]
         ]
 
+        total_value = float(fallback_data.get("total_value_usd") or 0)
+        top_10_value = sum(position["value_usd"] for position in top_positions[:10])
+        top_1_weight = (
+            (top_positions[0]["value_usd"] / total_value) if top_positions and total_value else 0
+        )
+        top_10_weight = (top_10_value / total_value) if total_value else 0
+
+        risk_flags: list[str] = []
+        if top_1_weight >= 0.5:
+            risk_flags.append("Top position exceeds 50% of reported value.")
+        if top_10_weight >= 0.8 and len(top_positions) >= 5:
+            risk_flags.append("Top-10 positions exceed 80% of reported value.")
+        risk_flags.append("LLM response parsing fallback used.")
+
         return FilingSummary(
             manager_name=str(fallback_data.get("manager_name") or "Unknown Manager"),
             filing_date=str(fallback_data.get("filing_date") or "unknown"),
@@ -339,9 +363,9 @@ class FilingSummaryChain:
                 float(fallback_data.get("total_value_usd") or 0)
             ),
             key_positions=top_positions,
-            notable_changes=["Unable to parse structured response; generated fallback summary."],
+            notable_changes=notable_changes,
             sector_concentration=[],
-            risk_flags=["LLM response parsing fallback used."],
+            risk_flags=risk_flags,
         )
 
     def _log_usage(self, *, filing_id: int, output_text: str, latency_ms: int, status: int) -> None:
