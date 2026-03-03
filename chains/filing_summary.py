@@ -262,9 +262,12 @@ class FilingSummaryChain:
         manager_name = "Unknown Manager"
         if manager_id is not None:
             manager_query = f"SELECT name FROM managers WHERE manager_id = {placeholder}"
-            manager_row = self._execute_fetchone(manager_query, (manager_id,))
-            if manager_row and manager_row.get("name"):
-                manager_name = str(manager_row["name"])
+            try:
+                manager_row = self._execute_fetchone(manager_query, (manager_id,))
+                if manager_row and manager_row.get("name"):
+                    manager_name = str(manager_row["name"])
+            except Exception:
+                manager_name = "Unknown Manager"
 
         period_end = filing.get("period_end")
         filing_date = filing.get("filed_date") or filing.get("filing_date") or period_end
