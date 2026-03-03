@@ -223,7 +223,7 @@ def test_run_falls_back_to_json_parser_when_structured_output_fails() -> None:
 
 def test_run_with_realish_data_uses_fallback_summary_when_llm_unstructured() -> None:
     db, _, holdings_rows = _build_db_for_filing(holdings_count=20, include_diffs=False)
-    llm = RunnableLambda(lambda _payload: "This is not JSON")
+    llm: RunnableLambda[Any, str] = RunnableLambda(lambda _payload: "This is not JSON")
     chain = _make_chain(db, llm=llm)
 
     result = chain.run(1001)
