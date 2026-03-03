@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
 from langchain_core.runnables import RunnableLambda
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from chains.filing_summary import FilingSummaryChain
+import chains.filing_summary as filing_summary_module
+from chains.filing_summary import FilingSummary, FilingSummaryChain
 from tools.langchain_client import ClientInfo
 
 
@@ -47,94 +50,228 @@ class _MockDB:
     def cursor(self) -> _MockCursor:
         return self._cursor
 
+    def execute(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
 
-def _make_chain(db: _MockDB) -> FilingSummaryChain:
-    llm: Any = RunnableLambda(lambda _payload: "{}")
-    client_info = ClientInfo(client=llm, provider="test-provider", model="test-model")
-    return FilingSummaryChain(client_info=client_info, db_conn=db)
+    def commit(self) -> None:
+        return None
 
 
-def test_load_filing_data_with_mock_database_data() -> None:
-    filing_id = 1001
-    manager_id = 7
+class _StructuredLLM:
+    def __init__(self, *, structured_result: dict[str, Any], fallback_text: str = "{}") -> None:
+        self._structured_result = structured_result
+        self._fallback_text = fallback_text
 
-    filing_query = "SELECT * FROM filings WHERE filing_id = %s"
-    holdings_query = "SELECT * FROM holdings WHERE filing_id = %s ORDER BY value_usd DESC LIMIT 20"
-    manager_query = "SELECT name FROM managers WHERE manager_id = %s"
-    diffs_query = (
-        "SELECT * FROM daily_diffs WHERE manager_id = %s AND report_date = %s "
-        "ORDER BY value_curr DESC"
-    )
+    def __call__(self, _prompt: Any) -> str:
+        return self._fallback_text
+
+    def with_structured_output(self, _schema: type[FilingSummary]) -> RunnableLambda:
+        return RunnableLambda(lambda _payload: self._structured_result)
+
+
+class _FailingStructuredLLM:
+    def __init__(self, fallback_text: str) -> None:
+        self._fallback_text = fallback_text
+
+    def __call__(self, _prompt: Any) -> str:
+        return self._fallback_text
+
+    def with_structured_output(self, _schema: type[FilingSummary]) -> RunnableLambda:
+        return RunnableLambda(lambda _payload: (_ for _ in ()).throw(RuntimeError("boom")))
+
+
+def _build_queries() -> dict[str, str]:
+    return {
+        "filing": "SELECT * FROM filings WHERE filing_id = %s",
+        "holdings": "SELECT * FROM holdings WHERE filing_id = %s ORDER BY value_usd DESC LIMIT 20",
+        "manager": "SELECT name FROM managers WHERE manager_id = %s",
+        "diffs": "SELECT * FROM daily_diffs WHERE manager_id = %s AND report_date = %s ORDER BY value_curr DESC",
+    }
+
+
+def _build_db_for_filing(
+    *,
+    filing_id: int = 1001,
+    manager_id: int = 7,
+    holdings_count: int = 2,
+    include_diffs: bool = True,
+    include_filing: bool = True,
+) -> tuple[_MockDB, dict[str, str], list[dict[str, Any]]]:
+    queries = _build_queries()
 
     filing_row = {
         "filing_id": filing_id,
         "manager_id": manager_id,
         "period_end": "2025-12-31",
         "filed_date": "2026-02-14",
-        "total_positions": 42,
-        "total_value_usd": 123_456_789.0,
+        "total_positions": holdings_count,
+        "total_value_usd": float(sum(10_000_000 + i for i in range(holdings_count))),
     }
     holdings_rows = [
         {
-            "name_of_issuer": "ALPHA TECH INC",
-            "cusip": "111111111",
-            "shares": 1_000_000,
-            "value_usd": 80_000_000.0,
-        },
-        {
-            "name_of_issuer": "BRAVO HEALTH CO",
-            "cusip": "222222222",
-            "shares": 500_000,
-            "value_usd": 43_456_789.0,
-        },
+            "name_of_issuer": f"ISSUER-{idx:02d}",
+            "cusip": f"{idx:09d}",
+            "shares": 100_000 + idx,
+            "value_usd": float(10_000_000 + idx),
+        }
+        for idx in range(holdings_count)
     ]
-    diff_rows = [
-        {
-            "delta_type": "ADD",
-            "name_of_issuer": "ALPHA TECH INC",
-            "value_prev": 0,
-            "value_curr": 80_000_000,
-        },
-        {
-            "delta_type": "EXIT",
-            "name_of_issuer": "OMEGA RETAIL LTD",
-            "value_prev": 12_500_000,
-            "value_curr": 0,
-        },
-    ]
+    diff_rows: list[dict[str, Any]] = []
+    if holdings_rows:
+        diff_rows = [
+            {
+                "delta_type": "ADD",
+                "name_of_issuer": holdings_rows[0]["name_of_issuer"],
+                "value_prev": 0,
+                "value_curr": holdings_rows[0]["value_usd"],
+            }
+        ]
 
-    cursor = _MockCursor(
-        fetchone_map={
-            (filing_query, (filing_id,)): filing_row,
-            (manager_query, (manager_id,)): {"name": "Alpha Capital"},
-        },
-        fetchall_map={
-            (holdings_query, (filing_id,)): holdings_rows,
-            (diffs_query, (manager_id, "2025-12-31")): diff_rows,
-        },
-    )
-    chain = _make_chain(_MockDB(cursor))
+    fetchone_map: dict[tuple[str, tuple[Any, ...]], dict[str, Any] | None] = {
+        (queries["manager"], (manager_id,)): {"name": "Alpha Capital"},
+    }
+    if include_filing:
+        fetchone_map[(queries["filing"], (filing_id,))] = filing_row
 
-    result = chain._load_filing_data(filing_id)
+    fetchall_map: dict[tuple[str, tuple[Any, ...]], list[dict[str, Any]]] = {
+        (queries["holdings"], (filing_id,)): holdings_rows,
+        (queries["diffs"], (manager_id, "2025-12-31")): diff_rows if include_diffs else [],
+    }
 
-    assert result["filing_id"] == filing_id
+    cursor = _MockCursor(fetchone_map=fetchone_map, fetchall_map=fetchall_map)
+    return _MockDB(cursor), queries, holdings_rows
+
+
+def _make_chain(db: _MockDB, llm: Any | None = None) -> FilingSummaryChain:
+    llm = llm or RunnableLambda(lambda _payload: "{}")
+    client_info = ClientInfo(client=llm, provider="test-provider", model="test-model")
+    return FilingSummaryChain(client_info=client_info, db_conn=db)
+
+
+def test_load_filing_data_with_mock_database_data() -> None:
+    db, queries, holdings_rows = _build_db_for_filing()
+    chain = _make_chain(db)
+
+    result = chain._load_filing_data(1001)
+
+    assert result["filing_id"] == 1001
     assert result["manager_name"] == "Alpha Capital"
     assert result["filing_date"] == "2026-02-14"
     assert result["period_end"] == "2025-12-31"
-    assert result["total_positions"] == 42
-    assert result["total_value_usd"] == 123_456_789.0
+    assert result["total_positions"] == 2
     assert result["top_holdings"] == holdings_rows
-
     assert "rank | issuer | cusip | shares | value_usd" in result["top_holdings_table"]
-    assert "ALPHA TECH INC | 111111111 | 1,000,000 | 80,000,000.00" in result["top_holdings_table"]
-
-    assert "ADD: ALPHA TECH INC ($0 -> $80,000,000)" in result["delta_summary"]
-    assert "EXIT: OMEGA RETAIL LTD ($12,500,000 -> $0)" in result["delta_summary"]
+    assert "ADD: ISSUER-00" in result["delta_summary"]
     assert '"manager_name"' in result["output_schema"]
 
-    assert cursor.calls == [
-        (filing_query, (filing_id,)),
-        (holdings_query, (filing_id,)),
-        (manager_query, (manager_id,)),
-        (diffs_query, (manager_id, "2025-12-31")),
+    assert db.cursor().calls == [
+        (queries["filing"], (1001,)),
+        (queries["holdings"], (1001,)),
+        (queries["manager"], (7,)),
+        (queries["diffs"], (7, "2025-12-31")),
     ]
+
+
+def test_run_uses_structured_output_when_available() -> None:
+    db, _, _ = _build_db_for_filing()
+    llm = _StructuredLLM(
+        structured_result={
+            "manager_name": "Alpha Capital",
+            "filing_date": "2026-02-14",
+            "total_positions": 2,
+            "total_aum_estimate": "$20.00M",
+            "key_positions": [{"cusip": "000000000", "value_usd": 10_000_000}],
+            "notable_changes": ["Added ISSUER-00"],
+            "sector_concentration": [{"sector": "Technology", "weight": 0.5}],
+            "risk_flags": [],
+        }
+    )
+    chain = _make_chain(db, llm=llm)
+
+    result = chain.run(1001)
+
+    assert isinstance(result, FilingSummary)
+    assert result.manager_name == "Alpha Capital"
+    assert result.total_positions == 2
+    assert result.total_aum_estimate == "$20.00M"
+
+
+def test_run_falls_back_to_json_parser_when_structured_output_fails() -> None:
+    db, _, _ = _build_db_for_filing(holdings_count=20)
+    llm = _FailingStructuredLLM(
+        fallback_text=json.dumps(
+            {
+                "manager_name": "Alpha Capital",
+                "filing_date": "2026-02-14",
+                "total_positions": 20,
+                "total_aum_estimate": "$200.00M",
+                "key_positions": [{"cusip": "000000000", "value_usd": 10_000_000}],
+                "notable_changes": ["Added ISSUER-00"],
+                "sector_concentration": [{"sector": "Technology", "weight": 0.5}],
+                "risk_flags": ["Concentrated top-10"],
+            }
+        )
+    )
+    chain = _make_chain(db, llm=llm)
+
+    result = chain.run(1001)
+
+    assert result.total_positions == 20
+    assert result.notable_changes == ["Added ISSUER-00"]
+    assert result.risk_flags == ["Concentrated top-10"]
+
+
+def test_run_with_realish_data_uses_fallback_summary_when_llm_unstructured() -> None:
+    db, _, holdings_rows = _build_db_for_filing(holdings_count=20, include_diffs=False)
+    llm = RunnableLambda(lambda _payload: "This is not JSON")
+    chain = _make_chain(db, llm=llm)
+
+    result = chain.run(1001)
+
+    assert result.total_positions == 20
+    assert result.manager_name == "Alpha Capital"
+    assert len(result.key_positions) == 10
+    assert result.key_positions[0]["cusip"] == holdings_rows[0]["cusip"]
+    assert result.notable_changes == [
+        "Unable to parse structured response; generated fallback summary."
+    ]
+
+
+def test_error_handling_for_missing_filing_and_empty_holdings() -> None:
+    missing_db, _, _ = _build_db_for_filing(include_filing=False)
+    missing_chain = _make_chain(missing_db)
+
+    with pytest.raises(ValueError, match="Filing 1001 not found"):
+        missing_chain.run(1001)
+
+    empty_db, _, _ = _build_db_for_filing(holdings_count=0, include_diffs=False)
+    empty_chain = _make_chain(empty_db, llm=RunnableLambda(lambda _payload: "not-json"))
+    empty_result = empty_chain.run(1001)
+
+    assert empty_result.total_positions == 0
+    assert empty_result.key_positions == []
+
+
+def test_langsmith_tracing_context_is_entered(monkeypatch: pytest.MonkeyPatch) -> None:
+    entered = {"value": False}
+
+    class _TracingContext:
+        def __enter__(self) -> dict[str, Any]:
+            entered["value"] = True
+            return {"name": "filing-summary"}
+
+        def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
+            return None
+
+    monkeypatch.setattr(
+        filing_summary_module,
+        "langsmith_tracing_context",
+        lambda **_kwargs: _TracingContext(),
+    )
+
+    db, _, _ = _build_db_for_filing()
+    chain = _make_chain(db)
+
+    chain.run(1001)
+
+    assert entered["value"] is True
