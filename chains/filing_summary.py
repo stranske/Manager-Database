@@ -220,27 +220,27 @@ class FilingSummaryChain:
     def _build_fallback_delta_summary(
         self, manager_id: int | None, period_end: Any, filing_id: int
     ) -> list[dict[str, Any]]:
-        if manager_id is None or period_end is None:
-            return []
-
         placeholder = self._placeholder(self.db)
-        query = (
-            "SELECT * FROM daily_diffs "
-            f"WHERE manager_id = {placeholder} AND report_date = {placeholder} "
-            "ORDER BY value_curr DESC"
-        )
-        try:
-            return self._execute_fetchall(query, (manager_id, period_end))
-        except Exception:
-            # Some deployments may expose filing_id on daily_diffs instead.
+        if manager_id is not None and period_end is not None:
             query = (
                 "SELECT * FROM daily_diffs "
-                f"WHERE filing_id = {placeholder} ORDER BY value_curr DESC"
+                f"WHERE manager_id = {placeholder} AND report_date = {placeholder} "
+                "ORDER BY value_curr DESC"
             )
             try:
-                return self._execute_fetchall(query, (filing_id,))
+                diffs = self._execute_fetchall(query, (manager_id, period_end))
+                if diffs:
+                    return diffs
             except Exception:
-                return []
+                pass
+
+        query = (
+            "SELECT * FROM daily_diffs " f"WHERE filing_id = {placeholder} ORDER BY value_curr DESC"
+        )
+        try:
+            return self._execute_fetchall(query, (filing_id,))
+        except Exception:
+            return []
 
     def _load_filing_data(self, filing_id: int) -> dict[str, Any]:
         """Load filing + holdings + deltas from database for prompt variables."""
