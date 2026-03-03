@@ -262,6 +262,10 @@ def upgrade() -> None:
             JOIN managers m ON m.manager_id = d.manager_id
             ORDER BY d.report_date DESC, m.name, d.delta_type
         """)
+        op.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx
+            ON mv_daily_report (report_date, manager_id, cusip, delta_type)
+        """)
     else:
         op.execute("""
             CREATE VIEW monthly_usage AS

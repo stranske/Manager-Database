@@ -2,17 +2,38 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import altair as alt
+import httpx
 import pandas as pd
 import streamlit as st
 
 from adapters.base import connect_db
 
 from . import require_login
+
+
+def _api_base_url() -> str:
+    return (
+        os.getenv("ALERTS_API_BASE_URL") or os.getenv("API_BASE_URL") or "http://localhost:8000"
+    ).rstrip("/")
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def load_unacknowledged_alert_count() -> int:
+    """Load unacknowledged alert count for the sidebar badge."""
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(f"{_api_base_url()}/api/alerts/unacknowledged/count")
+        response.raise_for_status()
+        payload = response.json()
+        return int(payload.get("count", 0))
+    except Exception:
+        return 0
 
 
 def load_delta() -> pd.DataFrame:
@@ -91,21 +112,53 @@ def load_top_deltas(manager_id: int) -> pd.DataFrame:
     return df
 
 
-def load_news_stream(manager_id: int) -> pd.DataFrame:
+def load_news_stream(manager_id: int | None, limit: int = 10) -> pd.DataFrame:
     conn = connect_db()
-    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-    query = (
-        "SELECT headline, url, published_at, source, topics, confidence "
-        "FROM news_items "
-        f"WHERE manager_id = {placeholder} "
-        "ORDER BY published_at DESC "
-        "LIMIT 15"
-    )
     try:
-        df = pd.read_sql_query(query, conn, params=(manager_id,))
+        if isinstance(conn, sqlite3.Connection):
+            params: list[Any] = [limit]
+            where_clause = ""
+            if manager_id is not None:
+                where_clause = "WHERE n.manager_id = ? "
+                params.insert(0, manager_id)
+            query = (
+                "SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, "
+                "m.name AS manager_name "
+                "FROM news_items n "
+                "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+                f"{where_clause}"
+                "ORDER BY n.published_at DESC "
+                "LIMIT ?"
+            )
+            df = pd.read_sql_query(query, conn, params=tuple(params))
+        else:
+            params_pg: list[Any] = []
+            where_clause = ""
+            if manager_id is not None:
+                where_clause = "WHERE n.manager_id = %s "
+                params_pg.append(manager_id)
+            params_pg.append(limit)
+            query = (
+                "SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, "
+                "m.name AS manager_name "
+                "FROM news_items n "
+                "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+                f"{where_clause}"
+                "ORDER BY n.published_at DESC "
+                "LIMIT %s"
+            )
+            df = pd.read_sql_query(query, conn, params=tuple(params_pg))
     except Exception:
         df = pd.DataFrame(
-            columns=["headline", "url", "published_at", "source", "topics", "confidence"]
+            columns=[
+                "headline",
+                "url",
+                "published_at",
+                "source",
+                "topics",
+                "confidence",
+                "manager_name",
+            ]
         )
     conn.close()
     return df
@@ -344,14 +397,14 @@ def _topic_badges(topics_value: Any) -> str:
 
 def render_news_stream(selected_manager_id: int | None, show_heading: bool = True) -> None:
     if show_heading:
-        st.subheader("News Stream")
-    if selected_manager_id is None:
-        st.info("Select a manager to view recent news.")
-        return
+        st.subheader("News")
 
-    news_items = load_news_stream(selected_manager_id)
+    news_items = load_news_stream(selected_manager_id, limit=10)
     if news_items.empty:
-        st.info("No recent news found for the selected manager.")
+        if selected_manager_id is None:
+            st.info("No recent news found.")
+        else:
+            st.info("No recent news found for the selected manager.")
         return
 
     news_items = news_items.copy()
@@ -359,24 +412,18 @@ def render_news_stream(selected_manager_id: int | None, show_heading: bool = Tru
     for item in news_items.itertuples(index=False):
         headline = str(item.headline) if item.headline else "Untitled"
         url = str(item.url).strip() if item.url else ""
-        if url:
-            st.markdown(f"- [{headline}]({url})")
-        else:
-            st.markdown(f"- {headline}")
-
-        meta_parts = []
+        headline_md = f"[{headline}]({url})" if url else headline
+        meta_parts: list[str] = []
         if pd.notna(item.published_at):
             meta_parts.append(item.published_at.strftime("%Y-%m-%d %H:%M"))
-        if item.source:
-            meta_parts.append(str(item.source))
-        if pd.notna(item.confidence):
-            meta_parts.append(f"confidence {float(item.confidence):.2f}")
+        if selected_manager_id is None and getattr(item, "manager_name", None):
+            meta_parts.append(str(item.manager_name))
         badges = _topic_badges(item.topics)
-        meta_line = " | ".join(meta_parts)
+        prefix = " | ".join(meta_parts)
+        compact_line = f"- {prefix} | {headline_md}" if prefix else f"- {headline_md}"
         if badges:
-            meta_line = f"{meta_line} {badges}" if meta_line else badges
-        if meta_line:
-            st.caption(meta_line)
+            compact_line = f"{compact_line} {badges}"
+        st.markdown(compact_line)
 
 
 def render_qc_flags(selected_manager_id: int | None, show_heading: bool = True) -> None:
@@ -643,7 +690,7 @@ def render_manager_dashboard(selected_manager_id: int) -> None:
             render_top_deltas(selected_manager_id, show_heading=False)
 
     with right_col:
-        with st.expander("News Stream", expanded=True):
+        with st.expander("News", expanded=True):
             render_news_stream(selected_manager_id, show_heading=False)
         with st.expander("QC Flags", expanded=True):
             render_qc_flags(selected_manager_id, show_heading=False)
@@ -662,11 +709,26 @@ def render_historical_filing_trend() -> None:
 def main() -> None:
     if not require_login():
         st.stop()
+    alert_count = load_unacknowledged_alert_count()
+    st.sidebar.markdown("### Navigation")
+    st.sidebar.markdown(
+        (
+            "<div style='display:flex;align-items:center;gap:8px;'>"
+            "<span>Alerts</span>"
+            "<span style='background:#d7263d;color:white;border-radius:999px;padding:2px 8px;"
+            "font-size:12px;font-weight:700;'>"
+            f"{alert_count}</span></div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    st.sidebar.metric("Unacknowledged Alerts", alert_count)
     st.header("Holdings Delta")
     selected_manager_id = render_manager_selector()
     if selected_manager_id is None:
         with st.expander("All Managers Summary", expanded=True):
             render_all_managers_summary(show_heading=False)
+        with st.expander("News", expanded=True):
+            render_news_stream(None, show_heading=False)
     else:
         render_manager_dashboard(selected_manager_id)
 
