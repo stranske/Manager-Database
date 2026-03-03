@@ -1,7 +1,7 @@
 """Add conviction_scores table for per-filing manager concentration metrics.
 
-Revision ID: 003
-Revises: 002
+Revision ID: 004
+Revises: 003
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from sqlalchemy import text
 
 from alembic import op
 
-revision = "003"
-down_revision = "002"
+revision = "004"
+down_revision = "003"
 branch_labels = None
 depends_on = None
 
