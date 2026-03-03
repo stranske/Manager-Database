@@ -200,8 +200,8 @@ def format_summary(summary: MemorySummary, slope_kb_per_hour: float) -> str:
             f"sample_interval_seconds: {summary.sample_interval_s:.0f}",
             f"gap_count: {summary.gap_count}",
             f"coverage_ratio: {coverage_ratio:.2f}",
-            ("rss_kb: " f"min={summary.rss_min} avg={summary.rss_avg:.1f} max={summary.rss_max}"),
-            ("vms_kb: " f"min={summary.vms_min} avg={summary.vms_avg:.1f} max={summary.vms_max}"),
+            (f"rss_kb: min={summary.rss_min} avg={summary.rss_avg:.1f} max={summary.rss_max}"),
+            (f"vms_kb: min={summary.vms_min} avg={summary.vms_avg:.1f} max={summary.vms_max}"),
             f"rss_slope_kb_per_hour: {slope_kb_per_hour:.2f}",
         ]
     )

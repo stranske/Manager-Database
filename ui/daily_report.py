@@ -1,4 +1,8 @@
 import datetime as dt
+import html
+import logging
+import sqlite3
+import time
 
 import pandas as pd
 import streamlit as st
@@ -7,26 +11,177 @@ from adapters.base import connect_db
 
 from . import require_login
 
+logger = logging.getLogger(__name__)
+
 
 @st.cache_data(show_spinner=False)
 def load_diffs(date: str) -> pd.DataFrame:
+    started = time.perf_counter()
     conn = connect_db()
-    query = "SELECT cik, cusip, change FROM daily_diff WHERE date = ?"
-    df = pd.read_sql_query(query, conn, params=(date,))
+    is_sqlite = isinstance(conn, sqlite3.Connection)
+    placeholder = "?" if is_sqlite else "%s"
+    view_query = f"""SELECT manager_name, cusip, name_of_issuer, delta_type,
+         shares_prev, shares_curr, value_prev, value_curr
+  FROM mv_daily_report
+  WHERE report_date = {placeholder}
+  ORDER BY manager_name, delta_type"""
+    fallback_query = f"""SELECT cik AS manager_name, cusip, '' AS name_of_issuer, change AS delta_type,
+         NULL AS shares_prev, NULL AS shares_curr, NULL AS value_prev, NULL AS value_curr
+  FROM daily_diff
+  WHERE date = {placeholder}
+  ORDER BY manager_name, delta_type"""
+    try:
+        df = pd.read_sql_query(view_query, conn, params=(date,))
+    except Exception as exc:
+        if is_sqlite and "no such table" in str(exc).lower() and "mv_daily_report" in str(exc):
+            df = pd.read_sql_query(fallback_query, conn, params=(date,))
+        else:
+            conn.close()
+            raise
     conn.close()
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    logger.info("daily_report.load_diffs completed", extra={"date": date, "elapsed_ms": elapsed_ms})
     return df
 
 
 @st.cache_data(show_spinner=False)
 def load_news(date: str) -> pd.DataFrame:
     conn = connect_db()
-    query = "SELECT headline, source FROM news WHERE substr(published, 1, 10) = ? ORDER BY published DESC LIMIT 20"
     try:
+        if isinstance(conn, sqlite3.Connection):
+            query = (
+                "SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, "
+                "m.name AS manager_name "
+                "FROM news_items n "
+                "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+                "WHERE date(n.published_at) = ? "
+                "ORDER BY n.published_at DESC "
+                "LIMIT 50"
+            )
+        else:
+            query = (
+                "SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, "
+                "m.name AS manager_name "
+                "FROM news_items n "
+                "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+                "WHERE n.published_at::date = %s "
+                "ORDER BY n.published_at DESC "
+                "LIMIT 50"
+            )
         df = pd.read_sql_query(query, conn, params=(date,))
     except Exception:
-        df = pd.DataFrame(columns=["headline", "source"])
-    conn.close()
+        df = pd.DataFrame(
+            columns=[
+                "headline",
+                "url",
+                "published_at",
+                "source",
+                "topics",
+                "confidence",
+                "manager_name",
+            ]
+        )
+    finally:
+        conn.close()
     return df
+
+
+def parse_topics(value: object) -> list[str]:
+    if value is None:
+        return []
+    raw = str(value).strip()
+    if not raw:
+        return []
+    if raw.startswith("[") and raw.endswith("]"):
+        raw = raw[1:-1]
+    return [token.strip().strip("\"'") for token in raw.split(",") if token.strip()]
+
+
+def topic_choices(news: pd.DataFrame) -> list[str]:
+    topics = sorted({topic for value in news.get("topics", []) for topic in parse_topics(value)})
+    return ["All topics", *topics]
+
+
+def format_news_table(news: pd.DataFrame) -> pd.DataFrame:
+    table = news.copy()
+    published = pd.to_datetime(table["published_at"], errors="coerce")
+    table["Time"] = published.dt.strftime("%H:%M").fillna("-")
+    table["Manager"] = table["manager_name"].fillna("Unknown")
+    table["Headline"] = table["headline"].fillna("")
+    table["Source"] = table["source"].fillna("")
+    table["Topics"] = table["topics"].apply(lambda value: ", ".join(parse_topics(value)))
+    return table[["Time", "Manager", "Headline", "Source", "Topics"]]
+
+
+def topic_badges(value: object) -> str:
+    palette = ["#0ea5e9", "#16a34a", "#f97316", "#7c3aed", "#dc2626", "#0891b2"]
+    badges = []
+    for idx, topic in enumerate(parse_topics(value)):
+        color = palette[idx % len(palette)]
+        badges.append(
+            f"<span style='display:inline-block;padding:2px 8px;margin-right:4px;"
+            f"border-radius:12px;background:{color};color:white;font-size:0.75rem;'>{topic}</span>"
+        )
+    return "".join(badges) if badges else "<span style='color:#666;'>-</span>"
+
+
+def headline_markdown(headline: object, url: object) -> str:
+    text = html.escape(str(headline).strip()) if headline else "Untitled"
+    text = text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+    if not url:
+        return text
+    raw_url = str(url).strip()
+    if not raw_url:
+        return text
+    # Wrap the URL in <> so markdown handles parentheses in links correctly.
+    return f"[{text}](<{raw_url}>)"
+
+
+def format_shares_delta(shares_prev: object, shares_curr: object) -> str:
+    prev = pd.to_numeric(pd.Series([shares_prev]), errors="coerce").iloc[0]
+    curr = pd.to_numeric(pd.Series([shares_curr]), errors="coerce").iloc[0]
+    if pd.isna(prev) and pd.isna(curr):
+        return "<span style='color:#666;'>-</span>"
+    prev_value = 0 if pd.isna(prev) else prev
+    curr_value = 0 if pd.isna(curr) else curr
+    delta = int(round(curr_value - prev_value))
+    if delta > 0:
+        return f"<span style='color:green;'>↑ +{delta:,}</span>"
+    if delta < 0:
+        return f"<span style='color:red;'>↓ {delta:,}</span>"
+    return "<span style='color:#666;'>→ 0</span>"
+
+
+def format_value_delta(value_prev: object, value_curr: object) -> str:
+    prev = pd.to_numeric(pd.Series([value_prev]), errors="coerce").iloc[0]
+    curr = pd.to_numeric(pd.Series([value_curr]), errors="coerce").iloc[0]
+    if pd.isna(prev) and pd.isna(curr):
+        return "<span style='color:#666;'>-</span>"
+    prev_value = 0.0 if pd.isna(prev) else float(prev)
+    curr_value = 0.0 if pd.isna(curr) else float(curr)
+    delta = curr_value - prev_value
+    if delta > 0:
+        return f"<span style='color:green;'>↑ +${delta:,.2f}</span>"
+    if delta < 0:
+        return f"<span style='color:red;'>↓ -${abs(delta):,.2f}</span>"
+    return "<span style='color:#666;'>→ $0.00</span>"
+
+
+def format_percent_change(value_prev: object, value_curr: object) -> str:
+    prev = pd.to_numeric(pd.Series([value_prev]), errors="coerce").iloc[0]
+    curr = pd.to_numeric(pd.Series([value_curr]), errors="coerce").iloc[0]
+    if pd.isna(prev) and pd.isna(curr):
+        return "<span style='color:#666;'>-</span>"
+    prev_value = 0.0 if pd.isna(prev) else float(prev)
+    curr_value = 0.0 if pd.isna(curr) else float(curr)
+    if prev_value == 0:
+        return "<span style='color:#666;'>n/a</span>"
+    pct = ((curr_value - prev_value) / prev_value) * 100
+    if pct > 0:
+        return f"<span style='color:green;'>+{pct:.1f}%</span>"
+    if pct < 0:
+        return f"<span style='color:red;'>{pct:.1f}%</span>"
+    return "<span style='color:#666;'>0.0%</span>"
 
 
 def main():
@@ -37,19 +192,95 @@ def main():
     tab1, tab2 = st.tabs(["Filings & Diffs", "News Pulse"])
     with tab1:
         df = load_diffs(date_str)
-        # map change to coloured arrows for on-screen table
-        arrow = {
-            "ADD": "<span style='color:green'>&uarr;</span>",
-            "EXIT": "<span style='color:red'>&darr;</span>",
-        }
-        df["Δ"] = df["change"].map(arrow)
-        html = df[["cik", "cusip", "Δ"]].to_html(escape=False, index=False)
+        total_managers = df.get("manager_name", pd.Series(dtype=object)).nunique()
+        total_rows = len(df)
+        adds = int((df.get("delta_type") == "ADD").sum()) if "delta_type" in df.columns else 0
+        exits = int((df.get("delta_type") == "EXIT").sum()) if "delta_type" in df.columns else 0
+        increases = (
+            int((df.get("delta_type") == "INCREASE").sum()) if "delta_type" in df.columns else 0
+        )
+        decreases = (
+            int((df.get("delta_type") == "DECREASE").sum()) if "delta_type" in df.columns else 0
+        )
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric("Managers w/ changes", f"{total_managers:,}", delta=f"{total_rows:,} positions")
+        col2.metric(
+            "Added",
+            f"{adds:,}",
+            delta=f"{(adds / total_rows * 100):.1f}%" if total_rows else "0.0%",
+        )
+        col3.metric(
+            "Exited",
+            f"{exits:,}",
+            delta=f"{(exits / total_rows * 100):.1f}%" if total_rows else "0.0%",
+        )
+        col4.metric(
+            "Increased",
+            f"{increases:,}",
+            delta=f"{(increases / total_rows * 100):.1f}%" if total_rows else "0.0%",
+        )
+        col5.metric(
+            "Decreased",
+            f"{decreases:,}",
+            delta=f"{(decreases / total_rows * 100):.1f}%" if total_rows else "0.0%",
+        )
+        df["Shares Δ"] = df.apply(
+            lambda row: format_shares_delta(row.get("shares_prev"), row.get("shares_curr")), axis=1
+        )
+        df["Value Δ"] = df.apply(
+            lambda row: format_value_delta(row.get("value_prev"), row.get("value_curr")), axis=1
+        )
+        df["% Δ"] = df.apply(
+            lambda row: format_percent_change(row.get("value_prev"), row.get("value_curr")), axis=1
+        )
+        html = df[
+            ["manager_name", "cusip", "name_of_issuer", "Shares Δ", "Value Δ", "% Δ"]
+        ].to_html(escape=False, index=False)
         st.markdown(html, unsafe_allow_html=True)
-        csv = df[["cik", "cusip", "change"]].to_csv(index=False).encode("utf-8")
+        csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, file_name=f"diff_{date_str}.csv", mime="text/csv")
     with tab2:
         news = load_news(date_str)
-        st.dataframe(news)
+        if news.empty:
+            st.info("No news for this date.")
+            return
+
+        selected_topic = st.selectbox(
+            "Filter by topic", topic_choices(news), key=f"news_topic_{date_str}"
+        )
+        if selected_topic != "All topics":
+            news = news[
+                news["topics"].apply(lambda value: selected_topic in parse_topics(value))
+            ].reset_index(drop=True)
+
+        if news.empty:
+            st.info(f"No news matching '{selected_topic}' on {date_str}.")
+            return
+
+        styled = format_news_table(news).style.set_properties(
+            **{"background-color": "#f8fafc", "border-color": "#e2e8f0"}
+        )
+        st.dataframe(styled, use_container_width=True, hide_index=True)
+
+        st.markdown("#### Linked Headlines")
+        for _, row in news.iterrows():
+            manager = row.get("manager_name") or "Unknown"
+            source = row.get("source") or "Unknown"
+            timestamp = pd.to_datetime(row.get("published_at"), errors="coerce")
+            time_text = timestamp.strftime("%H:%M") if pd.notna(timestamp) else "-"
+            title_md = headline_markdown(row.get("headline"), row.get("url"))
+            st.markdown(
+                f"**{time_text}** | **{manager}** | {title_md} | *{source}*  \n{topic_badges(row.get('topics'))}",
+                unsafe_allow_html=True,
+            )
+
+        news_export = format_news_table(news).to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Download News CSV",
+            news_export,
+            file_name=f"news_{date_str}.csv",
+            mime="text/csv",
+        )
 
 
 if __name__ == "__main__":

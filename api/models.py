@@ -12,18 +12,30 @@ class ManagerResponse(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "id": 101,
-                    "name": "Grace Hopper",
-                    "role": "Engineering Director",
+                    "manager_id": 101,
+                    "name": "Elliott Investment Management L.P.",
+                    "cik": "0001791786",
+                    "lei": "549300U3N12T57QLOU60",
+                    "aliases": ["Elliott Management"],
+                    "jurisdictions": ["us"],
+                    "tags": ["activist"],
+                    "registry_ids": {"fca_frn": "122927"},
+                    "created_at": "2026-02-01T10:00:00Z",
+                    "updated_at": "2026-02-01T10:00:00Z",
                 }
             ]
         }
     )
-    id: int = Field(..., description="Manager identifier")
-    name: str = Field(..., description="Manager name")
-    role: str = Field(..., description="Manager role")
-    # Optional to preserve legacy manager payloads without departments.
-    department: str | None = Field(None, description="Manager department")
+    manager_id: int = Field(..., description="Manager identifier")
+    name: str = Field(..., description="Legal manager name")
+    cik: str | None = Field(None, description="SEC Central Index Key")
+    lei: str | None = Field(None, description="Legal Entity Identifier")
+    aliases: list[str] = Field(default_factory=list, description="Alternative names")
+    jurisdictions: list[str] = Field(default_factory=list, description="Filing jurisdictions")
+    tags: list[str] = Field(default_factory=list, description="Classification tags")
+    registry_ids: dict[str, str] = Field(default_factory=dict, description="External registry IDs")
+    created_at: str | None = Field(None, description="Creation timestamp")
+    updated_at: str | None = Field(None, description="Last update timestamp")
 
 
 class ManagerListResponse(BaseModel):
@@ -35,10 +47,16 @@ class ManagerListResponse(BaseModel):
                 {
                     "items": [
                         {
-                            "id": 101,
-                            "name": "Grace Hopper",
-                            "role": "Engineering Director",
-                            "department": "Engineering",
+                            "manager_id": 101,
+                            "name": "Elliott Investment Management L.P.",
+                            "cik": "0001791786",
+                            "lei": "549300U3N12T57QLOU60",
+                            "aliases": ["Elliott Management"],
+                            "jurisdictions": ["us"],
+                            "tags": ["activist"],
+                            "registry_ids": {"fca_frn": "122927"},
+                            "created_at": "2026-02-01T10:00:00Z",
+                            "updated_at": "2026-02-01T10:00:00Z",
                         }
                     ],
                     "total": 1,
@@ -91,17 +109,23 @@ class BulkImportResponse(BaseModel):
                         {
                             "index": 0,
                             "manager": {
-                                "id": 101,
-                                "name": "Grace Hopper",
-                                "role": "Engineering Director",
-                                "department": "Engineering",
+                                "manager_id": 101,
+                                "name": "Elliott Investment Management L.P.",
+                                "cik": "0001791786",
+                                "lei": "549300U3N12T57QLOU60",
+                                "aliases": ["Elliott Management"],
+                                "jurisdictions": ["us"],
+                                "tags": ["activist"],
+                                "registry_ids": {"fca_frn": "122927"},
+                                "created_at": "2026-02-01T10:00:00Z",
+                                "updated_at": "2026-02-01T10:00:00Z",
                             },
                         }
                     ],
                     "failures": [
                         {
                             "index": 2,
-                            "errors": [{"field": "role", "message": "Role is required."}],
+                            "errors": [{"field": "name", "message": "Name is required."}],
                         }
                     ],
                 }
@@ -117,3 +141,51 @@ class BulkImportResponse(BaseModel):
     failures: list[BulkImportFailure] = Field(
         ..., description="Details for records that failed validation"
     )
+
+
+class UniverseImportResponse(BaseModel):
+    """Response payload for manager universe imports."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "created": 8,
+                    "updated": 2,
+                    "skipped": 1,
+                }
+            ]
+        }
+    )
+    created: int = Field(..., description="Number of new manager records created")
+    updated: int = Field(..., description="Number of existing manager records updated")
+    skipped: int = Field(..., description="Number of records skipped due to invalid inputs")
+
+
+class ManagerStatsResponse(BaseModel):
+    """Response payload for manager universe summary statistics."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "total_managers": 12,
+                    "by_jurisdiction": {"us": 10, "uk": 2},
+                    "by_tag": {"activist": 3, "hedge-fund": 5},
+                    "with_cik": 10,
+                    "with_lei": 2,
+                }
+            ]
+        }
+    )
+    total_managers: int = Field(..., description="Total manager records in the universe")
+    by_jurisdiction: dict[str, int] = Field(
+        default_factory=dict,
+        description="Manager counts grouped by jurisdiction code",
+    )
+    by_tag: dict[str, int] = Field(
+        default_factory=dict,
+        description="Manager counts grouped by classification tag",
+    )
+    with_cik: int = Field(..., description="Managers with a non-empty CIK")
+    with_lei: int = Field(..., description="Managers with a non-empty LEI")
