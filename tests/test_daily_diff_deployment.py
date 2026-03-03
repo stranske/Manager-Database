@@ -37,6 +37,7 @@ def test_daily_diff_deployment_uses_env_tz(monkeypatch):
 
     assert module.LOCAL_TZ == "UTC"
     schedule = module.daily_diff_deployment.schedules[0].schedule
+    assert schedule.cron == "0 8 * * *"
     assert schedule.timezone == "UTC"
 
 
@@ -47,6 +48,7 @@ def test_daily_diff_deployment_falls_back_to_tzinfo_key(monkeypatch):
 
     assert module.LOCAL_TZ == "America/New_York"
     schedule = module.daily_diff_deployment.schedules[0].schedule
+    assert schedule.cron == "0 8 * * *"
     assert schedule.timezone == "America/New_York"
 
 
@@ -62,6 +64,7 @@ def test_daily_diff_deployment_falls_back_to_localtime_symlink(monkeypatch):
 
     assert module.LOCAL_TZ == "Europe/Berlin"
     schedule = module.daily_diff_deployment.schedules[0].schedule
+    assert schedule.cron == "0 8 * * *"
     assert schedule.timezone == "Europe/Berlin"
 
 
@@ -73,4 +76,5 @@ def test_daily_diff_deployment_defaults_to_utc_when_unresolvable(monkeypatch):
 
     assert module.LOCAL_TZ == "UTC"
     schedule = module.daily_diff_deployment.schedules[0].schedule
+    assert schedule.cron == "0 8 * * *"
     assert schedule.timezone == "UTC"

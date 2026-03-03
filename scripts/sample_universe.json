@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Elliott Investment Management L.P.",
+    "cik": "0001791786",
+    "jurisdiction": "us"
+  },
+  {
+    "name": "SIR Capital Management L.P.",
+    "cik": "0001434997",
+    "jurisdiction": "us"
+  },
+  {
+    "name": "Berkshire Hathaway Inc.",
+    "cik": "0001067983",
+    "jurisdiction": "us"
+  },
+  {
+    "name": "Bridgewater Associates, LP",
+    "cik": "0001350694",
+    "jurisdiction": "us"
+  },
+  {
+    "name": "Citadel Advisors LLC",
+    "cik": "0001423053",
+    "jurisdiction": "us"
+  },
+  {
+    "name": "TCI Fund Management Limited",
+    "cik": "0001372663",
+    "jurisdiction": "uk"
+  },
+  {
+    "name": "Third Point LLC",
+    "cik": "0001040273",
+    "jurisdiction": "us"
+  },
+  {
+    "name": "Pershing Square Capital Management, L.P.",
+    "cik": "0001336528",
+    "jurisdiction": "us"
+  },
+  {
+    "name": "Appaloosa LP",
+    "cik": "0001006438",
+    "jurisdiction": "us"
+  },
+  {
+    "name": "D. E. Shaw & Co., L.P.",
+    "cik": "0001009207",
+    "jurisdiction": "us"
+  }
+]

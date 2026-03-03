@@ -16,6 +16,7 @@ from . import require_login
 logger = logging.getLogger(__name__)
 
 
+
 def save_note(content: str, filename: str) -> int:
     """Backward-compatible helper for tests and legacy callers."""
     return store_document(content, kind=_kind_for_filename(filename), filename=filename)
