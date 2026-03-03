@@ -36,4 +36,3 @@ def __getattr__(name: str) -> Any:
     value = getattr(module, attribute_name)
     globals()[name] = value
     return value
-
