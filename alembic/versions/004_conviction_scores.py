@@ -20,7 +20,14 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "conviction_scores",
-        sa.Column("score_id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        # Use Integer on SQLite so the column acts as a rowid alias and
+        # autoincrement works without supplying an explicit score_id.
+        sa.Column(
+            "score_id",
+            sa.BigInteger().with_variant(sa.Integer(), "sqlite"),
+            primary_key=True,
+            autoincrement=True,
+        ),
         sa.Column("manager_id", sa.BigInteger(), nullable=False),
         sa.Column("filing_id", sa.BigInteger(), nullable=False),
         sa.Column("cusip", sa.Text(), nullable=False),

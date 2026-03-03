@@ -88,7 +88,20 @@ def _ensure_api_usage_table(conn: Any) -> None:
                 cost_usd REAL
             )""")
         return
-    conn.execute("SELECT 1 FROM api_usage LIMIT 1")
+    try:
+        conn.execute("SELECT 1 FROM api_usage LIMIT 1")
+    except Exception as exc:
+        message = str(exc)
+        exc_name = exc.__class__.__name__
+        pgcode = getattr(exc, "pgcode", None)
+        missing_table = (
+            "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_name
+        )
+        if missing_table:
+            raise RuntimeError(
+                "api_usage table is missing on Postgres; apply schema migrations first"
+            ) from exc
+        raise
 
 
 def _record_flow_usage(
@@ -132,6 +145,13 @@ def compute_conviction_scores(filing_id: int, conn: Any) -> int:
         return 0
 
     total_value = sum(float(row[3] or 0.0) for row in rows)
+
+    # Remove any scores for this filing that no longer have a corresponding
+    # holding (e.g. a position was exited since the last compute run).
+    conn.execute(
+        f"DELETE FROM conviction_scores WHERE filing_id = {ph}",
+        (filing_id,),
+    )
 
     upsert_sql = (
         "INSERT INTO conviction_scores "
@@ -692,7 +712,13 @@ def conviction_flow(
     report_date: str | None = None,
     min_managers: int | None = None,
 ) -> dict[str, int]:
-    """Run nightly conviction pipeline: scoring, signals, then alerts."""
+    """Run nightly conviction pipeline.
+
+    When called with no arguments, scores all latest filings and records API
+    usage — this path does not run crowded/contrarian signal detection or
+    alert dispatch.  Pass ``report_date`` (and optionally ``min_managers``)
+    to run the full signals-and-alerts pipeline for a specific date.
+    """
     if report_date is None and min_managers is None:
         started_at = dt.datetime.now(dt.UTC)
         db = connect_db()
@@ -718,6 +744,8 @@ def conviction_flow(
                 )
                 if isinstance(db, sqlite3.Connection):
                     db.commit()
+            except Exception:
+                logger.exception("Failed to record conviction flow usage; ignoring")
             finally:
                 db.close()
 

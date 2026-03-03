@@ -127,7 +127,7 @@ def test_schema_downgrade_drops_tables(monkeypatch, tmp_path):
 
 
 def test_conviction_scores_schema_objects(monkeypatch, tmp_path):
-    """Verify migration 004 creates conviction_scores indexes and unique key."""
+    """Verify migration 004 creates conviction_scores columns, indexes, and unique constraint."""
     monkeypatch.delenv("DB_URL", raising=False)
     db_path = tmp_path / "schema.db"
     config = _alembic_config(f"sqlite:///{db_path}")
@@ -139,19 +139,29 @@ def test_conviction_scores_schema_objects(monkeypatch, tmp_path):
             row[1]: row[2].upper()
             for row in conn.execute("PRAGMA table_info('conviction_scores')").fetchall()
         }
-        assert columns["score_id"] == "BIGINT"
+        # SQLite maps BigInteger → BIGINT; Integer → INTEGER (used for SQLite PK variant)
+        assert columns["score_id"] in ("BIGINT", "INTEGER")
         assert columns["manager_id"] == "BIGINT"
         assert columns["filing_id"] == "BIGINT"
         assert columns["cusip"] == "TEXT"
         assert columns["conviction_pct"].startswith("NUMERIC")
         assert columns["portfolio_weight"].startswith("NUMERIC")
 
-        indexes = {
-            row[1] for row in conn.execute("PRAGMA index_list('conviction_scores')").fetchall()
-        }
+        index_rows = conn.execute("PRAGMA index_list('conviction_scores')").fetchall()
+        indexes = {row[1] for row in index_rows}
         assert "idx_conviction_manager" in indexes
         assert "idx_conviction_cusip" in indexes
         assert "idx_conviction_pct" in indexes
+
+        # Verify the (filing_id, cusip) unique constraint exists
+        unique_indexes = {row[1] for row in index_rows if row[2] == 1}  # row[2] is the unique flag
+        assert unique_indexes, "Expected at least one unique index on conviction_scores"
+        unique_index_name = next(iter(unique_indexes))
+        unique_cols = {
+            row[2]
+            for row in conn.execute(f"PRAGMA index_info('{unique_index_name}')").fetchall()
+        }
+        assert unique_cols == {"filing_id", "cusip"}
 
 
 def test_analytics_indexes_exist(monkeypatch, tmp_path):
