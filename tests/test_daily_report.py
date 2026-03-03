@@ -6,6 +6,9 @@ import streamlit as st
 
 from ui.daily_report import (
     format_news_table,
+    format_percent_change,
+    format_shares_delta,
+    format_value_delta,
     headline_markdown,
     load_diffs,
     load_news,
@@ -54,7 +57,8 @@ def test_load_diffs_and_news(tmp_path, monkeypatch):
     diffs = load_diffs("2024-05-01")
     news = load_news("2024-05-01")
     assert len(diffs) == 2
-    assert set(diffs["change"]) == {"ADD", "EXIT"}
+    assert set(diffs["delta_type"]) == {"ADD", "EXIT"}
+    assert set(diffs["manager_name"]) == {"0"}
     assert len(news) == 2
     assert "manager_name" in news.columns
     assert set(news["manager_name"]) == {"Manager One", "Manager Two"}
@@ -92,3 +96,23 @@ def test_headline_markdown():
     link = headline_markdown("Deal [Update]", "https://example.com/news(item)")
     assert link == "[Deal \\[Update\\]](<https://example.com/news(item)>)"
     assert headline_markdown("No URL", "") == "No URL"
+
+
+def test_format_shares_delta_arrows():
+    assert format_shares_delta(1000, 2500) == "<span style='color:green;'>↑ +1,500</span>"
+    assert format_shares_delta(3000, 2200) == "<span style='color:red;'>↓ -800</span>"
+    assert format_shares_delta(1500, 1500) == "<span style='color:#666;'>→ 0</span>"
+    assert format_shares_delta(None, 1500) == "<span style='color:green;'>↑ +1,500</span>"
+    assert format_shares_delta(800, None) == "<span style='color:red;'>↓ -800</span>"
+    assert format_shares_delta(None, None) == "<span style='color:#666;'>-</span>"
+
+
+def test_format_value_and_percent_delta():
+    assert format_value_delta(1000, 1300) == "<span style='color:green;'>↑ +$300.00</span>"
+    assert format_value_delta(1000, 800) == "<span style='color:red;'>↓ -$200.00</span>"
+    assert format_value_delta(None, None) == "<span style='color:#666;'>-</span>"
+
+    assert format_percent_change(1000, 1250) == "<span style='color:green;'>+25.0%</span>"
+    assert format_percent_change(1000, 750) == "<span style='color:red;'>-25.0%</span>"
+    assert format_percent_change(0, 200) == "<span style='color:#666;'>n/a</span>"
+    assert format_percent_change(None, None) == "<span style='color:#666;'>-</span>"

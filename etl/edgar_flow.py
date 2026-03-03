@@ -18,9 +18,15 @@ try:
     from embeddings import store_document
 except ModuleNotFoundError:
 
-    def store_document(text: str, db_path: str | None = None) -> None:
-        _ = (text, db_path)
-        return
+    def store_document(
+        text: str,
+        db_path: str | None = None,
+        manager_id: int | None = None,
+        kind: str = "note",
+        filename: str | None = None,
+    ) -> int:
+        _ = (text, db_path, manager_id, kind, filename)
+        return 0
 
 
 RAW_DIR = ingest_module.RAW_DIR

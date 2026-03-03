@@ -152,6 +152,9 @@ BEGIN
 END
 $$;
 
+CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx
+    ON mv_daily_report (report_date, manager_id, cusip, delta_type);
+
 DO $$
 BEGIN
   IF NOT EXISTS (

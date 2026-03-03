@@ -1,6 +1,8 @@
 import datetime as dt
 import html
+import logging
 import sqlite3
+import time
 
 import pandas as pd
 import streamlit as st
@@ -9,13 +11,36 @@ from adapters.base import connect_db
 
 from . import require_login
 
+logger = logging.getLogger(__name__)
+
 
 @st.cache_data(show_spinner=False)
 def load_diffs(date: str) -> pd.DataFrame:
+    started = time.perf_counter()
     conn = connect_db()
-    query = "SELECT cik, cusip, change FROM daily_diff WHERE date = ?"
-    df = pd.read_sql_query(query, conn, params=(date,))
+    is_sqlite = isinstance(conn, sqlite3.Connection)
+    placeholder = "?" if is_sqlite else "%s"
+    view_query = f"""SELECT manager_name, cusip, name_of_issuer, delta_type,
+         shares_prev, shares_curr, value_prev, value_curr
+  FROM mv_daily_report
+  WHERE report_date = {placeholder}
+  ORDER BY manager_name, delta_type"""
+    fallback_query = f"""SELECT cik AS manager_name, cusip, '' AS name_of_issuer, change AS delta_type,
+         NULL AS shares_prev, NULL AS shares_curr, NULL AS value_prev, NULL AS value_curr
+  FROM daily_diff
+  WHERE date = {placeholder}
+  ORDER BY manager_name, delta_type"""
+    try:
+        df = pd.read_sql_query(view_query, conn, params=(date,))
+    except Exception as exc:
+        if is_sqlite and "no such table" in str(exc).lower() and "mv_daily_report" in str(exc):
+            df = pd.read_sql_query(fallback_query, conn, params=(date,))
+        else:
+            conn.close()
+            raise
     conn.close()
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    logger.info("daily_report.load_diffs completed", extra={"date": date, "elapsed_ms": elapsed_ms})
     return df
 
 
@@ -112,6 +137,53 @@ def headline_markdown(headline: object, url: object) -> str:
     return f"[{text}](<{raw_url}>)"
 
 
+def format_shares_delta(shares_prev: object, shares_curr: object) -> str:
+    prev = pd.to_numeric(pd.Series([shares_prev]), errors="coerce").iloc[0]
+    curr = pd.to_numeric(pd.Series([shares_curr]), errors="coerce").iloc[0]
+    if pd.isna(prev) and pd.isna(curr):
+        return "<span style='color:#666;'>-</span>"
+    prev_value = 0 if pd.isna(prev) else prev
+    curr_value = 0 if pd.isna(curr) else curr
+    delta = int(round(curr_value - prev_value))
+    if delta > 0:
+        return f"<span style='color:green;'>↑ +{delta:,}</span>"
+    if delta < 0:
+        return f"<span style='color:red;'>↓ {delta:,}</span>"
+    return "<span style='color:#666;'>→ 0</span>"
+
+
+def format_value_delta(value_prev: object, value_curr: object) -> str:
+    prev = pd.to_numeric(pd.Series([value_prev]), errors="coerce").iloc[0]
+    curr = pd.to_numeric(pd.Series([value_curr]), errors="coerce").iloc[0]
+    if pd.isna(prev) and pd.isna(curr):
+        return "<span style='color:#666;'>-</span>"
+    prev_value = 0.0 if pd.isna(prev) else float(prev)
+    curr_value = 0.0 if pd.isna(curr) else float(curr)
+    delta = curr_value - prev_value
+    if delta > 0:
+        return f"<span style='color:green;'>↑ +${delta:,.2f}</span>"
+    if delta < 0:
+        return f"<span style='color:red;'>↓ -${abs(delta):,.2f}</span>"
+    return "<span style='color:#666;'>→ $0.00</span>"
+
+
+def format_percent_change(value_prev: object, value_curr: object) -> str:
+    prev = pd.to_numeric(pd.Series([value_prev]), errors="coerce").iloc[0]
+    curr = pd.to_numeric(pd.Series([value_curr]), errors="coerce").iloc[0]
+    if pd.isna(prev) and pd.isna(curr):
+        return "<span style='color:#666;'>-</span>"
+    prev_value = 0.0 if pd.isna(prev) else float(prev)
+    curr_value = 0.0 if pd.isna(curr) else float(curr)
+    if prev_value == 0:
+        return "<span style='color:#666;'>n/a</span>"
+    pct = ((curr_value - prev_value) / prev_value) * 100
+    if pct > 0:
+        return f"<span style='color:green;'>+{pct:.1f}%</span>"
+    if pct < 0:
+        return f"<span style='color:red;'>{pct:.1f}%</span>"
+    return "<span style='color:#666;'>0.0%</span>"
+
+
 def main():
     if not require_login():
         st.stop()
@@ -120,15 +192,52 @@ def main():
     tab1, tab2 = st.tabs(["Filings & Diffs", "News Pulse"])
     with tab1:
         df = load_diffs(date_str)
-        # map change to coloured arrows for on-screen table
-        arrow = {
-            "ADD": "<span style='color:green'>&uarr;</span>",
-            "EXIT": "<span style='color:red'>&darr;</span>",
-        }
-        df["Δ"] = df["change"].map(arrow)
-        html = df[["cik", "cusip", "Δ"]].to_html(escape=False, index=False)
+        total_managers = df.get("manager_name", pd.Series(dtype=object)).nunique()
+        total_rows = len(df)
+        adds = int((df.get("delta_type") == "ADD").sum()) if "delta_type" in df.columns else 0
+        exits = int((df.get("delta_type") == "EXIT").sum()) if "delta_type" in df.columns else 0
+        increases = (
+            int((df.get("delta_type") == "INCREASE").sum()) if "delta_type" in df.columns else 0
+        )
+        decreases = (
+            int((df.get("delta_type") == "DECREASE").sum()) if "delta_type" in df.columns else 0
+        )
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric("Managers w/ changes", f"{total_managers:,}", delta=f"{total_rows:,} positions")
+        col2.metric(
+            "Added",
+            f"{adds:,}",
+            delta=f"{(adds / total_rows * 100):.1f}%" if total_rows else "0.0%",
+        )
+        col3.metric(
+            "Exited",
+            f"{exits:,}",
+            delta=f"{(exits / total_rows * 100):.1f}%" if total_rows else "0.0%",
+        )
+        col4.metric(
+            "Increased",
+            f"{increases:,}",
+            delta=f"{(increases / total_rows * 100):.1f}%" if total_rows else "0.0%",
+        )
+        col5.metric(
+            "Decreased",
+            f"{decreases:,}",
+            delta=f"{(decreases / total_rows * 100):.1f}%" if total_rows else "0.0%",
+        )
+        df["Shares Δ"] = df.apply(
+            lambda row: format_shares_delta(row.get("shares_prev"), row.get("shares_curr")), axis=1
+        )
+        df["Value Δ"] = df.apply(
+            lambda row: format_value_delta(row.get("value_prev"), row.get("value_curr")), axis=1
+        )
+        df["% Δ"] = df.apply(
+            lambda row: format_percent_change(row.get("value_prev"), row.get("value_curr")), axis=1
+        )
+        html = df[
+            ["manager_name", "cusip", "name_of_issuer", "Shares Δ", "Value Δ", "% Δ"]
+        ].to_html(escape=False, index=False)
         st.markdown(html, unsafe_allow_html=True)
-        csv = df[["cik", "cusip", "change"]].to_csv(index=False).encode("utf-8")
+        csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, file_name=f"diff_{date_str}.csv", mime="text/csv")
     with tab2:
         news = load_news(date_str)

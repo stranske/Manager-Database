@@ -110,7 +110,11 @@ def _refresh_matview(conn: Any) -> None:
     """Refresh the mv_daily_report materialized view (Postgres only)."""
     if _is_postgres(conn):
         try:
-            conn.execute("REFRESH MATERIALIZED VIEW mv_daily_report")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx "
+                "ON mv_daily_report (report_date, manager_id, cusip, delta_type)"
+            )
+            conn.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_report")
         except Exception as exc:
             # Only suppress "does not exist" errors (fresh environments
             # without the Alembic migration applied); re-raise real failures.

@@ -271,6 +271,10 @@ def test_daily_diff_flow_refreshes_matview_on_postgres(monkeypatch):
     assert "SELECT 1 FROM daily_diffs LIMIT 1" in executed_sql
     assert "BEGIN" in executed_sql
     assert "COMMIT" in executed_sql
-    assert "REFRESH MATERIALIZED VIEW mv_daily_report" in executed_sql
+    assert (
+        "CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx "
+        "ON mv_daily_report (report_date, manager_id, cusip, delta_type)"
+    ) in executed_sql
+    assert "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_report" in executed_sql
     assert all("AUTOINCREMENT" not in sql for sql in executed_sql)
     assert all("CREATE TABLE IF NOT EXISTS daily_diffs" not in sql for sql in executed_sql)
