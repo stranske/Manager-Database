@@ -16,12 +16,6 @@ from . import require_login
 logger = logging.getLogger(__name__)
 
 
-
-def save_note(content: str, filename: str) -> int:
-    """Backward-compatible helper for tests and legacy callers."""
-    return store_document(content, kind=_kind_for_filename(filename), filename=filename)
-
-
 def _get_max_upload_bytes() -> int:
     raw = os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)).strip()
     try:
