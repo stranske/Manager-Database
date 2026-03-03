@@ -243,6 +243,14 @@ class HoldingsAnalysisChain:
             reason = result.get("reason") or "prompt injection detected"
             raise ValueError(f"Prompt injection blocked: {reason}")
 
+    def _guard_prompt_inputs(self, payload: dict[str, Any]) -> None:
+        guard_targets = [payload.get("question"), payload.get("data_context")]
+        for raw in guard_targets:
+            result = check_prompt_injection(raw)
+            if result["blocked"]:
+                reason = result.get("reason") or "prompt injection detected"
+                raise ValueError(f"Prompt injection blocked: {reason}")
+
     def _parse_analysis(self, output_text: str, question: str) -> HoldingsAnalysis:
         payload = self._extract_json_text(output_text)
         if payload:
@@ -331,6 +339,7 @@ class HoldingsAnalysisChain:
                 HoldingsAnalysis.model_json_schema(), default=self._json_default
             ),
         }
+        self._guard_prompt_inputs(payload)
 
         started = time.perf_counter()
         output_text = ""
