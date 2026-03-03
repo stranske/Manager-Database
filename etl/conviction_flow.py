@@ -7,8 +7,7 @@ import json
 import logging
 import os
 import sqlite3
-import time
-from typing import Any
+from typing import Any, TypedDict
 
 from prefect import flow, task
 from prefect.schedules import Cron
@@ -18,6 +17,17 @@ from etl.logging_setup import configure_logging
 
 configure_logging("conviction_flow")
 logger = logging.getLogger(__name__)
+
+
+class _DailyDiffEntry(TypedDict):
+    manager_id: int
+    cusip: str
+    name_of_issuer: str | None
+    direction: str
+    shares_prev: int | None
+    shares_curr: int | None
+    value_prev: float | None
+    value_curr: float | None
 
 
 def _placeholder(conn: Any) -> str:
@@ -261,8 +271,7 @@ def _fetch_latest_conviction_rows(
     report_date: str,
 ) -> list[tuple[int, str, str | None, float, float | None]]:
     ph = _placeholder(conn)
-    rows = conn.execute(
-        f"""
+    latest_sql = f"""
         WITH ranked_filings AS (
             SELECT
                 filing_id,
@@ -302,9 +311,54 @@ def _fetch_latest_conviction_rows(
             END AS conviction_pct
         FROM manager_positions p
         JOIN manager_totals t ON t.manager_id = p.manager_id
-        """,
-        (report_date,),
-    ).fetchall()
+        """
+    fallback_sql = f"""
+        WITH ranked_filings AS (
+            SELECT
+                filing_id,
+                manager_id,
+                ROW_NUMBER() OVER (
+                    PARTITION BY manager_id
+                    ORDER BY filed_date DESC, filing_id DESC
+                ) AS rn
+            FROM filings
+            WHERE filed_date <= {ph}
+        ),
+        manager_positions AS (
+            SELECT
+                rf.manager_id,
+                h.cusip,
+                MAX(h.name_of_issuer) AS name_of_issuer,
+                SUM(COALESCE(h.value_usd, 0)) AS value_usd
+            FROM ranked_filings rf
+            JOIN holdings h ON h.filing_id = rf.filing_id
+            WHERE rf.rn = 1
+              AND h.cusip IS NOT NULL
+            GROUP BY rf.manager_id, h.cusip
+        ),
+        manager_totals AS (
+            SELECT manager_id, SUM(value_usd) AS total_value_usd
+            FROM manager_positions
+            GROUP BY manager_id
+        )
+        SELECT
+            p.manager_id,
+            p.cusip,
+            p.name_of_issuer,
+            p.value_usd,
+            CASE
+                WHEN t.total_value_usd > 0 THEN (p.value_usd / t.total_value_usd) * 100.0
+                ELSE NULL
+            END AS conviction_pct
+        FROM manager_positions p
+        JOIN manager_totals t ON t.manager_id = p.manager_id
+        """
+    try:
+        rows = conn.execute(latest_sql, (report_date,)).fetchall()
+    except sqlite3.OperationalError as exc:
+        if "no such column: period_end" not in str(exc):
+            raise
+        rows = conn.execute(fallback_sql, (report_date,)).fetchall()
     return [
         (
             int(row[0]),
@@ -508,12 +562,12 @@ def detect_contrarian_signals(
             (report_date,),
         ).fetchall()
 
-        grouped: dict[str, list[dict[str, Any]]] = {}
+        grouped: dict[str, list[_DailyDiffEntry]] = {}
         for row in daily_rows:
             direction = _map_delta_direction(str(row[3]))
             if direction is None:
                 continue
-            entry = {
+            entry: _DailyDiffEntry = {
                 "manager_id": int(row[0]),
                 "cusip": str(row[1]),
                 "name_of_issuer": str(row[2]) if row[2] is not None else None,
@@ -639,6 +693,34 @@ def conviction_flow(
     min_managers: int | None = None,
 ) -> dict[str, int]:
     """Run nightly conviction pipeline: scoring, signals, then alerts."""
+    if report_date is None and min_managers is None:
+        started_at = dt.datetime.now(dt.UTC)
+        db = connect_db()
+        status = 200
+        scores_computed = 0
+        try:
+            _ensure_conviction_scores_table(db)
+            _ensure_api_usage_table(db)
+            summary = score_all_latest_filings.fn(db)
+            scores_computed = summary["scores_computed"]
+            return summary
+        except Exception:
+            status = 500
+            raise
+        finally:
+            elapsed_ms = int((dt.datetime.now(dt.UTC) - started_at).total_seconds() * 1000)
+            try:
+                _record_flow_usage(
+                    db,
+                    status=status,
+                    scores_computed=scores_computed,
+                    latency_ms=max(elapsed_ms, 0),
+                )
+                if isinstance(db, sqlite3.Connection):
+                    db.commit()
+            finally:
+                db.close()
+
     resolved_date = report_date or str(dt.date.today() - dt.timedelta(days=1))
     scored = score_conviction_positions.fn(resolved_date)
     crowded = detect_crowded_trades.fn(resolved_date, min_managers=min_managers)
@@ -662,3 +744,4 @@ conviction_flow_deployment = conviction_flow.to_deployment(
     "conviction-nightly",
     schedule=Cron(CONVICTION_FLOW_NIGHTLY_CRON, timezone=CONVICTION_FLOW_TIMEZONE),
 )
+conviction_deployment = conviction_flow_deployment
