@@ -49,7 +49,7 @@ class _MockDB:
 
 
 def _make_chain(db: _MockDB) -> FilingSummaryChain:
-    llm = RunnableLambda(lambda _payload: "{}")
+    llm: Any = RunnableLambda(lambda _payload: "{}")
     client_info = ClientInfo(client=llm, provider="test-provider", model="test-model")
     return FilingSummaryChain(client_info=client_info, db_conn=db)
 

@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -80,10 +80,10 @@ def langsmith_tracing_context(name: str, inputs: dict[str, Any] | None = None):
 
 class FilingSummaryChain:
     def __init__(self, client_info: ClientInfo, db_conn: Any):
-        self.llm = client_info.client
+        self.llm: Any = client_info.client
         self.db = db_conn
         self._provider_label = client_info.provider_label
-        self.chain = FILING_SUMMARY_TEMPLATE | self.llm | StrOutputParser()
+        self.chain = cast(Any, FILING_SUMMARY_TEMPLATE) | cast(Any, self.llm) | StrOutputParser()
         self._structured_chain = self._build_structured_chain()
 
     def _build_structured_chain(self):
@@ -91,7 +91,9 @@ class FilingSummaryChain:
         if not callable(with_structured_output):
             return None
         try:
-            return FILING_SUMMARY_TEMPLATE | with_structured_output(FilingSummary)
+            return cast(Any, FILING_SUMMARY_TEMPLATE) | cast(
+                Any, with_structured_output(FilingSummary)
+            )
         except Exception:
             return None
 
@@ -399,12 +401,12 @@ class FilingSummaryChain:
         parsed_result: FilingSummary | None = None
         output_text = ""
         status = 0
-        config = build_langsmith_metadata(operation="filing-summary")
+        config: Any = build_langsmith_metadata(operation="filing-summary")
 
         with langsmith_tracing_context(name="filing-summary", inputs={"filing_id": filing_id}):
             if self._structured_chain is not None:
                 try:
-                    structured = self._structured_chain.invoke(template_vars, config=config)
+                    structured = self._structured_chain.invoke(template_vars, config=cast(Any, config))
                     parsed_result = FilingSummary.model_validate(structured)
                     output_text = parsed_result.model_dump_json()
                     status = 1
@@ -412,7 +414,7 @@ class FilingSummaryChain:
                     parsed_result = None
 
             if parsed_result is None:
-                output_text = self.chain.invoke(template_vars, config=config)
+                output_text = self.chain.invoke(template_vars, config=cast(Any, config))
                 parsed_result = self._parse_summary_from_text(output_text, template_vars)
                 status = 1
 
