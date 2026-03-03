@@ -406,7 +406,9 @@ class FilingSummaryChain:
         with langsmith_tracing_context(name="filing-summary", inputs={"filing_id": filing_id}):
             if self._structured_chain is not None:
                 try:
-                    structured = self._structured_chain.invoke(template_vars, config=cast(Any, config))
+                    structured = self._structured_chain.invoke(
+                        template_vars, config=cast(Any, config)
+                    )
                     parsed_result = FilingSummary.model_validate(structured)
                     output_text = parsed_result.model_dump_json()
                     status = 1

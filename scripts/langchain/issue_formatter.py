@@ -18,7 +18,9 @@ from pathlib import Path
 from typing import Any, cast
 
 try:
-    check_prompt_injection = import_module("scripts.langchain.injection_guard").check_prompt_injection
+    check_prompt_injection = import_module(
+        "scripts.langchain.injection_guard"
+    ).check_prompt_injection
 except ImportError:  # pragma: no cover - fallback for direct invocation
     check_prompt_injection = import_module("injection_guard").check_prompt_injection
 
