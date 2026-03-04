@@ -34,6 +34,7 @@ dev = [
     "ruff==0.15.1",
     "pre-commit",
     "mypy==1.19.1",
+    "langchain-core",
     "types-PyYAML",
     "coverage==7.13.4",
     "referencing",

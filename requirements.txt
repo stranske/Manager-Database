@@ -15,6 +15,7 @@ streamlit-authenticator
 altair
 mypy
 coverage
+langchain-core
 # Prefect requires newer FastAPI; avoid conflicting pin.
 fastapi
 uvicorn
