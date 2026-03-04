@@ -231,6 +231,33 @@ def test_run_falls_back_to_json_parser_when_structured_output_fails() -> None:
     assert result.risk_flags == ["Concentrated top-10"]
 
 
+def test_run_recovers_partial_json_when_validation_fails() -> None:
+    db, _, holdings_rows = _build_db_for_filing(holdings_count=3, include_diffs=True)
+    llm = _FailingStructuredLLM(
+        fallback_text=json.dumps(
+            {
+                "manager_name": "Alpha Capital",
+                "filing_date": "2026-02-14",
+                "total_positions": "invalid-type",
+                "total_aum_estimate": "$30.00M",
+                "notable_changes": ["Custom notable change from model"],
+                "risk_flags": ["Custom risk flag"],
+            }
+        )
+    )
+    chain = _make_chain(db, llm=llm)
+
+    result = chain.run(1001)
+
+    assert result.manager_name == "Alpha Capital"
+    assert result.total_positions == 3
+    assert result.total_aum_estimate == "$30.00M"
+    assert result.notable_changes == ["Custom notable change from model"]
+    assert result.risk_flags == ["Custom risk flag"]
+    assert len(result.key_positions) == 3
+    assert result.key_positions[0]["cusip"] == holdings_rows[0]["cusip"]
+
+
 def test_run_with_realish_data_uses_fallback_summary_when_llm_unstructured() -> None:
     db, _, holdings_rows = _build_db_for_filing(holdings_count=20, include_diffs=True)
     llm: RunnableLambda[Any, str] = RunnableLambda(lambda _payload: "This is not JSON")

@@ -163,6 +163,22 @@ class FilingSummaryChain:
         return None
 
     @staticmethod
+    def _coerce_str_list(raw: Any) -> list[str]:
+        if not isinstance(raw, list):
+            return []
+        return [str(item) for item in raw if item is not None]
+
+    @staticmethod
+    def _coerce_dict_list(raw: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw, list):
+            return []
+        result: list[dict[str, Any]] = []
+        for item in raw:
+            if isinstance(item, dict):
+                result.append(item)
+        return result
+
+    @staticmethod
     def _format_holdings_table(holdings: list[dict[str, Any]]) -> str:
         if not holdings:
             return "(no holdings found)"
@@ -320,6 +336,7 @@ class FilingSummaryChain:
                 raise ValueError(f"Prompt injection blocked: {reason}")
 
     def _parse_summary_from_text(self, text: str, fallback_data: dict[str, Any]) -> FilingSummary:
+        decoded_payload: dict[str, Any] = {}
         payload = self._extract_json_text(text)
         if payload:
             try:
@@ -328,6 +345,12 @@ class FilingSummaryChain:
                 pass
             except Exception:
                 pass
+            try:
+                decoded = json.loads(payload)
+                if isinstance(decoded, dict):
+                    decoded_payload = decoded
+            except Exception:
+                decoded_payload = {}
 
         diffs = list(fallback_data.get("diffs") or [])
         notable_changes = []
@@ -347,6 +370,15 @@ class FilingSummaryChain:
             }
             for item in fallback_data.get("top_holdings", [])[:10]
         ]
+        parsed_key_positions = self._coerce_dict_list(decoded_payload.get("key_positions"))
+        if parsed_key_positions:
+            top_positions = parsed_key_positions
+
+        sector_totals: dict[str, float] = {}
+        for item in fallback_data.get("top_holdings", []):
+            sector = str(item.get("sector") or "Unknown")
+            value = float(item.get("value_usd") or 0)
+            sector_totals[sector] = sector_totals.get(sector, 0.0) + value
 
         total_value = float(fallback_data.get("total_value_usd") or 0)
         top_10_value = sum(position["value_usd"] for position in top_positions[:10])
@@ -354,6 +386,21 @@ class FilingSummaryChain:
             (top_positions[0]["value_usd"] / total_value) if top_positions and total_value else 0
         )
         top_10_weight = (top_10_value / total_value) if total_value else 0
+        sector_concentration = [
+            {
+                "sector": sector,
+                "value_usd": value,
+                "weight": (value / total_value) if total_value else 0.0,
+            }
+            for sector, value in sorted(
+                sector_totals.items(), key=lambda entry: entry[1], reverse=True
+            )
+        ][:10]
+        parsed_sector_concentration = self._coerce_dict_list(
+            decoded_payload.get("sector_concentration")
+        )
+        if parsed_sector_concentration:
+            sector_concentration = parsed_sector_concentration
 
         risk_flags: list[str] = []
         if top_1_weight >= 0.5:
@@ -361,17 +408,40 @@ class FilingSummaryChain:
         if top_10_weight >= 0.8 and len(top_positions) >= 5:
             risk_flags.append("Top-10 positions exceed 80% of reported value.")
         risk_flags.append("LLM response parsing fallback used.")
+        parsed_risk_flags = self._coerce_str_list(decoded_payload.get("risk_flags"))
+        if parsed_risk_flags:
+            risk_flags = parsed_risk_flags
 
+        parsed_notable_changes = self._coerce_str_list(decoded_payload.get("notable_changes"))
+        if parsed_notable_changes:
+            notable_changes = parsed_notable_changes
+
+        total_positions = fallback_data.get("total_positions") or 0
+        parsed_total_positions = decoded_payload.get("total_positions")
+        if isinstance(parsed_total_positions, int):
+            total_positions = parsed_total_positions
+
+        total_aum_estimate = self._format_currency_human(total_value)
+        parsed_total_aum_estimate = decoded_payload.get("total_aum_estimate")
+        if isinstance(parsed_total_aum_estimate, str) and parsed_total_aum_estimate.strip():
+            total_aum_estimate = parsed_total_aum_estimate
+
+        manager_name = str(
+            decoded_payload.get("manager_name")
+            or fallback_data.get("manager_name")
+            or "Unknown Manager"
+        )
+        filing_date = str(
+            decoded_payload.get("filing_date") or fallback_data.get("filing_date") or "unknown"
+        )
         return FilingSummary(
-            manager_name=str(fallback_data.get("manager_name") or "Unknown Manager"),
-            filing_date=str(fallback_data.get("filing_date") or "unknown"),
-            total_positions=int(fallback_data.get("total_positions") or 0),
-            total_aum_estimate=self._format_currency_human(
-                float(fallback_data.get("total_value_usd") or 0)
-            ),
+            manager_name=manager_name,
+            filing_date=filing_date,
+            total_positions=int(total_positions),
+            total_aum_estimate=total_aum_estimate,
             key_positions=top_positions,
             notable_changes=notable_changes,
-            sector_concentration=[],
+            sector_concentration=sector_concentration,
             risk_flags=risk_flags,
         )
 
