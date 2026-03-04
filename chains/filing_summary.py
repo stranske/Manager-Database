@@ -326,6 +326,8 @@ class FilingSummaryChain:
     def _guard_prompt_inputs(self, payload: dict[str, Any]) -> None:
         guard_targets = [
             payload.get("manager_name"),
+            payload.get("filing_date"),
+            payload.get("period_end"),
             payload.get("top_holdings_table"),
             payload.get("delta_summary"),
         ]

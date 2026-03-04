@@ -252,21 +252,55 @@ class HoldingsAnalysisChain:
                 raise ValueError(f"Prompt injection blocked: {reason}")
 
     def _parse_analysis(self, output_text: str, question: str) -> HoldingsAnalysis:
+        decoded_payload: dict[str, Any] = {}
         payload = self._extract_json_text(output_text)
         if payload:
             try:
                 return HoldingsAnalysis.model_validate_json(payload)
             except ValidationError:
-                pass
+                try:
+                    decoded = json.loads(payload)
+                    if isinstance(decoded, dict):
+                        decoded_payload = decoded
+                except Exception:
+                    decoded_payload = {}
             except Exception:
                 pass
 
+        thesis = decoded_payload.get("thesis")
+        if not isinstance(thesis, str) or not thesis.strip():
+            thesis = f"Unable to parse structured response for question: {question}"
+
+        top_positions = decoded_payload.get("top_positions")
+        if not isinstance(top_positions, list):
+            top_positions = []
+        else:
+            top_positions = [item for item in top_positions if isinstance(item, dict)]
+
+        period_changes = decoded_payload.get("period_changes")
+        if not isinstance(period_changes, list):
+            period_changes = []
+        else:
+            period_changes = [item for item in period_changes if isinstance(item, dict)]
+
+        overlap = decoded_payload.get("cross_manager_overlap")
+        if overlap is None:
+            cross_manager_overlap = None
+        elif isinstance(overlap, list):
+            cross_manager_overlap = [item for item in overlap if isinstance(item, dict)]
+        else:
+            cross_manager_overlap = None
+
+        concentration_metrics = decoded_payload.get("concentration_metrics")
+        if not isinstance(concentration_metrics, dict):
+            concentration_metrics = {}
+
         return HoldingsAnalysis(
-            thesis=f"Unable to parse structured response for question: {question}",
-            top_positions=[],
-            period_changes=[],
-            cross_manager_overlap=None,
-            concentration_metrics={},
+            thesis=thesis,
+            top_positions=top_positions,
+            period_changes=period_changes,
+            cross_manager_overlap=cross_manager_overlap,
+            concentration_metrics=concentration_metrics,
         )
 
     def _log_usage(self, *, question: str, output_text: str, latency_ms: int, status: int) -> None:
