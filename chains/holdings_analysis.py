@@ -246,13 +246,37 @@ class HoldingsAnalysisChain:
             where_params.extend([date_range[0], date_range[1]])
         where_sql = " AND ".join(where_parts) if where_parts else "1=1"
 
+        diff_attempts: list[tuple[str, tuple[Any, ...]]] = []
+        diff_where_parts = list(where_parts)
+        diff_where_params = list(where_params)
+        if cusips:
+            in_sql = ", ".join([placeholder] * len(cusips))
+            diff_where_parts.append(f"cusip IN ({in_sql})")
+            diff_where_params.extend(cusips)
+        diff_where_sql = " AND ".join(diff_where_parts) if diff_where_parts else "1=1"
+        diff_attempts.append((diff_where_sql, tuple(diff_where_params)))
+
+        # Some environments expose daily_diffs without a CUSIP column.
+        if cusips:
+            relaxed_attempt = (where_sql, tuple(where_params))
+            if relaxed_attempt not in diff_attempts:
+                diff_attempts.append(relaxed_attempt)
+
         try:
-            diff_query = (
-                "SELECT * FROM daily_diffs "
-                f"WHERE {where_sql} "
-                "ORDER BY report_date DESC, value_curr DESC LIMIT 100"
-            )
-            diffs = self._execute_fetchall(diff_query, tuple(where_params))
+            diffs: list[dict[str, Any]] = []
+            for diff_where, diff_params in diff_attempts:
+                diff_query = (
+                    "SELECT * FROM daily_diffs "
+                    f"WHERE {diff_where} "
+                    "ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+                )
+                try:
+                    diffs = self._execute_fetchall(diff_query, diff_params)
+                    break
+                except Exception as exc:
+                    if self._is_missing_column_error(exc):
+                        continue
+                    raise
             sections.extend(["", "Changes:", format_delta_summary(diffs)])
         except Exception:
             sections.extend(["", "Changes:", "No prior-period changes available."])

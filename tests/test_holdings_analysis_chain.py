@@ -101,7 +101,7 @@ def test_build_data_context_with_filters() -> None:
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE manager_id IN (%s, %s) AND report_date BETWEEN %s "
-        "AND %s ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+        "AND %s AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
     )
     conviction_query = (
         "SELECT * FROM conviction_scores WHERE manager_id IN (%s, %s) AND report_date BETWEEN "
@@ -122,7 +122,7 @@ def test_build_data_context_with_filters() -> None:
                     "value_usd": 250_000.0,
                 }
             ],
-            (daily_diffs_query, (1, 2, range_start, range_end)): [
+            (daily_diffs_query, (1, 2, range_start, range_end, "037833100")): [
                 {
                     "delta_type": "INCREASE",
                     "name_of_issuer": "APPLE INC",
@@ -167,6 +167,72 @@ def test_build_data_context_falls_back_to_cusip_only_for_crowded_trades() -> Non
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE manager_id IN (%s, %s) AND report_date BETWEEN %s "
+        "AND %s AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE manager_id IN (%s, %s) AND report_date BETWEEN "
+        "%s AND %s ORDER BY report_date DESC, conviction_score DESC LIMIT 50"
+    )
+    full_overlap_query = (
+        "SELECT * FROM crowded_trades WHERE manager_id IN (%s, %s) AND cusip IN (%s) "
+        "AND report_date BETWEEN %s AND %s ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+    )
+    fallback_overlap_query = (
+        "SELECT * FROM crowded_trades WHERE cusip IN (%s) ORDER BY holder_count DESC, "
+        "total_value_usd DESC LIMIT 50"
+    )
+
+    cursor = _MockCursor(
+        {
+            (holdings_query, (1, 2, "037833100", range_start, range_end)): [
+                {
+                    "name_of_issuer": "APPLE INC",
+                    "cusip": "037833100",
+                    "shares": 1000,
+                    "value_usd": 250_000.0,
+                }
+            ],
+            (daily_diffs_query, (1, 2, range_start, range_end, "037833100")): [],
+            (conviction_query, (1, 2, range_start, range_end)): [],
+            (fallback_overlap_query, ("037833100",)): [{"cusip": "037833100", "holder_count": 5}],
+        },
+        errors={
+            (full_overlap_query, (1, 2, "037833100", range_start, range_end)): (
+                sqlite3.OperationalError("no such column: manager_id")
+            )
+        },
+    )
+    chain = _make_chain(_MockDB(cursor), RunnableLambda(lambda _payload: "{}"))
+
+    context = chain._build_data_context(
+        manager_ids=manager_ids, cusips=cusips, date_range=(range_start, range_end)
+    )
+
+    assert "Cross-Manager Overlap:" in context
+    assert (full_overlap_query, (1, 2, "037833100", range_start, range_end)) in cursor.calls
+    assert (fallback_overlap_query, ("037833100",)) in cursor.calls
+
+
+def test_build_data_context_falls_back_when_daily_diffs_has_no_cusip_column() -> None:
+    manager_ids = [1, 2]
+    cusips = ["037833100"]
+    range_start = date(2025, 10, 1)
+    range_end = date(2025, 12, 31)
+
+    holdings_query = (
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE f.manager_id IN (%s, %s) AND h.cusip IN (%s) "
+        "AND COALESCE(f.period_end, f.filed_date) BETWEEN %s AND %s "
+        "ORDER BY COALESCE(f.period_end, f.filed_date) DESC, h.value_usd DESC LIMIT 200"
+    )
+    full_daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE manager_id IN (%s, %s) AND report_date BETWEEN %s "
+        "AND %s AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    fallback_daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE manager_id IN (%s, %s) AND report_date BETWEEN %s "
         "AND %s ORDER BY report_date DESC, value_curr DESC LIMIT 100"
     )
     conviction_query = (
@@ -192,14 +258,24 @@ def test_build_data_context_falls_back_to_cusip_only_for_crowded_trades() -> Non
                     "value_usd": 250_000.0,
                 }
             ],
-            (daily_diffs_query, (1, 2, range_start, range_end)): [],
+            (fallback_daily_diffs_query, (1, 2, range_start, range_end)): [
+                {
+                    "delta_type": "INCREASE",
+                    "name_of_issuer": "APPLE INC",
+                    "value_prev": 200_000,
+                    "value_curr": 250_000,
+                }
+            ],
             (conviction_query, (1, 2, range_start, range_end)): [],
-            (fallback_overlap_query, ("037833100",)): [{"cusip": "037833100", "holder_count": 5}],
+            (fallback_overlap_query, ("037833100",)): [],
         },
         errors={
+            (full_daily_diffs_query, (1, 2, range_start, range_end, "037833100")): (
+                sqlite3.OperationalError("no such column: cusip")
+            ),
             (full_overlap_query, (1, 2, "037833100", range_start, range_end)): (
                 sqlite3.OperationalError("no such column: manager_id")
-            )
+            ),
         },
     )
     chain = _make_chain(_MockDB(cursor), RunnableLambda(lambda _payload: "{}"))
@@ -208,9 +284,10 @@ def test_build_data_context_falls_back_to_cusip_only_for_crowded_trades() -> Non
         manager_ids=manager_ids, cusips=cusips, date_range=(range_start, range_end)
     )
 
-    assert "Cross-Manager Overlap:" in context
-    assert (full_overlap_query, (1, 2, "037833100", range_start, range_end)) in cursor.calls
-    assert (fallback_overlap_query, ("037833100",)) in cursor.calls
+    assert "Changes:" in context
+    assert "INCREASE: APPLE INC ($200,000 -> $250,000)" in context
+    assert (full_daily_diffs_query, (1, 2, range_start, range_end, "037833100")) in cursor.calls
+    assert (fallback_daily_diffs_query, (1, 2, range_start, range_end)) in cursor.calls
 
 
 def test_chain_with_mocked_llm_response() -> None:
