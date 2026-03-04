@@ -306,14 +306,14 @@ class HoldingsAnalysisChain:
 
         try:
             overlap: list[dict[str, Any]] = []
-            for overlap_where, overlap_params in overlap_attempts:
+            for overlap_where, overlap_params_tuple in overlap_attempts:
                 overlap_query = (
                     "SELECT * FROM crowded_trades "
                     f"WHERE {overlap_where} "
                     "ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
                 )
                 try:
-                    overlap = self._execute_fetchall(overlap_query, overlap_params)
+                    overlap = self._execute_fetchall(overlap_query, overlap_params_tuple)
                     break
                 except Exception as exc:
                     if self._is_missing_column_error(exc):
