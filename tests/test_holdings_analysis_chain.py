@@ -290,6 +290,121 @@ def test_build_data_context_falls_back_when_daily_diffs_has_no_cusip_column() ->
     assert (fallback_daily_diffs_query, (1, 2, range_start, range_end)) in cursor.calls
 
 
+def test_build_data_context_falls_back_when_filings_table_missing_in_non_sqlite_error() -> None:
+    holdings_join_query = (
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, h.value_usd DESC LIMIT 200"
+    )
+    holdings_direct_query = (
+        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    overlap_query = "SELECT * FROM crowded_trades WHERE 1=1 ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+
+    cursor = _MockCursor(
+        {
+            (holdings_direct_query, ()): [
+                {
+                    "name_of_issuer": "MICROSOFT CORP",
+                    "cusip": "594918104",
+                    "shares": 1500,
+                    "value_usd": 300_000.0,
+                }
+            ],
+            (daily_diffs_query, ()): [],
+            (conviction_query, ()): [],
+            (overlap_query, ()): [],
+        },
+        errors={
+            (holdings_join_query, ()): RuntimeError('relation "filings" does not exist'),
+        },
+    )
+    chain = _make_chain(_MockDB(cursor), RunnableLambda(lambda _payload: "{}"))
+
+    context = chain._build_data_context()
+
+    assert "MICROSOFT CORP" in context
+    assert (holdings_join_query, ()) in cursor.calls
+    assert (holdings_direct_query, ()) in cursor.calls
+
+
+def test_build_data_context_falls_back_when_holdings_report_date_column_missing() -> None:
+    range_start = date(2025, 10, 1)
+    range_end = date(2025, 12, 31)
+    holdings_join_query = (
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE f.manager_id IN (%s) AND h.cusip IN (%s) "
+        "AND COALESCE(f.period_end, f.filed_date) BETWEEN %s AND %s "
+        "ORDER BY COALESCE(f.period_end, f.filed_date) DESC, h.value_usd DESC LIMIT 200"
+    )
+    holdings_direct_query = (
+        "SELECT * FROM holdings "
+        "WHERE manager_id IN (%s) AND cusip IN (%s) AND report_date BETWEEN %s AND %s "
+        "ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+    )
+    holdings_no_date_query = (
+        "SELECT * FROM holdings "
+        "WHERE manager_id IN (%s) AND cusip IN (%s) ORDER BY value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE manager_id IN (%s) AND report_date BETWEEN %s AND %s "
+        "AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE manager_id IN (%s) AND report_date BETWEEN %s "
+        "AND %s ORDER BY report_date DESC, conviction_score DESC LIMIT 50"
+    )
+    overlap_query = (
+        "SELECT * FROM crowded_trades WHERE manager_id IN (%s) AND cusip IN (%s) "
+        "AND report_date BETWEEN %s AND %s ORDER BY holder_count DESC, "
+        "total_value_usd DESC LIMIT 50"
+    )
+
+    cursor = _MockCursor(
+        {
+            (holdings_no_date_query, (1, "037833100")): [
+                {
+                    "name_of_issuer": "APPLE INC",
+                    "cusip": "037833100",
+                    "shares": 1000,
+                    "value_usd": 250_000.0,
+                }
+            ],
+            (daily_diffs_query, (1, range_start, range_end, "037833100")): [],
+            (conviction_query, (1, range_start, range_end)): [],
+            (overlap_query, (1, "037833100", range_start, range_end)): [],
+        },
+        errors={
+            (holdings_join_query, (1, "037833100", range_start, range_end)): (
+                RuntimeError('relation "filings" does not exist')
+            ),
+            (holdings_direct_query, (1, "037833100", range_start, range_end)): (
+                RuntimeError("column report_date does not exist")
+            ),
+        },
+    )
+    chain = _make_chain(_MockDB(cursor), RunnableLambda(lambda _payload: "{}"))
+
+    context = chain._build_data_context(
+        manager_ids=[1], cusips=["037833100"], date_range=(range_start, range_end)
+    )
+
+    assert "APPLE INC" in context
+    assert (holdings_join_query, (1, "037833100", range_start, range_end)) in cursor.calls
+    assert (holdings_direct_query, (1, "037833100", range_start, range_end)) in cursor.calls
+    assert (holdings_no_date_query, (1, "037833100")) in cursor.calls
+
+
 def test_chain_with_mocked_llm_response() -> None:
     holdings_query = (
         "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "

@@ -207,6 +207,66 @@ class HoldingsAnalysisChain:
             )
         return query, tuple(params)
 
+    def _build_holdings_query_without_report_date(
+        self,
+        *,
+        manager_ids: list[int] | None,
+        cusips: list[str] | None,
+    ) -> tuple[str, tuple[Any, ...]]:
+        placeholder = self._placeholder(self.db)
+        clauses: list[str] = []
+        params: list[Any] = []
+
+        if manager_ids:
+            manager_placeholders = ", ".join([placeholder] * len(manager_ids))
+            clauses.append(f"manager_id IN ({manager_placeholders})")
+            params.extend(manager_ids)
+
+        if cusips:
+            cusip_placeholders = ", ".join([placeholder] * len(cusips))
+            clauses.append(f"cusip IN ({cusip_placeholders})")
+            params.extend(cusips)
+
+        where_sql = " AND ".join(clauses) if clauses else "1=1"
+        query = "SELECT * FROM holdings " f"WHERE {where_sql} " "ORDER BY value_usd DESC LIMIT 200"
+        return query, tuple(params)
+
+    def _load_holdings_for_context(
+        self,
+        *,
+        manager_ids: list[int] | None,
+        cusips: list[str] | None,
+        date_range: tuple[date, date] | None,
+    ) -> list[dict[str, Any]]:
+        holdings_query, holdings_params = self._build_holdings_query(
+            manager_ids=manager_ids, cusips=cusips, date_range=date_range
+        )
+        try:
+            return self._execute_fetchall(holdings_query, holdings_params)
+        except Exception as exc:
+            if not (
+                self._is_missing_table_error(exc, "filings") or self._is_missing_column_error(exc)
+            ):
+                raise
+
+        direct_query, direct_params = self._build_holdings_query(
+            manager_ids=manager_ids,
+            cusips=cusips,
+            date_range=date_range,
+            use_filings_join=False,
+        )
+        try:
+            return self._execute_fetchall(direct_query, direct_params)
+        except Exception as exc:
+            if not self._is_missing_column_error(exc):
+                raise
+
+        no_date_query, no_date_params = self._build_holdings_query_without_report_date(
+            manager_ids=manager_ids,
+            cusips=cusips,
+        )
+        return self._execute_fetchall(no_date_query, no_date_params)
+
     def _build_data_context(
         self,
         *,
@@ -215,22 +275,9 @@ class HoldingsAnalysisChain:
         date_range: tuple[date, date] | None = None,
     ) -> str:
         """Build prompt context from holdings, diffs, conviction, and overlap tables."""
-        holdings_query, holdings_params = self._build_holdings_query(
+        holdings = self._load_holdings_for_context(
             manager_ids=manager_ids, cusips=cusips, date_range=date_range
         )
-        try:
-            holdings = self._execute_fetchall(holdings_query, holdings_params)
-        except Exception as exc:
-            if self._is_sqlite_connection(self.db) and "no such table: filings" in str(exc).lower():
-                fallback_query, fallback_params = self._build_holdings_query(
-                    manager_ids=manager_ids,
-                    cusips=cusips,
-                    date_range=date_range,
-                    use_filings_join=False,
-                )
-                holdings = self._execute_fetchall(fallback_query, fallback_params)
-            else:
-                raise
 
         sections: list[str] = ["Holdings:", format_holdings_table(holdings, max_rows=50)]
 
