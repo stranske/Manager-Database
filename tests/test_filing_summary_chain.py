@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -281,6 +282,57 @@ def test_langsmith_tracing_context_is_entered(monkeypatch: pytest.MonkeyPatch) -
     chain = _make_chain(db)
 
     chain.run(1001)
+
+    assert entered["value"] is True
+
+
+def test_langsmith_tracing_context_skips_when_not_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LANGCHAIN_TRACING_V2", raising=False)
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    monkeypatch.delenv("LANGCHAIN_API_KEY", raising=False)
+
+    def _should_not_be_called(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("langsmith.tracing_context should not be called when disabled")
+
+    fake_module = types.SimpleNamespace(tracing_context=_should_not_be_called)
+    monkeypatch.setitem(sys.modules, "langsmith", fake_module)
+
+    with filing_summary_module.langsmith_tracing_context(
+        name="filing-summary", inputs={"x": 1}
+    ) as run:
+        assert run["name"] == "filing-summary"
+        assert run["inputs"] == {"x": 1}
+
+
+def test_langsmith_tracing_context_uses_langsmith_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "test-key")
+
+    entered = {"value": False}
+
+    class _TracingContext:
+        def __enter__(self) -> None:
+            entered["value"] = True
+            return None
+
+        def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
+            return None
+
+    def _fake_tracing_context(*_args: Any, **_kwargs: Any) -> _TracingContext:
+        return _TracingContext()
+
+    fake_module = types.SimpleNamespace(tracing_context=_fake_tracing_context)
+    monkeypatch.setitem(sys.modules, "langsmith", fake_module)
+
+    with filing_summary_module.langsmith_tracing_context(
+        name="filing-summary", inputs={"x": 1}
+    ) as run:
+        assert run["name"] == "filing-summary"
+        assert run["inputs"] == {"x": 1}
 
     assert entered["value"] is True
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -65,6 +66,12 @@ Please provide a comprehensive summary.""",
 @contextmanager
 def langsmith_tracing_context(name: str, inputs: dict[str, Any] | None = None):
     """Best-effort LangSmith tracing context manager."""
+
+    tracing_enabled = os.environ.get("LANGCHAIN_TRACING_V2", "").lower() == "true"
+    has_api_key = bool(os.environ.get("LANGSMITH_API_KEY") or os.environ.get("LANGCHAIN_API_KEY"))
+    if not (tracing_enabled and has_api_key):
+        yield {"name": name, "inputs": inputs or {}}
+        return
 
     try:
         from langsmith import tracing_context
