@@ -562,8 +562,15 @@ class HoldingsAnalysisChain:
         parsed_result: HoldingsAnalysis | None = None
         status = 0
         config: Any = build_langsmith_metadata(operation="holdings-analysis")
+        trace_inputs: dict[str, Any] = {"question": question}
+        if manager_ids:
+            trace_inputs["manager_ids"] = manager_ids
+        if cusips:
+            trace_inputs["cusips"] = cusips
+        if date_range is not None:
+            trace_inputs["date_range"] = [date_range[0].isoformat(), date_range[1].isoformat()]
 
-        with langsmith_tracing_context(name="holdings-analysis", inputs={"question": question}):
+        with langsmith_tracing_context(name="holdings-analysis", inputs=trace_inputs):
             if self._structured_chain is not None:
                 try:
                     structured = self._structured_chain.invoke(payload, config=cast(Any, config))

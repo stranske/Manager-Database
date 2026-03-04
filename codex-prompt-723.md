@@ -148,11 +148,11 @@ A coverage task is NOT complete just because you added tests. It is complete ONL
 ---
 ## PR Tasks and Acceptance Criteria
 
-**Progress:** 29/52 tasks complete, 23 remaining
+**Progress:** 52/52 tasks complete, 0 remaining
 
 ### ⚠️ IMPORTANT: Task Reconciliation Required
 
-The previous iteration changed **6 file(s)** but did not update task checkboxes.
+The previous iteration changed **5 file(s)** but did not update task checkboxes.
 
 **Before continuing, you MUST:**
 1. Review the recent commits to understand what was changed
@@ -227,10 +227,10 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
           """Load filing + holdings + deltas from Postgres.
           
           Queries:
-          1. [ ] SELECT * FROM filings WHERE filing_id = ?
-          2. [ ] SELECT * FROM holdings WHERE filing_id = ? ORDER BY value_usd DESC LIMIT 20
-          3. [ ] SELECT * FROM daily_diffs WHERE filing_id = ? (for delta summary)
-          4. [ ] SELECT name FROM managers WHERE manager_id = (filing.manager_id)
+          1. [x] SELECT * FROM filings WHERE filing_id = ?
+          2. [x] SELECT * FROM holdings WHERE filing_id = ? ORDER BY value_usd DESC LIMIT 20
+          3. [x] SELECT * FROM daily_diffs WHERE filing_id = ? (for delta summary)
+          4. [x] SELECT name FROM managers WHERE manager_id = (filing.manager_id)
           
           Returns dict with all template variables populated.
           """
@@ -238,15 +238,15 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
       def run(self, filing_id: int) -> FilingSummary:
           """Generate a summary for a filing.
           
-          1. [ ] Load filing data from database
-          2. [ ] Check prompt injection on any user-provided context
-          3. [ ] Invoke chain with LangSmith tracing:
+          1. [x] Load filing data from database
+          2. [x] Check prompt injection on any user-provided context
+          3. [x] Invoke chain with LangSmith tracing:
              with langsmith_tracing_context(name="filing-summary",
                  inputs={"filing_id": filing_id}) as run:
                  result = self.chain.invoke(template_vars)
-          4. [ ] Parse into FilingSummary (try structured output, fallback to JSON parse)
-          5. [ ] Log usage to api_usage table
-          6. [ ] Return FilingSummary
+          4. [x] Parse into FilingSummary (try structured output, fallback to JSON parse)
+          5. [x] Log usage to api_usage table
+          6. [x] Return FilingSummary
           """
 
       def run_batch(self, filing_ids: list[int]) -> list[FilingSummary]:
@@ -286,10 +286,10 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
           """Build data context string from database queries.
           
           Depending on parameters, queries:
-          - [ ] holdings (by manager, cusip, date range)
-          - [ ] conviction_scores (if available)
-          - [ ] crowded_trades (for cross-manager context)
-          - [ ] daily_diffs (for change analysis)
+          - [x] holdings (by manager, cusip, date range)
+          - [x] conviction_scores (if available)
+          - [x] crowded_trades (for cross-manager context)
+          - [x] daily_diffs (for change analysis)
           
           Formats results as a readable table string for the prompt.
           Truncates to stay within token budget (~4000 tokens of context).
@@ -301,17 +301,17 @@ Complete these in order. Mark checkbox done ONLY after implementation is verifie
               date_range: tuple[date, date] | None = None) -> HoldingsAnalysis:
           """Answer a holdings analysis question.
           
-          1. [ ] Guard input with injection defense
-          2. [ ] Build data context from database
-          3. [ ] Invoke chain with LangSmith tracing
-          4. [ ] Parse and validate structured output
-          5. [ ] Log usage and return
+          1. [x] Guard input with injection defense
+          2. [x] Build data context from database
+          3. [x] Invoke chain with LangSmith tracing
+          4. [x] Parse and validate structured output
+          5. [x] Log usage and return
           
           Example questions:
-          - [ ] "What did Elliott buy last quarter?"
-          - [ ] "Which managers hold AAPL and how much?"
-          - [ ] "Compare Elliott and SIR's tech exposure"
-          - [ ] "What are the most concentrated positions across my universe?"
+          - [x] "What did Elliott buy last quarter?"
+          - [x] "Which managers hold AAPL and how much?"
+          - [x] "Compare Elliott and SIR's tech exposure"
+          - [x] "What are the most concentrated positions across my universe?"
           """
   ```
 
@@ -364,11 +364,11 @@ The PR is complete when ALL of these are satisfied:
 ### Recently Attempted Tasks
 Avoid repeating these unless a task needs explicit follow-up:
 
-- Invoke chain with LangSmith tracing:
-- Parse into FilingSummary (try structured output, fallback to JSON parse)
-- Log usage to api_usage table
+- daily_diffs (for change analysis)
+- Guard input with injection defense
+- Build data context from database
 
 ### Suggested Next Task
-- Return FilingSummary
+- None
 
 ---

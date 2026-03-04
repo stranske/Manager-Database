@@ -860,6 +860,75 @@ def test_holdings_analysis_tracing_context_is_entered(
     assert entered["value"] is True
 
 
+def test_holdings_analysis_tracing_context_includes_filter_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class _TracingContext:
+        def __enter__(self) -> dict[str, Any]:
+            return {"name": "holdings-analysis"}
+
+        def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
+            return None
+
+    def _fake_tracing_context(**kwargs: Any) -> _TracingContext:
+        captured.update(kwargs)
+        return _TracingContext()
+
+    monkeypatch.setattr(
+        holdings_analysis_module, "langsmith_tracing_context", _fake_tracing_context
+    )
+
+    holdings_query = (
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE f.manager_id IN (%s) AND h.cusip IN (%s) "
+        "AND COALESCE(f.period_end, f.filed_date) BETWEEN %s AND %s "
+        "ORDER BY COALESCE(f.period_end, f.filed_date) DESC, h.value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE manager_id IN (%s) AND report_date BETWEEN %s AND %s "
+        "AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE manager_id IN (%s) AND report_date BETWEEN %s "
+        "AND %s ORDER BY report_date DESC, conviction_score DESC LIMIT 50"
+    )
+    overlap_query = (
+        "SELECT * FROM crowded_trades WHERE manager_id IN (%s) AND cusip IN (%s) "
+        "AND report_date BETWEEN %s AND %s ORDER BY holder_count DESC, "
+        "total_value_usd DESC LIMIT 50"
+    )
+    range_start = date(2025, 10, 1)
+    range_end = date(2025, 12, 31)
+    cursor = _MockCursor(
+        {
+            (holdings_query, (7, "037833100", range_start, range_end)): [],
+            (daily_diffs_query, (7, range_start, range_end, "037833100")): [],
+            (conviction_query, (7, range_start, range_end)): [],
+            (overlap_query, (7, "037833100", range_start, range_end)): [],
+        }
+    )
+    chain = _make_chain(_MockDB(cursor), llm=RunnableLambda(lambda _payload: "{}"))
+
+    chain.run(
+        "Compare this manager and security over the quarter",
+        manager_ids=[7],
+        cusips=["037833100"],
+        date_range=(range_start, range_end),
+    )
+
+    assert captured["name"] == "holdings-analysis"
+    assert captured["inputs"] == {
+        "question": "Compare this manager and security over the quarter",
+        "manager_ids": [7],
+        "cusips": ["037833100"],
+        "date_range": ["2025-10-01", "2025-12-31"],
+    }
+
+
 def test_run_logs_usage_to_api_usage_table() -> None:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
