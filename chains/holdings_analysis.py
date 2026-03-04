@@ -95,6 +95,16 @@ class HoldingsAnalysisChain:
         )
 
     @staticmethod
+    def _is_missing_column_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return (
+            "no such column:" in message
+            or ("column" in message and "does not exist" in message)
+            or "undefined column" in message
+            or "sqlstate 42703" in message
+        )
+
+    @staticmethod
     def _report_date_expr() -> str:
         return "COALESCE(f.period_end, f.filed_date)"
 
@@ -262,19 +272,53 @@ class HoldingsAnalysisChain:
             if not self._is_missing_table_error(exc, "conviction_scores"):
                 raise
 
+        overlap_attempts: list[tuple[str, tuple[Any, ...]]] = []
+
+        overlap_where_parts: list[str] = []
         overlap_params: list[Any] = []
-        overlap_where = "1=1"
+        if manager_ids:
+            in_sql = ", ".join([placeholder] * len(manager_ids))
+            overlap_where_parts.append(f"manager_id IN ({in_sql})")
+            overlap_params.extend(manager_ids)
         if cusips:
             in_sql = ", ".join([placeholder] * len(cusips))
-            overlap_where = f"cusip IN ({in_sql})"
-            overlap_params = list(cusips)
+            overlap_where_parts.append(f"cusip IN ({in_sql})")
+            overlap_params.extend(cusips)
+        if date_range is not None:
+            overlap_where_parts.append(f"report_date BETWEEN {placeholder} AND {placeholder}")
+            overlap_params.extend([date_range[0], date_range[1]])
+
+        overlap_where = " AND ".join(overlap_where_parts) if overlap_where_parts else "1=1"
+        overlap_attempts.append((overlap_where, tuple(overlap_params)))
+
+        # Some environments may expose crowded_trades without manager/date columns.
+        if manager_ids or date_range is not None:
+            relaxed_where_parts: list[str] = []
+            relaxed_params: list[Any] = []
+            if cusips:
+                in_sql = ", ".join([placeholder] * len(cusips))
+                relaxed_where_parts.append(f"cusip IN ({in_sql})")
+                relaxed_params.extend(cusips)
+            relaxed_where = " AND ".join(relaxed_where_parts) if relaxed_where_parts else "1=1"
+            relaxed_attempt = (relaxed_where, tuple(relaxed_params))
+            if relaxed_attempt not in overlap_attempts:
+                overlap_attempts.append(relaxed_attempt)
+
         try:
-            overlap_query = (
-                "SELECT * FROM crowded_trades "
-                f"WHERE {overlap_where} "
-                "ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
-            )
-            overlap = self._execute_fetchall(overlap_query, tuple(overlap_params))
+            overlap: list[dict[str, Any]] = []
+            for overlap_where, overlap_params in overlap_attempts:
+                overlap_query = (
+                    "SELECT * FROM crowded_trades "
+                    f"WHERE {overlap_where} "
+                    "ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+                )
+                try:
+                    overlap = self._execute_fetchall(overlap_query, overlap_params)
+                    break
+                except Exception as exc:
+                    if self._is_missing_column_error(exc):
+                        continue
+                    raise
             if overlap:
                 sections.extend(
                     ["", "Cross-Manager Overlap:", json.dumps(overlap[:20], default=str)]
