@@ -358,6 +358,25 @@ class HoldingsAnalysisChain:
             reason = result.get("reason") or "prompt injection detected"
             raise ValueError(f"Prompt injection blocked: {reason}")
 
+    def _guard_filter_inputs(
+        self,
+        *,
+        manager_ids: list[int] | None,
+        cusips: list[str] | None,
+        date_range: tuple[date, date] | None,
+    ) -> None:
+        guard_targets: list[Any] = [cusips]
+        if manager_ids:
+            guard_targets.append(",".join(str(manager_id) for manager_id in manager_ids))
+        if date_range is not None:
+            guard_targets.append(f"{date_range[0].isoformat()}..{date_range[1].isoformat()}")
+
+        for raw in guard_targets:
+            result = check_prompt_injection(raw)
+            if result["blocked"]:
+                reason = result.get("reason") or "prompt injection detected"
+                raise ValueError(f"Prompt injection blocked: {reason}")
+
     def _guard_prompt_inputs(self, payload: dict[str, Any]) -> None:
         guard_targets = [payload.get("question"), payload.get("data_context")]
         for raw in guard_targets:
@@ -478,6 +497,7 @@ class HoldingsAnalysisChain:
     ) -> HoldingsAnalysis:
         """Answer holdings analysis questions using database-backed context."""
         self._guard_input(question)
+        self._guard_filter_inputs(manager_ids=manager_ids, cusips=cusips, date_range=date_range)
         data_context = self._build_data_context(
             manager_ids=manager_ids, cusips=cusips, date_range=date_range
         )
