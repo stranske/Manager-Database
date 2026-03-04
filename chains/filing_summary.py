@@ -258,7 +258,7 @@ class FilingSummaryChain:
                 pass
 
         query = (
-            "SELECT * FROM daily_diffs " f"WHERE filing_id = {placeholder} ORDER BY value_curr DESC"
+            f"SELECT * FROM daily_diffs WHERE filing_id = {placeholder} ORDER BY value_curr DESC"
         )
         try:
             return self._execute_fetchall(query, (filing_id,))
