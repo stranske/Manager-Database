@@ -113,8 +113,11 @@ class HoldingsAnalysisChain:
         if fence_start >= 0:
             last_fence = stripped.rfind("```")
             if last_fence > fence_start:
-                fenced = stripped[fence_start + 3 : last_fence]
-                fenced = fenced.replace("json", "", 1).strip()
+                fenced = stripped[fence_start + 3 : last_fence].strip()
+                if "\n" in fenced:
+                    first_line, remainder = fenced.split("\n", 1)
+                    if first_line.strip().lower() in {"json", "application/json"}:
+                        fenced = remainder.strip()
                 if fenced.startswith("{") and fenced.endswith("}"):
                     return fenced
 

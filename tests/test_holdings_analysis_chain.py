@@ -386,6 +386,49 @@ def test_run_falls_back_to_json_parser_when_structured_output_fails() -> None:
     assert result.concentration_metrics["top_10_weight"] == 0.55
 
 
+def test_run_parses_uppercase_fenced_json_fallback() -> None:
+    holdings_query = (
+        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    overlap_query = "SELECT * FROM crowded_trades WHERE 1=1 ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+    cursor = _MockCursor(
+        {
+            (holdings_query, ()): [],
+            (daily_diffs_query, ()): [],
+            (conviction_query, ()): [],
+            (overlap_query, ()): [],
+        }
+    )
+    llm = _FailingStructuredLLM(
+        fallback_text=(
+            "```JSON\n"
+            + json.dumps(
+                {
+                    "thesis": "Fenced JSON fallback parsed.",
+                    "top_positions": [{"cusip": "037833100", "value_usd": 250000}],
+                    "period_changes": [{"delta_type": "INCREASE", "cusip": "037833100"}],
+                    "cross_manager_overlap": None,
+                    "concentration_metrics": {"top_10_weight": 0.7},
+                }
+            )
+            + "\n```"
+        )
+    )
+    chain = _make_chain(_MockDB(cursor), llm=llm)
+
+    result = chain.run("Summarize current concentration")
+
+    assert result.thesis == "Fenced JSON fallback parsed."
+    assert result.top_positions[0]["cusip"] == "037833100"
+
+
 def test_holdings_analysis_tracing_context_is_entered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -434,8 +477,7 @@ def test_holdings_analysis_tracing_context_is_entered(
 def test_run_logs_usage_to_api_usage_table() -> None:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE holdings (
             manager_id INTEGER,
             report_date TEXT,
@@ -444,10 +486,8 @@ def test_run_logs_usage_to_api_usage_table() -> None:
             shares INTEGER,
             value_usd REAL
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE daily_diffs (
             manager_id INTEGER,
             report_date TEXT,
@@ -456,8 +496,7 @@ def test_run_logs_usage_to_api_usage_table() -> None:
             value_prev REAL,
             value_curr REAL
         )
-        """
-    )
+        """)
     conn.execute(
         "INSERT INTO holdings VALUES (?, ?, ?, ?, ?, ?)",
         (7, "2025-12-31", "APPLE INC", "037833100", 1000, 1_250_000.0),

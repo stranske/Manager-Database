@@ -259,6 +259,35 @@ def test_run_recovers_partial_json_when_validation_fails() -> None:
     assert result.key_positions[0]["cusip"] == holdings_rows[0]["cusip"]
 
 
+def test_run_parses_uppercase_fenced_json_fallback() -> None:
+    db, _, _ = _build_db_for_filing(holdings_count=2)
+    llm = _FailingStructuredLLM(
+        fallback_text=(
+            "```JSON\n"
+            + json.dumps(
+                {
+                    "manager_name": "Alpha Capital",
+                    "filing_date": "2026-02-14",
+                    "total_positions": 2,
+                    "total_aum_estimate": "$20.00M",
+                    "key_positions": [{"cusip": "000000000", "value_usd": 10_000_000}],
+                    "notable_changes": ["Added ISSUER-00"],
+                    "sector_concentration": [{"sector": "Technology", "weight": 0.5}],
+                    "risk_flags": ["Concentrated top-10"],
+                }
+            )
+            + "\n```"
+        )
+    )
+    chain = _make_chain(db, llm=llm)
+
+    result = chain.run(1001)
+
+    assert result.manager_name == "Alpha Capital"
+    assert result.total_positions == 2
+    assert result.notable_changes == ["Added ISSUER-00"]
+
+
 def test_run_with_realish_data_uses_fallback_summary_when_llm_unstructured() -> None:
     db, _, holdings_rows = _build_db_for_filing(holdings_count=20, include_diffs=True)
     llm: RunnableLambda[Any, str] = RunnableLambda(lambda _payload: "This is not JSON")
@@ -382,8 +411,7 @@ def test_filing_summary_injection_defense_blocks_before_llm_call() -> None:
 def test_run_logs_usage_to_api_usage_table() -> None:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE filings (
             filing_id INTEGER PRIMARY KEY,
             manager_id INTEGER,
@@ -392,10 +420,8 @@ def test_run_logs_usage_to_api_usage_table() -> None:
             total_positions INTEGER,
             total_value_usd REAL
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE holdings (
             filing_id INTEGER,
             name_of_issuer TEXT,
@@ -404,11 +430,9 @@ def test_run_logs_usage_to_api_usage_table() -> None:
             value_usd REAL,
             sector TEXT
         )
-        """
-    )
+        """)
     conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE daily_diffs (
             filing_id INTEGER,
             manager_id INTEGER,
@@ -418,8 +442,7 @@ def test_run_logs_usage_to_api_usage_table() -> None:
             value_prev REAL,
             value_curr REAL
         )
-        """
-    )
+        """)
     conn.execute(
         "INSERT INTO filings VALUES (?, ?, ?, ?, ?, ?)",
         (1001, 7, "2025-12-31", "2026-02-14", 1, 1_250_000.0),
