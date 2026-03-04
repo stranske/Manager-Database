@@ -80,6 +80,33 @@ class _FailingStructuredLLM:
         return RunnableLambda(lambda _payload: (_ for _ in ()).throw(RuntimeError("boom")))
 
 
+class _StructuredStringLLM:
+    def __init__(self, *, structured_json: str) -> None:
+        self._structured_json = structured_json
+        self.fallback_called = False
+
+    def __call__(self, _prompt: Any) -> str:
+        self.fallback_called = True
+        return "{}"
+
+    def with_structured_output(self, _schema: type[Any]) -> RunnableLambda:
+        return RunnableLambda(lambda _payload: self._structured_json)
+
+
+class _StructuredPartialDictLLM:
+    def __call__(self, _prompt: Any) -> str:
+        raise AssertionError("fallback llm call should not be used for partial structured payloads")
+
+    def with_structured_output(self, _schema: type[Any]) -> RunnableLambda:
+        return RunnableLambda(
+            lambda _payload: {
+                "thesis": "Structured output missing some required fields.",
+                "top_positions": "not-a-list",
+                "period_changes": [{"delta_type": "ADD", "cusip": "037833100"}],
+            }
+        )
+
+
 def _make_chain(db: _MockDB, llm: Any) -> HoldingsAnalysisChain:
     client_info = ClientInfo(client=llm, provider="test-provider", model="test-model")
     return HoldingsAnalysisChain(client_info=client_info, db_conn=db)
@@ -762,6 +789,84 @@ def test_run_falls_back_to_json_parser_when_structured_output_fails() -> None:
     assert result.thesis == "Fallback parser used with valid JSON payload."
     assert result.top_positions[0]["cusip"] == "594918104"
     assert result.concentration_metrics["top_10_weight"] == 0.55
+
+
+def test_run_parses_structured_json_string_without_fallback_call() -> None:
+    holdings_query = (
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    overlap_query = "SELECT * FROM crowded_trades WHERE 1=1 ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+    cursor = _MockCursor(
+        {
+            (holdings_query, ()): [],
+            (daily_diffs_query, ()): [],
+            (conviction_query, ()): [],
+            (overlap_query, ()): [],
+        }
+    )
+    llm = _StructuredStringLLM(
+        structured_json=json.dumps(
+            {
+                "thesis": "Structured JSON payload parsed without fallback call.",
+                "top_positions": [{"cusip": "037833100", "value_usd": 250000}],
+                "period_changes": [],
+                "cross_manager_overlap": None,
+                "concentration_metrics": {"top_10_weight": 0.7},
+            }
+        )
+    )
+    chain = _make_chain(_MockDB(cursor), llm=llm)
+
+    result = chain.run("Summarize concentration")
+
+    assert result.thesis.startswith("Structured JSON payload parsed")
+    assert llm.fallback_called is False
+
+
+def test_run_recovers_partial_structured_payload_without_fallback_call() -> None:
+    holdings_query = (
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    overlap_query = "SELECT * FROM crowded_trades WHERE 1=1 ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+    cursor = _MockCursor(
+        {
+            (holdings_query, ()): [],
+            (daily_diffs_query, ()): [],
+            (conviction_query, ()): [],
+            (overlap_query, ()): [],
+        }
+    )
+    chain = _make_chain(_MockDB(cursor), llm=_StructuredPartialDictLLM())
+
+    result = chain.run("What changed this quarter?")
+
+    assert result.thesis == "Structured output missing some required fields."
+    assert result.top_positions == []
+    assert result.period_changes == [{"delta_type": "ADD", "cusip": "037833100"}]
+    assert result.cross_manager_overlap is None
+    assert result.concentration_metrics == {}
 
 
 def test_run_parses_uppercase_fenced_json_fallback() -> None:

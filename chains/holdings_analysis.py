@@ -151,6 +151,12 @@ class HoldingsAnalysisChain:
             return stripped[start : end + 1]
         return None
 
+    @staticmethod
+    def _coerce_dict_list(raw: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw, list):
+            return []
+        return [item for item in raw if isinstance(item, dict)]
+
     def _execute_fetchall(self, query: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
         cursor = self.db.cursor()
         cursor.execute(query, params)
@@ -432,6 +438,37 @@ class HoldingsAnalysisChain:
                 reason = result.get("reason") or "prompt injection detected"
                 raise ValueError(f"Prompt injection blocked: {reason}")
 
+    def _analysis_from_decoded(
+        self, decoded_payload: dict[str, Any], question: str
+    ) -> HoldingsAnalysis:
+        thesis = decoded_payload.get("thesis")
+        if not isinstance(thesis, str) or not thesis.strip():
+            thesis = f"Unable to parse structured response for question: {question}"
+
+        top_positions = self._coerce_dict_list(decoded_payload.get("top_positions"))
+
+        period_changes = self._coerce_dict_list(decoded_payload.get("period_changes"))
+
+        overlap = decoded_payload.get("cross_manager_overlap")
+        if overlap is None:
+            cross_manager_overlap = None
+        elif isinstance(overlap, list):
+            cross_manager_overlap = self._coerce_dict_list(overlap)
+        else:
+            cross_manager_overlap = None
+
+        concentration_metrics = decoded_payload.get("concentration_metrics")
+        if not isinstance(concentration_metrics, dict):
+            concentration_metrics = {}
+
+        return HoldingsAnalysis(
+            thesis=thesis,
+            top_positions=top_positions,
+            period_changes=period_changes,
+            cross_manager_overlap=cross_manager_overlap,
+            concentration_metrics=concentration_metrics,
+        )
+
     def _parse_analysis(self, output_text: str, question: str) -> HoldingsAnalysis:
         decoded_payload: dict[str, Any] = {}
         payload = self._extract_json_text(output_text)
@@ -448,41 +485,21 @@ class HoldingsAnalysisChain:
             except Exception:
                 pass
 
-        thesis = decoded_payload.get("thesis")
-        if not isinstance(thesis, str) or not thesis.strip():
-            thesis = f"Unable to parse structured response for question: {question}"
+        return self._analysis_from_decoded(decoded_payload, question)
 
-        top_positions = decoded_payload.get("top_positions")
-        if not isinstance(top_positions, list):
-            top_positions = []
-        else:
-            top_positions = [item for item in top_positions if isinstance(item, dict)]
-
-        period_changes = decoded_payload.get("period_changes")
-        if not isinstance(period_changes, list):
-            period_changes = []
-        else:
-            period_changes = [item for item in period_changes if isinstance(item, dict)]
-
-        overlap = decoded_payload.get("cross_manager_overlap")
-        if overlap is None:
-            cross_manager_overlap = None
-        elif isinstance(overlap, list):
-            cross_manager_overlap = [item for item in overlap if isinstance(item, dict)]
-        else:
-            cross_manager_overlap = None
-
-        concentration_metrics = decoded_payload.get("concentration_metrics")
-        if not isinstance(concentration_metrics, dict):
-            concentration_metrics = {}
-
-        return HoldingsAnalysis(
-            thesis=thesis,
-            top_positions=top_positions,
-            period_changes=period_changes,
-            cross_manager_overlap=cross_manager_overlap,
-            concentration_metrics=concentration_metrics,
-        )
+    def _parse_structured_output(self, raw_output: Any, question: str) -> HoldingsAnalysis | None:
+        if isinstance(raw_output, HoldingsAnalysis):
+            return raw_output
+        if isinstance(raw_output, dict):
+            try:
+                return HoldingsAnalysis.model_validate(raw_output)
+            except ValidationError:
+                return self._analysis_from_decoded(raw_output, question)
+            except Exception:
+                return None
+        if isinstance(raw_output, str):
+            return self._parse_analysis(raw_output, question)
+        return None
 
     def _log_usage(self, *, question: str, output_text: str, latency_ms: int, status: int) -> None:
         try:
@@ -574,9 +591,10 @@ class HoldingsAnalysisChain:
             if self._structured_chain is not None:
                 try:
                     structured = self._structured_chain.invoke(payload, config=cast(Any, config))
-                    parsed_result = HoldingsAnalysis.model_validate(structured)
-                    output_text = parsed_result.model_dump_json()
-                    status = 1
+                    parsed_result = self._parse_structured_output(structured, question)
+                    if parsed_result is not None:
+                        output_text = parsed_result.model_dump_json()
+                        status = 1
                 except Exception:
                     parsed_result = None
 
