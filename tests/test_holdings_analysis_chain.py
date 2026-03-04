@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 from datetime import date
 from pathlib import Path
@@ -428,3 +429,67 @@ def test_holdings_analysis_tracing_context_is_entered(
     chain.run("Show top positions")
 
     assert entered["value"] is True
+
+
+def test_run_logs_usage_to_api_usage_table() -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """
+        CREATE TABLE holdings (
+            manager_id INTEGER,
+            report_date TEXT,
+            name_of_issuer TEXT,
+            cusip TEXT,
+            shares INTEGER,
+            value_usd REAL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE daily_diffs (
+            manager_id INTEGER,
+            report_date TEXT,
+            delta_type TEXT,
+            name_of_issuer TEXT,
+            value_prev REAL,
+            value_curr REAL
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO holdings VALUES (?, ?, ?, ?, ?, ?)",
+        (7, "2025-12-31", "APPLE INC", "037833100", 1000, 1_250_000.0),
+    )
+    conn.execute(
+        "INSERT INTO daily_diffs VALUES (?, ?, ?, ?, ?, ?)",
+        (7, "2025-12-31", "INCREASE", "APPLE INC", 900_000.0, 1_250_000.0),
+    )
+    conn.commit()
+
+    llm: Any = RunnableLambda(
+        lambda _payload: json.dumps(
+            {
+                "thesis": "Concentrated large-cap tech exposure.",
+                "top_positions": [{"cusip": "037833100", "value_usd": 1_250_000.0}],
+                "period_changes": [{"delta_type": "INCREASE", "cusip": "037833100"}],
+                "cross_manager_overlap": None,
+                "concentration_metrics": {"top_10_weight": 1.0},
+            }
+        )
+    )
+    client_info = ClientInfo(client=llm, provider="test-provider", model="test-model")
+    chain = HoldingsAnalysisChain(client_info=client_info, db_conn=conn)
+
+    chain.run("Which managers hold AAPL?")
+
+    row = conn.execute(
+        "SELECT source, endpoint, status, bytes, latency_ms FROM api_usage ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    assert row is not None
+    assert row["source"] == "holdings_analysis_chain"
+    assert row["endpoint"] == "Which managers hold AAPL?"
+    assert row["status"] == 1
+    assert row["bytes"] > 0
+    assert row["latency_ms"] >= 0

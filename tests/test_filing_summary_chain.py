@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 import types
 from pathlib import Path
@@ -376,3 +377,89 @@ def test_filing_summary_injection_defense_blocks_before_llm_call() -> None:
     with pytest.raises(ValueError, match="Prompt injection blocked"):
         chain.run(1001)
     assert tracker.called is False
+
+
+def test_run_logs_usage_to_api_usage_table() -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """
+        CREATE TABLE filings (
+            filing_id INTEGER PRIMARY KEY,
+            manager_id INTEGER,
+            period_end TEXT,
+            filed_date TEXT,
+            total_positions INTEGER,
+            total_value_usd REAL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE holdings (
+            filing_id INTEGER,
+            name_of_issuer TEXT,
+            cusip TEXT,
+            shares INTEGER,
+            value_usd REAL,
+            sector TEXT
+        )
+        """
+    )
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute(
+        """
+        CREATE TABLE daily_diffs (
+            filing_id INTEGER,
+            manager_id INTEGER,
+            report_date TEXT,
+            delta_type TEXT,
+            name_of_issuer TEXT,
+            value_prev REAL,
+            value_curr REAL
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO filings VALUES (?, ?, ?, ?, ?, ?)",
+        (1001, 7, "2025-12-31", "2026-02-14", 1, 1_250_000.0),
+    )
+    conn.execute(
+        "INSERT INTO holdings VALUES (?, ?, ?, ?, ?, ?)",
+        (1001, "APPLE INC", "037833100", 1000, 1_250_000.0, "Technology"),
+    )
+    conn.execute("INSERT INTO managers VALUES (?, ?)", (7, "Alpha Capital"))
+    conn.execute(
+        "INSERT INTO daily_diffs VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (1001, 7, "2025-12-31", "INCREASE", "APPLE INC", 900_000.0, 1_250_000.0),
+    )
+    conn.commit()
+
+    llm: Any = RunnableLambda(
+        lambda _payload: json.dumps(
+            {
+                "manager_name": "Alpha Capital",
+                "filing_date": "2026-02-14",
+                "total_positions": 1,
+                "total_aum_estimate": "$1.25M",
+                "key_positions": [{"cusip": "037833100", "value_usd": 1_250_000.0}],
+                "notable_changes": ["INCREASE: APPLE INC"],
+                "sector_concentration": [{"sector": "Technology", "weight": 1.0}],
+                "risk_flags": [],
+            }
+        )
+    )
+    client_info = ClientInfo(client=llm, provider="test-provider", model="test-model")
+    chain = FilingSummaryChain(client_info=client_info, db_conn=conn)
+
+    chain.run(1001)
+
+    row = conn.execute(
+        "SELECT source, endpoint, status, bytes, latency_ms FROM api_usage ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    assert row is not None
+    assert row["source"] == "filing_summary_chain"
+    assert row["endpoint"] == "filing_id:1001"
+    assert row["status"] == 1
+    assert row["bytes"] > 0
+    assert row["latency_ms"] >= 0
