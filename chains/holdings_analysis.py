@@ -85,6 +85,16 @@ class HoldingsAnalysisChain:
         return "?" if HoldingsAnalysisChain._is_sqlite_connection(conn) else "%s"
 
     @staticmethod
+    def _is_missing_table_error(exc: Exception, table_name: str) -> bool:
+        message = str(exc).lower()
+        return (
+            f"no such table: {table_name}" in message
+            or (f'relation "{table_name}"' in message and "does not exist" in message)
+            or f"undefined table: {table_name}" in message
+            or "sqlstate 42p01" in message
+        )
+
+    @staticmethod
     def _report_date_expr() -> str:
         return "COALESCE(f.period_end, f.filed_date)"
 
@@ -248,8 +258,9 @@ class HoldingsAnalysisChain:
                 sections.extend(
                     ["", "Conviction Scores:", json.dumps(conviction[:20], default=str)]
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            if not self._is_missing_table_error(exc, "conviction_scores"):
+                raise
 
         overlap_params: list[Any] = []
         overlap_where = "1=1"

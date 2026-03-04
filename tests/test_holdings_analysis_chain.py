@@ -18,8 +18,14 @@ from tools.langchain_client import ClientInfo
 
 
 class _MockCursor:
-    def __init__(self, responses: dict[tuple[str, tuple[Any, ...]], list[dict[str, Any]]]) -> None:
+    def __init__(
+        self,
+        responses: dict[tuple[str, tuple[Any, ...]], list[dict[str, Any]]],
+        *,
+        errors: dict[tuple[str, tuple[Any, ...]], Exception] | None = None,
+    ) -> None:
         self._responses = responses
+        self._errors = errors or {}
         self.last_query: str | None = None
         self.last_params: tuple[Any, ...] | None = None
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
@@ -32,6 +38,8 @@ class _MockCursor:
 
     def fetchall(self) -> list[dict[str, Any]]:
         key = (self.last_query or "", self.last_params or ())
+        if key in self._errors:
+            raise self._errors[key]
         return self._responses.get(key, [])
 
 
@@ -179,6 +187,71 @@ def test_chain_with_mocked_llm_response() -> None:
     assert result.thesis.startswith("Manager concentrated")
     assert result.top_positions[0]["cusip"] == "037833100"
     assert result.concentration_metrics["top_10_weight"] == 0.72
+
+
+def test_build_data_context_skips_missing_conviction_scores_table() -> None:
+    holdings_query = (
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    overlap_query = "SELECT * FROM crowded_trades WHERE 1=1 ORDER BY holder_count DESC, total_value_usd DESC LIMIT 50"
+    cursor = _MockCursor(
+        {
+            (holdings_query, ()): [],
+            (daily_diffs_query, ()): [],
+            (overlap_query, ()): [],
+        },
+        errors={
+            (conviction_query, ()): sqlite3.OperationalError("no such table: conviction_scores")
+        },
+    )
+    llm: Any = RunnableLambda(lambda _payload: "{}")
+    chain = _make_chain(_MockDB(cursor), llm)
+
+    context = chain._build_data_context()
+
+    assert "Holdings:" in context
+    assert "Conviction Scores:" not in context
+    assert "Cross-Manager Overlap:" not in context
+
+
+def test_build_data_context_raises_for_non_table_conviction_error() -> None:
+    holdings_query = (
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
+    )
+    daily_diffs_query = (
+        "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
+    )
+    conviction_query = (
+        "SELECT * FROM conviction_scores WHERE 1=1 ORDER BY report_date DESC, "
+        "conviction_score DESC LIMIT 50"
+    )
+    cursor = _MockCursor(
+        {
+            (holdings_query, ()): [],
+            (daily_diffs_query, ()): [],
+        },
+        errors={(conviction_query, ()): RuntimeError("db timeout")},
+    )
+    llm: Any = RunnableLambda(lambda _payload: "{}")
+    chain = _make_chain(_MockDB(cursor), llm)
+
+    with pytest.raises(RuntimeError, match="db timeout"):
+        chain._build_data_context()
 
 
 def test_question_routing_variants_in_query_filters() -> None:
