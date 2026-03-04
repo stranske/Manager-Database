@@ -85,6 +85,10 @@ class HoldingsAnalysisChain:
         return "?" if HoldingsAnalysisChain._is_sqlite_connection(conn) else "%s"
 
     @staticmethod
+    def _report_date_expr() -> str:
+        return "COALESCE(f.period_end, f.filed_date)"
+
+    @staticmethod
     def _cursor_rows_to_dicts(cursor: Any, rows: list[Any]) -> list[dict[str, Any]]:
         if not rows:
             return []
@@ -139,31 +143,48 @@ class HoldingsAnalysisChain:
         manager_ids: list[int] | None,
         cusips: list[str] | None,
         date_range: tuple[date, date] | None,
+        use_filings_join: bool = True,
     ) -> tuple[str, tuple[Any, ...]]:
         placeholder = self._placeholder(self.db)
         clauses: list[str] = []
         params: list[Any] = []
+        report_date_expr = self._report_date_expr()
 
         if manager_ids:
             manager_placeholders = ", ".join([placeholder] * len(manager_ids))
-            clauses.append(f"manager_id IN ({manager_placeholders})")
+            table_prefix = "f." if use_filings_join else ""
+            clauses.append(f"{table_prefix}manager_id IN ({manager_placeholders})")
             params.extend(manager_ids)
 
         if cusips:
             cusip_placeholders = ", ".join([placeholder] * len(cusips))
-            clauses.append(f"cusip IN ({cusip_placeholders})")
+            table_prefix = "h." if use_filings_join else ""
+            clauses.append(f"{table_prefix}cusip IN ({cusip_placeholders})")
             params.extend(cusips)
 
         if date_range is not None:
-            clauses.append(f"report_date BETWEEN {placeholder} AND {placeholder}")
+            if use_filings_join:
+                clauses.append(f"{report_date_expr} BETWEEN {placeholder} AND {placeholder}")
+            else:
+                clauses.append(f"report_date BETWEEN {placeholder} AND {placeholder}")
             params.extend([date_range[0], date_range[1]])
 
         where_sql = " AND ".join(clauses) if clauses else "1=1"
-        query = (
-            "SELECT * FROM holdings "
-            f"WHERE {where_sql} "
-            "ORDER BY report_date DESC, value_usd DESC LIMIT 200"
-        )
+        if use_filings_join:
+            query = (
+                "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+                f"{report_date_expr} AS report_date "
+                "FROM holdings h "
+                "JOIN filings f ON f.filing_id = h.filing_id "
+                f"WHERE {where_sql} "
+                f"ORDER BY {report_date_expr} DESC, h.value_usd DESC LIMIT 200"
+            )
+        else:
+            query = (
+                "SELECT * FROM holdings "
+                f"WHERE {where_sql} "
+                "ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+            )
         return query, tuple(params)
 
     def _build_data_context(
@@ -177,7 +198,19 @@ class HoldingsAnalysisChain:
         holdings_query, holdings_params = self._build_holdings_query(
             manager_ids=manager_ids, cusips=cusips, date_range=date_range
         )
-        holdings = self._execute_fetchall(holdings_query, holdings_params)
+        try:
+            holdings = self._execute_fetchall(holdings_query, holdings_params)
+        except Exception as exc:
+            if self._is_sqlite_connection(self.db) and "no such table: filings" in str(exc).lower():
+                fallback_query, fallback_params = self._build_holdings_query(
+                    manager_ids=manager_ids,
+                    cusips=cusips,
+                    date_range=date_range,
+                    use_filings_join=False,
+                )
+                holdings = self._execute_fetchall(fallback_query, fallback_params)
+            else:
+                raise
 
         sections: list[str] = ["Holdings:", format_holdings_table(holdings, max_rows=50)]
 

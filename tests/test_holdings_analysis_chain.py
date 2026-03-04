@@ -84,8 +84,12 @@ def test_build_data_context_with_filters() -> None:
     range_end = date(2025, 12, 31)
 
     holdings_query = (
-        "SELECT * FROM holdings WHERE manager_id IN (%s, %s) AND cusip IN (%s) "
-        "AND report_date BETWEEN %s AND %s ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE f.manager_id IN (%s, %s) AND h.cusip IN (%s) "
+        "AND COALESCE(f.period_end, f.filed_date) BETWEEN %s AND %s "
+        "ORDER BY COALESCE(f.period_end, f.filed_date) DESC, h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE manager_id IN (%s, %s) AND report_date BETWEEN %s "
@@ -138,7 +142,11 @@ def test_build_data_context_with_filters() -> None:
 
 def test_chain_with_mocked_llm_response() -> None:
     holdings_query = (
-        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
@@ -181,20 +189,24 @@ def test_question_routing_variants_in_query_filters() -> None:
     query_single, params_single = chain._build_holdings_query(
         manager_ids=[9], cusips=None, date_range=None
     )
-    assert "manager_id IN (%s)" in query_single
+    assert "f.manager_id IN (%s)" in query_single
     assert params_single == (9,)
 
     query_cross, params_cross = chain._build_holdings_query(
         manager_ids=[1, 2], cusips=["037833100"], date_range=None
     )
-    assert "manager_id IN (%s, %s)" in query_cross
-    assert "cusip IN (%s)" in query_cross
+    assert "f.manager_id IN (%s, %s)" in query_cross
+    assert "h.cusip IN (%s)" in query_cross
     assert params_cross == (1, 2, "037833100")
 
 
 def test_context_truncation_for_large_portfolio() -> None:
     holdings_query = (
-        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
@@ -232,7 +244,11 @@ def test_context_truncation_for_large_portfolio() -> None:
 
 def test_injection_defense_blocks_malicious_question_before_llm_call() -> None:
     holdings_query = (
-        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
@@ -269,7 +285,11 @@ def test_injection_defense_blocks_malicious_question_before_llm_call() -> None:
 
 def test_injection_defense_blocks_malicious_data_context_before_llm_call() -> None:
     holdings_query = (
-        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
@@ -310,7 +330,11 @@ def test_injection_defense_blocks_malicious_data_context_before_llm_call() -> No
 
 def test_run_uses_structured_output_when_available() -> None:
     holdings_query = (
-        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
@@ -348,7 +372,11 @@ def test_run_uses_structured_output_when_available() -> None:
 
 def test_run_falls_back_to_json_parser_when_structured_output_fails() -> None:
     holdings_query = (
-        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
@@ -388,7 +416,11 @@ def test_run_falls_back_to_json_parser_when_structured_output_fails() -> None:
 
 def test_run_parses_uppercase_fenced_json_fallback() -> None:
     holdings_query = (
-        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
@@ -449,7 +481,11 @@ def test_holdings_analysis_tracing_context_is_entered(
     )
 
     holdings_query = (
-        "SELECT * FROM holdings WHERE 1=1 ORDER BY report_date DESC, value_usd DESC LIMIT 200"
+        "SELECT h.*, f.manager_id, f.period_end, f.filed_date, "
+        "COALESCE(f.period_end, f.filed_date) AS report_date "
+        "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
+        "WHERE 1=1 ORDER BY COALESCE(f.period_end, f.filed_date) DESC, "
+        "h.value_usd DESC LIMIT 200"
     )
     daily_diffs_query = (
         "SELECT * FROM daily_diffs WHERE 1=1 ORDER BY report_date DESC, value_curr DESC LIMIT 100"
