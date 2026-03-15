@@ -14,6 +14,17 @@ from . import require_login
 
 logger = logging.getLogger(__name__)
 
+EXPECTED_DIFF_COLUMNS = [
+    "manager_name",
+    "cusip",
+    "name_of_issuer",
+    "delta_type",
+    "shares_prev",
+    "shares_curr",
+    "value_prev",
+    "value_curr",
+]
+
 
 @st.cache_data(show_spinner=False)
 def load_diffs(date: str) -> pd.DataFrame:
@@ -274,6 +285,10 @@ def main():
     tab1, tab2, tab3 = st.tabs(["Filings & Diffs", "Crowded Trades", "News Pulse"])
     with tab1:
         df = load_diffs(date_str)
+        df = df.copy()
+        for column in EXPECTED_DIFF_COLUMNS:
+            if column not in df.columns:
+                df[column] = pd.Series(dtype=object)
         contrarian = load_contrarian_signals(date_str)
         contrarian_lookup: dict[tuple[str, str], str] = {}
         if not contrarian.empty:

@@ -179,3 +179,163 @@ def test_daily_report_page_renders_under_500ms_with_ten_managers(monkeypatch):
     daily_report.main()
     elapsed_ms = (time.perf_counter() - start) * 1000
     assert elapsed_ms < 500
+
+
+def test_daily_report_crowded_trades_tab_renders_sortable_table(monkeypatch):
+    dataframe_calls: list[tuple[pd.DataFrame, bool, bool]] = []
+    selectbox_calls: list[tuple[str, list[str], str]] = []
+
+    class _Tab:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _MetricColumn:
+        def metric(self, *_args, **_kwargs):
+            return None
+
+    crowded = pd.DataFrame(
+        [
+            {
+                "cusip": "AAA111111",
+                "name_of_issuer": "Issuer Alpha",
+                "manager_count": 3,
+                "manager_names": ["Alpha", "Beta", "Gamma"],
+                "total_value_usd": 1500.0,
+                "avg_conviction_pct": 12.5,
+            },
+            {
+                "cusip": "BBB222222",
+                "name_of_issuer": "Issuer Beta",
+                "manager_count": 5,
+                "manager_names": ["Delta", "Echo", "Foxtrot"],
+                "total_value_usd": 1000.0,
+                "avg_conviction_pct": 8.0,
+            },
+        ]
+    )
+
+    monkeypatch.setattr(daily_report, "require_login", lambda: True)
+    monkeypatch.setattr(daily_report, "load_diffs", lambda _date: pd.DataFrame())
+    monkeypatch.setattr(daily_report, "load_activism_events", lambda _date: pd.DataFrame())
+    monkeypatch.setattr(
+        daily_report,
+        "load_contrarian_signals",
+        lambda _date, limit=200: pd.DataFrame(),
+    )
+    monkeypatch.setattr(daily_report, "load_news", lambda _date: pd.DataFrame())
+    monkeypatch.setattr(daily_report, "load_crowded_trades", lambda _date: crowded.copy())
+    monkeypatch.setattr(daily_report.st, "date_input", lambda *args, **kwargs: dt.date(2024, 5, 1))
+    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab(), _Tab()])
+    monkeypatch.setattr(daily_report.st, "columns", lambda n: [_MetricColumn() for _ in range(n)])
+    monkeypatch.setattr(daily_report.st, "markdown", lambda *args, **kwargs: None)
+    monkeypatch.setattr(daily_report.st, "download_button", lambda *args, **kwargs: None)
+    monkeypatch.setattr(daily_report.st, "info", lambda *args, **kwargs: None)
+
+    def _selectbox(label, options, key=None):
+        selectbox_calls.append((label, list(options), key))
+        return "Manager count"
+
+    monkeypatch.setattr(daily_report.st, "selectbox", _selectbox)
+    monkeypatch.setattr(
+        daily_report.st,
+        "dataframe",
+        lambda df, use_container_width=True, hide_index=False: dataframe_calls.append(
+            (df.copy(), use_container_width, hide_index)
+        ),
+    )
+
+    daily_report.main()
+
+    assert selectbox_calls == [
+        (
+            "Sort crowded trades by",
+            ["Manager count", "Total value"],
+            "crowded_sort_2024-05-01",
+        )
+    ]
+    crowded_table = dataframe_calls[0][0]
+    assert list(crowded_table.columns) == [
+        "CUSIP",
+        "Issuer",
+        "# Managers",
+        "Total Value",
+        "Avg Conviction %",
+        "Managers",
+    ]
+    assert crowded_table.iloc[0]["CUSIP"] == "BBB222222"
+    assert crowded_table.iloc[0]["# Managers"] == 5
+    assert crowded_table.iloc[0]["Managers"] == "Delta, Echo, Foxtrot"
+
+
+def test_daily_report_filings_and_diffs_marks_contrarian_rows(monkeypatch):
+    markdown_calls: list[str] = []
+
+    class _Tab:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _MetricColumn:
+        def metric(self, *_args, **_kwargs):
+            return None
+
+    diffs = pd.DataFrame(
+        [
+            {
+                "manager_name": "Alpha Partners",
+                "cusip": "AAA111111",
+                "name_of_issuer": "Issuer Alpha",
+                "delta_type": "DECREASE",
+                "shares_prev": 100,
+                "shares_curr": 40,
+                "value_prev": 1000.0,
+                "value_curr": 500.0,
+            }
+        ]
+    )
+    contrarian = pd.DataFrame(
+        [
+            {
+                "manager_name": "Alpha Partners",
+                "cusip": "AAA111111",
+                "name_of_issuer": "Issuer Alpha",
+                "direction": "SELL",
+                "consensus_direction": "BUY",
+                "delta_value": -500.0,
+                "consensus_count": 4,
+                "report_date": "2024-05-01",
+            }
+        ]
+    )
+
+    monkeypatch.setattr(daily_report, "require_login", lambda: True)
+    monkeypatch.setattr(daily_report, "load_diffs", lambda _date: diffs.copy())
+    monkeypatch.setattr(
+        daily_report, "load_contrarian_signals", lambda _date, limit=200: contrarian
+    )
+    monkeypatch.setattr(daily_report, "load_activism_events", lambda _date: pd.DataFrame())
+    monkeypatch.setattr(daily_report, "load_crowded_trades", lambda _date: pd.DataFrame())
+    monkeypatch.setattr(daily_report, "load_news", lambda _date: pd.DataFrame())
+    monkeypatch.setattr(daily_report.st, "date_input", lambda *args, **kwargs: dt.date(2024, 5, 1))
+    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab(), _Tab()])
+    monkeypatch.setattr(daily_report.st, "columns", lambda n: [_MetricColumn() for _ in range(n)])
+    monkeypatch.setattr(
+        daily_report.st,
+        "markdown",
+        lambda value, **kwargs: markdown_calls.append(value),
+    )
+    monkeypatch.setattr(daily_report.st, "download_button", lambda *args, **kwargs: None)
+    monkeypatch.setattr(daily_report.st, "selectbox", lambda *args, **kwargs: "All topics")
+    monkeypatch.setattr(daily_report.st, "dataframe", lambda *args, **kwargs: None)
+    monkeypatch.setattr(daily_report.st, "info", lambda *args, **kwargs: None)
+
+    daily_report.main()
+
+    html_table = next((call for call in markdown_calls if "<table" in call), "")
+    assert "Contrarian: SELL vs BUY" in html_table
+    assert "Issuer Alpha" in html_table
