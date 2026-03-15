@@ -475,7 +475,11 @@ def test_inserted_news_items_filters_existing_rows():
             "topics": ["activist"],
             "confidence": 0.8,
         }
-        new = {**existing, "published_at": "2026-01-01T01:00:00+00:00", "url": "https://example.com/b"}
+        new = {
+            **existing,
+            "published_at": "2026-01-01T01:00:00+00:00",
+            "url": "https://example.com/b",
+        }
         news_flow.persist_news.fn([existing], conn)
 
         inserted = news_flow.inserted_news_items([existing, new], conn)
