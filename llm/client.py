@@ -6,6 +6,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +33,8 @@ _PROVIDER_ALIASES = {
     "azure_openai": "azure_openai",
     "azure-openai": "azure_openai",
 }
+
+_REASONING_MODEL_PATTERN = re.compile(r"^o\d+(?:[-:].*)?$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -142,8 +145,7 @@ def _resolve_max_retries(max_retries: int | None) -> int:
 
 
 def _is_reasoning_model(model: str) -> bool:
-    lowered = model.lower().strip()
-    return lowered.startswith("o") and len(lowered) > 1 and lowered[1].isdigit()
+    return bool(_REASONING_MODEL_PATTERN.match(model.strip()))
 
 
 def _client_kwargs(model: str, timeout: int, max_retries: int) -> dict[str, object]:

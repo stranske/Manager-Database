@@ -60,6 +60,18 @@ def test_build_chat_client_honors_env_overrides(monkeypatch):
     assert "temperature" not in captured["config"].client_kwargs
 
 
+def test_client_kwargs_omits_temperature_for_reasoning_models():
+    kwargs = llm_client._client_kwargs("o1-preview", timeout=30, max_retries=4)
+
+    assert kwargs == {"timeout": 30, "max_retries": 4}
+
+
+def test_client_kwargs_sets_temperature_for_non_reasoning_models():
+    kwargs = llm_client._client_kwargs("gpt-4o-mini", timeout=30, max_retries=4)
+
+    assert kwargs == {"timeout": 30, "max_retries": 4, "temperature": 0.1}
+
+
 def test_slot_config_loading_from_json_file(monkeypatch, tmp_path):
     config_path = tmp_path / "llm_slots.json"
     config_path.write_text(
