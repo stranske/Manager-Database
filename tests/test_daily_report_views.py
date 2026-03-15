@@ -76,8 +76,19 @@ def test_daily_report_page_renders_from_mv_daily_report(tmp_path, monkeypatch):
             metric_calls.append((label, str(value), None if delta is None else str(delta)))
 
     monkeypatch.setattr(daily_report, "require_login", lambda: True)
+    monkeypatch.setattr(
+        daily_report,
+        "load_crowded_trades",
+        lambda _date, min_managers=3, limit=20: pd.DataFrame(),
+    )
+    monkeypatch.setattr(
+        daily_report,
+        "load_contrarian_signals",
+        lambda _date, limit=200: pd.DataFrame(),
+    )
+    monkeypatch.setattr(daily_report, "load_activism_events", lambda _date: pd.DataFrame())
     monkeypatch.setattr(daily_report.st, "date_input", lambda *args, **kwargs: dt.date(2024, 5, 1))
-    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab()])
+    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab(), _Tab()])
     monkeypatch.setattr(daily_report.st, "columns", lambda n: [_MetricColumn() for _ in range(n)])
     monkeypatch.setattr(
         daily_report.st,
@@ -131,6 +142,17 @@ def test_daily_report_page_renders_under_500ms_with_ten_managers(monkeypatch):
     monkeypatch.setattr(daily_report, "load_diffs", lambda _date: pd.DataFrame(manager_rows))
     monkeypatch.setattr(
         daily_report,
+        "load_crowded_trades",
+        lambda _date, min_managers=3, limit=20: pd.DataFrame(),
+    )
+    monkeypatch.setattr(
+        daily_report,
+        "load_contrarian_signals",
+        lambda _date, limit=200: pd.DataFrame(),
+    )
+    monkeypatch.setattr(daily_report, "load_activism_events", lambda _date: pd.DataFrame())
+    monkeypatch.setattr(
+        daily_report,
         "load_news",
         lambda _date: pd.DataFrame(
             columns=[
@@ -145,7 +167,7 @@ def test_daily_report_page_renders_under_500ms_with_ten_managers(monkeypatch):
         ),
     )
     monkeypatch.setattr(daily_report.st, "date_input", lambda *args, **kwargs: dt.date(2024, 5, 1))
-    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab()])
+    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab(), _Tab()])
     monkeypatch.setattr(daily_report.st, "columns", lambda n: [_MetricColumn() for _ in range(n)])
     monkeypatch.setattr(daily_report.st, "markdown", lambda *args, **kwargs: None)
     monkeypatch.setattr(daily_report.st, "download_button", lambda *args, **kwargs: None)
