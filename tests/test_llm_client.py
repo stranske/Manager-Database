@@ -82,3 +82,47 @@ def test_slot_config_loading_from_json_file(monkeypatch, tmp_path):
     assert client_info is not None
     assert client_info.provider == "anthropic"
     assert client_info.model == "claude-test"
+
+
+def test_build_chat_client_falls_through_when_first_slot_construction_fails(monkeypatch):
+    monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("MANAGER_DB_ANTHROPIC_API_KEY", "anthropic-key")
+    calls: list[str] = []
+
+    def _fake_create_llm(config):
+        calls.append(config.provider_name)
+        if config.provider_name == "openai":
+            raise RuntimeError("slot1 failed")
+        return _FakeClient()
+
+    monkeypatch.setattr(llm_client, "create_llm", _fake_create_llm)
+
+    client_info = llm_client.build_chat_client()
+
+    assert client_info is not None
+    assert calls == ["openai", "anthropic"]
+    assert client_info.provider == "anthropic"
+    assert client_info.model == "claude-sonnet-4-20250514"
+
+
+def test_build_chat_client_uses_provider_default_model_when_provider_forced(monkeypatch, tmp_path):
+    config_path = tmp_path / "llm_slots.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "slots": [
+                    {"name": "slot1", "provider": "openai", "model": "gpt-test"},
+                    {"name": "slot2", "provider": "anthropic", "model": "claude-test"},
+                ]
+            }
+        )
+    )
+    monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
+    monkeypatch.setenv("MANAGER_DB_ANTHROPIC_API_KEY", "anthropic-key")
+    monkeypatch.setattr(llm_client, "create_llm", lambda config: _FakeClient())
+
+    client_info = llm_client.build_chat_client(provider="anthropic")
+
+    assert client_info is not None
+    assert client_info.provider == "anthropic"
+    assert client_info.model == "claude-test"

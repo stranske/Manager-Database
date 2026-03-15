@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from llm.provider import LLMProviderConfig, create_llm
+from llm.provider import _DEFAULT_MODEL_NAMES, LLMProviderConfig, create_llm
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,13 @@ def _resolve_slots() -> list[SlotDefinition]:
     return _apply_slot_env_overrides(_load_slot_config())
 
 
+def _default_model_for_provider(provider: str) -> str:
+    for slot in _resolve_slots():
+        if slot.provider == provider:
+            return slot.model
+    return _DEFAULT_MODEL_NAMES[provider]
+
+
 def _resolve_timeout(timeout: int | None) -> int:
     return _env_int(ENV_TIMEOUT, DEFAULT_TIMEOUT) if timeout is None else timeout
 
@@ -185,8 +193,10 @@ def _build_for(provider: str, model: str, timeout: int, max_retries: int) -> Cli
         model_name=model,
         client_kwargs=_client_kwargs(model, timeout, max_retries),
     )
-    client = create_llm(config)
-    return ClientInfo(client=client, provider=provider, model=model)
+    with contextlib.suppress(Exception):
+        client = create_llm(config)
+        return ClientInfo(client=client, provider=provider, model=model)
+    return None
 
 
 def build_chat_client(
@@ -206,7 +216,7 @@ def build_chat_client(
     if selected_provider is not None:
         selected_model = (model or os.environ.get(ENV_MODEL) or "").strip()
         if not selected_model:
-            selected_model = _default_slots()[0].model
+            selected_model = _default_model_for_provider(selected_provider)
         return _build_for(selected_provider, selected_model, selected_timeout, selected_retries)
 
     slots = _resolve_slots()
