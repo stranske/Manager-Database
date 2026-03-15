@@ -7,7 +7,9 @@ import importlib
 import json
 import logging
 import os
+import sqlite3
 import time
+import uuid
 from collections import defaultdict, deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -31,6 +33,7 @@ from api.managers import router as managers_router
 from api.memory_profiler import start_memory_profiler, stop_memory_profiler
 from api.search import SearchEntityType, SearchResult, universal_search
 from api.signals import router as signals_router
+from llm.tracing import maybe_enable_langsmith_tracing
 
 app = FastAPI()
 # Tag manager endpoints so they group clearly in the Swagger UI.
@@ -150,6 +153,7 @@ class ChatResponse(BaseModel):
     sql: str | None = Field(None, description="Generated SQL, when applicable")
     trace_url: str | None = Field(None, description="Optional trace URL for observability")
     latency_ms: int = Field(0, description="End-to-end request latency in milliseconds")
+    response_id: str = Field(..., description="Stable identifier used for feedback submission")
 
 
 class ChatRequest(BaseModel):
@@ -158,6 +162,14 @@ class ChatRequest(BaseModel):
     question: str
     chain: str | None = None
     context: dict[str, Any] | None = None
+
+
+class FeedbackRequest(BaseModel):
+    """User feedback captured for a chat response."""
+
+    response_id: str
+    rating: int = Field(..., ge=1, le=5)
+    comment: str | None = None
 
 
 class HoldingsAnalysisRequest(BaseModel):
@@ -273,7 +285,15 @@ def chat(
             manager_name = hit.get("manager_name") or "unassigned"
             snippets.append(f"[{kind} | {filename} | manager: {manager_name}] {hit['content']}")
         answer = "Context: " + " ".join(snippets)
-    return {"answer": answer, "latency_ms": 0, "chain_used": "legacy_search"}
+    return {
+        "answer": answer,
+        "latency_ms": 0,
+        "chain_used": "legacy_search",
+        "sources": [],
+        "sql": None,
+        "trace_url": None,
+        "response_id": str(uuid.uuid4()),
+    }
 
 
 _SEARCH_ENTITY_TYPE_QUERY = Query(
@@ -535,6 +555,84 @@ def _extract_chain_payload(result: Any) -> tuple[str, list[dict[str, Any]], str 
     return answer, sources, sql, trace_url
 
 
+def _response_id_from_trace_url(trace_url: str | None) -> str:
+    if trace_url:
+        stripped = trace_url.rstrip("/")
+        if "/" in stripped:
+            candidate = stripped.rsplit("/", 1)[-1]
+            if candidate:
+                return candidate
+    return str(uuid.uuid4())
+
+
+def _placeholder(conn: Any) -> str:
+    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
+
+
+def _postgres_table_exists(conn: Any, table_name: str) -> bool:
+    row = conn.execute("SELECT to_regclass(%s)", (f"public.{table_name}",)).fetchone()
+    return bool(row and row[0])
+
+
+def _ensure_chat_feedback_table(conn: Any) -> None:
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute("""CREATE TABLE IF NOT EXISTS chat_feedback (
+                feedback_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                response_id TEXT NOT NULL,
+                rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+                comment TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+        return
+
+    if not _postgres_table_exists(conn, "chat_feedback"):
+        raise RuntimeError("chat_feedback table missing; run migrations before accepting feedback")
+
+
+def _store_feedback(feedback: FeedbackRequest) -> int:
+    conn = connect_db()
+    try:
+        _ensure_chat_feedback_table(conn)
+        ph = _placeholder(conn)
+        if isinstance(conn, sqlite3.Connection):
+            cursor = conn.execute(
+                f"INSERT INTO chat_feedback(response_id, rating, comment) VALUES ({ph}, {ph}, {ph})",
+                (feedback.response_id, feedback.rating, feedback.comment),
+            )
+            conn.commit()
+            return int(cursor.lastrowid or 0)
+
+        row = conn.execute(
+            f"INSERT INTO chat_feedback(response_id, rating, comment) VALUES ({ph}, {ph}, {ph}) RETURNING feedback_id",
+            (feedback.response_id, feedback.rating, feedback.comment),
+        ).fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+    finally:
+        conn.close()
+
+
+def _attach_langsmith_feedback(feedback: FeedbackRequest) -> None:
+    if not maybe_enable_langsmith_tracing():
+        return
+    try:
+        from langsmith import Client as LangSmithClient
+    except Exception:
+        return
+
+    try:
+        LangSmithClient().create_feedback(
+            run_id=feedback.response_id,
+            key="user_rating",
+            score=feedback.rating,
+            comment=feedback.comment,
+        )
+    except Exception:
+        logger.warning(
+            "Failed to attach feedback to LangSmith",
+            extra={"response_id": feedback.response_id},
+        )
+
+
 async def _run_chain(
     chain_name: str, question: str, context: dict[str, Any] | None, client_info: Any
 ):
@@ -592,6 +690,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             sql=sql,
             trace_url=trace_url,
             latency_ms=latency_ms,
+            response_id=_response_id_from_trace_url(trace_url),
         )
     except PROMPT_INJECTION_ERROR as exc:  # type: ignore[misc]
         reasons = getattr(exc, "reasons", [str(exc)])
@@ -649,6 +748,18 @@ async def nl_query(question: str, raw_request: Request) -> ChatResponse:
 async def rag_search(question: str, raw_request: Request) -> ChatResponse:
     """Direct RAG search endpoint."""
     return await chat_api(ChatRequest(question=question, chain="rag_search"), raw_request)
+
+
+@app.post("/api/chat/feedback")
+async def submit_feedback(feedback: FeedbackRequest, raw_request: Request) -> dict[str, Any]:
+    """Persist user feedback and forward it to LangSmith when available."""
+    _enforce_chat_rate_limit(raw_request)
+    try:
+        feedback_id = _store_feedback(feedback)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    _attach_langsmith_feedback(feedback)
+    return {"ok": True, "feedback_id": feedback_id}
 
 
 def _health_payload() -> dict[str, int | bool]:

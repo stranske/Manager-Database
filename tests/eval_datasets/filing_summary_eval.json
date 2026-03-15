@@ -1,0 +1,622 @@
+[
+  {
+    "filing_id": 1,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000001",
+            "name_of_issuer": "Issuer 1",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000011",
+            "name_of_issuer": "Issuer 1B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000021",
+            "name_of_issuer": "Issuer 1C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 2,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000002",
+            "name_of_issuer": "Issuer 2",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000012",
+            "name_of_issuer": "Issuer 2B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000022",
+            "name_of_issuer": "Issuer 2C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 3,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000003",
+            "name_of_issuer": "Issuer 3",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000013",
+            "name_of_issuer": "Issuer 3B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000023",
+            "name_of_issuer": "Issuer 3C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 4,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000004",
+            "name_of_issuer": "Issuer 4",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000014",
+            "name_of_issuer": "Issuer 4B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000024",
+            "name_of_issuer": "Issuer 4C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 5,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000005",
+            "name_of_issuer": "Issuer 5",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000015",
+            "name_of_issuer": "Issuer 5B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000025",
+            "name_of_issuer": "Issuer 5C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 6,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000006",
+            "name_of_issuer": "Issuer 6",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000016",
+            "name_of_issuer": "Issuer 6B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000026",
+            "name_of_issuer": "Issuer 6C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 7,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000007",
+            "name_of_issuer": "Issuer 7",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000017",
+            "name_of_issuer": "Issuer 7B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000027",
+            "name_of_issuer": "Issuer 7C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 8,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000008",
+            "name_of_issuer": "Issuer 8",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000018",
+            "name_of_issuer": "Issuer 8B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000028",
+            "name_of_issuer": "Issuer 8C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 9,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "000000009",
+            "name_of_issuer": "Issuer 9",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000019",
+            "name_of_issuer": "Issuer 9B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "000000029",
+            "name_of_issuer": "Issuer 9C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  },
+  {
+    "filing_id": 10,
+    "manager_name": "Elliott Investment Management",
+    "min_positions_mentioned": 5,
+    "must_contain_cusips": [
+      "037833100",
+      "594918104"
+    ],
+    "total_aum_range": [
+      1000000,
+      50000000000
+    ],
+    "must_mention_sectors": [
+      "Technology",
+      "Healthcare"
+    ],
+    "run": {
+      "outputs": {
+        "total_positions": 5,
+        "total_aum_estimate": "$10.00M",
+        "key_positions": [
+          {
+            "cusip": "037833100",
+            "name_of_issuer": "Apple Inc",
+            "value_usd": 4000000
+          },
+          {
+            "cusip": "594918104",
+            "name_of_issuer": "Microsoft Corp",
+            "value_usd": 3000000
+          },
+          {
+            "cusip": "0000000010",
+            "name_of_issuer": "Issuer 10",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "0000000110",
+            "name_of_issuer": "Issuer 10B",
+            "value_usd": 1000000
+          },
+          {
+            "cusip": "0000000210",
+            "name_of_issuer": "Issuer 10C",
+            "value_usd": 1000000
+          }
+        ],
+        "notable_changes": [
+          "Added Apple Inc"
+        ],
+        "sector_concentration": [
+          {
+            "sector": "Technology",
+            "weight": 0.5
+          }
+        ],
+        "risk_flags": [
+          "No risk flags"
+        ]
+      }
+    }
+  }
+]

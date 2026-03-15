@@ -1,0 +1,121 @@
+[
+  {
+    "question": "How many managers are in the database?",
+    "expected_sql_pattern": "SELECT.+COUNT.+FROM\\s+managers",
+    "expected_result_type": "single_number",
+    "run": {
+      "outputs": {
+        "sql": "SELECT COUNT(*) AS manager_count FROM managers LIMIT 100"
+      }
+    }
+  },
+  {
+    "question": "What are Elliott's top 5 holdings by value?",
+    "expected_sql_pattern": "SELECT.+FROM\\s+holdings.+JOIN.+filings.+JOIN.+managers.+WHERE.+Elliott.+ORDER BY.+value_usd.+DESC.+LIMIT\\s+5",
+    "expected_columns": [
+      "name_of_issuer",
+      "value_usd"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT h.name_of_issuer, h.value_usd FROM holdings h JOIN filings f ON f.filing_id = h.filing_id JOIN managers m ON m.manager_id = f.manager_id WHERE m.name LIKE '%Elliott%' ORDER BY h.value_usd DESC LIMIT 5"
+      }
+    }
+  },
+  {
+    "question": "Show the latest 3 filings",
+    "expected_sql_pattern": "SELECT.+FROM\\s+filings.+ORDER BY.+filed_date.+DESC",
+    "expected_columns": [
+      "filing_id"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT filing_id, filed_date FROM filings ORDER BY filed_date DESC LIMIT 3"
+      }
+    }
+  },
+  {
+    "question": "Show the latest 4 filings",
+    "expected_sql_pattern": "SELECT.+FROM\\s+filings.+ORDER BY.+filed_date.+DESC",
+    "expected_columns": [
+      "filing_id"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT filing_id, filed_date FROM filings ORDER BY filed_date DESC LIMIT 4"
+      }
+    }
+  },
+  {
+    "question": "Show the latest 5 filings",
+    "expected_sql_pattern": "SELECT.+FROM\\s+filings.+ORDER BY.+filed_date.+DESC",
+    "expected_columns": [
+      "filing_id"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT filing_id, filed_date FROM filings ORDER BY filed_date DESC LIMIT 5"
+      }
+    }
+  },
+  {
+    "question": "Show the latest 6 filings",
+    "expected_sql_pattern": "SELECT.+FROM\\s+filings.+ORDER BY.+filed_date.+DESC",
+    "expected_columns": [
+      "filing_id"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT filing_id, filed_date FROM filings ORDER BY filed_date DESC LIMIT 6"
+      }
+    }
+  },
+  {
+    "question": "Show the latest 7 filings",
+    "expected_sql_pattern": "SELECT.+FROM\\s+filings.+ORDER BY.+filed_date.+DESC",
+    "expected_columns": [
+      "filing_id"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT filing_id, filed_date FROM filings ORDER BY filed_date DESC LIMIT 7"
+      }
+    }
+  },
+  {
+    "question": "Show the latest 8 filings",
+    "expected_sql_pattern": "SELECT.+FROM\\s+filings.+ORDER BY.+filed_date.+DESC",
+    "expected_columns": [
+      "filing_id"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT filing_id, filed_date FROM filings ORDER BY filed_date DESC LIMIT 8"
+      }
+    }
+  },
+  {
+    "question": "Show the latest 9 filings",
+    "expected_sql_pattern": "SELECT.+FROM\\s+filings.+ORDER BY.+filed_date.+DESC",
+    "expected_columns": [
+      "filing_id"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT filing_id, filed_date FROM filings ORDER BY filed_date DESC LIMIT 9"
+      }
+    }
+  },
+  {
+    "question": "Show the latest 10 filings",
+    "expected_sql_pattern": "SELECT.+FROM\\s+filings.+ORDER BY.+filed_date.+DESC",
+    "expected_columns": [
+      "filing_id"
+    ],
+    "run": {
+      "outputs": {
+        "sql": "SELECT filing_id, filed_date FROM filings ORDER BY filed_date DESC LIMIT 10"
+      }
+    }
+  }
+]

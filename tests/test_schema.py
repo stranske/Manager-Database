@@ -18,6 +18,7 @@ EXPECTED_TABLES = {
     "activism_events",
     "alert_rules",
     "alert_history",
+    "chat_feedback",
     "holdings",
     "news_items",
     "documents",
@@ -206,6 +207,11 @@ def test_analytics_indexes_exist(monkeypatch, tmp_path):
         }
         assert {"idx_alert_history_unack", "idx_alert_history_rule"}.issubset(alert_history_indexes)
 
+        chat_feedback_indexes = {
+            row[1] for row in conn.execute("PRAGMA index_list('chat_feedback')").fetchall()
+        }
+        assert {"idx_chat_feedback_response_id"}.issubset(chat_feedback_indexes)
+
 
 def test_alert_tables_schema_contract(monkeypatch, tmp_path):
     """Verify alert tables expose the expected schema contract after migration."""
@@ -274,6 +280,21 @@ def test_alert_tables_schema_contract(monkeypatch, tmp_path):
 
         alert_history_fk = conn.execute("PRAGMA foreign_key_list('alert_history')").fetchall()
         assert any(row[2] == "alert_rules" and row[3] == "rule_id" for row in alert_history_fk)
+
+        chat_feedback = {
+            row[1]: {"type": row[2].upper(), "notnull": bool(row[3]), "default": row[4]}
+            for row in conn.execute("PRAGMA table_info('chat_feedback')").fetchall()
+        }
+        assert set(chat_feedback) == {
+            "feedback_id",
+            "response_id",
+            "rating",
+            "comment",
+            "created_at",
+        }
+        assert chat_feedback["response_id"]["notnull"] is True
+        assert chat_feedback["rating"]["notnull"] is True
+        assert chat_feedback["created_at"]["default"] in ("CURRENT_TIMESTAMP", "current_timestamp")
 
 
 def test_alert_migration_upgrade_and_downgrade(monkeypatch, tmp_path):

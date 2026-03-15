@@ -16,6 +16,7 @@ from adapters.base import connect_db
 from . import require_login
 
 CHAT_API_URL = os.getenv("CHAT_API_URL", "http://localhost:8000/api/chat")
+CHAT_FEEDBACK_URL = os.getenv("CHAT_FEEDBACK_URL", "http://localhost:8000/api/chat/feedback")
 REQUEST_TIMEOUT_SECONDS = 45
 
 CHAIN_OPTIONS: list[str] = [
@@ -128,6 +129,10 @@ def _render_sources(sources: list[Any]) -> None:
         st.markdown(f"- {_source_markdown(source)}")
 
 
+def _session_headers() -> dict[str, str]:
+    return {"x-session-id": str(st.session_state.chat_session_id)}
+
+
 def _call_chat_api(
     question: str, chain_mode: str, context: dict[str, Any] | None
 ) -> dict[str, Any]:
@@ -136,11 +141,10 @@ def _call_chat_api(
         "chain": CHAIN_MAP.get(chain_mode),
         "context": context,
     }
-    headers = {"x-session-id": st.session_state.chat_session_id}
     response = requests.post(
         CHAT_API_URL,
         json=payload,
-        headers=headers,
+        headers=_session_headers(),
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
 
@@ -166,6 +170,7 @@ def _append_message(
     latency_ms: int | None = None,
     trace_url: str | None = None,
     sql: str | None = None,
+    response_id: str | None = None,
 ) -> None:
     message: dict[str, Any] = {
         "role": role,
@@ -180,6 +185,8 @@ def _append_message(
         message["trace_url"] = trace_url
     if sql:
         message["sql"] = sql
+    if response_id:
+        message["response_id"] = response_id
     st.session_state.messages.append(message)
 
 
@@ -203,6 +210,35 @@ def _render_assistant_metadata(message: dict[str, Any]) -> None:
             st.code(str(sql), language="sql")
 
 
+def _submit_feedback(response_id: str, rating: int) -> None:
+    try:
+        response = requests.post(
+            CHAT_FEEDBACK_URL,
+            json={"response_id": response_id, "rating": rating},
+            headers=_session_headers(),
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        if hasattr(response, "raise_for_status"):
+            response.raise_for_status()
+        elif getattr(response, "status_code", 500) >= 400:
+            raise RuntimeError(f"{response.status_code}: feedback request failed")
+    except Exception as exc:
+        st.error(f"Feedback failed: {exc}")
+        return
+    st.toast("Feedback recorded")
+
+
+def _render_feedback_controls(message: dict[str, Any], message_id: int) -> None:
+    response_id = str(message.get("response_id") or "").strip()
+    if not response_id:
+        return
+    col1, col2 = st.columns(2)
+    if col1.button("Thumbs up", key=f"feedback_up_{message_id}"):
+        _submit_feedback(response_id, 5)
+    if col2.button("Thumbs down", key=f"feedback_down_{message_id}"):
+        _submit_feedback(response_id, 1)
+
+
 def _run_chat_turn(prompt: str, chain_mode: str, context: dict[str, Any] | None) -> None:
     _append_message("user", prompt)
     with st.chat_message("assistant"):
@@ -221,6 +257,7 @@ def _run_chat_turn(prompt: str, chain_mode: str, context: dict[str, Any] | None)
         latency_ms = int(result.get("latency_ms", 0))
         trace_url = result.get("trace_url")
         sql = result.get("sql")
+        response_id = result.get("response_id")
         st.markdown(answer)
 
         _render_assistant_metadata(
@@ -235,6 +272,7 @@ def _run_chat_turn(prompt: str, chain_mode: str, context: dict[str, Any] | None)
         if sources:
             with st.expander("📄 Sources", expanded=True):
                 _render_sources(sources)
+        _render_feedback_controls({"response_id": response_id}, len(st.session_state.messages))
 
     _append_message(
         "assistant",
@@ -244,6 +282,7 @@ def _run_chat_turn(prompt: str, chain_mode: str, context: dict[str, Any] | None)
         latency_ms=latency_ms,
         trace_url=trace_url,
         sql=str(sql) if sql else None,
+        response_id=str(response_id) if response_id else None,
     )
 
 
@@ -257,11 +296,12 @@ def _init_session_state() -> None:
 
 
 def _render_history() -> None:
-    for msg in st.session_state.messages:
+    for index, msg in enumerate(st.session_state.messages):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
             if msg.get("role") == "assistant":
                 _render_assistant_metadata(msg)
+                _render_feedback_controls(msg, index)
             sources = msg.get("sources") or []
             if sources:
                 with st.expander("📄 Sources"):
