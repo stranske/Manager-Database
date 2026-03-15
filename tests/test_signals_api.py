@@ -215,6 +215,34 @@ def test_get_crowded_trades_filters_by_report_date_and_threshold(tmp_path, monke
     assert payload[0]["manager_names"] == ["Alpha Partners", "Zulu Capital", "Gamma Capital"]
 
 
+def test_get_crowded_trades_filters_to_selected_manager_holdings(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals.db"
+    _seed_db(db_path)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(
+        _request(
+            "/api/signals/crowded",
+            params={"report_date": "2024-05-01", "manager_id": 1, "min_managers": 1},
+        )
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["cusip"] for item in payload] == ["AAA111111", "BBB222222"]
+
+    response = asyncio.run(
+        _request(
+            "/api/signals/crowded",
+            params={"report_date": "2024-05-01", "manager_id": 2, "min_managers": 1},
+        )
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["cusip"] for item in payload] == ["AAA111111"]
+
+
 def test_get_contrarian_signals_filters_by_manager(tmp_path, monkeypatch):
     db_path = tmp_path / "signals.db"
     _seed_db(db_path)
@@ -231,6 +259,16 @@ def test_get_contrarian_signals_filters_by_manager(tmp_path, monkeypatch):
     assert len(payload) == 1
     assert payload[0]["manager_name"] == "Alpha Partners"
     assert payload[0]["consensus_direction"] == "BUY"
+    assert set(payload[0]) == {
+        "manager_name",
+        "cusip",
+        "name_of_issuer",
+        "direction",
+        "consensus_direction",
+        "delta_value",
+        "consensus_count",
+        "report_date",
+    }
 
 
 def test_get_conviction_scores_defaults_to_latest_filing(tmp_path, monkeypatch):
@@ -248,6 +286,39 @@ def test_get_conviction_scores_defaults_to_latest_filing(tmp_path, monkeypatch):
     payload = response.json()
     assert [item["cusip"] for item in payload] == ["AAA111111"]
     assert payload[0]["conviction_pct"] == 66.67
+    assert set(payload[0]) == {
+        "cusip",
+        "name_of_issuer",
+        "value_usd",
+        "conviction_pct",
+        "portfolio_weight",
+    }
+
+
+def test_get_crowded_trades_returns_expected_response_shape(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals.db"
+    _seed_db(db_path)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(
+        _request(
+            "/api/signals/crowded",
+            params={"report_date": "2024-05-01", "min_managers": 3},
+        )
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 1
+    assert set(payload[0]) == {
+        "cusip",
+        "name_of_issuer",
+        "manager_count",
+        "manager_names",
+        "total_value_usd",
+        "avg_conviction_pct",
+        "report_date",
+    }
 
 
 def test_signals_endpoints_return_empty_arrays_for_missing_data(tmp_path, monkeypatch):

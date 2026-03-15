@@ -198,10 +198,10 @@ def query_crowded_trades(
             "    WITH ranked_filings AS ("
             "        SELECT filing_id, ROW_NUMBER() OVER ("
             "            PARTITION BY manager_id "
-            "            ORDER BY COALESCE(filed_date, period_end) DESC, filing_id DESC"
+            "            ORDER BY COALESCE(period_end, filed_date) DESC, filed_date DESC, filing_id DESC"
             "        ) AS rn "
             "        FROM filings "
-            f"        WHERE manager_id = {ph} AND COALESCE(filed_date, period_end) <= {ph}"
+            f"        WHERE manager_id = {ph} AND COALESCE(period_end, filed_date) <= {ph}"
             "    ) "
             "    SELECT 1 FROM ranked_filings rf "
             "    JOIN holdings h ON h.filing_id = rf.filing_id "
@@ -333,6 +333,7 @@ def query_conviction_scores(
 )
 async def get_crowded_trades(
     report_date: date | None = None,
+    manager_id: int | None = None,
     min_managers: int = Query(3, ge=1),
     limit: int = Query(50, ge=1, le=500),
 ) -> list[CrowdedTradeResponse]:
@@ -341,6 +342,7 @@ async def get_crowded_trades(
         return query_crowded_trades(
             conn,
             report_date=report_date,
+            manager_id=manager_id,
             min_managers=min_managers,
             limit=limit,
         )
