@@ -8,7 +8,7 @@ import pytest
 
 from alerts.db import ensure_alert_tables
 from alerts.engine import AlertEngine
-from alerts.models import AlertEvent, AlertRuleCreate
+from alerts.models import AlertEvent, AlertRule, AlertRuleCreate, FiredAlert
 
 
 def _setup_db(db_path: Path) -> sqlite3.Connection:
@@ -186,9 +186,63 @@ def test_alert_engine_returns_empty_when_no_rules_match(tmp_path):
         conn.close()
 
 
+def test_alert_engine_returns_empty_when_no_rules_exist(tmp_path):
+    conn = _setup_db(tmp_path / "alerts.db")
+    try:
+        engine = AlertEngine(conn)
+
+        fired = engine.evaluate(
+            AlertEvent(event_type="new_filing", manager_id=1, payload={"type": "13F-HR"})
+        )
+
+        assert fired == []
+    finally:
+        conn.close()
+
+
+def test_alert_engine_matches_all_managers_rule_when_event_manager_is_null(tmp_path):
+    conn = _setup_db(tmp_path / "alerts.db")
+    try:
+        _insert_rule(
+            conn,
+            name="Global ETL Failure Rule",
+            event_type="etl_failure",
+            condition_json="{}",
+            manager_id=None,
+        )
+        _insert_rule(
+            conn,
+            name="Manager Scoped ETL Failure Rule",
+            event_type="etl_failure",
+            condition_json="{}",
+            manager_id=1,
+        )
+
+        engine = AlertEngine(conn)
+        fired = engine.evaluate(
+            AlertEvent(
+                event_type="etl_failure",
+                manager_id=None,
+                payload={"job": "edgar_flow", "status": "failed"},
+            )
+        )
+
+        assert [alert.rule.name for alert in fired] == ["Global ETL Failure Rule"]
+    finally:
+        conn.close()
+
+
 def test_alert_models_reject_invalid_event_types_and_channels():
     with pytest.raises(ValueError, match="Unsupported event_type"):
         AlertEvent(event_type="manager_update", manager_id=1, payload={})
+
+    with pytest.raises(ValueError, match="Unsupported event_type"):
+        AlertRuleCreate(
+            name="Bad Event Type",
+            event_type="manager_update",
+            condition_json={},
+            channels=["streamlit"],
+        )
 
     with pytest.raises(ValueError, match="Unsupported channel"):
         AlertRuleCreate(
@@ -196,4 +250,29 @@ def test_alert_models_reject_invalid_event_types_and_channels():
             event_type="new_filing",
             condition_json={},
             channels=["pagerduty"],
+        )
+
+
+def test_alert_models_normalize_channel_aliases_and_validate_fired_alert_channels():
+    rule = AlertRule(
+        rule_id=7,
+        name="Alias Channels",
+        description=None,
+        event_type="new_filing",
+        condition_json={"any_new_filing": True},
+        channels=["webhook", "in_app", "slack"],
+        enabled=True,
+        manager_id=None,
+        created_by=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    assert rule.channels == ["slack", "streamlit"]
+
+    with pytest.raises(ValueError, match="Unsupported channel"):
+        FiredAlert(
+            rule=rule,
+            event=AlertEvent(event_type="new_filing", manager_id=1, payload={"type": "13F-HR"}),
+            channels=["email", "pagerduty"],
         )
