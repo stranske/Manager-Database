@@ -294,7 +294,7 @@ def insert_pending_alert(conn: Any, fired_alert: FiredAlert) -> int:
     cursor = conn.execute(
         f"""INSERT INTO alert_history(
             rule_id, event_type, payload_json, delivered_channels
-        ) VALUES ({ph}, {ph}, {ph}, {ph})
+        ) VALUES ({ph}, {ph}, {ph}::jsonb, {ph})
         RETURNING alert_id""",
         params,
     )

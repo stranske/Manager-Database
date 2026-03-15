@@ -322,6 +322,20 @@ def persist_news(items: list[dict[str, Any]], conn: Any) -> int:
     return inserted
 
 
+def inserted_news_items(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:
+    """Return only rows that are new to the table before writing this batch."""
+    ph = _placeholder(conn)
+    inserted_items: list[dict[str, Any]] = []
+    for item in items:
+        row = conn.execute(
+            f"SELECT 1 FROM news_items WHERE url = {ph} AND published_at = {ph} LIMIT 1",
+            (item.get("url"), item.get("published_at")),
+        ).fetchone()
+        if row is None:
+            inserted_items.append(item)
+    return inserted_items
+
+
 @flow
 async def news_flow(sources: list[str] | None = None, since: str | None = None):
     """Hourly news harvest flow.
@@ -349,10 +363,11 @@ async def news_flow(sources: list[str] | None = None, since: str | None = None):
             total_fetched += len(fetched_items)
 
             matched_items = match_entities.fn(fetched_items, conn)
+            new_items = inserted_news_items(matched_items, conn)
             inserted = persist_news.fn(matched_items, conn)
             total_inserted += inserted
-            if inserted > 0:
-                total_alerts += await emit_news_spike_alerts(matched_items, conn)
+            if new_items:
+                total_alerts += await emit_news_spike_alerts(new_items, conn)
 
             source_watermarks[source] = update_source_watermark.fn(source, fetched_items, conn)
     finally:
