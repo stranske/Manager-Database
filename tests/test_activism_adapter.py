@@ -56,7 +56,6 @@ def _seed_alert_rule(db_path: Path) -> None:
     conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
             alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
             rule_id INTEGER,
-            rule_name TEXT NOT NULL,
             event_type TEXT NOT NULL,
             payload_json TEXT NOT NULL,
             fired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -269,9 +268,10 @@ async def test_fetch_activism_filings_stores_rows_and_raw_documents(monkeypatch,
     stored_events = conn.execute(
         "SELECT filing_id, event_type, threshold_crossed FROM activism_events ORDER BY filing_id, event_type, threshold_crossed"
     ).fetchall()
-    alert_history = conn.execute(
-        "SELECT rule_name, event_type FROM alert_history ORDER BY alert_id"
-    ).fetchall()
+    alert_history = conn.execute("""SELECT alert_rules.name, alert_history.event_type
+           FROM alert_history
+           JOIN alert_rules ON alert_rules.rule_id = alert_history.rule_id
+           ORDER BY alert_history.alert_id""").fetchall()
     conn.close()
     assert stored_rows == [
         (1, "SC 13D", "Apple Inc.", "037833100", "2024-05-03"),

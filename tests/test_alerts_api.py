@@ -61,12 +61,17 @@ def _seed_alert_history(db_path: Path) -> None:
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(
-            """INSERT INTO alert_history(
-                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
+            """INSERT INTO alert_rules(
+                rule_id, name, event_type, condition_json, channels, enabled
             ) VALUES (?, ?, ?, ?, ?, ?)""",
+            (2, "New Filing Rule", "new_filing", "{}", '["slack"]', 1),
+        )
+        conn.execute(
+            """INSERT INTO alert_history(
+                rule_id, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?)""",
             (
                 1,
-                "Large Delta Rule",
                 "large_delta",
                 '{"symbol":"ABC","delta":150000}',
                 '["email"]',
@@ -75,11 +80,10 @@ def _seed_alert_history(db_path: Path) -> None:
         )
         conn.execute(
             """INSERT INTO alert_history(
-                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
-            ) VALUES (?, ?, ?, ?, ?, ?)""",
+                rule_id, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?)""",
             (
                 1,
-                "Large Delta Rule",
                 "large_delta",
                 '{"symbol":"XYZ","delta":250000}',
                 '["slack"]',
@@ -88,11 +92,10 @@ def _seed_alert_history(db_path: Path) -> None:
         )
         conn.execute(
             """INSERT INTO alert_history(
-                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
-            ) VALUES (?, ?, ?, ?, ?, ?)""",
+                rule_id, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?)""",
             (
                 2,
-                "New Filing Rule",
                 "new_filing",
                 '{"symbol":"QRS"}',
                 '["slack"]',
@@ -108,7 +111,6 @@ def _seed_alert_for_rule(
     db_path: Path,
     *,
     rule_id: int,
-    rule_name: str,
     event_type: str = "large_delta",
     acknowledged: bool = False,
 ) -> None:
@@ -116,11 +118,10 @@ def _seed_alert_for_rule(
     try:
         conn.execute(
             """INSERT INTO alert_history(
-                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
-            ) VALUES (?, ?, ?, ?, ?, ?)""",
+                rule_id, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?)""",
             (
                 rule_id,
-                rule_name,
                 event_type,
                 '{"symbol":"ABC","delta":150000}',
                 '["email"]',
@@ -194,7 +195,6 @@ def test_alert_rule_soft_delete_preserves_history(tmp_path, monkeypatch):
     _seed_alert_for_rule(
         db_path,
         rule_id=rule_id,
-        rule_name=created_rule["name"],
     )
 
     delete_response = asyncio.run(_request("DELETE", f"/api/alerts/rules/{rule_id}"))
@@ -230,13 +230,11 @@ def test_alert_rule_soft_delete_keeps_rule_row_and_history_rows(tmp_path, monkey
     _seed_alert_for_rule(
         db_path,
         rule_id=rule_id,
-        rule_name=created_rule["name"],
         acknowledged=False,
     )
     _seed_alert_for_rule(
         db_path,
         rule_id=rule_id,
-        rule_name=created_rule["name"],
         acknowledged=True,
     )
 

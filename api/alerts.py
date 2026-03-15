@@ -313,24 +313,25 @@ async def list_alerts(
         where_clauses: list[str] = []
         params: list[Any] = []
         if since is not None:
-            where_clauses.append(f"fired_at >= {ph}")
+            where_clauses.append(f"ah.fired_at >= {ph}")
             params.append(since.isoformat(sep=" "))
         if acknowledged is not None:
-            where_clauses.append(f"acknowledged = {ph}")
+            where_clauses.append(f"ah.acknowledged = {ph}")
             params.append(
                 1 if is_sqlite(conn) and acknowledged else 0 if is_sqlite(conn) else acknowledged
             )
         if event_type is not None:
-            where_clauses.append(f"event_type = {ph}")
+            where_clauses.append(f"ah.event_type = {ph}")
             params.append(event_type)
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         params.append(limit)
         cursor = conn.execute(
-            f"""SELECT alert_id, rule_name, event_type, payload_json, fired_at, delivered_channels,
-                       acknowledged
-                  FROM alert_history
+            f"""SELECT ah.alert_id, ar.name AS rule_name, ah.event_type, ah.payload_json,
+                       ah.fired_at, ah.delivered_channels, ah.acknowledged
+                  FROM alert_history AS ah
+                  JOIN alert_rules AS ar ON ar.rule_id = ah.rule_id
                   {where_sql}
-                  ORDER BY fired_at DESC, alert_id DESC
+                  ORDER BY ah.fired_at DESC, ah.alert_id DESC
                   LIMIT {ph}""",
             params,
         )

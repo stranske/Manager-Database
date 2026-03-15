@@ -121,7 +121,6 @@ def ensure_alert_tables(conn: Any) -> None:
         conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
                 alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 rule_id INTEGER NOT NULL,
-                rule_name TEXT NOT NULL,
                 fired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 event_type TEXT NOT NULL,
                 payload_json TEXT NOT NULL,
@@ -170,7 +169,6 @@ def ensure_alert_tables(conn: Any) -> None:
     conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
             alert_id bigserial PRIMARY KEY,
             rule_id bigint NOT NULL REFERENCES alert_rules(rule_id),
-            rule_name text NOT NULL,
             fired_at timestamptz NOT NULL DEFAULT now(),
             event_type text NOT NULL,
             payload_json jsonb NOT NULL,
@@ -218,10 +216,11 @@ def fetch_rule_by_id(conn: Any, rule_id: int) -> tuple[Any, ...] | None:
 def fetch_alert_by_id(conn: Any, alert_id: int) -> tuple[Any, ...] | None:
     ph = placeholder(conn)
     cursor = conn.execute(
-        f"""SELECT alert_id, rule_name, event_type, payload_json, fired_at, delivered_channels,
-                   acknowledged
-              FROM alert_history
-              WHERE alert_id = {ph}""",
+        f"""SELECT ah.alert_id, ar.name AS rule_name, ah.event_type, ah.payload_json, ah.fired_at,
+                   ah.delivered_channels, ah.acknowledged
+              FROM alert_history AS ah
+              JOIN alert_rules AS ar ON ar.rule_id = ah.rule_id
+              WHERE ah.alert_id = {ph}""",
         (alert_id,),
     )
     return cursor.fetchone()
@@ -237,7 +236,6 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
     for fired in fired_alerts:
         params = (
             fired.rule.rule_id,
-            fired.rule.name,
             fired.event.event_type,
             serialize_json(fired.event.payload),
             serialize_channels(conn, fired.channels),
@@ -245,8 +243,8 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
         if is_sqlite(conn):
             cursor = conn.execute(
                 """INSERT INTO alert_history(
-                    rule_id, rule_name, event_type, payload_json, delivered_channels
-                ) VALUES (?, ?, ?, ?, ?)""",
+                    rule_id, event_type, payload_json, delivered_channels
+                ) VALUES (?, ?, ?, ?)""",
                 params,
             )
             if cursor.lastrowid is not None:
@@ -254,8 +252,8 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
         else:
             cursor = conn.execute(
                 f"""INSERT INTO alert_history(
-                    rule_id, rule_name, event_type, payload_json, delivered_channels
-                ) VALUES ({ph}, {ph}, {ph}, {ph}::jsonb, {ph})
+                    rule_id, event_type, payload_json, delivered_channels
+                ) VALUES ({ph}, {ph}, {ph}::jsonb, {ph})
                 RETURNING alert_id""",
                 params,
             )

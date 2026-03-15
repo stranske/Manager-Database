@@ -287,7 +287,10 @@ def test_fire_alerts_for_matching_activism_event(tmp_path):
 
         assert alerts == 1
         history = conn.execute(
-            "SELECT rule_name, event_type, payload_json, delivered_channels FROM alert_history"
+            """SELECT alert_rules.name, alert_history.event_type, alert_history.payload_json,
+                      alert_history.delivered_channels
+               FROM alert_history
+               JOIN alert_rules ON alert_rules.rule_id = alert_history.rule_id"""
         ).fetchone()
         assert history is not None
         assert history[0] == "Threshold Rule"

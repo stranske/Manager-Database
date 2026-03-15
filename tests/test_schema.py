@@ -244,9 +244,18 @@ def test_alert_tables_schema_contract(monkeypatch, tmp_path):
             row[1]: {"type": row[2].upper(), "notnull": bool(row[3]), "default": row[4]}
             for row in conn.execute("PRAGMA table_info('alert_history')").fetchall()
         }
-        assert {"alert_id", "rule_id", "event_type", "payload_json", "acknowledged"}.issubset(
-            alert_history
-        )
+        assert set(alert_history) == {
+            "alert_id",
+            "rule_id",
+            "fired_at",
+            "event_type",
+            "payload_json",
+            "delivered_channels",
+            "delivery_errors",
+            "acknowledged",
+            "acknowledged_by",
+            "acknowledged_at",
+        }
         assert alert_history["rule_id"]["notnull"] is True
         assert alert_history["event_type"]["notnull"] is True
         assert alert_history["payload_json"]["notnull"] is True
@@ -264,13 +273,13 @@ def test_alert_tables_schema_contract(monkeypatch, tmp_path):
 
 
 def test_alert_migration_upgrade_and_downgrade(monkeypatch, tmp_path):
-    """Verify revision 007 upgrades and downgrades alert tables cleanly."""
+    """Verify alert history schema revisions upgrade and downgrade cleanly."""
     monkeypatch.delenv("DB_URL", raising=False)
     db_path = tmp_path / "schema.db"
     config = _alembic_config(f"sqlite:///{db_path}")
 
     command.upgrade(config, "006")
-    command.upgrade(config, "007")
+    command.upgrade(config, "008")
 
     with sqlite3.connect(db_path) as conn:
         tables = {
@@ -280,6 +289,10 @@ def test_alert_migration_upgrade_and_downgrade(monkeypatch, tmp_path):
             ).fetchall()
         }
         assert {"alert_rules", "alert_history"}.issubset(tables)
+        history_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info('alert_history')").fetchall()
+        }
+        assert "rule_name" not in history_columns
 
     command.downgrade(config, "006")
 

@@ -226,7 +226,6 @@ CREATE INDEX IF NOT EXISTS idx_alert_rules_event
 CREATE TABLE IF NOT EXISTS alert_history (
     alert_id bigserial PRIMARY KEY,
     rule_id bigint NOT NULL REFERENCES alert_rules(rule_id),
-    rule_name text NOT NULL,
     fired_at timestamptz DEFAULT now(),
     event_type text NOT NULL,
     payload_json jsonb NOT NULL,
