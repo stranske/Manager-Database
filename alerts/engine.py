@@ -33,9 +33,9 @@ class AlertEngine:
 
     def __init__(self, db_conn: Any):
         self.db = db_conn
+        ensure_alert_tables(self.db)
 
     def _load_rules(self, event_type: str) -> list[AlertRule]:
-        ensure_alert_tables(self.db)
         ph = placeholder(self.db)
         enabled_value = 1 if ph == "?" else True
         cursor = self.db.execute(

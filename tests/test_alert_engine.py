@@ -197,3 +197,23 @@ def test_alert_models_reject_invalid_event_types_and_channels():
             condition_json={},
             channels=["pagerduty"],
         )
+
+
+def test_alert_engine_ensures_schema_once_at_init(tmp_path, monkeypatch):
+    conn = _setup_db(tmp_path / "alerts.db")
+    try:
+        calls: list[str] = []
+
+        def _record_ensure(db_conn: sqlite3.Connection) -> None:
+            assert db_conn is conn
+            calls.append("ensure")
+
+        monkeypatch.setattr("alerts.engine.ensure_alert_tables", _record_ensure)
+        engine = AlertEngine(conn)
+
+        engine.evaluate(AlertEvent(event_type="new_filing", manager_id=1, payload={}))
+        engine.evaluate(AlertEvent(event_type="new_filing", manager_id=1, payload={}))
+
+        assert calls == ["ensure"]
+    finally:
+        conn.close()

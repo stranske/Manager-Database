@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS managers (
     registry_ids jsonb DEFAULT '{}',
     tags text[] DEFAULT '{}',
     quality_flags jsonb DEFAULT '{}',
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now()
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique
@@ -226,10 +226,10 @@ CREATE INDEX IF NOT EXISTS idx_alert_rules_event
 CREATE TABLE IF NOT EXISTS alert_history (
     alert_id bigserial PRIMARY KEY,
     rule_id bigint NOT NULL REFERENCES alert_rules(rule_id),
-    fired_at timestamptz DEFAULT now(),
+    fired_at timestamptz NOT NULL DEFAULT now(),
     event_type text NOT NULL,
     payload_json jsonb NOT NULL,
-    delivered_channels text[] DEFAULT ARRAY[]::text[],
+    delivered_channels text[] NOT NULL DEFAULT ARRAY[]::text[],
     delivery_errors jsonb,
     acknowledged boolean NOT NULL DEFAULT false,
     acknowledged_by text,

@@ -83,10 +83,11 @@ def _sqlite_add_column_if_missing(
     table: str,
     column: str,
     definition: str,
-) -> None:
+) -> bool:
     if column in _sqlite_columns(conn, table):
-        return
+        return False
     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    return True
 
 
 def ensure_alert_tables(conn: Any) -> None:
@@ -113,10 +114,15 @@ def ensure_alert_tables(conn: Any) -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_alert_rules_event ON alert_rules(event_type)")
         _sqlite_add_column_if_missing(conn, "alert_rules", "description", "TEXT")
         _sqlite_add_column_if_missing(conn, "alert_rules", "created_by", "TEXT")
-        _sqlite_add_column_if_missing(conn, "alert_rules", "updated_at", "TIMESTAMP")
-        conn.execute(
-            "UPDATE alert_rules SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)"
+        updated_at_added = _sqlite_add_column_if_missing(
+            conn, "alert_rules", "updated_at", "TIMESTAMP"
         )
+        if updated_at_added:
+            conn.execute(
+                "UPDATE alert_rules "
+                "SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) "
+                "WHERE updated_at IS NULL"
+            )
 
         conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
                 alert_id INTEGER PRIMARY KEY AUTOINCREMENT,

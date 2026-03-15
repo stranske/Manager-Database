@@ -237,6 +237,8 @@ def test_alert_tables_schema_contract(monkeypatch, tmp_path):
         assert alert_rules["event_type"]["notnull"] is True
         assert alert_rules["condition_json"]["notnull"] is True
         assert alert_rules["enabled"]["notnull"] is True
+        assert alert_rules["created_at"]["notnull"] is True
+        assert alert_rules["updated_at"]["notnull"] is True
         assert alert_rules["condition_json"]["default"] in ("'{}'", "{}")
         assert "streamlit" in str(alert_rules["channels"]["default"])
 
@@ -257,8 +259,10 @@ def test_alert_tables_schema_contract(monkeypatch, tmp_path):
             "acknowledged_at",
         }
         assert alert_history["rule_id"]["notnull"] is True
+        assert alert_history["fired_at"]["notnull"] is True
         assert alert_history["event_type"]["notnull"] is True
         assert alert_history["payload_json"]["notnull"] is True
+        assert alert_history["delivered_channels"]["notnull"] is True
         assert alert_history["acknowledged"]["notnull"] is True
 
         alert_rules_sql = conn.execute(
