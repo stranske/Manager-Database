@@ -41,6 +41,46 @@ def _seed_managers(db_path: Path) -> None:
     conn.close()
 
 
+def _seed_alert_rule(db_path: Path) -> None:
+    conn = sqlite3.connect(db_path)
+    conn.execute("""CREATE TABLE IF NOT EXISTS alert_rules (
+            rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            condition_json TEXT NOT NULL,
+            channels TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            manager_id INTEGER,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
+            alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_id INTEGER,
+            rule_name TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            fired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            delivered_channels TEXT NOT NULL,
+            acknowledged INTEGER NOT NULL DEFAULT 0,
+            acknowledged_by TEXT,
+            acknowledged_at TIMESTAMP
+        )""")
+    conn.execute(
+        """INSERT INTO alert_rules(name, event_type, condition_json, channels, enabled, manager_id)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            "Activism Watch",
+            "activism_event",
+            "{}",
+            '["in_app"]',
+            1,
+            None,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
 @pytest.mark.asyncio
 async def test_parse_13d_extracts_core_fields():
     raw = Path("tests/data/sample_13d.txt").read_text()
@@ -173,6 +213,7 @@ async def test_fetch_activism_filings_stores_rows_and_raw_documents(monkeypatch,
 
     db_path = tmp_path / "activism.db"
     _seed_managers(db_path)
+    _seed_alert_rule(db_path)
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setattr(activism_flow, "DB_PATH", str(db_path))
 
@@ -225,9 +266,29 @@ async def test_fetch_activism_filings_stores_rows_and_raw_documents(monkeypatch,
     stored_rows = conn.execute(
         "SELECT manager_id, filing_type, subject_company, subject_cusip, filed_date FROM activism_filings ORDER BY filing_id"
     ).fetchall()
+    stored_events = conn.execute(
+        "SELECT filing_id, event_type, threshold_crossed FROM activism_events ORDER BY filing_id, event_type, threshold_crossed"
+    ).fetchall()
+    alert_history = conn.execute(
+        "SELECT rule_name, event_type FROM alert_history ORDER BY alert_id"
+    ).fetchall()
     conn.close()
     assert stored_rows == [
         (1, "SC 13D", "Apple Inc.", "037833100", "2024-05-03"),
         (1, "SC 13G", "Microsoft Corporation", "594918104", "2024-05-04"),
+    ]
+    assert stored_events == [
+        (1, "group_formation", None),
+        (1, "initial_stake", None),
+        (1, "threshold_crossing", 5.0),
+        (2, "initial_stake", None),
+        (2, "threshold_crossing", 5.0),
+    ]
+    assert alert_history == [
+        ("Activism Watch", "activism_event"),
+        ("Activism Watch", "activism_event"),
+        ("Activism Watch", "activism_event"),
+        ("Activism Watch", "activism_event"),
+        ("Activism Watch", "activism_event"),
     ]
     reset_logging()

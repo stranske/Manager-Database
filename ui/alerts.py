@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 import httpx
@@ -14,7 +14,7 @@ import streamlit as st
 
 from . import require_login
 
-ALERT_EVENT_TYPES = ["large_delta", "new_filing", "manager_update"]
+ALERT_EVENT_TYPES = ["large_delta", "new_filing", "manager_update", "activism_event"]
 ALERT_CHANNELS = ["email", "slack", "webhook", "in_app"]
 
 
@@ -115,13 +115,55 @@ def _load_alerts(
 
 
 def _clear_alert_caches() -> None:
-    _load_managers.clear()
-    _load_rules.clear()
-    _load_alerts.clear()
+    cast(Any, _load_managers).clear()
+    cast(Any, _load_rules).clear()
+    cast(Any, _load_alerts).clear()
 
 
 def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
     defaults = defaults or {}
+    if event_type == "activism_event":
+        subtype_options = [
+            "any",
+            "initial_stake",
+            "threshold_crossing",
+            "stake_increase",
+            "stake_decrease",
+            "group_formation",
+            "amendment",
+            "form_upgrade",
+            "form_downgrade",
+        ]
+        default_subtype = str(defaults.get("event_type") or "any")
+        subtype_index = (
+            subtype_options.index(default_subtype) if default_subtype in subtype_options else 0
+        )
+        event_subtype = st.selectbox("event subtype", subtype_options, index=subtype_index)
+        subject_cusip = st.text_input(
+            "subject_cusip", value=str(defaults.get("subject_cusip") or "")
+        )
+        min_ownership_pct = st.number_input(
+            "min_ownership_pct",
+            min_value=0.0,
+            value=float(defaults.get("min_ownership_pct") or 0.0),
+            step=0.1,
+        )
+        min_delta_pct = st.number_input(
+            "min_delta_pct",
+            min_value=0.0,
+            value=float(defaults.get("min_delta_pct") or 0.0),
+            step=0.1,
+        )
+        condition: dict[str, Any] = {}
+        if event_subtype != "any":
+            condition["event_type"] = event_subtype
+        if subject_cusip.strip():
+            condition["subject_cusip"] = subject_cusip.strip()
+        if min_ownership_pct > 0:
+            condition["min_ownership_pct"] = min_ownership_pct
+        if min_delta_pct > 0:
+            condition["min_delta_pct"] = min_delta_pct
+        return condition
     if event_type == "large_delta":
         delta_type_options = ["buy", "sell", "net"]
         default_delta_type = str(defaults.get("delta_type") or "buy")
@@ -176,11 +218,11 @@ def _render_rule_builder() -> None:
 
     with st.form("create_alert_rule"):
         name = st.text_input("name", placeholder="Large Buy Delta")
-        event_type = st.selectbox("event_type", ALERT_EVENT_TYPES, index=0)
+        event_type = str(st.selectbox("event_type", ALERT_EVENT_TYPES, index=0))
         st.caption("Condition")
         condition_json = _condition_inputs(event_type)
         channels = st.multiselect("channels", ALERT_CHANNELS, default=["email"])
-        manager_choice = st.selectbox("manager filter", manager_options, index=0)
+        manager_choice = str(st.selectbox("manager filter", manager_options, index=0))
         enabled = st.checkbox("enabled", value=True)
         submitted = st.form_submit_button("Create Rule")
 
