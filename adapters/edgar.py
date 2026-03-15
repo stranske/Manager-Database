@@ -6,6 +6,8 @@ import asyncio
 import logging
 import os
 import re
+from collections.abc import Iterable, Mapping
+from typing import Any
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -33,10 +35,10 @@ async def _request_with_retry(
     for attempt in range(1, max_retries + 1):
         try:
             async with tracked_call(source, url) as log:
-                request_kwargs = {"headers": headers}
-                if params is not None:
-                    request_kwargs["params"] = params
-                response = await client.get(url, **request_kwargs)
+                if params is None:
+                    response = await client.get(url, headers=headers)
+                else:
+                    response = await client.get(url, headers=headers, params=params)
                 log(response)
             response.raise_for_status()
             return response
@@ -112,8 +114,21 @@ def _extract_efts_hits(payload: dict[str, object]) -> list[dict[str, object]]:
     return []
 
 
+def _json_mapping(payload: Any) -> Mapping[str, object]:
+    if isinstance(payload, Mapping):
+        return payload
+    return {}
+
+
+def _json_iterable(payload: Any) -> Iterable[object]:
+    if isinstance(payload, Iterable) and not isinstance(payload, (str, bytes, Mapping)):
+        return payload
+    return ()
+
+
 def _efts_hit_to_filing(hit: dict[str, object], cik: str) -> dict[str, str] | None:
-    source = hit.get("_source") if isinstance(hit.get("_source"), dict) else hit
+    raw_source = hit.get("_source")
+    source: Mapping[str, Any] = _json_mapping(raw_source) if raw_source is not None else hit
     form = str(source.get("formType") or source.get("form") or "").strip()
     filed = _normalize_filed_date(
         str(source.get("filedAt") or source.get("filed") or source.get("filed_date") or "")
@@ -171,7 +186,8 @@ async def _search_efts_filings(
         },
     )
     filings: list[dict[str, str]] = []
-    for hit in _extract_efts_hits(response.json()):
+    payload = _json_mapping(response.json())
+    for hit in _extract_efts_hits(dict(payload)):
         filing = _efts_hit_to_filing(hit, cik)
         if filing is not None:
             filings.append(filing)
@@ -209,10 +225,12 @@ async def list_new_filings(
         if any(_is_13f_form(form) for form in requested_forms):
             url = f"{BASE_URL}/submissions/CIK{cik.zfill(10)}.json"
             response = await _request_with_retry(client, url, headers, source="edgar")
-            recent = response.json().get("filings", {}).get("recent", {})
-            forms = recent.get("form", [])
-            dates = recent.get("filingDate", [])
-            accessions = recent.get("accessionNumber", [])
+            payload = _json_mapping(response.json())
+            filings_data = _json_mapping(payload.get("filings"))
+            recent = _json_mapping(filings_data.get("recent"))
+            forms = _json_iterable(recent.get("form"))
+            dates = _json_iterable(recent.get("filingDate"))
+            accessions = _json_iterable(recent.get("accessionNumber"))
             for form, filed, accession in zip(forms, dates, accessions, strict=False):
                 normalized = _normalize_form_type(str(form))
                 if normalized in requested_forms and str(filed) > since:
