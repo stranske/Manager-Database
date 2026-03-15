@@ -19,6 +19,7 @@ from api.activism import (
     query_activism_filings,
     query_activism_timeline,
 )
+from api.signals import query_contrarian_signals, query_conviction_scores, query_crowded_trades
 
 from . import require_login
 
@@ -211,6 +212,61 @@ def load_active_campaigns_summary(min_ownership_pct: float = 5.0, limit: int = 1
             min_ownership_pct=min_ownership_pct,
             limit=limit,
         )
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
+
+
+def load_manager_conviction_scores(
+    manager_id: int,
+    *,
+    filing_id: int | None = None,
+    min_conviction_pct: float = 0.0,
+    limit: int = 100,
+) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_conviction_scores(
+            conn,
+            manager_id,
+            filing_id=filing_id,
+            min_conviction_pct=min_conviction_pct,
+            limit=limit,
+        )
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
+
+
+def load_manager_crowded_trades(
+    manager_id: int,
+    *,
+    min_managers: int = 3,
+    limit: int = 25,
+) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_crowded_trades(
+            conn,
+            manager_id=manager_id,
+            min_managers=min_managers,
+            limit=limit,
+        )
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
+
+
+def load_manager_contrarian_signals(manager_id: int, limit: int = 25) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_contrarian_signals(conn, manager_id=manager_id, limit=limit)
     except Exception:
         rows = []
     finally:
@@ -691,6 +747,128 @@ def render_ownership_chart(selected_manager_id: int, show_heading: bool = True) 
     st.altair_chart(line_chart + threshold_rules, use_container_width=True)
 
 
+def render_top_convictions(selected_manager_id: int, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Top Convictions")
+
+    convictions = load_manager_conviction_scores(selected_manager_id, limit=10)
+    if convictions.empty:
+        st.info("No conviction scores found for the selected manager.")
+        return
+
+    convictions = convictions.copy()
+    convictions["conviction_pct"] = pd.to_numeric(convictions["conviction_pct"], errors="coerce")
+    convictions["value_usd"] = pd.to_numeric(convictions["value_usd"], errors="coerce")
+    convictions = convictions.dropna(subset=["conviction_pct"])
+    if convictions.empty:
+        st.info("No conviction scores available for charting.")
+        return
+
+    chart = (
+        alt.Chart(convictions.sort_values("conviction_pct", ascending=False).head(10))
+        .mark_bar(color="#1D4ED8")
+        .encode(
+            x=alt.X("conviction_pct:Q", title="Conviction %"),
+            y=alt.Y("name_of_issuer:N", sort="-x", title="Issuer"),
+            tooltip=["cusip", "name_of_issuer", "conviction_pct", "value_usd"],
+        )
+    )
+    st.altair_chart(chart, use_container_width=True)
+    st.dataframe(
+        convictions[["name_of_issuer", "cusip", "conviction_pct", "portfolio_weight", "value_usd"]],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def render_manager_crowded_trades(selected_manager_id: int, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Crowded Trades")
+
+    crowded = load_manager_crowded_trades(selected_manager_id)
+    if crowded.empty:
+        st.info("No crowded trades overlap found for the selected manager.")
+        return
+
+    crowded = crowded.copy()
+    crowded["manager_names"] = crowded["manager_names"].apply(
+        lambda names: ", ".join(names) if isinstance(names, list) else ""
+    )
+    crowded["avg_conviction_pct"] = pd.to_numeric(
+        crowded["avg_conviction_pct"], errors="coerce"
+    ).round(2)
+    crowded["total_value_usd"] = pd.to_numeric(crowded["total_value_usd"], errors="coerce")
+    st.dataframe(
+        crowded[
+            [
+                "cusip",
+                "name_of_issuer",
+                "manager_count",
+                "avg_conviction_pct",
+                "total_value_usd",
+                "manager_names",
+            ]
+        ].rename(
+            columns={
+                "name_of_issuer": "Issuer",
+                "manager_count": "# Managers",
+                "avg_conviction_pct": "Avg Conviction %",
+                "total_value_usd": "Total Value USD",
+                "manager_names": "Managers",
+            }
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def render_contrarian_alerts(selected_manager_id: int, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Contrarian Alerts")
+
+    signals = load_manager_contrarian_signals(selected_manager_id)
+    if signals.empty:
+        st.info("No contrarian signals found for the selected manager.")
+        return
+
+    signals = signals.copy()
+    signals["delta_value"] = pd.to_numeric(signals["delta_value"], errors="coerce")
+    st.dataframe(
+        signals[
+            [
+                "cusip",
+                "name_of_issuer",
+                "direction",
+                "consensus_direction",
+                "consensus_count",
+                "delta_value",
+                "report_date",
+            ]
+        ].rename(
+            columns={
+                "name_of_issuer": "Issuer",
+                "direction": "Manager Direction",
+                "consensus_direction": "Consensus",
+                "consensus_count": "Consensus Count",
+                "delta_value": "Delta Value",
+                "report_date": "Report Date",
+            }
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def render_conviction_signals_dashboard(selected_manager_id: int) -> None:
+    left_col, right_col = st.columns((3, 2), gap="large")
+    with left_col:
+        render_top_convictions(selected_manager_id, show_heading=False)
+        st.divider()
+        render_manager_crowded_trades(selected_manager_id, show_heading=False)
+    with right_col:
+        render_contrarian_alerts(selected_manager_id, show_heading=False)
+
+
 def render_activism_dashboard(selected_manager_id: int) -> None:
     render_activism_timeline(selected_manager_id, show_heading=False)
     st.divider()
@@ -972,15 +1150,30 @@ def render_manager_dashboard(selected_manager_id: int) -> None:
             with st.expander("QC Flags", expanded=True):
                 render_qc_flags(selected_manager_id, show_heading=False)
 
+    def _render_signals() -> None:
+        with st.expander("Top Convictions", expanded=True):
+            render_top_convictions(selected_manager_id, show_heading=False)
+        with st.expander("Crowded Trades", expanded=True):
+            render_manager_crowded_trades(selected_manager_id, show_heading=False)
+        with st.expander("Contrarian Alerts", expanded=True):
+            render_contrarian_alerts(selected_manager_id, show_heading=False)
+
     if not hasattr(st, "tabs"):
         _render_portfolio()
+        if hasattr(st, "divider"):
+            st.divider()
+        _render_signals()
         return
 
-    portfolio_tab, activism_tab = st.tabs(["Portfolio", "Activism"])
+    portfolio_tab, activism_tab, signals_tab = st.tabs(
+        ["Portfolio", "Activism", "Conviction & Signals"]
+    )
     with portfolio_tab:
         _render_portfolio()
     with activism_tab:
         render_activism_dashboard(selected_manager_id)
+    with signals_tab:
+        render_conviction_signals_dashboard(selected_manager_id)
 
 
 def render_historical_filing_trend() -> None:

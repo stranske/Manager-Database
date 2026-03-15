@@ -19,6 +19,9 @@ from ui.dashboard import (
     load_manager_activism_events,
     load_manager_activism_filings,
     load_manager_activism_timeline,
+    load_manager_contrarian_signals,
+    load_manager_conviction_scores,
+    load_manager_crowded_trades,
     load_managers,
     load_news_stream,
     load_qc_flags,
@@ -26,6 +29,7 @@ from ui.dashboard import (
     load_unacknowledged_alert_count,
     main,
     render_all_managers_summary,
+    render_conviction_signals_dashboard,
     render_filing_timeline,
     render_historical_filing_trend,
     render_latest_holdings_snapshot,
@@ -76,6 +80,24 @@ def setup_db(tmp_path: Path) -> str:
         "event_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_id INTEGER, event_type TEXT, "
         "subject_company TEXT, subject_cusip TEXT, ownership_pct REAL, previous_pct REAL, "
         "delta_pct REAL, threshold_crossed REAL, detected_at DATETIME)"
+    )
+    conn.execute(
+        "CREATE TABLE conviction_scores ("
+        "score_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_id INTEGER, cusip TEXT, "
+        "name_of_issuer TEXT, shares INTEGER, value_usd REAL, conviction_pct REAL, "
+        "portfolio_weight REAL, computed_at DATETIME)"
+    )
+    conn.execute(
+        "CREATE TABLE crowded_trades ("
+        "crowd_id INTEGER PRIMARY KEY, cusip TEXT, name_of_issuer TEXT, manager_count INTEGER, "
+        "manager_ids TEXT, total_value_usd REAL, avg_conviction_pct REAL, max_conviction_pct REAL, "
+        "report_date DATE, computed_at DATETIME)"
+    )
+    conn.execute(
+        "CREATE TABLE contrarian_signals ("
+        "signal_id INTEGER PRIMARY KEY, manager_id INTEGER, cusip TEXT, name_of_issuer TEXT, "
+        "direction TEXT, consensus_direction TEXT, manager_delta_shares INTEGER, "
+        "manager_delta_value REAL, consensus_count INTEGER, report_date DATE, detected_at DATETIME)"
     )
     manager_rows = [
         (2, "Zulu Capital"),
@@ -217,6 +239,52 @@ def setup_db(tmp_path: Path) -> str:
             "2024-03-12 10:00:00",
         ),
     ]
+    conviction_scores = [
+        (301, 1, 1, "BBB", "Issuer B", 200, 3000, 58.82, 0.5882, "2024-03-15 12:00:00"),
+        (302, 1, 1, "AAA", "Issuer A", 100, 1500, 29.41, 0.2941, "2024-03-15 12:00:00"),
+        (303, 1, 1, "CCC", "Issuer C", 50, 700, 13.73, 0.1373, "2024-03-15 12:00:00"),
+    ]
+    crowded_trades = [
+        (
+            401,
+            "AAA",
+            "Issuer A",
+            2,
+            "[1, 2]",
+            2200.0,
+            17.25,
+            29.41,
+            "2024-03-15",
+            "2024-03-15 13:00:00",
+        ),
+        (
+            402,
+            "BBB",
+            "Issuer B",
+            1,
+            "[1]",
+            3000.0,
+            58.82,
+            58.82,
+            "2024-03-15",
+            "2024-03-15 13:00:00",
+        ),
+    ]
+    contrarian_signals = [
+        (
+            501,
+            1,
+            "AAA",
+            "Issuer A",
+            "SELL",
+            "BUY",
+            -200,
+            -3800.0,
+            4,
+            "2024-03-15",
+            "2024-03-15 14:00:00",
+        )
+    ]
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
     conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.executemany("INSERT INTO filings VALUES (?,?,?,?,?,?,?)", filing_rows)
@@ -226,6 +294,13 @@ def setup_db(tmp_path: Path) -> str:
         "INSERT INTO activism_filings VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", activism_filings
     )
     conn.executemany("INSERT INTO activism_events VALUES (?,?,?,?,?,?,?,?,?,?,?)", activism_events)
+    conn.executemany(
+        "INSERT INTO conviction_scores VALUES (?,?,?,?,?,?,?,?,?,?)", conviction_scores
+    )
+    conn.executemany("INSERT INTO crowded_trades VALUES (?,?,?,?,?,?,?,?,?,?)", crowded_trades)
+    conn.executemany(
+        "INSERT INTO contrarian_signals VALUES (?,?,?,?,?,?,?,?,?,?,?)", contrarian_signals
+    )
     conn.executemany(
         "INSERT INTO api_usage(ts, source, endpoint, status, bytes, latency_ms, cost_usd) "
         "VALUES (?,?,?,?,?,?,?)",
@@ -385,6 +460,21 @@ def test_load_activism_helpers_and_campaigns(tmp_path: Path, monkeypatch):
     assert set(events["event_type"]) == {"initial_stake", "threshold_crossing"}
     assert list(timeline["type"]) == ["event", "filing", "event", "filing"]
     assert set(campaigns["subject_company"]) == {"Issuer A", "Issuer Z"}
+
+
+def test_load_signal_helpers(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    st.cache_data.clear()
+
+    convictions = load_manager_conviction_scores(1)
+    crowded = load_manager_crowded_trades(1, min_managers=1)
+    contrarian = load_manager_contrarian_signals(1)
+
+    assert list(convictions["cusip"]) == ["BBB", "AAA", "CCC"]
+    assert list(crowded["cusip"]) == ["AAA", "BBB"]
+    assert crowded.iloc[0]["manager_names"] == ["Alpha Partners", "Zulu Capital"]
+    assert contrarian.iloc[0]["consensus_direction"] == "BUY"
 
 
 class _FakeResponse:
@@ -901,6 +991,9 @@ def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
     monkeypatch.setattr("ui.dashboard.render_top_deltas", _recorder("top_deltas"))
     monkeypatch.setattr("ui.dashboard.render_news_stream", _recorder("news_stream"))
     monkeypatch.setattr("ui.dashboard.render_qc_flags", _recorder("qc_flags"))
+    monkeypatch.setattr("ui.dashboard.render_top_convictions", _recorder("top_convictions"))
+    monkeypatch.setattr("ui.dashboard.render_manager_crowded_trades", _recorder("crowded_trades"))
+    monkeypatch.setattr("ui.dashboard.render_contrarian_alerts", _recorder("contrarian_alerts"))
 
     render_manager_dashboard(7)
 
@@ -911,6 +1004,9 @@ def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
         ("Top Deltas", True),
         ("News", True),
         ("QC Flags", True),
+        ("Top Convictions", True),
+        ("Crowded Trades", True),
+        ("Contrarian Alerts", True),
     ]
     assert calls == [
         ("filing_timeline", 7, False),
@@ -918,7 +1014,93 @@ def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
         ("top_deltas", 7, False),
         ("news_stream", 7, False),
         ("qc_flags", 7, False),
+        ("top_convictions", 7, False),
+        ("crowded_trades", 7, False),
+        ("contrarian_alerts", 7, False),
     ]
+
+
+class SignalsStreamlit:
+    def __init__(self):
+        self.columns_calls = []
+        self.charts = []
+        self.tables = []
+        self.infos = []
+        self.dividers = 0
+
+    def columns(self, spec, gap=None):
+        self.columns_calls.append((spec, gap))
+        return [PerfColumn(), PerfColumn()]
+
+    def altair_chart(self, chart, use_container_width):
+        self.charts.append((chart, use_container_width))
+
+    def dataframe(self, df, use_container_width, hide_index=False):
+        self.tables.append((df.copy(), use_container_width, hide_index))
+
+    def info(self, text):
+        self.infos.append(text)
+
+    def divider(self):
+        self.dividers += 1
+
+
+def test_render_conviction_signals_dashboard_outputs_chart_and_tables(monkeypatch):
+    fake_st = SignalsStreamlit()
+    monkeypatch.setattr("ui.dashboard.st", fake_st)
+    monkeypatch.setattr(
+        "ui.dashboard.load_manager_conviction_scores",
+        lambda manager_id, **_kwargs: pd.DataFrame(
+            [
+                {
+                    "cusip": "BBB",
+                    "name_of_issuer": "Issuer B",
+                    "value_usd": 3000.0,
+                    "conviction_pct": 58.82,
+                    "portfolio_weight": 0.5882,
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "ui.dashboard.load_manager_crowded_trades",
+        lambda manager_id, **_kwargs: pd.DataFrame(
+            [
+                {
+                    "cusip": "AAA",
+                    "name_of_issuer": "Issuer A",
+                    "manager_count": 2,
+                    "manager_names": ["Alpha Partners", "Zulu Capital"],
+                    "total_value_usd": 2200.0,
+                    "avg_conviction_pct": 17.25,
+                    "report_date": "2024-03-15",
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "ui.dashboard.load_manager_contrarian_signals",
+        lambda manager_id, **_kwargs: pd.DataFrame(
+            [
+                {
+                    "manager_name": "Alpha Partners",
+                    "cusip": "AAA",
+                    "name_of_issuer": "Issuer A",
+                    "direction": "SELL",
+                    "consensus_direction": "BUY",
+                    "delta_value": -3800.0,
+                    "consensus_count": 4,
+                    "report_date": "2024-03-15",
+                }
+            ]
+        ),
+    )
+
+    render_conviction_signals_dashboard(1)
+
+    assert fake_st.columns_calls == [((3, 2), "large")]
+    assert len(fake_st.charts) == 1
+    assert len(fake_st.tables) == 3
 
 
 class PerfColumn:
