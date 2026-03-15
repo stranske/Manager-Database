@@ -129,6 +129,10 @@ def _render_sources(sources: list[Any]) -> None:
         st.markdown(f"- {_source_markdown(source)}")
 
 
+def _session_headers() -> dict[str, str]:
+    return {"x-session-id": str(st.session_state.chat_session_id)}
+
+
 def _call_chat_api(
     question: str, chain_mode: str, context: dict[str, Any] | None
 ) -> dict[str, Any]:
@@ -137,11 +141,10 @@ def _call_chat_api(
         "chain": CHAIN_MAP.get(chain_mode),
         "context": context,
     }
-    headers = {"x-session-id": st.session_state.chat_session_id}
     response = requests.post(
         CHAT_API_URL,
         json=payload,
-        headers=headers,
+        headers=_session_headers(),
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
 
@@ -208,11 +211,20 @@ def _render_assistant_metadata(message: dict[str, Any]) -> None:
 
 
 def _submit_feedback(response_id: str, rating: int) -> None:
-    requests.post(
-        CHAT_FEEDBACK_URL,
-        json={"response_id": response_id, "rating": rating},
-        timeout=REQUEST_TIMEOUT_SECONDS,
-    )
+    try:
+        response = requests.post(
+            CHAT_FEEDBACK_URL,
+            json={"response_id": response_id, "rating": rating},
+            headers=_session_headers(),
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        if hasattr(response, "raise_for_status"):
+            response.raise_for_status()
+        elif getattr(response, "status_code", 500) >= 400:
+            raise RuntimeError(f"{response.status_code}: feedback request failed")
+    except Exception as exc:
+        st.error(f"Feedback failed: {exc}")
+        return
     st.toast("Feedback recorded")
 
 

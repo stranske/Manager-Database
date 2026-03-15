@@ -228,9 +228,10 @@ class ManagerDBEvaluator:
         allowed = {str(value) for value in expected.get("allowed_values", [])}
         allowed.update(self._known_manager_names())
         allowed.update(self._known_cusips())
-        unsupported = [entity for entity in self._extract_entities(answer) if entity not in allowed]
+        entities = self._extract_entities(answer)
+        unsupported = [entity for entity in entities if entity not in allowed]
         score = (
-            1.0 if not unsupported else max(0.0, 1.0 - (len(unsupported) / max(len(allowed), 1)))
+            1.0 if not unsupported else max(0.0, 1.0 - (len(unsupported) / max(len(entities), 1)))
         )
         return EvaluationResult(
             key="hallucination",

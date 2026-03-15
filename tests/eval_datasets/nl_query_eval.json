@@ -11,14 +11,14 @@
   },
   {
     "question": "What are Elliott's top 5 holdings by value?",
-    "expected_sql_pattern": "SELECT.+FROM\\s+holdings.+JOIN.+managers.+ORDER BY.+value_usd.+DESC.+LIMIT\\s+5",
+    "expected_sql_pattern": "SELECT.+FROM\\s+holdings.+JOIN.+filings.+JOIN.+managers.+WHERE.+Elliott.+ORDER BY.+value_usd.+DESC.+LIMIT\\s+5",
     "expected_columns": [
       "name_of_issuer",
       "value_usd"
     ],
     "run": {
       "outputs": {
-        "sql": "SELECT h.name_of_issuer, h.value_usd FROM holdings h JOIN managers m ON m.manager_id = h.manager_id ORDER BY h.value_usd DESC LIMIT 5"
+        "sql": "SELECT h.name_of_issuer, h.value_usd FROM holdings h JOIN filings f ON f.filing_id = h.filing_id JOIN managers m ON m.manager_id = f.manager_id WHERE m.name LIKE '%Elliott%' ORDER BY h.value_usd DESC LIMIT 5"
       }
     }
   },

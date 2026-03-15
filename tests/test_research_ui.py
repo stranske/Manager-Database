@@ -313,16 +313,25 @@ def test_history_renders_saved_assistant_metadata(monkeypatch):
 def test_feedback_button_posts_rating(monkeypatch):
     research = _load_research_module()
     fake_st = FakeStreamlit()
+    fake_st.session_state.chat_session_id = "session-123"
     fake_st.button_presses["feedback_up_0"] = True
     monkeypatch.setattr(research, "st", fake_st)
 
     calls = {}
 
-    def _fake_post(url, *, json, timeout):
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def raise_for_status():
+            return None
+
+    def _fake_post(url, *, json, headers, timeout):
         calls["url"] = url
         calls["json"] = json
+        calls["headers"] = headers
         calls["timeout"] = timeout
-        return type("Resp", (), {"status_code": 200})()
+        return FakeResponse()
 
     monkeypatch.setattr(research.requests, "post", _fake_post)
 
@@ -330,8 +339,31 @@ def test_feedback_button_posts_rating(monkeypatch):
 
     assert calls["url"] == research.CHAT_FEEDBACK_URL
     assert calls["json"] == {"response_id": "trace-1", "rating": 5}
+    assert calls["headers"] == {"x-session-id": "session-123"}
     assert calls["timeout"] == research.REQUEST_TIMEOUT_SECONDS
     assert fake_st.toast_calls == ["Feedback recorded"]
+
+
+def test_feedback_button_surfaces_post_failure(monkeypatch):
+    research = _load_research_module()
+    fake_st = FakeStreamlit()
+    fake_st.session_state.chat_session_id = "session-err"
+    fake_st.button_presses["feedback_down_0"] = True
+    monkeypatch.setattr(research, "st", fake_st)
+
+    class FailingResponse:
+        status_code = 503
+
+        @staticmethod
+        def raise_for_status():
+            raise RuntimeError("503 Server Error")
+
+    monkeypatch.setattr(research.requests, "post", lambda *args, **kwargs: FailingResponse())
+
+    research._render_feedback_controls({"response_id": "trace-1"}, 0)
+
+    assert fake_st.toast_calls == []
+    assert fake_st.error_calls == ["Feedback failed: 503 Server Error"]
 
 
 def test_call_chat_api_sends_expected_payload_and_session_header(monkeypatch):

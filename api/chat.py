@@ -569,6 +569,11 @@ def _placeholder(conn: Any) -> str:
     return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
 
+def _postgres_table_exists(conn: Any, table_name: str) -> bool:
+    row = conn.execute("SELECT to_regclass(%s)", (f"public.{table_name}",)).fetchone()
+    return bool(row and row[0])
+
+
 def _ensure_chat_feedback_table(conn: Any) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS chat_feedback (
@@ -580,13 +585,8 @@ def _ensure_chat_feedback_table(conn: Any) -> None:
             )""")
         return
 
-    conn.execute("""CREATE TABLE IF NOT EXISTS chat_feedback (
-            feedback_id bigserial PRIMARY KEY,
-            response_id text NOT NULL,
-            rating int NOT NULL CHECK (rating BETWEEN 1 AND 5),
-            comment text,
-            created_at timestamptz DEFAULT now()
-        )""")
+    if not _postgres_table_exists(conn, "chat_feedback"):
+        raise RuntimeError("chat_feedback table missing; run migrations before accepting feedback")
 
 
 def _store_feedback(feedback: FeedbackRequest) -> int:
@@ -751,9 +751,13 @@ async def rag_search(question: str, raw_request: Request) -> ChatResponse:
 
 
 @app.post("/api/chat/feedback")
-async def submit_feedback(feedback: FeedbackRequest) -> dict[str, Any]:
+async def submit_feedback(feedback: FeedbackRequest, raw_request: Request) -> dict[str, Any]:
     """Persist user feedback and forward it to LangSmith when available."""
-    feedback_id = _store_feedback(feedback)
+    _enforce_chat_rate_limit(raw_request)
+    try:
+        feedback_id = _store_feedback(feedback)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     _attach_langsmith_feedback(feedback)
     return {"ok": True, "feedback_id": feedback_id}
 

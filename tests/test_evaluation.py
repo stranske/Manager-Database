@@ -110,7 +110,7 @@ def test_evaluate_rag_faithfulness_and_hallucination(tmp_path):
     )
 
     assert faithful.score == 1.0
-    assert hallucinated.score < 1.0
+    assert hallucinated.score <= 0.34
     conn.close()
 
 

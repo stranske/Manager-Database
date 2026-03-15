@@ -243,6 +243,17 @@ CREATE INDEX IF NOT EXISTS idx_alert_history_unack
 CREATE INDEX IF NOT EXISTS idx_alert_history_rule
     ON alert_history (rule_id);
 
+CREATE TABLE IF NOT EXISTS chat_feedback (
+    feedback_id bigserial PRIMARY KEY,
+    response_id text NOT NULL,
+    rating int NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment text,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_feedback_response_id
+    ON chat_feedback (response_id);
+
 CREATE TABLE IF NOT EXISTS api_usage (
     id bigserial PRIMARY KEY,
     ts timestamptz DEFAULT now(),
