@@ -44,6 +44,26 @@ def test_create_llm_missing_credentials_raises_value_error():
         create_llm(LLMProviderConfig(provider_name="openai", credentials={}))
 
 
+def test_create_llm_missing_credentials_fails_before_import(monkeypatch):
+    def _fail_import(name, globals=None, locals=None, fromlist=(), level=0):
+        raise AssertionError(f"unexpected import: {name}")
+
+    monkeypatch.setattr("builtins.__import__", _fail_import)
+
+    with pytest.raises(ValueError, match="Missing credentials"):
+        create_llm(LLMProviderConfig(provider_name="openai", credentials={}))
+
+
+def test_create_llm_azure_openai_requires_all_credentials():
+    with pytest.raises(ValueError, match="azure_endpoint, api_version"):
+        create_llm(
+            LLMProviderConfig(
+                provider_name="azure_openai",
+                credentials={"api_key": "sk-test"},
+            )
+        )
+
+
 def test_create_llm_unsupported_provider_raises_value_error():
     with pytest.raises(ValueError, match="Unsupported provider"):
         create_llm(LLMProviderConfig(provider_name="bogus", credentials={"api_key": "x"}))
