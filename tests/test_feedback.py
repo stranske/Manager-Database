@@ -64,7 +64,8 @@ def test_feedback_endpoint_attaches_langsmith_feedback_when_available(
 
     monkeypatch.setattr(chat_api_module, "maybe_enable_langsmith_tracing", lambda: True)
     fake_langsmith = types.ModuleType("langsmith")
-    setattr(fake_langsmith, "Client", lambda: FakeClient())
+    fake_langsmith_any = cast(Any, fake_langsmith)
+    fake_langsmith_any.Client = lambda: FakeClient()
     monkeypatch.setitem(sys.modules, "langsmith", fake_langsmith)
 
     response = asyncio.run(
