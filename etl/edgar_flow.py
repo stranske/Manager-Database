@@ -12,6 +12,7 @@ from prefect import flow, task
 
 import etl.ingest_flow as ingest_module
 from adapters.base import connect_db, get_adapter
+from alerts.integration import build_new_filing_event, fire_alerts_for_event
 from etl.logging_setup import configure_logging, log_outcome
 
 try:
@@ -211,6 +212,16 @@ async def fetch_and_store(cik: str, since: str):
                 filed_date=filing.get("filed"),
             )
         conn.commit()
+        await fire_alerts_for_event(
+            conn,
+            build_new_filing_event(
+                filing_id=filing_id if filing_id > 0 else None,
+                manager_id=manager_id,
+                filing_type=str(filing.get("form") or "13F-HR"),
+                filed_date=filing.get("filed"),
+                payload={"accession": accession, "source": "edgar"},
+            ),
+        )
         all_rows.extend(parsed_rows)
     conn.close()
     return all_rows

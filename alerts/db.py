@@ -269,3 +269,98 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
     if is_sqlite(conn):
         conn.commit()
     return alert_ids
+
+
+def insert_pending_alert(conn: Any, fired_alert: FiredAlert) -> int:
+    """Insert one alert_history row with no delivered channels recorded yet."""
+    ensure_alert_tables(conn)
+    ph = placeholder(conn)
+    params = (
+        fired_alert.rule.rule_id,
+        fired_alert.event.event_type,
+        serialize_json(fired_alert.event.payload),
+        serialize_channels(conn, []),
+    )
+    if is_sqlite(conn):
+        cursor = conn.execute(
+            """INSERT INTO alert_history(
+                rule_id, event_type, payload_json, delivered_channels
+            ) VALUES (?, ?, ?, ?)""",
+            params,
+        )
+        conn.commit()
+        return int(cursor.lastrowid or 0)
+
+    cursor = conn.execute(
+        f"""INSERT INTO alert_history(
+            rule_id, event_type, payload_json, delivered_channels
+        ) VALUES ({ph}, {ph}, {ph}, {ph})
+        RETURNING alert_id""",
+        params,
+    )
+    row = cursor.fetchone()
+    return int(row[0]) if row and row[0] is not None else 0
+
+
+def _fetch_delivery_state(conn: Any, alert_id: int) -> tuple[list[str], dict[str, str]]:
+    ph = placeholder(conn)
+    row = conn.execute(
+        f"""SELECT delivered_channels, delivery_errors
+              FROM alert_history
+              WHERE alert_id = {ph}""",
+        (alert_id,),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"Alert history row not found: {alert_id}")
+    return deserialize_json_array(row[0]), deserialize_json_object(row[1])
+
+
+def record_delivery_success(conn: Any, alert_id: int, channel: str) -> None:
+    """Append a successfully delivered channel without duplicating prior entries."""
+    channels, errors = _fetch_delivery_state(conn, alert_id)
+    if channel not in channels:
+        channels.append(channel)
+
+    ph = placeholder(conn)
+    if is_sqlite(conn):
+        conn.execute(
+            """UPDATE alert_history
+                  SET delivered_channels = ?, delivery_errors = ?
+                WHERE alert_id = ?""",
+            (serialize_channels(conn, channels), serialize_json(errors), alert_id),
+        )
+        conn.commit()
+        return
+
+    conn.execute(
+        f"""UPDATE alert_history
+              SET delivered_channels = {ph},
+                  delivery_errors = {ph}::jsonb
+            WHERE alert_id = {ph}""",
+        (channels, serialize_json(errors), alert_id),
+    )
+
+
+def record_delivery_error(conn: Any, alert_id: int, channel: str, error_message: str) -> None:
+    """Persist channel-specific delivery failures as a JSON object keyed by channel."""
+    channels, errors = _fetch_delivery_state(conn, alert_id)
+    errors[channel] = error_message
+
+    ph = placeholder(conn)
+    if is_sqlite(conn):
+        conn.execute(
+            """UPDATE alert_history
+                  SET delivered_channels = ?, delivery_errors = ?
+                WHERE alert_id = ?""",
+            (serialize_channels(conn, channels), serialize_json(errors), alert_id),
+        )
+        conn.commit()
+        return
+
+    conn.execute(
+        f"""UPDATE alert_history
+              SET delivered_channels = {ph},
+                  delivery_errors = {ph}::jsonb
+            WHERE alert_id = {ph}""",
+        (channels, serialize_json(errors), alert_id),
+    )

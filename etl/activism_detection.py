@@ -10,8 +10,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from alerts.db import ensure_alert_tables as _ensure_alert_tables
-from alerts.db import insert_alert_history
-from alerts.engine import AlertEngine
+from alerts.integration import fire_alerts_for_event_sync as _dispatch_alerts_for_event_sync
 from alerts.models import AlertEvent
 
 OWNERSHIP_THRESHOLDS = (5.0, 10.0, 15.0, 20.0, 25.0, 33.3, 50.0)
@@ -417,10 +416,8 @@ def _condition_matches(condition_json: Mapping[str, Any], payload: Mapping[str, 
 
 
 def fire_alerts_for_event(conn: Any, event: AlertEvent) -> int:
-    """Create alert_history rows for enabled rules that match an activism event."""
-    engine = AlertEngine(conn)
-    fired = engine.evaluate(event)
-    return len(insert_alert_history(conn, fired))
+    """Dispatch matching activism alerts and return the number of alert_history rows created."""
+    return len(_dispatch_alerts_for_event_sync(conn, event))
 
 
 def event_payload(event: ActivismEvent) -> dict[str, Any]:

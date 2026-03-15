@@ -10,6 +10,7 @@ from alerts.integration import (
     build_new_filing_event,
     evaluate_and_record_alerts,
     evaluate_and_record_new_filing_alerts,
+    fire_alerts_for_event,
 )
 
 
@@ -113,3 +114,30 @@ def test_evaluate_and_record_new_filing_alerts_returns_empty_when_rule_does_not_
         assert count == (0,)
     finally:
         conn.close()
+
+
+@pytest.mark.asyncio
+async def test_fire_alerts_for_event_dispatches_matching_channels(tmp_path):
+    conn = _setup_db(tmp_path / "dispatch.db")
+    try:
+        _insert_rule(conn)
+
+        alert_ids = await fire_alerts_for_event(
+            conn,
+            build_new_filing_event(
+                filing_id=101,
+                manager_id=1,
+                filing_type="13F-HR",
+                filed_date="2024-05-02",
+            ),
+        )
+
+        row = conn.execute(
+            "SELECT delivered_channels FROM alert_history WHERE alert_id = ?",
+            (alert_ids[0],),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert len(alert_ids) == 1
+    assert row == ('["streamlit"]',)

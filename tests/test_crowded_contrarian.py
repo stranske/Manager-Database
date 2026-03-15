@@ -274,6 +274,55 @@ def test_detect_contrarian_signals_flags_seller_against_buy_consensus(tmp_path):
     assert row[6] == 4
 
 
+def test_dispatch_conviction_alerts_emits_events_for_detected_rows(tmp_path, monkeypatch):
+    db_path = _setup_db(tmp_path, manager_count=5)
+    conn = sqlite3.connect(db_path)
+    report_date = "2024-05-01"
+
+    detect_crowded_trades.fn(report_date, min_managers=3, conn=conn)
+    for manager_id in (1, 2, 3, 4):
+        conn.execute(
+            "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+            "shares_prev, shares_curr, value_prev, value_curr) "
+            "VALUES (?, ?, '88160R101', 'Tesla Inc', 'BUY', NULL, 10, NULL, 100)",
+            (manager_id, report_date),
+        )
+    conn.execute(
+        "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        "VALUES (5, ?, '88160R101', 'Tesla Inc', 'SELL', 10, NULL, 100, NULL)",
+        (report_date,),
+    )
+    conn.commit()
+    detect_contrarian_signals.fn(report_date, conn=conn)
+    conn.close()
+
+    events = []
+
+    def fake_connect_db():
+        return sqlite3.connect(db_path)
+
+    def fake_fire_alerts_for_event_sync(db_conn, event):
+        _ = db_conn
+        events.append(event)
+        return [1]
+
+    monkeypatch.setattr(conviction_module, "connect_db", fake_connect_db)
+    monkeypatch.setattr(
+        conviction_module, "fire_alerts_for_event_sync", fake_fire_alerts_for_event_sync
+    )
+
+    total = conviction_module.dispatch_conviction_alerts.fn(
+        report_date, crowded_trades=1, contrarian_signals=1
+    )
+
+    assert total == 2
+    assert [event.event_type for event in events] == [
+        "crowded_trade_change",
+        "contrarian_signal",
+    ]
+
+
 def test_detect_contrarian_signals_skips_split_consensus(tmp_path):
     db_path = _setup_db(tmp_path, manager_count=4)
     conn = sqlite3.connect(db_path)

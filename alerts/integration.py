@@ -1,16 +1,15 @@
-"""Helpers that ETL flows can call to evaluate rules and persist alert history.
-
-These helpers document the intended wiring points for ingestion flows without
-modifying the flows yet. Delivery remains out of scope until S8-02.
-"""
+"""Helpers that ETL flows can call to evaluate rules and dispatch alerts."""
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
+from alerts.channels import NotificationChannel, build_configured_channels
 from alerts.db import insert_alert_history
+from alerts.dispatch import AlertDispatcher
 from alerts.engine import AlertEngine
 from alerts.models import AlertEvent
 
@@ -90,3 +89,25 @@ def evaluate_and_record_new_filing_alerts(
         occurred_at=occurred_at,
     )
     return evaluate_and_record_alerts(conn, event)
+
+
+async def fire_alerts_for_event(
+    conn: Any,
+    event: AlertEvent,
+    channels: dict[str, NotificationChannel] | None = None,
+) -> list[int]:
+    """Evaluate one event and deliver matching alerts through configured channels."""
+    fired = AlertEngine(conn).evaluate(event)
+    if not fired:
+        return []
+    dispatcher = AlertDispatcher(conn, channels or build_configured_channels())
+    return await dispatcher.dispatch(fired)
+
+
+def fire_alerts_for_event_sync(
+    conn: Any,
+    event: AlertEvent,
+    channels: dict[str, NotificationChannel] | None = None,
+) -> list[int]:
+    """Synchronous wrapper for ETL paths that are not already async."""
+    return asyncio.run(fire_alerts_for_event(conn, event, channels=channels))

@@ -461,6 +461,48 @@ def test_persist_news_ignores_duplicate_url_and_published_at():
         conn.close()
 
 
+@pytest.mark.asyncio
+async def test_emit_news_spike_alerts_groups_items_by_manager(monkeypatch):
+    conn = sqlite3.connect(":memory:")
+    calls = []
+
+    async def fake_fire_alerts_for_event(db_conn, event):
+        _ = db_conn
+        calls.append(event)
+        return [1]
+
+    monkeypatch.setattr(news_flow, "fire_alerts_for_event", fake_fire_alerts_for_event)
+
+    count = await news_flow.emit_news_spike_alerts(
+        [
+            {
+                "manager_id": 1,
+                "headline": "Alpha update",
+                "source": "rss",
+            },
+            {
+                "manager_id": 1,
+                "headline": "Alpha follow-up",
+                "source": "gdelt",
+            },
+            {
+                "manager_id": 2,
+                "headline": "Beta update",
+                "source": "rss",
+            },
+        ],
+        conn,
+    )
+
+    conn.close()
+
+    assert count == 2
+    assert [event.manager_id for event in calls] == [1, 2]
+    assert calls[0].payload["news_count"] == 2
+    assert calls[0].payload["sources"] == ["gdelt", "rss"]
+    conn.close()
+
+
 def test_news_deployment_has_hourly_schedule():
     assert news_flow.news_deployment.name == "news-hourly"
     schedule = news_flow.news_deployment.schedules[0].schedule

@@ -13,6 +13,8 @@ from prefect import flow, task
 from prefect.schedules import Cron
 
 from adapters.base import connect_db
+from alerts.integration import fire_alerts_for_event_sync
+from alerts.models import AlertEvent
 from etl.logging_setup import configure_logging
 
 configure_logging("conviction_flow")
@@ -409,6 +411,30 @@ def _compute_delta_shares(
     return None
 
 
+def _load_crowded_trade_rows(conn: Any, report_date: str) -> list[tuple[Any, ...]]:
+    ph = _placeholder(conn)
+    return conn.execute(
+        f"""SELECT cusip, name_of_issuer, manager_count, manager_ids, total_value_usd,
+                   avg_conviction_pct, max_conviction_pct
+              FROM crowded_trades
+              WHERE report_date = {ph}
+              ORDER BY cusip""",
+        (report_date,),
+    ).fetchall()
+
+
+def _load_contrarian_signal_rows(conn: Any, report_date: str) -> list[tuple[Any, ...]]:
+    ph = _placeholder(conn)
+    return conn.execute(
+        f"""SELECT manager_id, cusip, name_of_issuer, direction, consensus_direction,
+                   manager_delta_shares, manager_delta_value, consensus_count
+              FROM contrarian_signals
+              WHERE report_date = {ph}
+              ORDER BY signal_id""",
+        (report_date,),
+    ).fetchall()
+
+
 @task
 def detect_crowded_trades(
     report_date: str,
@@ -674,7 +700,51 @@ def dispatch_conviction_alerts(
     contrarian_signals: int,
 ) -> int:
     """Dispatch conviction alerts after signal generation."""
-    total_alerts = crowded_trades + contrarian_signals
+    conn = connect_db()
+    total_alerts = 0
+    try:
+        for row in _load_crowded_trade_rows(conn, report_date):
+            payload = {
+                "cusip": str(row[0]),
+                "name_of_issuer": str(row[1]) if row[1] is not None else None,
+                "manager_count": int(row[2]),
+                "manager_ids": json.loads(row[3]) if isinstance(row[3], str) else list(row[3]),
+                "total_value_usd": float(row[4]) if row[4] is not None else None,
+                "avg_conviction_pct": float(row[5]) if row[5] is not None else None,
+                "max_conviction_pct": float(row[6]) if row[6] is not None else None,
+                "report_date": report_date,
+            }
+            total_alerts += len(
+                fire_alerts_for_event_sync(
+                    conn,
+                    AlertEvent(event_type="crowded_trade_change", payload=payload),
+                )
+            )
+
+        for row in _load_contrarian_signal_rows(conn, report_date):
+            payload = {
+                "cusip": str(row[1]),
+                "name_of_issuer": str(row[2]) if row[2] is not None else None,
+                "delta_type": str(row[3]),
+                "consensus_direction": str(row[4]),
+                "delta_shares": int(row[5]) if row[5] is not None else None,
+                "value_usd": float(row[6]) if row[6] is not None else None,
+                "manager_count": int(row[7]) if row[7] is not None else None,
+                "report_date": report_date,
+            }
+            total_alerts += len(
+                fire_alerts_for_event_sync(
+                    conn,
+                    AlertEvent(
+                        event_type="contrarian_signal",
+                        manager_id=int(row[0]),
+                        payload=payload,
+                    ),
+                )
+            )
+    finally:
+        conn.close()
+
     logger.info(
         "Conviction alerts dispatched",
         extra={
