@@ -17,13 +17,6 @@ branch_labels = None
 depends_on = None
 
 
-def _where_clause(sql: str) -> dict[str, sa.TextClause]:
-    clause = text(sql)
-    if op.get_bind().dialect.name == "postgresql":
-        return {"postgresql_where": clause}
-    return {"sqlite_where": clause}
-
-
 def upgrade() -> None:
     op.create_table(
         "activism_events",
@@ -61,19 +54,15 @@ def upgrade() -> None:
     op.create_index("idx_activism_events_type", "activism_events", ["event_type"])
     op.create_index("idx_activism_events_date", "activism_events", [sa.text("detected_at DESC")])
     op.create_index("idx_activism_events_cusip", "activism_events", ["subject_cusip"])
-    op.create_index(
-        "idx_activism_events_unique_base",
-        "activism_events",
-        ["manager_id", "filing_id", "event_type"],
-        unique=True,
-        **_where_clause("threshold_crossed IS NULL"),
+    op.execute(
+        "CREATE UNIQUE INDEX idx_activism_events_unique_base "
+        "ON activism_events (manager_id, filing_id, event_type) "
+        "WHERE threshold_crossed IS NULL"
     )
-    op.create_index(
-        "idx_activism_events_unique_threshold",
-        "activism_events",
-        ["manager_id", "filing_id", "event_type", "threshold_crossed"],
-        unique=True,
-        **_where_clause("threshold_crossed IS NOT NULL"),
+    op.execute(
+        "CREATE UNIQUE INDEX idx_activism_events_unique_threshold "
+        "ON activism_events (manager_id, filing_id, event_type, threshold_crossed) "
+        "WHERE threshold_crossed IS NOT NULL"
     )
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 import httpx
@@ -115,9 +115,9 @@ def _load_alerts(
 
 
 def _clear_alert_caches() -> None:
-    _load_managers.clear()
-    _load_rules.clear()
-    _load_alerts.clear()
+    cast(Any, _load_managers).clear()
+    cast(Any, _load_rules).clear()
+    cast(Any, _load_alerts).clear()
 
 
 def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -218,11 +218,11 @@ def _render_rule_builder() -> None:
 
     with st.form("create_alert_rule"):
         name = st.text_input("name", placeholder="Large Buy Delta")
-        event_type = st.selectbox("event_type", ALERT_EVENT_TYPES, index=0)
+        event_type = str(st.selectbox("event_type", ALERT_EVENT_TYPES, index=0))
         st.caption("Condition")
         condition_json = _condition_inputs(event_type)
         channels = st.multiselect("channels", ALERT_CHANNELS, default=["email"])
-        manager_choice = st.selectbox("manager filter", manager_options, index=0)
+        manager_choice = str(st.selectbox("manager filter", manager_options, index=0))
         enabled = st.checkbox("enabled", value=True)
         submitted = st.form_submit_button("Create Rule")
 

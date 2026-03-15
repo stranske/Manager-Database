@@ -71,6 +71,7 @@ def _insert_filing(
             f"raw/{filed_date}-{filing_type}.txt",
         ),
     )
+    assert cursor.lastrowid is not None
     filing_id = int(cursor.lastrowid)
     conn.commit()
     return {
