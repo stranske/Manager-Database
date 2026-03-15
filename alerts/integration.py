@@ -7,12 +7,44 @@ modifying the flows yet. Delivery remains out of scope until S8-02.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from alerts.db import insert_alert_history
 from alerts.engine import AlertEngine
 from alerts.models import AlertEvent
+
+
+def build_new_filing_event_from_record(
+    filing: Mapping[str, Any],
+    *,
+    manager_id: int | None,
+    filing_id: int | None = None,
+    payload: Mapping[str, Any] | None = None,
+    occurred_at: datetime | None = None,
+) -> AlertEvent:
+    """Build a `new_filing` event directly from an EDGAR filing record.
+
+    This keeps the ETL integration thin by accepting the same mapping shape
+    returned by the adapter and extracting the canonical alert payload fields.
+    """
+
+    merged_payload = dict(payload or {})
+    for key in ("accession", "cik", "source", "url"):
+        value = filing.get(key)
+        if value is not None:
+            merged_payload.setdefault(key, value)
+
+    filing_type = filing.get("type") or filing.get("form")
+    filed_date = filing.get("filed_date") or filing.get("filed")
+    return build_new_filing_event(
+        filing_id=filing_id,
+        manager_id=manager_id,
+        filing_type=str(filing_type) if filing_type is not None else None,
+        filed_date=str(filed_date) if filed_date is not None else None,
+        payload=merged_payload,
+        occurred_at=occurred_at,
+    )
 
 
 def build_new_filing_event(
@@ -45,7 +77,7 @@ def build_new_filing_event(
         raise ValueError("filing_type is required for new_filing alerts.")
 
     event_payload.setdefault("type", normalized_type)
-    if filing_id:
+    if filing_id is not None:
         event_payload.setdefault("filing_id", filing_id)
     if filed_date:
         event_payload.setdefault("filed_date", filed_date)
@@ -54,7 +86,7 @@ def build_new_filing_event(
         event_type="new_filing",
         manager_id=manager_id,
         payload=event_payload,
-        occurred_at=occurred_at or datetime.now(),
+        occurred_at=occurred_at or datetime.now(UTC),
     )
 
 
