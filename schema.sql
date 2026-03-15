@@ -50,6 +50,34 @@ CREATE INDEX IF NOT EXISTS idx_filings_manager_filed_date
 CREATE INDEX IF NOT EXISTS idx_filings_manager_type
     ON filings (manager_id, type);
 
+CREATE TABLE IF NOT EXISTS activism_filings (
+    filing_id bigserial PRIMARY KEY,
+    manager_id bigint NOT NULL REFERENCES managers(manager_id),
+    filing_type text NOT NULL CHECK (
+        filing_type IN ('SC 13D', 'SC 13D/A', 'SC 13G', 'SC 13G/A')
+    ),
+    subject_company text NOT NULL,
+    subject_cusip text,
+    ownership_pct numeric(8,4),
+    shares bigint,
+    group_members text[] DEFAULT '{}',
+    purpose_snippet text,
+    filed_date date NOT NULL,
+    url text NOT NULL,
+    raw_key text,
+    created_at timestamptz DEFAULT now(),
+    UNIQUE (manager_id, filing_type, subject_cusip, filed_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_activism_manager
+    ON activism_filings (manager_id);
+
+CREATE INDEX IF NOT EXISTS idx_activism_cusip
+    ON activism_filings (subject_cusip);
+
+CREATE INDEX IF NOT EXISTS idx_activism_date
+    ON activism_filings (filed_date DESC);
+
 CREATE TABLE IF NOT EXISTS holdings (
     holding_id bigserial PRIMARY KEY,
     filing_id bigint NOT NULL REFERENCES filings(filing_id),

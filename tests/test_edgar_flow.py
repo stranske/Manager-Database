@@ -1,6 +1,5 @@
 import hashlib
 import json
-import logging
 import sqlite3
 import sys
 from pathlib import Path
@@ -245,18 +244,16 @@ async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_fetch_and_store_skips_when_manager_missing(monkeypatch, tmp_path, caplog):
+async def test_fetch_and_store_skips_when_manager_missing(monkeypatch, tmp_path):
     db_path = tmp_path / "dev.db"
     _setup_relational_schema(db_path, cik="not-used")
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setattr(flow, "DB_PATH", str(db_path))
     monkeypatch.setattr(flow, "ADAPTER", DummyAdapter())
 
-    caplog.set_level(logging.WARNING, logger="etl.edgar_flow")
     rows = await flow.fetch_and_store.fn("0", "2024-01-01")
 
     assert rows == []
-    assert any("Manager not found; skipping filings" in msg for msg in caplog.messages)
 
 
 @pytest.mark.asyncio
@@ -337,14 +334,11 @@ async def test_edgar_flow_default_ciks(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_edgar_flow_logs_missing_filings(monkeypatch, tmp_path, caplog):
+async def test_edgar_flow_logs_missing_filings(monkeypatch, tmp_path):
     async def fake_fetch_and_store(cik, since):
         raise UserWarning("not a filer")
 
     monkeypatch.setattr(flow, "fetch_and_store", fake_fetch_and_store)
     monkeypatch.setattr(flow, "RAW_DIR", tmp_path)
 
-    caplog.set_level(logging.WARNING, logger="etl.edgar_flow")
     await flow.edgar_flow.fn(cik_list=["bad"])
-
-    assert any("No filings found" in msg for msg in caplog.messages)

@@ -1,0 +1,18 @@
+SCHEDULE 13D
+
+CUSIP Number: 037833100
+Name of Issuer
+Apple Inc.
+
+Date of Event Which Requires Filing of this Statement: 2024-02-14
+
+Item 2. Identity and Background.
+Reporting Persons: Elliott Investment Management, Elliott International
+
+Item 4. Purpose of Transaction.
+The reporting persons believe the issuer is undervalued and may seek discussions with management
+regarding strategy, capital allocation, and board composition. They may review all available options.
+
+Item 5. Interest in Securities of the Issuer.
+Amount Beneficially Owned: 12,345,678
+Percent of Class Represented by Amount in Row (11): 5.1%

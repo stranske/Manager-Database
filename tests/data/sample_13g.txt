@@ -1,0 +1,12 @@
+SCHEDULE 13G
+
+CUSIP Number
+594918104
+Name of Issuer
+Microsoft Corporation
+
+FILED AS OF DATE: 20240220
+
+Item 4. Ownership.
+Amount Beneficially Owned: 8,765,432
+Percent of Class: 6.4 %

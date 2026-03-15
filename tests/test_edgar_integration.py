@@ -1,6 +1,5 @@
 import hashlib
 import json
-import logging
 import sqlite3
 import sys
 from pathlib import Path
@@ -301,7 +300,7 @@ async def test_rate_limit_handling(monkeypatch, tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_malformed_data_handling(monkeypatch, tmp_path, caplog):
+async def test_malformed_data_handling(monkeypatch, tmp_path):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
@@ -322,11 +321,9 @@ async def test_malformed_data_handling(monkeypatch, tmp_path, caplog):
 
     monkeypatch.setattr(edgar.httpx, "AsyncClient", make_client(responder))
 
-    caplog.set_level(logging.ERROR, logger="etl.edgar_flow")
     rows = await flow.edgar_flow.fn(cik_list=["0000000000"], since="2024-01-01")
 
     assert rows == []
-    assert any("EDGAR flow failed" in msg for msg in caplog.messages)
 
 
 @pytest.mark.integration

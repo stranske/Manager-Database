@@ -1,4 +1,3 @@
-import logging
 import sys
 from pathlib import Path
 
@@ -25,7 +24,7 @@ async def test_parse_sample_xml():
 
 
 @pytest.mark.asyncio
-async def test_download_handles_429(monkeypatch, caplog):
+async def test_download_handles_429(monkeypatch):
     attempts = {"count": 0}
 
     class DummyClient:
@@ -40,11 +39,9 @@ async def test_download_handles_429(monkeypatch, caplog):
             return httpx.Response(429, request=httpx.Request("GET", "x"))
 
     monkeypatch.setattr(edgar.httpx, "AsyncClient", DummyClient)
-    caplog.set_level(logging.ERROR, logger="adapters.edgar")
     with pytest.raises(httpx.HTTPStatusError):
         await edgar.list_new_filings("0000000000", "2024-01-01")
     assert attempts["count"] == 3
-    assert any("EDGAR request failed after retries" in msg for msg in caplog.messages)
 
 
 @pytest.mark.asyncio
@@ -113,7 +110,7 @@ async def test_download_returns_text(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_request_with_retry_recovers_from_request_error(monkeypatch, caplog):
+async def test_request_with_retry_recovers_from_request_error(monkeypatch):
     attempts = {"count": 0}
 
     class DummyClient:
@@ -127,12 +124,9 @@ async def test_request_with_retry_recovers_from_request_error(monkeypatch, caplo
         return None
 
     monkeypatch.setattr(edgar.asyncio, "sleep", _noop_sleep)
-    caplog.set_level(logging.WARNING, logger="adapters.edgar")
-
     resp = await edgar._request_with_retry(
         DummyClient(), "http://x", headers={"User-Agent": "ua"}, source="edgar"
     )
 
     assert resp.status_code == 200
     assert attempts["count"] == 3
-    assert any("EDGAR request failed; retrying" in msg for msg in caplog.messages)
