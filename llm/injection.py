@@ -297,3 +297,8 @@ def guard_chain_input(user_input: str) -> str:
     if reasons:
         raise PromptInjectionError(reasons)
     return normalized
+
+
+def guard_input(user_input: str) -> str:
+    """Backward-compatible alias used by newer chain modules."""
+    return guard_chain_input(user_input)

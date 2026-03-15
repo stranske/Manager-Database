@@ -7,6 +7,7 @@ from llm.injection import (
     check_and_block,
     detect_prompt_injection,
     guard_chain_input,
+    guard_input,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "check_and_block",
     "detect_prompt_injection",
     "guard_chain_input",
+    "guard_input",
 ]
