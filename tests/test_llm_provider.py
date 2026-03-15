@@ -35,7 +35,7 @@ def test_create_llm_anthropic_with_valid_credentials(monkeypatch):
     )
 
     assert isinstance(client, _Recorder)
-    assert client.kwargs["model"] == "claude-sonnet-4-20250514"
+    assert client.kwargs["model_name"] == "claude-sonnet-4-20250514"
     assert client.kwargs["api_key"].get_secret_value() == "anthropic-test"
 
 

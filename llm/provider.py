@@ -74,4 +74,4 @@ def create_llm(config: LLMProviderConfig) -> Any:
         from langchain_anthropic import ChatAnthropic
     except ImportError as exc:  # pragma: no cover - lazy import guard
         raise ImportError("langchain_anthropic is required for anthropic provider") from exc
-    return ChatAnthropic(model=model_name, api_key=api_key, **client_kwargs)
+    return ChatAnthropic(model_name=model_name, api_key=api_key, **client_kwargs)
