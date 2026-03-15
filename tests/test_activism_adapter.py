@@ -53,7 +53,8 @@ async def test_parse_13d_extracts_core_fields():
     assert parsed["shares"] == 12345678
     assert parsed["group_members"] == ["Elliott Investment Management", "Elliott International"]
     assert "issuer is undervalued" in str(parsed["purpose_snippet"])
-    assert parsed["filed_date"] == "2024-02-14"
+    assert parsed["filed_date"] is None
+    assert parsed["event_date"] == "2024-02-14"
 
 
 @pytest.mark.asyncio
@@ -226,7 +227,7 @@ async def test_fetch_activism_filings_stores_rows_and_raw_documents(monkeypatch,
     ).fetchall()
     conn.close()
     assert stored_rows == [
-        (1, "SC 13D", "Apple Inc.", "037833100", "2024-02-14"),
-        (1, "SC 13G", "Microsoft Corporation", "594918104", "2024-02-20"),
+        (1, "SC 13D", "Apple Inc.", "037833100", "2024-05-03"),
+        (1, "SC 13G", "Microsoft Corporation", "594918104", "2024-05-04"),
     ]
     reset_logging()

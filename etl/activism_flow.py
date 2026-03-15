@@ -124,7 +124,7 @@ def _upsert_activism_filing(
         parsed.get("shares"),
         _serialize_group_members(parsed.get("group_members"), sqlite_mode=_is_sqlite(conn)),
         str(parsed.get("purpose_snippet") or "") or None,
-        str(parsed.get("filed_date") or filing.get("filed") or ""),
+        str(filing.get("filed") or ""),
         str(filing.get("url") or "https://www.sec.gov"),
         raw_key,
     )

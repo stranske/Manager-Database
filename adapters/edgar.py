@@ -326,12 +326,12 @@ def parse_13d(raw_text: str) -> dict[str, object]:
     item_two = _extract_item_section(raw_text, 2)
     item_four = _extract_item_section(raw_text, 4)
     filed_date = _normalize_filed_date(
+        _extract_first_match(raw_text, [r"FILED AS OF DATE\s*:?\s*(\d{8})"])
+    )
+    event_date = _normalize_filed_date(
         _extract_first_match(
             raw_text,
-            [
-                r"FILED AS OF DATE\s*:?\s*(\d{8})",
-                r"Date of Event Which Requires Filing of this Statement\s*:?\s*([0-9/\-]{8,10})",
-            ],
+            [r"Date of Event Which Requires Filing of this Statement\s*:?\s*([0-9/\-]{8,10})"],
         )
     )
     return {
@@ -358,6 +358,7 @@ def parse_13d(raw_text: str) -> dict[str, object]:
         "group_members": _extract_group_members(item_two),
         "purpose_snippet": re.sub(r"\s+", " ", item_four).strip()[:500],
         "filed_date": filed_date,
+        "event_date": event_date,
     }
 
 
