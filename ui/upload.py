@@ -25,6 +25,12 @@ def _get_max_upload_bytes() -> int:
     return value if value > 0 else 10 * 1024 * 1024
 
 
+def _file_exceeds_limit(file_bytes: bytes, *, limit: int | None = None) -> bool:
+    if limit is None:
+        limit = _get_max_upload_bytes()
+    return len(file_bytes) > limit
+
+
 def _load_managers() -> list[tuple[int, str]]:
     conn = connect_db()
     try:
@@ -34,9 +40,10 @@ def _load_managers() -> list[tuple[int, str]]:
             ).fetchall()
             if not tables:
                 return []
-        rows = conn.execute("SELECT id, name FROM managers ORDER BY name ASC").fetchall()
+        rows = conn.execute("SELECT manager_id, name FROM managers ORDER BY name ASC").fetchall()
         return [(int(row[0]), str(row[1])) for row in rows]
-    except Exception:
+    except Exception as exc:
+        logger.exception("Failed to load managers from database", exc_info=exc)
         return []
     finally:
         conn.close()
@@ -67,7 +74,7 @@ def _recent_uploads(limit: int = 10) -> pd.DataFrame:
         query = (
             "SELECT d.doc_id, d.filename, d.kind, d.created_at, m.name AS manager_name "
             "FROM documents d "
-            "LEFT JOIN managers m ON m.id = d.manager_id "
+            "LEFT JOIN managers m ON m.manager_id = d.manager_id "
             "ORDER BY d.created_at DESC "
             "LIMIT ?"
         )
@@ -88,6 +95,8 @@ def main() -> None:
     managers = _load_managers()
     manager_labels = ["None"] + [f"{name} (id={mid})" for mid, name in managers]
     selected_label = st.selectbox("Optional manager link", options=manager_labels)
+    if selected_label is None:
+        selected_label = "None"
     selected_manager = None
     if selected_label != "None":
         selected_index = manager_labels.index(selected_label) - 1
@@ -98,7 +107,7 @@ def main() -> None:
 
     if uploaded:
         file_bytes = uploaded.getvalue()
-        if len(file_bytes) > max_upload_bytes:
+        if _file_exceeds_limit(file_bytes, limit=max_upload_bytes):
             st.error(f"File exceeds maximum size of {max_upload_bytes} bytes.")
         else:
             try:

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ui.upload import _store_uploaded_text
+from ui.upload import _file_exceeds_limit, _get_max_upload_bytes, _store_uploaded_text
 from utils.extract import extract_text
 
 FIXTURE_PDF = Path(__file__).resolve().parent / "fixtures" / "sample.pdf"
@@ -108,3 +108,39 @@ def test_uploads_never_write_legacy_notes_table(
 
     assert doc_row == (doc_id, filename, expected_kind)
     assert notes_count == 0
+
+
+def test_file_size_validation_rejects_oversized_file(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "100")
+    limit = _get_max_upload_bytes()
+    assert limit == 100
+
+    oversized = b"x" * 101
+    assert _file_exceeds_limit(oversized)
+
+    normal = b"x" * 100
+    assert not _file_exceeds_limit(normal)
+
+
+def test_file_size_validation_env_default(monkeypatch):
+    monkeypatch.delenv("MAX_UPLOAD_BYTES", raising=False)
+    limit = _get_max_upload_bytes()
+    assert limit == 10 * 1024 * 1024
+
+
+def test_file_size_validation_invalid_env_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "not_a_number")
+    limit = _get_max_upload_bytes()
+    assert limit == 10 * 1024 * 1024
+
+
+def test_corrupted_pdf_raises_exception():
+    corrupted_bytes = b"%PDF-1.4 this is not a real pdf \x00\x01\x02"
+    with pytest.raises(ValueError, match="Failed to extract PDF text"):
+        extract_text(corrupted_bytes, "bad.pdf")
+
+
+def test_extract_text_corrupted_pdf_propagates_exception():
+    corrupted_bytes = b"%PDF-1.4 corrupted content \x00\x01\x02"
+    with pytest.raises(ValueError, match="Failed to extract PDF text"):
+        extract_text(corrupted_bytes, "bad.pdf")
