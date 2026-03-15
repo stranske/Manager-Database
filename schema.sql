@@ -194,6 +194,56 @@ CREATE TABLE IF NOT EXISTS daily_diffs (
 CREATE INDEX IF NOT EXISTS idx_daily_diffs_report_date_manager
     ON daily_diffs (report_date, manager_id);
 
+CREATE TABLE IF NOT EXISTS alert_rules (
+    rule_id bigserial PRIMARY KEY,
+    name text NOT NULL,
+    description text,
+    event_type text NOT NULL CHECK (
+        event_type IN (
+            'new_filing',
+            'large_delta',
+            'news_spike',
+            'crowded_trade_change',
+            'contrarian_signal',
+            'missing_filing',
+            'etl_failure',
+            'activism_event'
+        )
+    ),
+    condition_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+    channels text[] NOT NULL DEFAULT ARRAY['streamlit'],
+    enabled boolean NOT NULL DEFAULT true,
+    manager_id bigint REFERENCES managers(manager_id),
+    created_by text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_rules_event
+    ON alert_rules (event_type)
+    WHERE enabled = true;
+
+CREATE TABLE IF NOT EXISTS alert_history (
+    alert_id bigserial PRIMARY KEY,
+    rule_id bigint NOT NULL REFERENCES alert_rules(rule_id),
+    rule_name text NOT NULL,
+    fired_at timestamptz DEFAULT now(),
+    event_type text NOT NULL,
+    payload_json jsonb NOT NULL,
+    delivered_channels text[] DEFAULT ARRAY[]::text[],
+    delivery_errors jsonb,
+    acknowledged boolean NOT NULL DEFAULT false,
+    acknowledged_by text,
+    acknowledged_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_history_unack
+    ON alert_history (fired_at DESC)
+    WHERE acknowledged = false;
+
+CREATE INDEX IF NOT EXISTS idx_alert_history_rule
+    ON alert_history (rule_id);
+
 CREATE TABLE IF NOT EXISTS api_usage (
     id bigserial PRIMARY KEY,
     ts timestamptz DEFAULT now(),

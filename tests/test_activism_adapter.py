@@ -72,7 +72,7 @@ def _seed_alert_rule(db_path: Path) -> None:
             "Activism Watch",
             "activism_event",
             "{}",
-            '["in_app"]',
+            '["streamlit"]',
             1,
             None,
         ),

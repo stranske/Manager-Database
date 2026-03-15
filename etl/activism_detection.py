@@ -9,6 +9,11 @@ from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from alerts.db import ensure_alert_tables as _ensure_alert_tables
+from alerts.db import insert_alert_history
+from alerts.engine import AlertEngine
+from alerts.models import AlertEvent
+
 OWNERSHIP_THRESHOLDS = (5.0, 10.0, 15.0, 20.0, 25.0, 33.3, 50.0)
 ALERT_EVENT_TYPE = "activism_event"
 ACTIVISM_EVENT_TYPES = (
@@ -34,13 +39,6 @@ class ActivismEvent:
     previous_pct: float | None
     delta_pct: float | None
     threshold_crossed: float | None = None
-
-
-@dataclass(frozen=True)
-class AlertEvent:
-    event_type: str
-    manager_id: int
-    payload: dict[str, Any]
 
 
 def _is_sqlite(conn: Any) -> bool:
@@ -201,55 +199,6 @@ def ensure_activism_events_table(conn: Any) -> None:
                 "activism_events table is missing on Postgres; apply schema migrations first"
             ) from exc
         raise
-
-
-def ensure_alert_tables(conn: Any) -> None:
-    if _is_sqlite(conn):
-        conn.execute("""CREATE TABLE IF NOT EXISTS alert_rules (
-                rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                event_type TEXT NOT NULL,
-                condition_json TEXT NOT NULL,
-                channels TEXT NOT NULL,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                manager_id INTEGER,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
-                alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                rule_id INTEGER,
-                rule_name TEXT NOT NULL,
-                event_type TEXT NOT NULL,
-                payload_json TEXT NOT NULL,
-                fired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                delivered_channels TEXT NOT NULL,
-                acknowledged INTEGER NOT NULL DEFAULT 0,
-                acknowledged_by TEXT,
-                acknowledged_at TIMESTAMP
-            )""")
-        return
-    conn.execute("""CREATE TABLE IF NOT EXISTS alert_rules (
-            rule_id bigserial PRIMARY KEY,
-            name text NOT NULL,
-            event_type text NOT NULL,
-            condition_json jsonb NOT NULL,
-            channels jsonb NOT NULL,
-            enabled boolean NOT NULL DEFAULT true,
-            manager_id bigint,
-            created_at timestamptz NOT NULL DEFAULT now()
-        )""")
-    conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
-            alert_id bigserial PRIMARY KEY,
-            rule_id bigint,
-            rule_name text NOT NULL,
-            event_type text NOT NULL,
-            payload_json jsonb NOT NULL,
-            fired_at timestamptz NOT NULL DEFAULT now(),
-            delivered_channels jsonb NOT NULL,
-            acknowledged boolean NOT NULL DEFAULT false,
-            acknowledged_by text,
-            acknowledged_at timestamptz
-        )""")
 
 
 def _prior_filing_query(conn: Any, *, has_cusip: bool) -> tuple[str, tuple[Any, ...]]:
@@ -469,45 +418,15 @@ def _condition_matches(condition_json: Mapping[str, Any], payload: Mapping[str, 
 
 def fire_alerts_for_event(conn: Any, event: AlertEvent) -> int:
     """Create alert_history rows for enabled rules that match an activism event."""
-    ensure_alert_tables(conn)
-    ph = _placeholder(conn)
-    enabled_value = 1 if _is_sqlite(conn) else True
-    rows = conn.execute(
-        "SELECT rule_id, name, condition_json, channels FROM alert_rules "
-        f"WHERE enabled = {ph} AND event_type = {ph} "
-        f"AND (manager_id IS NULL OR manager_id = {ph}) "
-        "ORDER BY rule_id ASC",
-        (enabled_value, event.event_type, event.manager_id),
-    ).fetchall()
-    inserted = 0
-    for row in rows:
-        condition_json = _deserialize_json_object(row[2])
-        if not _condition_matches(condition_json, event.payload):
-            continue
-
-        delivered_channels = _deserialize_json_array(row[3])
-        payload_json = _serialize_json(event.payload)
-        channels_json = _serialize_json(delivered_channels)
-        params = (int(row[0]), str(row[1]), event.event_type, payload_json, channels_json)
-        if _is_sqlite(conn):
-            conn.execute(
-                "INSERT INTO alert_history("
-                "rule_id, rule_name, event_type, payload_json, delivered_channels"
-                ") VALUES (?, ?, ?, ?, ?)",
-                params,
-            )
-        else:
-            conn.execute(
-                "INSERT INTO alert_history("
-                "rule_id, rule_name, event_type, payload_json, delivered_channels"
-                f") VALUES ({ph}, {ph}, {ph}, {ph}::jsonb, {ph}::jsonb)",
-                params,
-            )
-        inserted += 1
-    return inserted
+    engine = AlertEngine(conn)
+    fired = engine.evaluate(event)
+    return len(insert_alert_history(conn, fired))
 
 
 def event_payload(event: ActivismEvent) -> dict[str, Any]:
     payload = asdict(event)
     payload["event_type"] = event.event_type
     return payload
+
+
+ensure_alert_tables = _ensure_alert_tables

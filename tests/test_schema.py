@@ -16,6 +16,8 @@ EXPECTED_TABLES = {
     "filings",
     "activism_filings",
     "activism_events",
+    "alert_rules",
+    "alert_history",
     "holdings",
     "news_items",
     "documents",
@@ -193,3 +195,13 @@ def test_analytics_indexes_exist(monkeypatch, tmp_path):
             "idx_activism_events_unique_base",
             "idx_activism_events_unique_threshold",
         }.issubset(activism_event_indexes)
+
+        alert_rule_indexes = {
+            row[1] for row in conn.execute("PRAGMA index_list('alert_rules')").fetchall()
+        }
+        assert {"idx_alert_rules_event"}.issubset(alert_rule_indexes)
+
+        alert_history_indexes = {
+            row[1] for row in conn.execute("PRAGMA index_list('alert_history')").fetchall()
+        }
+        assert {"idx_alert_history_unack", "idx_alert_history_rule"}.issubset(alert_history_indexes)

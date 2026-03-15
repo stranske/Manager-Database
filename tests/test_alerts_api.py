@@ -95,7 +95,7 @@ def _seed_alert_history(db_path: Path) -> None:
                 "New Filing Rule",
                 "new_filing",
                 '{"symbol":"QRS"}',
-                '["webhook"]',
+                '["slack"]',
                 1,
             ),
         )
@@ -155,7 +155,7 @@ def test_alert_rule_crud_and_soft_delete(tmp_path, monkeypatch):
             f"/api/alerts/rules/{rule_id}",
             json={
                 "name": "Updated Rule",
-                "channels": ["webhook"],
+                "channels": ["slack"],
                 "enabled": False,
                 "condition_json": {"delta_type": "sell", "value_usd_gt": 500000},
             },
@@ -164,7 +164,7 @@ def test_alert_rule_crud_and_soft_delete(tmp_path, monkeypatch):
     assert update_response.status_code == 200
     updated = update_response.json()
     assert updated["name"] == "Updated Rule"
-    assert updated["channels"] == ["webhook"]
+    assert updated["channels"] == ["slack"]
     assert updated["enabled"] is False
 
     delete_response = asyncio.run(_request("DELETE", f"/api/alerts/rules/{rule_id}"))
@@ -308,7 +308,7 @@ def test_alert_rule_accepts_activism_event_type(tmp_path, monkeypatch):
             json=_create_rule_payload(
                 name="Activism Rule",
                 event_type="activism_event",
-                channels=["in_app"],
+                channels=["streamlit"],
             ),
         )
     )
@@ -316,7 +316,7 @@ def test_alert_rule_accepts_activism_event_type(tmp_path, monkeypatch):
     assert response.status_code == 201
     payload = response.json()
     assert payload["event_type"] == "activism_event"
-    assert payload["channels"] == ["in_app"]
+    assert payload["channels"] == ["streamlit"]
 
 
 def test_alert_validation_invalid_event_type_rejected(tmp_path, monkeypatch):

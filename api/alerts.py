@@ -2,16 +2,29 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
 
 from adapters.base import connect_db
+from alerts.db import (
+    deserialize_json_array,
+    deserialize_json_object,
+    ensure_alert_tables,
+    fetch_alert_by_id,
+    fetch_rule_by_id,
+    is_sqlite,
+    parse_timestamp,
+    placeholder,
+    rule_from_row,
+    serialize_channels,
+    serialize_json,
+)
+from alerts.models import AlertRule, AlertRuleCreate, AlertRuleUpdate, normalize_event_type
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -25,99 +38,9 @@ DB_ERROR_TYPES: tuple[type[BaseException], ...] = (sqlite3.Error,)
 if psycopg is not None:
     DB_ERROR_TYPES = DB_ERROR_TYPES + (psycopg.Error,)
 
-ALLOWED_EVENT_TYPES = {"large_delta", "new_filing", "manager_update", "activism_event"}
-ALLOWED_CHANNELS = {"email", "slack", "webhook", "in_app"}
-
-
-class AlertRuleCreate(BaseModel):
-    """Payload for creating alert rules."""
-
-    name: str = Field(..., description="Rule name")
-    event_type: str = Field(..., description="Alert event type")
-    condition_json: dict[str, Any] = Field(default_factory=dict, description="Rule condition JSON")
-    channels: list[str] = Field(..., description="Delivery channels")
-    enabled: bool = Field(True, description="Whether the rule is enabled")
-    manager_id: int | None = Field(None, description="Optional manager filter")
-
-    @field_validator("name")
-    @classmethod
-    def _validate_name(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("Rule name is required.")
-        return normalized
-
-    @field_validator("event_type")
-    @classmethod
-    def _validate_event_type(cls, value: str) -> str:
-        normalized = value.strip()
-        if normalized not in ALLOWED_EVENT_TYPES:
-            raise ValueError(f"Unsupported event_type: {normalized}")
-        return normalized
-
-    @field_validator("channels")
-    @classmethod
-    def _validate_channels(cls, value: list[str]) -> list[str]:
-        if not value:
-            raise ValueError("At least one delivery channel is required.")
-        normalized = [channel.strip() for channel in value if channel and channel.strip()]
-        if len(normalized) != len(value):
-            raise ValueError("Channels cannot be empty.")
-        invalid = sorted(set(normalized) - ALLOWED_CHANNELS)
-        if invalid:
-            raise ValueError(f"Unsupported channels: {', '.join(invalid)}")
-        return normalized
-
-
-class AlertRuleUpdate(BaseModel):
-    """Payload for updating alert rules."""
-
-    name: str | None = Field(None, description="Rule name")
-    condition_json: dict[str, Any] | None = Field(None, description="Rule condition JSON")
-    channels: list[str] | None = Field(None, description="Delivery channels")
-    enabled: bool | None = Field(None, description="Whether the rule is enabled")
-
-    @field_validator("name")
-    @classmethod
-    def _validate_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("Rule name is required.")
-        return normalized
-
-    @field_validator("channels")
-    @classmethod
-    def _validate_channels(cls, value: list[str] | None) -> list[str] | None:
-        if value is None:
-            return value
-        if not value:
-            raise ValueError("At least one delivery channel is required.")
-        normalized = [channel.strip() for channel in value if channel and channel.strip()]
-        if len(normalized) != len(value):
-            raise ValueError("Channels cannot be empty.")
-        invalid = sorted(set(normalized) - ALLOWED_CHANNELS)
-        if invalid:
-            raise ValueError(f"Unsupported channels: {', '.join(invalid)}")
-        return normalized
-
-
-class AlertRuleResponse(BaseModel):
-    """Response payload for alert rules."""
-
-    rule_id: int
-    name: str
-    event_type: str
-    condition_json: dict[str, Any]
-    channels: list[str]
-    enabled: bool
-    manager_id: int | None
-    created_at: datetime
-
 
 class AlertHistoryResponse(BaseModel):
-    """Response payload for alert history."""
+    """Response payload for alert history entries."""
 
     alert_id: int
     rule_name: str
@@ -128,60 +51,6 @@ class AlertHistoryResponse(BaseModel):
     acknowledged: bool
 
 
-def _is_sqlite(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
-def _placeholder(conn: Any) -> str:
-    return "?" if _is_sqlite(conn) else "%s"
-
-
-def _serialize_json(value: Any) -> str:
-    return json.dumps(value, separators=(",", ":"), sort_keys=True)
-
-
-def _deserialize_json_object(raw: Any) -> dict[str, Any]:
-    if isinstance(raw, dict):
-        return raw
-    if raw in (None, ""):
-        return {}
-    if isinstance(raw, (bytes, bytearray)):
-        raw = raw.decode("utf-8")
-    if isinstance(raw, str):
-        parsed = json.loads(raw)
-        if isinstance(parsed, dict):
-            return parsed
-    return {}
-
-
-def _deserialize_json_array(raw: Any) -> list[str]:
-    if isinstance(raw, list):
-        return [str(item) for item in raw]
-    if raw in (None, ""):
-        return []
-    if isinstance(raw, (bytes, bytearray)):
-        raw = raw.decode("utf-8")
-    if isinstance(raw, str):
-        parsed = json.loads(raw)
-        if isinstance(parsed, list):
-            return [str(item) for item in parsed]
-    return []
-
-
-def _parse_timestamp(raw: Any) -> datetime:
-    if isinstance(raw, datetime):
-        return raw
-    if raw is None:
-        return datetime.utcnow()
-    if isinstance(raw, str):
-        normalized = raw.replace("Z", "+00:00")
-        try:
-            return datetime.fromisoformat(normalized)
-        except ValueError:
-            pass
-    raise ValueError(f"Invalid timestamp value: {raw!r}")
-
-
 def _normalize_actor(value: str) -> str:
     normalized = value.strip()
     if not normalized:
@@ -189,72 +58,9 @@ def _normalize_actor(value: str) -> str:
     return normalized
 
 
-def _ensure_alert_tables(conn: Any) -> None:
-    if _is_sqlite(conn):
-        conn.execute("""CREATE TABLE IF NOT EXISTS alert_rules (
-                rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                event_type TEXT NOT NULL,
-                condition_json TEXT NOT NULL,
-                channels TEXT NOT NULL,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                manager_id INTEGER,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
-                alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                rule_id INTEGER,
-                rule_name TEXT NOT NULL,
-                event_type TEXT NOT NULL,
-                payload_json TEXT NOT NULL,
-                fired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                delivered_channels TEXT NOT NULL,
-                acknowledged INTEGER NOT NULL DEFAULT 0,
-                acknowledged_by TEXT,
-                acknowledged_at TIMESTAMP
-            )""")
-        conn.commit()
-        return
-    conn.execute("""CREATE TABLE IF NOT EXISTS alert_rules (
-            rule_id bigserial PRIMARY KEY,
-            name text NOT NULL,
-            event_type text NOT NULL,
-            condition_json jsonb NOT NULL,
-            channels jsonb NOT NULL,
-            enabled boolean NOT NULL DEFAULT true,
-            manager_id bigint,
-            created_at timestamptz NOT NULL DEFAULT now()
-        )""")
-    conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
-            alert_id bigserial PRIMARY KEY,
-            rule_id bigint,
-            rule_name text NOT NULL,
-            event_type text NOT NULL,
-            payload_json jsonb NOT NULL,
-            fired_at timestamptz NOT NULL DEFAULT now(),
-            delivered_channels jsonb NOT NULL,
-            acknowledged boolean NOT NULL DEFAULT false,
-            acknowledged_by text,
-            acknowledged_at timestamptz
-        )""")
-
-
 def _raise_db_unavailable(exc: BaseException) -> None:
     logger.exception("Database error in alerts API.", exc_info=exc)
     raise HTTPException(status_code=503, detail="Database unavailable") from exc
-
-
-def _to_rule_response(row: tuple[Any, ...]) -> AlertRuleResponse:
-    return AlertRuleResponse(
-        rule_id=int(row[0]),
-        name=str(row[1]),
-        event_type=str(row[2]),
-        condition_json=_deserialize_json_object(row[3]),
-        channels=_deserialize_json_array(row[4]),
-        enabled=bool(row[5]),
-        manager_id=int(row[6]) if row[6] is not None else None,
-        created_at=_parse_timestamp(row[7]),
-    )
 
 
 def _to_alert_response(row: tuple[Any, ...]) -> AlertHistoryResponse:
@@ -262,74 +68,60 @@ def _to_alert_response(row: tuple[Any, ...]) -> AlertHistoryResponse:
         alert_id=int(row[0]),
         rule_name=str(row[1]),
         event_type=str(row[2]),
-        payload_json=_deserialize_json_object(row[3]),
-        fired_at=_parse_timestamp(row[4]),
-        delivered_channels=_deserialize_json_array(row[5]),
+        payload_json=deserialize_json_object(row[3]),
+        fired_at=parse_timestamp(row[4]),
+        delivered_channels=deserialize_json_array(row[5]),
         acknowledged=bool(row[6]),
     )
 
 
-def _fetch_rule_by_id(conn: Any, rule_id: int) -> tuple[Any, ...] | None:
-    placeholder = _placeholder(conn)
-    cursor = conn.execute(
-        f"""SELECT rule_id, name, event_type, condition_json, channels, enabled, manager_id, created_at
-            FROM alert_rules
-            WHERE rule_id = {placeholder}""",
-        (rule_id,),
-    )
-    return cursor.fetchone()
-
-
-def _fetch_alert_by_id(conn: Any, alert_id: int) -> tuple[Any, ...] | None:
-    placeholder = _placeholder(conn)
-    cursor = conn.execute(
-        f"""SELECT alert_id, rule_name, event_type, payload_json, fired_at, delivered_channels, acknowledged
-            FROM alert_history
-            WHERE alert_id = {placeholder}""",
-        (alert_id,),
-    )
-    return cursor.fetchone()
-
-
-@router.post("/api/alerts/rules", response_model=AlertRuleResponse, status_code=201)
-async def create_rule(rule: AlertRuleCreate) -> AlertRuleResponse:
+@router.post("/api/alerts/rules", response_model=AlertRule, status_code=201)
+async def create_rule(rule: AlertRuleCreate) -> AlertRule:
     """Create a new alert rule."""
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
-        if _is_sqlite(conn):
+        ensure_alert_tables(conn)
+        if is_sqlite(conn):
             cursor = conn.execute(
-                """INSERT INTO alert_rules(name, event_type, condition_json, channels, enabled, manager_id)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO alert_rules(
+                    name, description, event_type, condition_json, channels, enabled, manager_id,
+                    created_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     rule.name,
+                    rule.description,
                     rule.event_type,
-                    _serialize_json(rule.condition_json),
-                    _serialize_json(rule.channels),
+                    serialize_json(rule.condition_json),
+                    serialize_channels(conn, rule.channels),
                     1 if rule.enabled else 0,
                     rule.manager_id,
+                    rule.created_by,
                 ),
             )
             conn.commit()
             rule_id = int(cursor.lastrowid) if cursor.lastrowid is not None else 0
         else:
             cursor = conn.execute(
-                """INSERT INTO alert_rules(name, event_type, condition_json, channels, enabled, manager_id)
-                   VALUES (%s, %s, %s::jsonb, %s::jsonb, %s, %s)
-                   RETURNING rule_id""",
+                """INSERT INTO alert_rules(
+                    name, description, event_type, condition_json, channels, enabled, manager_id,
+                    created_by
+                ) VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s)
+                RETURNING rule_id""",
                 (
                     rule.name,
+                    rule.description,
                     rule.event_type,
-                    _serialize_json(rule.condition_json),
-                    _serialize_json(rule.channels),
+                    serialize_json(rule.condition_json),
+                    serialize_channels(conn, rule.channels),
                     rule.enabled,
                     rule.manager_id,
+                    rule.created_by,
                 ),
             )
             inserted = cursor.fetchone()
             rule_id = int(inserted[0]) if inserted and inserted[0] is not None else 0
-        row = _fetch_rule_by_id(conn, rule_id)
+        row = fetch_rule_by_id(conn, rule_id)
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
@@ -337,36 +129,41 @@ async def create_rule(rule: AlertRuleCreate) -> AlertRuleResponse:
             conn.close()
     if row is None:
         raise HTTPException(status_code=500, detail="Failed to create alert rule")
-    return _to_rule_response(row)
+    return rule_from_row(row)
 
 
-@router.get("/api/alerts/rules", response_model=list[AlertRuleResponse])
+@router.get("/api/alerts/rules", response_model=list[AlertRule])
 async def list_rules(
     event_type: str | None = None,
     enabled: bool | None = None,
-) -> list[AlertRuleResponse]:
+) -> list[AlertRule]:
     """List all alert rules, optionally filtered."""
-    if event_type and event_type not in ALLOWED_EVENT_TYPES:
-        raise HTTPException(status_code=400, detail=f"Unsupported event_type: {event_type}")
+    if event_type is not None:
+        try:
+            event_type = normalize_event_type(event_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
+        ensure_alert_tables(conn)
         where_clauses: list[str] = []
         params: list[Any] = []
-        placeholder = _placeholder(conn)
+        ph = placeholder(conn)
         if event_type is not None:
-            where_clauses.append(f"event_type = {placeholder}")
+            where_clauses.append(f"event_type = {ph}")
             params.append(event_type)
         if enabled is not None:
-            where_clauses.append(f"enabled = {placeholder}")
-            params.append(1 if _is_sqlite(conn) and enabled else 0 if _is_sqlite(conn) else enabled)
+            where_clauses.append(f"enabled = {ph}")
+            params.append(1 if is_sqlite(conn) and enabled else 0 if is_sqlite(conn) else enabled)
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         cursor = conn.execute(
-            f"""SELECT rule_id, name, event_type, condition_json, channels, enabled, manager_id, created_at
-                FROM alert_rules
-                {where_sql}
-                ORDER BY rule_id DESC""",
+            f"""SELECT rule_id, name, description, event_type, condition_json, channels, enabled,
+                       manager_id, created_by, created_at, updated_at
+                  FROM alert_rules
+                  {where_sql}
+                  ORDER BY rule_id DESC""",
             params,
         )
         rows = cursor.fetchall()
@@ -375,19 +172,19 @@ async def list_rules(
     finally:
         if conn is not None:
             conn.close()
-    return [_to_rule_response(row) for row in rows]
+    return [rule_from_row(row) for row in rows]
 
 
-@router.get("/api/alerts/rules/{rule_id}", response_model=AlertRuleResponse)
+@router.get("/api/alerts/rules/{rule_id}", response_model=AlertRule)
 async def get_rule(
     rule_id: int = Path(..., ge=1, description="Alert rule identifier"),
-) -> AlertRuleResponse:
+) -> AlertRule:
     """Get a single alert rule by ID."""
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
-        row = _fetch_rule_by_id(conn, rule_id)
+        ensure_alert_tables(conn)
+        row = fetch_rule_by_id(conn, rule_id)
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
@@ -395,67 +192,71 @@ async def get_rule(
             conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="Alert rule not found")
-    return _to_rule_response(row)
+    return rule_from_row(row)
 
 
-@router.put("/api/alerts/rules/{rule_id}", response_model=AlertRuleResponse)
+@router.put("/api/alerts/rules/{rule_id}", response_model=AlertRule)
 async def update_rule(
     update: Annotated[AlertRuleUpdate, Body(...)],
     rule_id: int = Path(..., ge=1, description="Alert rule identifier"),
-) -> AlertRuleResponse:
+) -> AlertRule:
     """Update an existing alert rule."""
     if (
         update.name is None
+        and update.description is None
         and update.condition_json is None
         and update.channels is None
         and update.enabled is None
+        and update.created_by is None
     ):
         raise HTTPException(status_code=400, detail="No update fields were provided")
 
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
-        existing = _fetch_rule_by_id(conn, rule_id)
+        ensure_alert_tables(conn)
+        existing = fetch_rule_by_id(conn, rule_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Alert rule not found")
 
-        placeholder = _placeholder(conn)
+        ph = placeholder(conn)
         set_clauses: list[str] = []
         params: list[Any] = []
         if update.name is not None:
-            set_clauses.append(f"name = {placeholder}")
+            set_clauses.append(f"name = {ph}")
             params.append(update.name)
+        if update.description is not None:
+            set_clauses.append(f"description = {ph}")
+            params.append(update.description)
         if update.condition_json is not None:
-            if _is_sqlite(conn):
-                set_clauses.append(f"condition_json = {placeholder}")
-                params.append(_serialize_json(update.condition_json))
+            if is_sqlite(conn):
+                set_clauses.append(f"condition_json = {ph}")
             else:
-                set_clauses.append(f"condition_json = {placeholder}::jsonb")
-                params.append(_serialize_json(update.condition_json))
+                set_clauses.append(f"condition_json = {ph}::jsonb")
+            params.append(serialize_json(update.condition_json))
         if update.channels is not None:
-            if _is_sqlite(conn):
-                set_clauses.append(f"channels = {placeholder}")
-                params.append(_serialize_json(update.channels))
-            else:
-                set_clauses.append(f"channels = {placeholder}::jsonb")
-                params.append(_serialize_json(update.channels))
+            set_clauses.append(f"channels = {ph}")
+            params.append(serialize_channels(conn, update.channels))
         if update.enabled is not None:
-            set_clauses.append(f"enabled = {placeholder}")
+            set_clauses.append(f"enabled = {ph}")
             params.append(
                 1
-                if _is_sqlite(conn) and update.enabled
-                else 0 if _is_sqlite(conn) else update.enabled
+                if is_sqlite(conn) and update.enabled
+                else 0 if is_sqlite(conn) else update.enabled
             )
+        if update.created_by is not None:
+            set_clauses.append(f"created_by = {ph}")
+            params.append(update.created_by)
+        set_clauses.append("updated_at = CURRENT_TIMESTAMP")
 
         params.append(rule_id)
         conn.execute(
-            f"UPDATE alert_rules SET {', '.join(set_clauses)} WHERE rule_id = {placeholder}",
+            f"UPDATE alert_rules SET {', '.join(set_clauses)} WHERE rule_id = {ph}",
             params,
         )
-        if _is_sqlite(conn):
+        if is_sqlite(conn):
             conn.commit()
-        row = _fetch_rule_by_id(conn, rule_id)
+        row = fetch_rule_by_id(conn, rule_id)
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
@@ -463,7 +264,7 @@ async def update_rule(
             conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="Alert rule not found")
-    return _to_rule_response(row)
+    return rule_from_row(row)
 
 
 @router.delete("/api/alerts/rules/{rule_id}")
@@ -472,13 +273,13 @@ async def delete_rule(rule_id: int = Path(..., ge=1, description="Alert rule ide
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
-        placeholder = _placeholder(conn)
+        ensure_alert_tables(conn)
+        ph = placeholder(conn)
         cursor = conn.execute(
-            f"UPDATE alert_rules SET enabled = {placeholder} WHERE rule_id = {placeholder}",
-            (0 if _is_sqlite(conn) else False, rule_id),
+            f"UPDATE alert_rules SET enabled = {ph}, updated_at = CURRENT_TIMESTAMP WHERE rule_id = {ph}",
+            (0 if is_sqlite(conn) else False, rule_id),
         )
-        if _is_sqlite(conn):
+        if is_sqlite(conn):
             conn.commit()
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Alert rule not found")
@@ -498,34 +299,39 @@ async def list_alerts(
     limit: int = Query(100, ge=1, le=1000),
 ) -> list[AlertHistoryResponse]:
     """List alert history, newest first."""
-    if event_type and event_type not in ALLOWED_EVENT_TYPES:
-        raise HTTPException(status_code=400, detail=f"Unsupported event_type: {event_type}")
+    if event_type is not None:
+        try:
+            event_type = normalize_event_type(event_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
-        placeholder = _placeholder(conn)
+        ensure_alert_tables(conn)
+        ph = placeholder(conn)
         where_clauses: list[str] = []
         params: list[Any] = []
         if since is not None:
-            where_clauses.append(f"fired_at >= {placeholder}")
+            where_clauses.append(f"fired_at >= {ph}")
             params.append(since.isoformat(sep=" "))
         if acknowledged is not None:
-            where_clauses.append(f"acknowledged = {placeholder}")
+            where_clauses.append(f"acknowledged = {ph}")
             params.append(
-                1 if _is_sqlite(conn) and acknowledged else 0 if _is_sqlite(conn) else acknowledged
+                1 if is_sqlite(conn) and acknowledged else 0 if is_sqlite(conn) else acknowledged
             )
         if event_type is not None:
-            where_clauses.append(f"event_type = {placeholder}")
+            where_clauses.append(f"event_type = {ph}")
             params.append(event_type)
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         params.append(limit)
         cursor = conn.execute(
-            f"""SELECT alert_id, rule_name, event_type, payload_json, fired_at, delivered_channels, acknowledged
-                FROM alert_history
-                {where_sql}
-                ORDER BY fired_at DESC, alert_id DESC
-                LIMIT {placeholder}""",
+            f"""SELECT alert_id, rule_name, event_type, payload_json, fired_at, delivered_channels,
+                       acknowledged
+                  FROM alert_history
+                  {where_sql}
+                  ORDER BY fired_at DESC, alert_id DESC
+                  LIMIT {ph}""",
             params,
         )
         rows = cursor.fetchall()
@@ -538,16 +344,16 @@ async def list_alerts(
 
 
 @router.get("/api/alerts/unacknowledged/count")
-async def unacknowledged_count() -> dict:
+async def unacknowledged_count() -> dict[str, int]:
     """Return {"count": N} for badge display."""
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
-        placeholder = _placeholder(conn)
+        ensure_alert_tables(conn)
+        ph = placeholder(conn)
         cursor = conn.execute(
-            f"SELECT COUNT(*) FROM alert_history WHERE acknowledged = {placeholder}",
-            (0 if _is_sqlite(conn) else False,),
+            f"SELECT COUNT(*) FROM alert_history WHERE acknowledged = {ph}",
+            (0 if is_sqlite(conn) else False,),
         )
         row = cursor.fetchone()
     except DB_ERROR_TYPES as exc:
@@ -569,18 +375,18 @@ async def acknowledge_alert(
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
-        placeholder = _placeholder(conn)
-        now = datetime.utcnow().isoformat(sep=" ")
+        ensure_alert_tables(conn)
+        ph = placeholder(conn)
+        now = datetime.now(UTC).isoformat(sep=" ")
         conn.execute(
             f"""UPDATE alert_history
-                SET acknowledged = {placeholder}, acknowledged_by = {placeholder}, acknowledged_at = {placeholder}
-                WHERE alert_id = {placeholder}""",
-            (1 if _is_sqlite(conn) else True, by, now, alert_id),
+                SET acknowledged = {ph}, acknowledged_by = {ph}, acknowledged_at = {ph}
+                WHERE alert_id = {ph}""",
+            (1 if is_sqlite(conn) else True, by, now, alert_id),
         )
-        if _is_sqlite(conn):
+        if is_sqlite(conn):
             conn.commit()
-        row = _fetch_alert_by_id(conn, alert_id)
+        row = fetch_alert_by_id(conn, alert_id)
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
@@ -592,22 +398,22 @@ async def acknowledge_alert(
 
 
 @router.post("/api/alerts/history/acknowledge-all")
-async def acknowledge_all(by: str = Query("user", min_length=1, max_length=120)) -> dict:
+async def acknowledge_all(by: str = Query("user", min_length=1, max_length=120)) -> dict[str, int]:
     """Acknowledge all unacknowledged alerts. Returns {"acknowledged": N}."""
     by = _normalize_actor(by)
     conn = None
     try:
         conn = connect_db()
-        _ensure_alert_tables(conn)
-        placeholder = _placeholder(conn)
-        now = datetime.utcnow().isoformat(sep=" ")
+        ensure_alert_tables(conn)
+        ph = placeholder(conn)
+        now = datetime.now(UTC).isoformat(sep=" ")
         cursor = conn.execute(
             f"""UPDATE alert_history
-                SET acknowledged = {placeholder}, acknowledged_by = {placeholder}, acknowledged_at = {placeholder}
-                WHERE acknowledged = {placeholder}""",
-            (1 if _is_sqlite(conn) else True, by, now, 0 if _is_sqlite(conn) else False),
+                SET acknowledged = {ph}, acknowledged_by = {ph}, acknowledged_at = {ph}
+                WHERE acknowledged = {ph}""",
+            (1 if is_sqlite(conn) else True, by, now, 0 if is_sqlite(conn) else False),
         )
-        if _is_sqlite(conn):
+        if is_sqlite(conn):
             conn.commit()
         count = max(int(cursor.rowcount), 0)
     except DB_ERROR_TYPES as exc:

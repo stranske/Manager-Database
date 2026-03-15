@@ -262,7 +262,7 @@ def test_fire_alerts_for_matching_activism_event(tmp_path):
                 "Threshold Rule",
                 ALERT_EVENT_TYPE,
                 '{"event_type":"threshold_crossing","min_ownership_pct":5.0}',
-                '["in_app"]',
+                '["streamlit"]',
                 1,
                 None,
             ),
@@ -293,7 +293,7 @@ def test_fire_alerts_for_matching_activism_event(tmp_path):
         assert history[0] == "Threshold Rule"
         assert history[1] == ALERT_EVENT_TYPE
         assert '"threshold_crossing"' in str(history[2])
-        assert history[3] == '["in_app"]'
+        assert history[3] == '["streamlit"]'
     finally:
         conn.close()
 
