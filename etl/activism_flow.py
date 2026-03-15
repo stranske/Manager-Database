@@ -13,6 +13,15 @@ from prefect.schedules import Cron
 
 from adapters import edgar
 from adapters.base import connect_db
+from etl.activism_detection import (
+    ALERT_EVENT_TYPE,
+    AlertEvent,
+    detect_events,
+    ensure_activism_events_table,
+    event_payload,
+    fire_alerts_for_event,
+    insert_activism_events,
+)
 from etl.edgar_flow import BUCKET, S3
 from etl.logging_setup import configure_logging, log_outcome
 
@@ -106,6 +115,36 @@ def _serialize_group_members(value: object, *, sqlite_mode: bool) -> object:
     return []
 
 
+def _find_existing_filing_id(
+    conn: Any,
+    *,
+    manager_id: int,
+    filing_type: str,
+    subject_cusip: str | None,
+    filed_date: str,
+) -> int | None:
+    ph = _placeholder(conn)
+    params: list[object] = [manager_id, filing_type, filed_date]
+    if subject_cusip:
+        sql = (
+            "SELECT filing_id FROM activism_filings "
+            f"WHERE manager_id = {ph} AND filing_type = {ph} "
+            f"AND subject_cusip = {ph} AND filed_date = {ph} "
+            "LIMIT 1"
+        )
+        params.insert(2, subject_cusip)
+    else:
+        sql = (
+            "SELECT filing_id FROM activism_filings "
+            f"WHERE manager_id = {ph} AND filing_type = {ph} "
+            "AND subject_cusip IS NULL "
+            f"AND filed_date = {ph} "
+            "LIMIT 1"
+        )
+    row = conn.execute(sql, tuple(params)).fetchone()
+    return int(row[0]) if row and row[0] is not None else None
+
+
 def _upsert_activism_filing(
     conn: Any,
     *,
@@ -113,47 +152,95 @@ def _upsert_activism_filing(
     filing: dict[str, str],
     parsed: dict[str, object],
     raw_key: str,
-) -> None:
+) -> tuple[int, bool]:
     ph = _placeholder(conn)
+    subject_cusip = str(parsed.get("cusip") or "") or None
+    filed_date = str(filing.get("filed") or "")
+    existing_id = _find_existing_filing_id(
+        conn,
+        manager_id=manager_id,
+        filing_type=filing["form"],
+        subject_cusip=subject_cusip,
+        filed_date=filed_date,
+    )
     values = (
         manager_id,
         filing["form"],
         str(parsed.get("subject_company") or ""),
-        str(parsed.get("cusip") or "") or None,
+        subject_cusip,
         parsed.get("ownership_pct"),
         parsed.get("shares"),
         _serialize_group_members(parsed.get("group_members"), sqlite_mode=_is_sqlite(conn)),
         str(parsed.get("purpose_snippet") or "") or None,
-        str(filing.get("filed") or ""),
+        filed_date,
         str(filing.get("url") or "https://www.sec.gov"),
         raw_key,
     )
     if _is_sqlite(conn):
+        if existing_id is None:
+            cursor = conn.execute(
+                "INSERT INTO activism_filings("
+                "manager_id, filing_type, subject_company, subject_cusip, ownership_pct, shares, "
+                "group_members, purpose_snippet, filed_date, url, raw_key"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                values,
+            )
+            filing_id = int(cursor.lastrowid) if cursor.lastrowid is not None else 0
+            return filing_id, True
         conn.execute(
-            "INSERT OR IGNORE INTO activism_filings("
+            "UPDATE activism_filings SET subject_company = ?, ownership_pct = ?, shares = ?, "
+            "group_members = ?, purpose_snippet = ?, url = ?, raw_key = ? WHERE filing_id = ?",
+            (
+                str(parsed.get("subject_company") or ""),
+                parsed.get("ownership_pct"),
+                parsed.get("shares"),
+                _serialize_group_members(parsed.get("group_members"), sqlite_mode=True),
+                str(parsed.get("purpose_snippet") or "") or None,
+                str(filing.get("url") or "https://www.sec.gov"),
+                raw_key,
+                existing_id,
+            ),
+        )
+        return existing_id, False
+
+    if existing_id is None:
+        row = conn.execute(
+            "INSERT INTO activism_filings("
             "manager_id, filing_type, subject_company, subject_cusip, ownership_pct, shares, "
             "group_members, purpose_snippet, filed_date, url, raw_key"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f") VALUES ({', '.join([ph] * 11)}) "
+            "ON CONFLICT(manager_id, filing_type, subject_cusip, filed_date) DO UPDATE SET "
+            "subject_company = excluded.subject_company, ownership_pct = excluded.ownership_pct, "
+            "shares = excluded.shares, group_members = excluded.group_members, "
+            "purpose_snippet = excluded.purpose_snippet, url = excluded.url, raw_key = excluded.raw_key "
+            "RETURNING filing_id",
             values,
-        )
-        return
+        ).fetchone()
+        if row and row[0] is not None:
+            return int(row[0]), True
+
     conn.execute(
-        "INSERT INTO activism_filings("
-        "manager_id, filing_type, subject_company, subject_cusip, ownership_pct, shares, "
-        "group_members, purpose_snippet, filed_date, url, raw_key"
-        f") VALUES ({', '.join([ph] * 11)}) "
-        "ON CONFLICT(manager_id, filing_type, subject_cusip, filed_date) DO UPDATE SET "
-        "subject_company = excluded.subject_company, ownership_pct = excluded.ownership_pct, "
-        "shares = excluded.shares, group_members = excluded.group_members, "
-        "purpose_snippet = excluded.purpose_snippet, url = excluded.url, raw_key = excluded.raw_key",
-        values,
+        "UPDATE activism_filings SET subject_company = %s, ownership_pct = %s, shares = %s, "
+        "group_members = %s, purpose_snippet = %s, url = %s, raw_key = %s WHERE filing_id = %s",
+        (
+            str(parsed.get("subject_company") or ""),
+            parsed.get("ownership_pct"),
+            parsed.get("shares"),
+            _serialize_group_members(parsed.get("group_members"), sqlite_mode=False),
+            str(parsed.get("purpose_snippet") or "") or None,
+            str(filing.get("url") or "https://www.sec.gov"),
+            raw_key,
+            existing_id,
+        ),
     )
+    return int(existing_id or 0), False
 
 
 @task
 async def fetch_activism_filings(manager_id: int, since: str) -> list[dict[str, object]]:
     conn = connect_db(DB_PATH)
     _ensure_activism_filings_table(conn)
+    ensure_activism_events_table(conn)
 
     manager_row = _load_manager_row(conn, manager_id)
     if manager_row is None:
@@ -188,14 +275,38 @@ async def fetch_activism_filings(manager_id: int, since: str) -> list[dict[str, 
         parsed = await edgar.parse(raw_text, form_type=form_type)
         if not isinstance(parsed, dict):
             continue
-        _upsert_activism_filing(
+        filing_id, is_new = _upsert_activism_filing(
             conn,
             manager_id=manager_id,
             filing=filing,
             parsed=parsed,
             raw_key=raw_key,
         )
-        inserted.append({**parsed, "filing_type": form_type, "raw_key": raw_key})
+        filing_row = {
+            "filing_id": filing_id,
+            "manager_id": manager_id,
+            "filing_type": form_type,
+            "subject_company": str(parsed.get("subject_company") or ""),
+            "subject_cusip": str(parsed.get("cusip") or "") or None,
+            "ownership_pct": parsed.get("ownership_pct"),
+            "group_members": parsed.get("group_members"),
+            "filed_date": str(filing.get("filed") or ""),
+        }
+        if is_new:
+            detected_events = detect_events(conn, filing_row)
+            persisted_events = insert_activism_events(conn, detected_events)
+            for event in persisted_events:
+                fire_alerts_for_event(
+                    conn,
+                    AlertEvent(
+                        event_type=ALERT_EVENT_TYPE,
+                        manager_id=event.manager_id,
+                        payload=event_payload(event),
+                    ),
+                )
+        inserted.append(
+            {**parsed, "filing_type": form_type, "raw_key": raw_key, "filing_id": filing_id}
+        )
 
     conn.commit()
     conn.close()
@@ -206,6 +317,7 @@ async def fetch_activism_filings(manager_id: int, since: str) -> list[dict[str, 
 async def fetch_all_managers(since: str) -> list[dict[str, object]]:
     conn = connect_db(DB_PATH)
     _ensure_activism_filings_table(conn)
+    ensure_activism_events_table(conn)
     manager_ids = _all_manager_ids(conn)
     conn.close()
 

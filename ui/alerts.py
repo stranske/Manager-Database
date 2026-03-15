@@ -14,7 +14,7 @@ import streamlit as st
 
 from . import require_login
 
-ALERT_EVENT_TYPES = ["large_delta", "new_filing", "manager_update"]
+ALERT_EVENT_TYPES = ["large_delta", "new_filing", "manager_update", "activism_event"]
 ALERT_CHANNELS = ["email", "slack", "webhook", "in_app"]
 
 
@@ -122,6 +122,48 @@ def _clear_alert_caches() -> None:
 
 def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
     defaults = defaults or {}
+    if event_type == "activism_event":
+        subtype_options = [
+            "any",
+            "initial_stake",
+            "threshold_crossing",
+            "stake_increase",
+            "stake_decrease",
+            "group_formation",
+            "amendment",
+            "form_upgrade",
+            "form_downgrade",
+        ]
+        default_subtype = str(defaults.get("event_type") or "any")
+        subtype_index = (
+            subtype_options.index(default_subtype) if default_subtype in subtype_options else 0
+        )
+        event_subtype = st.selectbox("event subtype", subtype_options, index=subtype_index)
+        subject_cusip = st.text_input(
+            "subject_cusip", value=str(defaults.get("subject_cusip") or "")
+        )
+        min_ownership_pct = st.number_input(
+            "min_ownership_pct",
+            min_value=0.0,
+            value=float(defaults.get("min_ownership_pct") or 0.0),
+            step=0.1,
+        )
+        min_delta_pct = st.number_input(
+            "min_delta_pct",
+            min_value=0.0,
+            value=float(defaults.get("min_delta_pct") or 0.0),
+            step=0.1,
+        )
+        condition: dict[str, Any] = {}
+        if event_subtype != "any":
+            condition["event_type"] = event_subtype
+        if subject_cusip.strip():
+            condition["subject_cusip"] = subject_cusip.strip()
+        if min_ownership_pct > 0:
+            condition["min_ownership_pct"] = min_ownership_pct
+        if min_delta_pct > 0:
+            condition["min_delta_pct"] = min_delta_pct
+        return condition
     if event_type == "large_delta":
         delta_type_options = ["buy", "sell", "net"]
         default_delta_type = str(defaults.get("delta_type") or "buy")

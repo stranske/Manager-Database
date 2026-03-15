@@ -25,7 +25,7 @@ DB_ERROR_TYPES: tuple[type[BaseException], ...] = (sqlite3.Error,)
 if psycopg is not None:
     DB_ERROR_TYPES = DB_ERROR_TYPES + (psycopg.Error,)
 
-ALLOWED_EVENT_TYPES = {"large_delta", "new_filing", "manager_update"}
+ALLOWED_EVENT_TYPES = {"large_delta", "new_filing", "manager_update", "activism_event"}
 ALLOWED_CHANNELS = {"email", "slack", "webhook", "in_app"}
 
 

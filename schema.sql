@@ -78,6 +78,51 @@ CREATE INDEX IF NOT EXISTS idx_activism_cusip
 CREATE INDEX IF NOT EXISTS idx_activism_date
     ON activism_filings (filed_date DESC);
 
+CREATE TABLE IF NOT EXISTS activism_events (
+    event_id bigserial PRIMARY KEY,
+    manager_id bigint NOT NULL REFERENCES managers(manager_id),
+    filing_id bigint NOT NULL REFERENCES activism_filings(filing_id),
+    event_type text NOT NULL CHECK (
+        event_type IN (
+            'initial_stake',
+            'threshold_crossing',
+            'stake_increase',
+            'stake_decrease',
+            'group_formation',
+            'amendment',
+            'form_upgrade',
+            'form_downgrade'
+        )
+    ),
+    subject_company text NOT NULL,
+    subject_cusip text,
+    ownership_pct numeric(8,4),
+    previous_pct numeric(8,4),
+    delta_pct numeric(8,4),
+    threshold_crossed numeric(8,4),
+    detected_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_activism_events_manager
+    ON activism_events (manager_id);
+
+CREATE INDEX IF NOT EXISTS idx_activism_events_type
+    ON activism_events (event_type);
+
+CREATE INDEX IF NOT EXISTS idx_activism_events_date
+    ON activism_events (detected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_activism_events_cusip
+    ON activism_events (subject_cusip);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_base
+    ON activism_events (manager_id, filing_id, event_type)
+    WHERE threshold_crossed IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_threshold
+    ON activism_events (manager_id, filing_id, event_type, threshold_crossed)
+    WHERE threshold_crossed IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS holdings (
     holding_id bigserial PRIMARY KEY,
     filing_id bigint NOT NULL REFERENCES filings(filing_id),

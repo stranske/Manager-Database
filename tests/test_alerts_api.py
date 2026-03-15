@@ -297,6 +297,28 @@ def test_alert_rule_list_filters(tmp_path, monkeypatch):
     assert enabled_rules[0]["enabled"] is True
 
 
+def test_alert_rule_accepts_activism_event_type(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/alerts/rules",
+            json=_create_rule_payload(
+                name="Activism Rule",
+                event_type="activism_event",
+                channels=["in_app"],
+            ),
+        )
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["event_type"] == "activism_event"
+    assert payload["channels"] == ["in_app"]
+
+
 def test_alert_validation_invalid_event_type_rejected(tmp_path, monkeypatch):
     db_path = tmp_path / "alerts.db"
     monkeypatch.setenv("DB_PATH", str(db_path))

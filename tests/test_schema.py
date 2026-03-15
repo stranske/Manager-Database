@@ -15,6 +15,7 @@ EXPECTED_TABLES = {
     "managers",
     "filings",
     "activism_filings",
+    "activism_events",
     "holdings",
     "news_items",
     "documents",
@@ -180,3 +181,15 @@ def test_analytics_indexes_exist(monkeypatch, tmp_path):
         assert {"idx_activism_manager", "idx_activism_cusip", "idx_activism_date"}.issubset(
             activism_indexes
         )
+
+        activism_event_indexes = {
+            row[1] for row in conn.execute("PRAGMA index_list('activism_events')").fetchall()
+        }
+        assert {
+            "idx_activism_events_manager",
+            "idx_activism_events_type",
+            "idx_activism_events_date",
+            "idx_activism_events_cusip",
+            "idx_activism_events_unique_base",
+            "idx_activism_events_unique_threshold",
+        }.issubset(activism_event_indexes)
