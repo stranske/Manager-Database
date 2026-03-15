@@ -62,12 +62,17 @@ def _seed_alert_history(db_path: Path) -> None:
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(
-            """INSERT INTO alert_history(
-                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
+            """INSERT INTO alert_rules(
+                rule_id, name, event_type, condition_json, channels, enabled
             ) VALUES (?, ?, ?, ?, ?, ?)""",
+            (2, "New Filing Rule", "new_filing", "{}", '["slack"]', 1),
+        )
+        conn.execute(
+            """INSERT INTO alert_history(
+                rule_id, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?)""",
             (
                 1,
-                "Large Delta Rule",
                 "large_delta",
                 '{"symbol":"ABC","delta":150000}',
                 '["email"]',
@@ -76,11 +81,10 @@ def _seed_alert_history(db_path: Path) -> None:
         )
         conn.execute(
             """INSERT INTO alert_history(
-                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
-            ) VALUES (?, ?, ?, ?, ?, ?)""",
+                rule_id, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?)""",
             (
                 1,
-                "Large Delta Rule",
                 "large_delta",
                 '{"symbol":"XYZ","delta":250000}',
                 '["slack"]',
@@ -89,14 +93,13 @@ def _seed_alert_history(db_path: Path) -> None:
         )
         conn.execute(
             """INSERT INTO alert_history(
-                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
-            ) VALUES (?, ?, ?, ?, ?, ?)""",
+                rule_id, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?)""",
             (
                 2,
-                "New Filing Rule",
                 "new_filing",
                 '{"symbol":"QRS"}',
-                '["webhook"]',
+                '["slack"]',
                 1,
             ),
         )
@@ -109,7 +112,6 @@ def _seed_alert_for_rule(
     db_path: Path,
     *,
     rule_id: int,
-    rule_name: str,
     event_type: str = "large_delta",
     acknowledged: bool = False,
 ) -> None:
@@ -117,11 +119,10 @@ def _seed_alert_for_rule(
     try:
         conn.execute(
             """INSERT INTO alert_history(
-                rule_id, rule_name, event_type, payload_json, delivered_channels, acknowledged
-            ) VALUES (?, ?, ?, ?, ?, ?)""",
+                rule_id, event_type, payload_json, delivered_channels, acknowledged
+            ) VALUES (?, ?, ?, ?, ?)""",
             (
                 rule_id,
-                rule_name,
                 event_type,
                 '{"symbol":"ABC","delta":150000}',
                 '["email"]',
@@ -156,7 +157,7 @@ def test_alert_rule_crud_and_soft_delete(tmp_path, monkeypatch):
             f"/api/alerts/rules/{rule_id}",
             json={
                 "name": "Updated Rule",
-                "channels": ["webhook"],
+                "channels": ["slack"],
                 "enabled": False,
                 "condition_json": {"delta_type": "sell", "value_usd_gt": 500000},
             },
@@ -165,7 +166,7 @@ def test_alert_rule_crud_and_soft_delete(tmp_path, monkeypatch):
     assert update_response.status_code == 200
     updated = update_response.json()
     assert updated["name"] == "Updated Rule"
-    assert updated["channels"] == ["webhook"]
+    assert updated["channels"] == ["slack"]
     assert updated["enabled"] is False
 
     delete_response = asyncio.run(_request("DELETE", f"/api/alerts/rules/{rule_id}"))
@@ -195,7 +196,6 @@ def test_alert_rule_soft_delete_preserves_history(tmp_path, monkeypatch):
     _seed_alert_for_rule(
         db_path,
         rule_id=rule_id,
-        rule_name=created_rule["name"],
     )
 
     delete_response = asyncio.run(_request("DELETE", f"/api/alerts/rules/{rule_id}"))
@@ -231,13 +231,11 @@ def test_alert_rule_soft_delete_keeps_rule_row_and_history_rows(tmp_path, monkey
     _seed_alert_for_rule(
         db_path,
         rule_id=rule_id,
-        rule_name=created_rule["name"],
         acknowledged=False,
     )
     _seed_alert_for_rule(
         db_path,
         rule_id=rule_id,
-        rule_name=created_rule["name"],
         acknowledged=True,
     )
 
@@ -309,7 +307,7 @@ def test_alert_rule_accepts_activism_event_type(tmp_path, monkeypatch):
             json=_create_rule_payload(
                 name="Activism Rule",
                 event_type="activism_event",
-                channels=["in_app"],
+                channels=["streamlit"],
             ),
         )
     )
@@ -317,7 +315,7 @@ def test_alert_rule_accepts_activism_event_type(tmp_path, monkeypatch):
     assert response.status_code == 201
     payload = response.json()
     assert payload["event_type"] == "activism_event"
-    assert payload["channels"] == ["in_app"]
+    assert payload["channels"] == ["streamlit"]
 
 
 def test_alert_validation_invalid_event_type_rejected(tmp_path, monkeypatch):

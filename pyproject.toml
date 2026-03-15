@@ -60,10 +60,11 @@ build-backend = "setuptools.build_meta"
 
 # Explicit package discovery for flat layout with multiple top-level packages
 [tool.setuptools.packages.find]
-include = ["adapters*", "api*", "etl*", "llm*", "ui*"]
+include = ["adapters*", "alerts*", "api*", "etl*", "llm*", "ui*"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
+pythonpath = ["."]
 markers = [
     "nightly: nightly regression tests",
     "integration: integration tests",

@@ -12,10 +12,9 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from . import require_login
+from alerts import ALERT_CHANNELS, ALERT_EVENT_TYPES
 
-ALERT_EVENT_TYPES = ["large_delta", "new_filing", "manager_update", "activism_event"]
-ALERT_CHANNELS = ["email", "slack", "webhook", "in_app"]
+from . import require_login
 
 
 def _api_base_url() -> str:
@@ -330,7 +329,7 @@ def _render_rule_builder() -> None:
 def _render_alert_inbox() -> None:
     st.subheader("Alert Inbox")
     filter_cols = st.columns(3)
-    selected_type = filter_cols[0].selectbox("event_type", ["all"] + ALERT_EVENT_TYPES, index=0)
+    selected_type = filter_cols[0].selectbox("event_type", ["all", *ALERT_EVENT_TYPES], index=0)
     status = filter_cols[1].selectbox(
         "acknowledged", ["all", "unacknowledged", "acknowledged"], index=0
     )
