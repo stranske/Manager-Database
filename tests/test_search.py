@@ -2,8 +2,8 @@ import asyncio
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Any, cast
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
