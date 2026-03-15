@@ -142,6 +142,31 @@ def _parse_manager_ids(value: Any) -> list[int]:
     return []
 
 
+def _load_manager_latest_holdings_cusips(
+    conn: Any, manager_id: int, report_date: date
+) -> set[str] | None:
+    if not (_table_exists(conn, "filings") and _table_exists(conn, "holdings")):
+        return None
+
+    ph = _placeholder(conn)
+    latest_filing = conn.execute(
+        "SELECT filing_id "
+        "FROM filings "
+        f"WHERE manager_id = {ph} AND COALESCE(period_end, filed_date) <= {ph} "
+        "ORDER BY COALESCE(period_end, filed_date) DESC, filed_date DESC, filing_id DESC "
+        "LIMIT 1",
+        (manager_id, report_date),
+    ).fetchone()
+    if not latest_filing or latest_filing[0] is None:
+        return set()
+
+    rows = conn.execute(
+        f"SELECT cusip FROM holdings WHERE filing_id = {ph}",
+        (latest_filing[0],),
+    ).fetchall()
+    return {str(row[0]) for row in rows if row[0]}
+
+
 def _manager_id_column(conn: Any) -> str | None:
     if not _table_exists(conn, "managers"):
         return None
@@ -190,52 +215,49 @@ def query_crowded_trades(
 
     ph = _placeholder(conn)
     params: list[Any] = [resolved_date, max(1, min_managers)]
-    manager_filter = ""
-    if manager_id is not None:
-        params.extend([manager_id, resolved_date])
-        manager_filter = (
-            "AND EXISTS ("
-            "    WITH ranked_filings AS ("
-            "        SELECT filing_id, ROW_NUMBER() OVER ("
-            "            PARTITION BY manager_id "
-            "            ORDER BY COALESCE(period_end, filed_date) DESC, filed_date DESC, filing_id DESC"
-            "        ) AS rn "
-            "        FROM filings "
-            f"        WHERE manager_id = {ph} AND COALESCE(period_end, filed_date) <= {ph}"
-            "    ) "
-            "    SELECT 1 FROM ranked_filings rf "
-            "    JOIN holdings h ON h.filing_id = rf.filing_id "
-            "    WHERE rf.rn = 1 AND h.cusip = ct.cusip"
-            ") "
-        )
-    params.append(limit)
     rows = conn.execute(
         "SELECT ct.cusip, ct.name_of_issuer, ct.manager_count, ct.manager_ids, "
         "ct.total_value_usd, ct.avg_conviction_pct, ct.report_date "
         "FROM crowded_trades ct "
         f"WHERE ct.report_date = {ph} AND ct.manager_count >= {ph} "
-        f"{manager_filter}"
-        "ORDER BY ct.manager_count DESC, ct.total_value_usd DESC, ct.cusip ASC "
-        f"LIMIT {ph}",
+        "ORDER BY ct.manager_count DESC, ct.total_value_usd DESC, ct.cusip ASC ",
         tuple(params),
     ).fetchall()
     manager_names = _manager_name_lookup(conn)
-    return [
-        CrowdedTradeResponse(
-            cusip=str(row[0]),
-            name_of_issuer=str(row[1]) if row[1] is not None else None,
-            manager_count=int(row[2]),
-            manager_names=[
-                manager_names[manager_ref]
-                for manager_ref in _parse_manager_ids(row[3])
-                if manager_ref in manager_names
-            ],
-            total_value_usd=_to_float(row[4]),
-            avg_conviction_pct=_to_float(row[5]),
-            report_date=_to_date(row[6]),
+    held_cusips = (
+        _load_manager_latest_holdings_cusips(conn, manager_id, resolved_date)
+        if manager_id is not None
+        else None
+    )
+    crowded_rows: list[CrowdedTradeResponse] = []
+    for row in rows:
+        cusip = str(row[0])
+        manager_ids = _parse_manager_ids(row[3])
+        if manager_id is not None:
+            if held_cusips is not None:
+                if cusip not in held_cusips:
+                    continue
+            elif manager_id not in manager_ids:
+                continue
+
+        crowded_rows.append(
+            CrowdedTradeResponse(
+                cusip=cusip,
+                name_of_issuer=str(row[1]) if row[1] is not None else None,
+                manager_count=int(row[2]),
+                manager_names=[
+                    manager_names[manager_ref]
+                    for manager_ref in manager_ids
+                    if manager_ref in manager_names
+                ],
+                total_value_usd=_to_float(row[4]),
+                avg_conviction_pct=_to_float(row[5]),
+                report_date=_to_date(row[6]),
+            )
         )
-        for row in rows
-    ]
+        if len(crowded_rows) >= limit:
+            break
+    return crowded_rows
 
 
 def query_contrarian_signals(

@@ -361,3 +361,62 @@ def test_get_contrarian_signals_supports_sqlite_managers_id_shape(tmp_path, monk
     assert response.status_code == 200
     payload = response.json()
     assert payload[0]["manager_name"] == "Legacy Manager"
+
+
+def test_get_crowded_trades_filters_by_manager_without_filings_tables(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals_crowded_only.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+        conn.execute(
+            "CREATE TABLE crowded_trades (crowd_id INTEGER PRIMARY KEY, cusip TEXT, name_of_issuer TEXT, manager_count INTEGER, manager_ids TEXT, total_value_usd REAL, avg_conviction_pct REAL, max_conviction_pct REAL, report_date TEXT, computed_at TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO managers(manager_id, name) VALUES (?, ?)",
+            [(1, "Alpha Partners"), (2, "Zulu Capital")],
+        )
+        conn.executemany(
+            "INSERT INTO crowded_trades(crowd_id, cusip, name_of_issuer, manager_count, manager_ids, total_value_usd, avg_conviction_pct, max_conviction_pct, report_date, computed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    1,
+                    "AAA111111",
+                    "Example Corp",
+                    3,
+                    "[1, 2, 3]",
+                    4200.0,
+                    22.25,
+                    66.67,
+                    "2024-05-01",
+                    "2024-05-01T08:00:00",
+                ),
+                (
+                    2,
+                    "BBB222222",
+                    "Second Corp",
+                    2,
+                    "[2, 3]",
+                    2100.0,
+                    19.10,
+                    33.33,
+                    "2024-05-01",
+                    "2024-05-01T08:00:00",
+                ),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    response = asyncio.run(
+        _request(
+            "/api/signals/crowded",
+            params={"report_date": "2024-05-01", "manager_id": 1, "min_managers": 1},
+        )
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["cusip"] for item in payload] == ["AAA111111"]
+    assert payload[0]["manager_names"] == ["Alpha Partners", "Zulu Capital"]
