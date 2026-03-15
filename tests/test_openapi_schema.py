@@ -7,6 +7,7 @@ import httpx
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from api.chat import app
+from api.main import app as main_app
 
 
 def _load_openapi_schema() -> dict:
@@ -157,6 +158,42 @@ def test_openapi_health_db_schema():
         "timeout"
     ]
     assert timeout_example["value"]["healthy"] is False
+
+
+def test_signals_openapi_schema():
+    schema = _load_openapi_schema()
+    crowded_schema = schema["paths"]["/api/signals/crowded"]["get"]
+    contrarian_schema = schema["paths"]["/api/signals/contrarian"]["get"]
+    conviction_schema = schema["paths"]["/api/signals/conviction/{manager_id}"]["get"]
+
+    assert crowded_schema["summary"] == "List crowded trades"
+    assert contrarian_schema["summary"] == "List contrarian signals"
+    assert conviction_schema["summary"] == "List conviction scores for a manager"
+
+    crowded_response = crowded_schema["responses"]["200"]["content"]["application/json"]["schema"]
+    contrarian_response = contrarian_schema["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]
+    conviction_response = conviction_schema["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]
+    assert crowded_response["items"]["$ref"] == "#/components/schemas/CrowdedTradeResponse"
+    assert contrarian_response["items"]["$ref"] == "#/components/schemas/ContrarianSignalResponse"
+    assert conviction_response["items"]["$ref"] == "#/components/schemas/ConvictionScoreResponse"
+
+    crowded_params = {param["name"]: param for param in crowded_schema["parameters"]}
+    contrarian_params = {param["name"]: param for param in contrarian_schema["parameters"]}
+    conviction_params = {param["name"]: param for param in conviction_schema["parameters"]}
+
+    assert crowded_params["min_managers"]["schema"]["default"] == 3
+    assert crowded_params["limit"]["schema"]["default"] == 50
+    assert contrarian_params["limit"]["schema"]["default"] == 50
+    assert conviction_params["min_conviction_pct"]["schema"]["default"] == 0.0
+    assert conviction_params["limit"]["schema"]["default"] == 100
+
+
+def test_api_main_exports_fastapi_app():
+    assert main_app is app
 
 
 def test_docs_route_exposes_openapi():
