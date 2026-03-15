@@ -15,6 +15,12 @@ def _setup_view_backed_db(tmp_path: Path) -> str:
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
     conn.execute(
+        "CREATE TABLE contrarian_signals ("
+        "signal_id INTEGER PRIMARY KEY, manager_id INTEGER, cusip TEXT, name_of_issuer TEXT, "
+        "direction TEXT, consensus_direction TEXT, manager_delta_shares INTEGER, "
+        "manager_delta_value REAL, consensus_count INTEGER, report_date TEXT, detected_at TEXT)"
+    )
+    conn.execute(
         "CREATE TABLE daily_diffs ("
         "manager_id INTEGER NOT NULL, report_date TEXT NOT NULL, cusip TEXT NOT NULL, "
         "name_of_issuer TEXT, delta_type TEXT NOT NULL, shares_prev INTEGER, shares_curr INTEGER, "
@@ -32,6 +38,13 @@ def _setup_view_backed_db(tmp_path: Path) -> str:
         "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
         "shares_prev, shares_curr, value_prev, value_curr) "
         "VALUES (1, '2024-05-01', 'AAA', 'Issuer Alpha', 'INCREASE', 1000, 2500, 10000, 16000)"
+    )
+    conn.execute(
+        "INSERT INTO contrarian_signals(signal_id, manager_id, cusip, name_of_issuer, direction, "
+        "consensus_direction, manager_delta_shares, manager_delta_value, consensus_count, "
+        "report_date, detected_at) "
+        "VALUES (1, 1, 'AAA', 'Issuer Alpha', 'SELL', 'BUY', -1500, -6000, 4, "
+        "'2024-05-01', '2024-05-01T10:00:00')"
     )
     # Fallback table is intentionally seeded with different data to prove view path is used.
     conn.execute(
@@ -77,7 +90,7 @@ def test_daily_report_page_renders_from_mv_daily_report(tmp_path, monkeypatch):
 
     monkeypatch.setattr(daily_report, "require_login", lambda: True)
     monkeypatch.setattr(daily_report.st, "date_input", lambda *args, **kwargs: dt.date(2024, 5, 1))
-    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab()])
+    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab(), _Tab()])
     monkeypatch.setattr(daily_report.st, "columns", lambda n: [_MetricColumn() for _ in range(n)])
     monkeypatch.setattr(
         daily_report.st,
@@ -97,6 +110,7 @@ def test_daily_report_page_renders_from_mv_daily_report(tmp_path, monkeypatch):
     assert "↑ +1,500" in html_table
     assert "↑ +$6,000.00" in html_table
     assert "+60.0%" in html_table
+    assert "Contrarian: SELL vs BUY" in html_table
     assert any(call[0] == "Managers w/ changes" and call[1] == "1" for call in metric_calls)
     assert any(call[0] == "Increased" and call[1] == "1" for call in metric_calls)
 
@@ -129,6 +143,7 @@ def test_daily_report_page_renders_under_500ms_with_ten_managers(monkeypatch):
 
     monkeypatch.setattr(daily_report, "require_login", lambda: True)
     monkeypatch.setattr(daily_report, "load_diffs", lambda _date: pd.DataFrame(manager_rows))
+    monkeypatch.setattr(daily_report, "load_contrarian_signals", lambda _date: pd.DataFrame())
     monkeypatch.setattr(
         daily_report,
         "load_news",
@@ -145,7 +160,7 @@ def test_daily_report_page_renders_under_500ms_with_ten_managers(monkeypatch):
         ),
     )
     monkeypatch.setattr(daily_report.st, "date_input", lambda *args, **kwargs: dt.date(2024, 5, 1))
-    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab()])
+    monkeypatch.setattr(daily_report.st, "tabs", lambda labels: [_Tab(), _Tab(), _Tab()])
     monkeypatch.setattr(daily_report.st, "columns", lambda n: [_MetricColumn() for _ in range(n)])
     monkeypatch.setattr(daily_report.st, "markdown", lambda *args, **kwargs: None)
     monkeypatch.setattr(daily_report.st, "download_button", lambda *args, **kwargs: None)
