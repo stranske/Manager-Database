@@ -6,8 +6,9 @@ modifying the flows yet. Delivery remains out of scope until S8-02.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any
 
 from alerts.db import insert_alert_history
 from alerts.engine import AlertEngine
@@ -44,8 +45,8 @@ def build_new_filing_event(
         raise ValueError("filing_type is required for new_filing alerts.")
 
     event_payload.setdefault("type", normalized_type)
-    if filing_id not in (None, 0):
-        event_payload.setdefault("filing_id", int(filing_id))
+    if filing_id:
+        event_payload.setdefault("filing_id", filing_id)
     if filed_date:
         event_payload.setdefault("filed_date", filed_date)
 
