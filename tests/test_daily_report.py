@@ -9,9 +9,12 @@ from ui.daily_report import (
     format_news_table,
     format_percent_change,
     format_shares_delta,
+    format_signal_badge,
     format_value_delta,
     headline_markdown,
     load_activism_events,
+    load_contrarian_signals,
+    load_crowded_trades,
     load_diffs,
     load_news,
     parse_topics,
@@ -32,6 +35,12 @@ def setup_db(tmp_path: Path) -> str:
     )
     conn.execute(
         "CREATE TABLE activism_events (event_id INTEGER, manager_id TEXT, filing_id INTEGER, event_type TEXT, subject_company TEXT, subject_cusip TEXT, ownership_pct REAL, previous_pct REAL, delta_pct REAL, threshold_crossed REAL, detected_at TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE crowded_trades (crowd_id INTEGER, cusip TEXT, name_of_issuer TEXT, manager_count INTEGER, manager_ids TEXT, total_value_usd REAL, avg_conviction_pct REAL, max_conviction_pct REAL, report_date TEXT, computed_at TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE contrarian_signals (signal_id INTEGER, manager_id TEXT, cusip TEXT, name_of_issuer TEXT, direction TEXT, consensus_direction TEXT, manager_delta_shares INTEGER, manager_delta_value REAL, consensus_count INTEGER, report_date TEXT, detected_at TEXT)"
     )
     diff_rows = [
         ("2024-05-01", "0", "AAA", "ADD"),
@@ -82,6 +91,35 @@ def setup_db(tmp_path: Path) -> str:
             "2024-05-01T09:00:00",
         )
     ]
+    crowded_trades = [
+        (
+            20,
+            "AAA111111",
+            "Example Corp",
+            3,
+            "[1, 2, 3]",
+            1200000.0,
+            14.75,
+            21.5,
+            "2024-05-01",
+            "2024-05-01T10:00:00",
+        )
+    ]
+    contrarian_signals = [
+        (
+            30,
+            "m1",
+            "AAA111111",
+            "Example Corp",
+            "SELL",
+            "BUY",
+            -100,
+            -2500.0,
+            4,
+            "2024-05-01",
+            "2024-05-01T11:00:00",
+        )
+    ]
     conn.executemany("INSERT INTO daily_diff VALUES (?,?,?,?)", diff_rows)
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
     conn.executemany("INSERT INTO news_items VALUES (?,?,?,?,?,?,?)", news_rows)
@@ -89,6 +127,10 @@ def setup_db(tmp_path: Path) -> str:
         "INSERT INTO activism_filings VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", activism_filings
     )
     conn.executemany("INSERT INTO activism_events VALUES (?,?,?,?,?,?,?,?,?,?,?)", activism_events)
+    conn.executemany("INSERT INTO crowded_trades VALUES (?,?,?,?,?,?,?,?,?,?)", crowded_trades)
+    conn.executemany(
+        "INSERT INTO contrarian_signals VALUES (?,?,?,?,?,?,?,?,?,?,?)", contrarian_signals
+    )
     conn.commit()
     conn.close()
     return str(db_path)
@@ -107,9 +149,15 @@ def test_load_diffs_and_news(tmp_path, monkeypatch):
     assert "manager_name" in news.columns
     assert set(news["manager_name"]) == {"Manager One", "Manager Two"}
     activism = load_activism_events("2024-05-01")
+    crowded = load_crowded_trades("2024-05-01", min_managers=3)
+    contrarian = load_contrarian_signals("2024-05-01")
     assert len(activism) == 1
     assert activism.iloc[0]["event_type"] == "threshold_crossing"
     assert activism.iloc[0]["filed_date"] == "2024-05-01"
+    assert len(crowded) == 1
+    assert crowded.iloc[0]["manager_names"] == []
+    assert len(contrarian) == 1
+    assert contrarian.iloc[0]["consensus_direction"] == "BUY"
 
 
 def test_news_topic_helpers():
@@ -170,3 +218,10 @@ def test_format_activism_event_type():
     assert "color:#dc2626" in format_activism_event_type("threshold_crossing")
     assert "initial_stake" in format_activism_event_type("initial_stake")
     assert "&lt;script&gt;" in format_activism_event_type("<script>")
+
+
+def test_format_signal_badge():
+    badge = format_signal_badge("SELL", "BUY")
+    assert "Contrarian" in badge
+    assert "SELL" in badge
+    assert "BUY" in badge

@@ -30,6 +30,7 @@ from api.data import router as data_router
 from api.managers import router as managers_router
 from api.memory_profiler import start_memory_profiler, stop_memory_profiler
 from api.search import SearchEntityType, SearchResult, universal_search
+from api.signals import router as signals_router
 
 app = FastAPI()
 # Tag manager endpoints so they group clearly in the Swagger UI.
@@ -37,6 +38,7 @@ app.include_router(managers_router, tags=["Managers"])
 app.include_router(data_router, tags=["Data"])
 app.include_router(alerts_router, tags=["Alerts"])
 app.include_router(activism_router, tags=["Activism"])
+app.include_router(signals_router, tags=["Signals"])
 _APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 # Allow concurrent health checks without serializing every dependency probe.
 _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=3)

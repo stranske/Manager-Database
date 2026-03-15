@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from adapters.base import connect_db
+from api.signals import query_contrarian_signals, query_crowded_trades
 
 from . import require_login
 
@@ -107,6 +108,39 @@ def load_activism_events(date: str) -> pd.DataFrame:
     finally:
         conn.close()
     return table
+
+
+@st.cache_data(show_spinner=False)
+def load_crowded_trades(date: str, min_managers: int = 3, limit: int = 20) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_crowded_trades(
+            conn,
+            report_date=dt.date.fromisoformat(date),
+            min_managers=min_managers,
+            limit=limit,
+        )
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
+
+
+@st.cache_data(show_spinner=False)
+def load_contrarian_signals(date: str, limit: int = 200) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_contrarian_signals(
+            conn,
+            report_date=dt.date.fromisoformat(date),
+            limit=limit,
+        )
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
 
 
 def parse_topics(value: object) -> list[str]:
@@ -222,14 +256,36 @@ def format_activism_event_type(event_type: object) -> str:
     )
 
 
+def format_signal_badge(direction: object, consensus_direction: object) -> str:
+    manager_direction = html.escape(str(direction or "").strip() or "-")
+    consensus = html.escape(str(consensus_direction or "").strip() or "-")
+    return (
+        "<span style='display:inline-block;padding:2px 8px;border-radius:999px;"
+        "background:#fee2e2;color:#991b1b;font-size:0.75rem;font-weight:700;'>"
+        f"Contrarian: {manager_direction} vs {consensus}</span>"
+    )
+
+
 def main():
     if not require_login():
         st.stop()
     date = st.date_input("Date", dt.date.today() - dt.timedelta(days=1))
     date_str = str(date)
-    tab1, tab2 = st.tabs(["Filings & Diffs", "News Pulse"])
+    tab1, tab2, tab3 = st.tabs(["Filings & Diffs", "Crowded Trades", "News Pulse"])
     with tab1:
         df = load_diffs(date_str)
+        contrarian = load_contrarian_signals(date_str)
+        contrarian_lookup: dict[tuple[str, str], str] = {}
+        if not contrarian.empty:
+            # Map exact manager/cusip combinations so only the relevant rows get flagged.
+            for row in contrarian.itertuples(index=False):
+                manager_name = str(getattr(row, "manager_name", "") or "").strip()
+                cusip = str(getattr(row, "cusip", "") or "").strip()
+                if manager_name and cusip:
+                    contrarian_lookup[(manager_name, cusip)] = format_signal_badge(
+                        getattr(row, "direction", None),
+                        getattr(row, "consensus_direction", None),
+                    )
         total_managers = df.get("manager_name", pd.Series(dtype=object)).nunique()
         total_rows = len(df)
         adds = int((df.get("delta_type") == "ADD").sum()) if "delta_type" in df.columns else 0
@@ -271,8 +327,18 @@ def main():
         df["% Δ"] = df.apply(
             lambda row: format_percent_change(row.get("value_prev"), row.get("value_curr")), axis=1
         )
+        df["Signals"] = df.apply(
+            lambda row: contrarian_lookup.get(
+                (
+                    str(row.get("manager_name") or "").strip(),
+                    str(row.get("cusip") or "").strip(),
+                ),
+                "<span style='color:#666;'>-</span>",
+            ),
+            axis=1,
+        )
         html = df[
-            ["manager_name", "cusip", "name_of_issuer", "Shares Δ", "Value Δ", "% Δ"]
+            ["manager_name", "cusip", "name_of_issuer", "Shares Δ", "Value Δ", "% Δ", "Signals"]
         ].to_html(escape=False, index=False)
         st.markdown(html, unsafe_allow_html=True)
         csv = df.to_csv(index=False).encode("utf-8")
@@ -314,6 +380,65 @@ def main():
             ].to_html(escape=False, index=False)
             st.markdown(activism_html, unsafe_allow_html=True)
     with tab2:
+        crowded = load_crowded_trades(date_str)
+        if crowded.empty:
+            st.info("No crowded trades detected for this report date.")
+        else:
+            crowded = crowded.copy()
+            crowded["manager_names"] = crowded["manager_names"].apply(
+                lambda names: ", ".join(names) if isinstance(names, list) else ""
+            )
+            crowded["total_value_usd"] = pd.to_numeric(crowded["total_value_usd"], errors="coerce")
+            crowded["avg_conviction_pct"] = pd.to_numeric(
+                crowded["avg_conviction_pct"], errors="coerce"
+            ).round(2)
+            sort_choice = st.selectbox(
+                "Sort crowded trades by",
+                ["Manager count", "Total value"],
+                key=f"crowded_sort_{date_str}",
+            )
+            if sort_choice == "Total value":
+                crowded = crowded.sort_values(
+                    ["total_value_usd", "manager_count"],
+                    ascending=[False, False],
+                )
+            else:
+                crowded = crowded.sort_values(
+                    ["manager_count", "total_value_usd"],
+                    ascending=[False, False],
+                )
+            crowded_display = crowded.rename(
+                columns={
+                    "cusip": "CUSIP",
+                    "name_of_issuer": "Issuer",
+                    "manager_count": "# Managers",
+                    "total_value_usd": "Total Value",
+                    "avg_conviction_pct": "Avg Conviction %",
+                    "manager_names": "Managers",
+                }
+            )
+            st.dataframe(
+                crowded_display[
+                    [
+                        "CUSIP",
+                        "Issuer",
+                        "# Managers",
+                        "Total Value",
+                        "Avg Conviction %",
+                        "Managers",
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+            crowded_csv = crowded_display.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "Download Crowded Trades CSV",
+                crowded_csv,
+                file_name=f"crowded_trades_{date_str}.csv",
+                mime="text/csv",
+            )
+    with tab3:
         news = load_news(date_str)
         if news.empty:
             st.info("No news for this date.")
