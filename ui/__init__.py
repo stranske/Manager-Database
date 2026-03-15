@@ -5,7 +5,11 @@ from __future__ import annotations
 import os
 
 import streamlit as st
-import streamlit_authenticator as stauth
+
+try:
+    import streamlit_authenticator as stauth
+except ImportError:  # pragma: no cover - optional UI dependency
+    stauth = None
 
 
 def _get_env_credential(key: str) -> str | None:
@@ -24,6 +28,9 @@ def require_login() -> bool:
         st.warning("UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode.")
         st.session_state["auth"] = True
         return True
+    if stauth is None:
+        st.error("streamlit_authenticator is required when UI auth credentials are configured.")
+        return False
 
     names = [username]
     usernames = [username]

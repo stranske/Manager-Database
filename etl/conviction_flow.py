@@ -687,7 +687,7 @@ def dispatch_conviction_alerts(
     return total_alerts
 
 
-@flow(name="conviction-scoring")
+@flow
 def conviction_flow(
     report_date: str | None = None,
     min_managers: int | None = None,

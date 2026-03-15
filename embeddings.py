@@ -12,6 +12,8 @@ from typing import Any
 
 from adapters.base import connect_db
 
+MODEL: Any | None
+
 try:  # heavy optional dependency
     from sentence_transformers import SentenceTransformer
 
