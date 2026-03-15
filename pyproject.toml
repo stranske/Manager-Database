@@ -25,6 +25,9 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pdfplumber",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langsmith",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +41,9 @@ dev = [
     "pre-commit",
     "mypy==1.19.1",
     "langchain-core",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langsmith",
     "types-PyYAML",
     "coverage==7.13.4",
     "referencing",

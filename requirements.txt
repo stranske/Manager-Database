@@ -19,3 +19,7 @@ langchain-core
 # Prefect requires newer FastAPI; avoid conflicting pin.
 fastapi
 uvicorn
+
+langchain-openai
+langchain-anthropic
+langsmith
