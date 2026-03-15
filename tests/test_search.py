@@ -2,6 +2,7 @@ import asyncio
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Any, cast
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -436,7 +437,7 @@ async def _http_get(
 ) -> httpx.Response:
     await chat_api_module.app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=chat_api_module.app)
+        transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:

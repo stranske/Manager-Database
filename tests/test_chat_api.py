@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -69,7 +70,7 @@ def _reset_chat_rate_limiter():
 async def _request(method: str, path: str, *, json: dict | None = None, params: dict | None = None):
     await chat_api_module.app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=chat_api_module.app)
+        transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -387,7 +388,7 @@ def test_chat_api_rate_limiting_11th_request_returns_429(monkeypatch):
     async def _exercise_limit():
         await chat_api_module.app.router.startup()
         try:
-            transport = httpx.ASGITransport(app=chat_api_module.app)
+            transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
             async with httpx.AsyncClient(
                 transport=transport, base_url="http://test", timeout=5.0
             ) as client:

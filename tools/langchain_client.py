@@ -13,7 +13,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
 
@@ -32,6 +32,14 @@ PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_GITHUB = "github-models"
 
 DEFAULT_SLOT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "llm_slots.json"
+
+
+def _load_chat_anthropic() -> type[Any] | None:
+    try:
+        from langchain_anthropic import ChatAnthropic
+    except ImportError:
+        return None
+    return cast(type[Any], ChatAnthropic)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -217,12 +225,7 @@ def build_chat_client(
     except ImportError:
         return None
 
-    try:
-        from langchain_anthropic import ChatAnthropic as ImportedChatAnthropic
-    except ImportError:
-        chat_anthropic: type[Any] | None = None
-    else:
-        chat_anthropic = ImportedChatAnthropic
+    chat_anthropic = _load_chat_anthropic()
 
     github_token = os.environ.get("GITHUB_TOKEN")
     openai_token = os.environ.get("OPENAI_API_KEY")
@@ -339,12 +342,7 @@ def build_chat_clients(
     except ImportError:
         return []
 
-    try:
-        from langchain_anthropic import ChatAnthropic as ImportedChatAnthropic
-    except ImportError:
-        chat_anthropic: type[Any] | None = None
-    else:
-        chat_anthropic = ImportedChatAnthropic
+    chat_anthropic = _load_chat_anthropic()
 
     github_token = os.environ.get("GITHUB_TOKEN")
     openai_token = os.environ.get("OPENAI_API_KEY")

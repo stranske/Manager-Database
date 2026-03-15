@@ -22,10 +22,11 @@ def maybe_enable_langsmith_tracing() -> bool:
         _LANGSMITH_ENABLED = False
         return False
 
-    os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
-    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
-    os.environ.setdefault("LANGSMITH_PROJECT", _DEFAULT_PROJECT)
-    os.environ.setdefault("LANGCHAIN_PROJECT", os.environ["LANGSMITH_PROJECT"])
+    os.environ["LANGCHAIN_API_KEY"] = api_key
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    project = os.environ.get("LANGSMITH_PROJECT") or _DEFAULT_PROJECT
+    os.environ["LANGSMITH_PROJECT"] = project
+    os.environ["LANGCHAIN_PROJECT"] = project
     _LANGSMITH_ENABLED = True
     return True
 
@@ -43,7 +44,6 @@ def langsmith_tracing_context(
     metadata: Mapping[str, Any] | None = None,
 ) -> Iterator[Any]:
     """Yield a LangSmith run when tracing is enabled, otherwise yield ``None``."""
-    del run_type
     if not maybe_enable_langsmith_tracing():
         yield None
         return
@@ -64,11 +64,16 @@ def langsmith_tracing_context(
         "metadata": dict(metadata or {}),
         "inputs": dict(inputs or {}),
         "name": name,
+        "run_type": run_type,
     }
     if callable(tracing_context):
-        with tracing_context(**context_kwargs):
-            yield get_current_run_tree()
-        return
+        try:
+            with tracing_context(**context_kwargs):
+                yield get_current_run_tree()
+            return
+        except Exception:
+            yield None
+            return
 
     yield None
 

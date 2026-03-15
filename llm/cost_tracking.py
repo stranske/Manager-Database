@@ -22,6 +22,32 @@ def estimate_cost_usd(model: str, tokens_in: int, tokens_out: int) -> float:
     return round((tokens_in / 1000.0) * in_rate + (tokens_out / 1000.0) * out_rate, 6)
 
 
+def _ensure_api_usage_table(conn: Any) -> None:
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source TEXT,
+                endpoint TEXT,
+                status INT,
+                bytes INT,
+                latency_ms INT,
+                cost_usd REAL
+            )""")
+        return
+
+    conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
+            id bigserial PRIMARY KEY,
+            ts timestamptz DEFAULT now(),
+            source text,
+            endpoint text,
+            status int,
+            bytes int,
+            latency_ms int,
+            cost_usd numeric(10,4)
+        )""")
+
+
 def log_llm_usage(
     db_conn: Any | None,
     *,
@@ -37,6 +63,7 @@ def log_llm_usage(
     endpoint = f"{provider}/{model}"
     cost_usd = estimate_cost_usd(model, tokens_in, tokens_out)
     ph = _placeholder(conn)
+    _ensure_api_usage_table(conn)
     conn.execute(
         f"INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
         (

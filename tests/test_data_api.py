@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 
@@ -13,7 +14,7 @@ from api.chat import app
 async def _get_data():
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:

@@ -39,6 +39,29 @@ def test_create_llm_anthropic_with_valid_credentials(monkeypatch):
     assert client.kwargs["api_key"].get_secret_value() == "anthropic-test"
 
 
+def test_create_llm_azure_openai_with_valid_credentials(monkeypatch):
+    fake_module = types.SimpleNamespace(ChatOpenAI=_Recorder, AzureChatOpenAI=_Recorder)
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_module)
+
+    client = create_llm(
+        LLMProviderConfig(
+            provider_name="azure_openai",
+            credentials={
+                "api_key": "azure-key",
+                "azure_endpoint": "https://azure.example.test",
+                "api_version": "2025-01-01-preview",
+            },
+            model_name="gpt-4o-mini",
+        )
+    )
+
+    assert isinstance(client, _Recorder)
+    assert client.kwargs["model"] == "gpt-4o-mini"
+    assert client.kwargs["api_key"].get_secret_value() == "azure-key"
+    assert client.kwargs["azure_endpoint"] == "https://azure.example.test"
+    assert client.kwargs["api_version"] == "2025-01-01-preview"
+
+
 def test_create_llm_missing_credentials_raises_value_error():
     with pytest.raises(ValueError, match="Missing credentials"):
         create_llm(LLMProviderConfig(provider_name="openai", credentials={}))
