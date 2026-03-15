@@ -277,14 +277,17 @@ def main() -> None:
     st.title("🔬 Research Assistant")
 
     manager_list = _load_manager_list()
-    chain_mode = st.sidebar.selectbox(
-        "Chain Mode",
-        CHAIN_OPTIONS,
-        help="Auto mode classifies your question and routes to the best chain.",
+    chain_mode = cast(
+        str,
+        st.sidebar.selectbox(
+            "Chain Mode",
+            CHAIN_OPTIONS,
+            help="Auto mode classifies your question and routes to the best chain.",
+        ),
     )
 
     with st.sidebar.expander("Context Filters", expanded=False):
-        selected_manager = st.selectbox("Manager (optional)", ["All", *manager_list])
+        selected_manager = cast(str, st.selectbox("Manager (optional)", ["All", *manager_list]))
         filing_id_input = int(st.number_input("Filing ID (for summaries)", value=0, min_value=0))
         date_range = st.date_input("Date range", value=[])
 

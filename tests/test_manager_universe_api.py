@@ -2,6 +2,7 @@ import asyncio
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 
@@ -13,7 +14,7 @@ from api.chat import app
 async def _post_universe(payload):
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -25,7 +26,7 @@ async def _post_universe(payload):
 async def _get_manager_stats():
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -37,7 +38,7 @@ async def _get_manager_stats():
 async def _get_managers(params: dict[str, str] | None = None):
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:

@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 
@@ -12,7 +13,7 @@ from api.chat import app
 def _load_openapi_schema() -> dict:
     # Use ASGITransport so the HTTP call avoids socket permissions.
     async def _fetch() -> dict:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/openapi.json")
             assert response.status_code == 200
@@ -162,7 +163,7 @@ def test_openapi_health_db_schema():
 def test_docs_route_exposes_openapi():
     # Ensure Swagger UI is available for the documented manager endpoints.
     async def _fetch() -> str:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/docs")
             assert response.status_code == 200

@@ -2,6 +2,7 @@ import asyncio
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 
@@ -15,7 +16,7 @@ async def _post_manager(payload: dict):
     # Use the ASGI transport to exercise validation without a live server.
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         # Timeout keeps stuck ASGI calls from stalling the test suite.
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
@@ -29,7 +30,7 @@ async def _get_managers(params: dict | None = None):
     # Use the ASGI transport to exercise list behavior without a live server.
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -41,7 +42,7 @@ async def _get_managers(params: dict | None = None):
 async def _get_manager_stats():
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -54,7 +55,7 @@ async def _get_manager(manager_id: int):
     # Use the ASGI transport to exercise detail behavior without a live server.
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -66,7 +67,7 @@ async def _get_manager(manager_id: int):
 async def _patch_manager(manager_id: int, payload: dict):
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -78,7 +79,7 @@ async def _patch_manager(manager_id: int, payload: dict):
 async def _patch_manager_tags(manager_id: int, payload: dict):
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -90,7 +91,7 @@ async def _patch_manager_tags(manager_id: int, payload: dict):
 async def _delete_manager(manager_id: int):
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:

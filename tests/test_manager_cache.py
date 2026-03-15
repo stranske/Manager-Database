@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import fakeredis
 import httpx
@@ -14,7 +15,7 @@ from api.chat import app
 async def _post_manager(payload: dict):
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -26,7 +27,7 @@ async def _post_manager(payload: dict):
 async def _get_managers(params: dict | None = None):
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:

@@ -3,6 +3,7 @@ import logging
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 
@@ -15,7 +16,7 @@ async def _post_bulk_json(payload: list[dict] | None):
     # Use ASGI transport to avoid spinning up a server for bulk import tests.
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
@@ -30,7 +31,7 @@ async def _post_bulk_csv(contents: str):
     # Post raw CSV payloads with the text/csv content type.
     await app.router.startup()
     try:
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
