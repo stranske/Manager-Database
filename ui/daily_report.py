@@ -215,7 +215,11 @@ def format_activism_event_type(event_type: object) -> str:
         "form_upgrade": "#f97316",
     }
     color = colors.get(event_name, "#475569")
-    return f"<span style='color:{color};font-weight:700;'>{event_name or '-'}</span>"
+    return (
+        f"<span style='color:{color};font-weight:700;'>"
+        f"{html.escape(event_name or '-')}"
+        "</span>"
+    )
 
 
 def main():
