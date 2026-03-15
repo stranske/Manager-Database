@@ -169,3 +169,4 @@ def test_format_value_and_percent_delta():
 def test_format_activism_event_type():
     assert "color:#dc2626" in format_activism_event_type("threshold_crossing")
     assert "initial_stake" in format_activism_event_type("initial_stake")
+    assert "&lt;script&gt;" in format_activism_event_type("<script>")
