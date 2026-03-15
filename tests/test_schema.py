@@ -190,6 +190,14 @@ def test_analytics_indexes_exist(monkeypatch, tmp_path):
             "idx_activism_events_type",
             "idx_activism_events_date",
             "idx_activism_events_cusip",
-            "idx_activism_events_unique_base",
-            "idx_activism_events_unique_threshold",
         }.issubset(activism_event_indexes)
+
+
+def test_schema_sql_defines_activism_events_unique_constraint():
+    """Verify schema.sql defines the required activism_events uniqueness contract."""
+    schema_sql = (ROOT / "schema.sql").read_text()
+
+    assert "CREATE TABLE IF NOT EXISTS activism_events (" in schema_sql
+    assert "UNIQUE (manager_id, filing_id, event_type)" in schema_sql
+    assert "idx_activism_events_unique_base" not in schema_sql
+    assert "idx_activism_events_unique_threshold" not in schema_sql

@@ -100,7 +100,8 @@ CREATE TABLE IF NOT EXISTS activism_events (
     previous_pct numeric(8,4),
     delta_pct numeric(8,4),
     threshold_crossed numeric(8,4),
-    detected_at timestamptz DEFAULT now()
+    detected_at timestamptz DEFAULT now(),
+    UNIQUE (manager_id, filing_id, event_type)
 );
 
 CREATE INDEX IF NOT EXISTS idx_activism_events_manager
@@ -114,14 +115,6 @@ CREATE INDEX IF NOT EXISTS idx_activism_events_date
 
 CREATE INDEX IF NOT EXISTS idx_activism_events_cusip
     ON activism_events (subject_cusip);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_base
-    ON activism_events (manager_id, filing_id, event_type)
-    WHERE threshold_crossed IS NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_threshold
-    ON activism_events (manager_id, filing_id, event_type, threshold_crossed)
-    WHERE threshold_crossed IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS holdings (
     holding_id bigserial PRIMARY KEY,
