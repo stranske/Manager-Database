@@ -190,14 +190,62 @@ def test_analytics_indexes_exist(monkeypatch, tmp_path):
             "idx_activism_events_type",
             "idx_activism_events_date",
             "idx_activism_events_cusip",
+            "idx_activism_events_unique_base",
+            "idx_activism_events_unique_threshold",
         }.issubset(activism_event_indexes)
 
 
-def test_schema_sql_defines_activism_events_unique_constraint():
-    """Verify schema.sql defines the required activism_events uniqueness contract."""
+def test_schema_sql_defines_activism_events_unique_indexes():
+    """Verify schema.sql supports deduping reruns without blocking multiple thresholds."""
     schema_sql = (ROOT / "schema.sql").read_text()
 
     assert "CREATE TABLE IF NOT EXISTS activism_events (" in schema_sql
-    assert "UNIQUE (manager_id, filing_id, event_type)" in schema_sql
-    assert "idx_activism_events_unique_base" not in schema_sql
-    assert "idx_activism_events_unique_threshold" not in schema_sql
+    assert "UNIQUE (manager_id, filing_id, event_type)" not in schema_sql
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_base" in schema_sql
+    assert "WHERE threshold_crossed IS NULL" in schema_sql
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_threshold" in schema_sql
+    assert "WHERE threshold_crossed IS NOT NULL" in schema_sql
+
+
+def test_activism_events_migration_allows_multiple_threshold_crossings(monkeypatch, tmp_path):
+    """Verify migration 006 deduplicates reruns while allowing multiple thresholds per filing."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema.db"
+    config = _alembic_config(f"sqlite:///{db_path}")
+
+    command.upgrade(config, "head")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("INSERT INTO managers(manager_id, name) VALUES (1, 'Test Manager')")
+        conn.execute(
+            """INSERT INTO activism_filings(
+                filing_id, manager_id, filing_type, subject_company, subject_cusip,
+                ownership_pct, filed_date, url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (1, 1, "SC 13D", "Apple Inc.", "037833100", 11.0, "2024-05-02", "https://example.test"),
+        )
+
+        conn.execute(
+            """INSERT INTO activism_events(
+                event_id, manager_id, filing_id, event_type, subject_company, subject_cusip,
+                ownership_pct, previous_pct, delta_pct, threshold_crossed
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (1, 1, 1, "threshold_crossing", "Apple Inc.", "037833100", 11.0, 4.0, 7.0, 5.0),
+        )
+        conn.execute(
+            """INSERT INTO activism_events(
+                event_id, manager_id, filing_id, event_type, subject_company, subject_cusip,
+                ownership_pct, previous_pct, delta_pct, threshold_crossed
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (2, 1, 1, "threshold_crossing", "Apple Inc.", "037833100", 11.0, 4.0, 7.0, 10.0),
+        )
+
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                """INSERT INTO activism_events(
+                    event_id, manager_id, filing_id, event_type, subject_company, subject_cusip,
+                    ownership_pct, previous_pct, delta_pct, threshold_crossed
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (3, 1, 1, "threshold_crossing", "Apple Inc.", "037833100", 11.0, 4.0, 7.0, 10.0),
+            )
