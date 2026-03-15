@@ -461,6 +461,75 @@ def test_persist_news_ignores_duplicate_url_and_published_at():
         conn.close()
 
 
+def test_inserted_news_items_filters_existing_rows():
+    conn = sqlite3.connect(":memory:")
+    try:
+        _create_news_items_table(conn)
+        existing = {
+            "manager_id": 1,
+            "published_at": "2026-01-01T00:00:00+00:00",
+            "source": "rss",
+            "headline": "Alpha update",
+            "url": "https://example.com/a",
+            "body_snippet": "Alpha Capital update",
+            "topics": ["activist"],
+            "confidence": 0.8,
+        }
+        new = {
+            **existing,
+            "published_at": "2026-01-01T01:00:00+00:00",
+            "url": "https://example.com/b",
+        }
+        news_flow.persist_news.fn([existing], conn)
+
+        inserted = news_flow.inserted_news_items([existing, new], conn)
+    finally:
+        conn.close()
+
+    assert inserted == [new]
+
+
+@pytest.mark.asyncio
+async def test_emit_news_spike_alerts_groups_items_by_manager(monkeypatch):
+    conn = sqlite3.connect(":memory:")
+    calls = []
+
+    async def fake_fire_alerts_for_event(db_conn, event):
+        _ = db_conn
+        calls.append(event)
+        return [1]
+
+    monkeypatch.setattr(news_flow, "fire_alerts_for_event", fake_fire_alerts_for_event)
+
+    count = await news_flow.emit_news_spike_alerts(
+        [
+            {
+                "manager_id": 1,
+                "headline": "Alpha update",
+                "source": "rss",
+            },
+            {
+                "manager_id": 1,
+                "headline": "Alpha follow-up",
+                "source": "gdelt",
+            },
+            {
+                "manager_id": 2,
+                "headline": "Beta update",
+                "source": "rss",
+            },
+        ],
+        conn,
+    )
+
+    conn.close()
+
+    assert count == 2
+    assert [event.manager_id for event in calls] == [1, 2]
+    assert calls[0].payload["news_count"] == 2
+    assert calls[0].payload["sources"] == ["gdelt", "rss"]
+
+
 def test_news_deployment_has_hourly_schedule():
     assert news_flow.news_deployment.name == "news-hourly"
     schedule = news_flow.news_deployment.schedules[0].schedule

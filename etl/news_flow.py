@@ -13,6 +13,8 @@ from prefect import flow, task
 
 from adapters import news
 from adapters.base import connect_db
+from alerts.integration import fire_alerts_for_event
+from alerts.models import AlertEvent
 from etl.logging_setup import configure_logging, log_outcome
 
 configure_logging("news_flow")
@@ -177,6 +179,42 @@ def _latest_published_at(items: list[dict[str, Any]]) -> str | None:
     return latest.isoformat() if latest is not None else None
 
 
+async def emit_news_spike_alerts(items: list[dict[str, Any]], conn: Any) -> int:
+    """Aggregate manager-linked items into one news_spike event per manager."""
+    grouped: dict[int, dict[str, Any]] = {}
+    for item in items:
+        manager_id = item.get("manager_id")
+        if manager_id is None:
+            continue
+        entry = grouped.setdefault(
+            int(manager_id),
+            {"news_count": 0, "headlines": [], "sources": set()},
+        )
+        entry["news_count"] += 1
+        if item.get("headline"):
+            entry["headlines"].append(str(item["headline"]))
+        if item.get("source"):
+            entry["sources"].add(str(item["source"]))
+
+    alert_count = 0
+    for manager_id, payload in grouped.items():
+        alert_count += len(
+            await fire_alerts_for_event(
+                conn,
+                AlertEvent(
+                    event_type="news_spike",
+                    manager_id=manager_id,
+                    payload={
+                        "news_count": payload["news_count"],
+                        "headlines": payload["headlines"][:5],
+                        "sources": sorted(payload["sources"]),
+                    },
+                ),
+            )
+        )
+    return alert_count
+
+
 def _fetch_source_watermark(conn: Any, source: str) -> str | None:
     ph = _placeholder(conn)
     row = conn.execute(
@@ -284,6 +322,20 @@ def persist_news(items: list[dict[str, Any]], conn: Any) -> int:
     return inserted
 
 
+def inserted_news_items(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:
+    """Return only rows that are new to the table before writing this batch."""
+    ph = _placeholder(conn)
+    inserted_items: list[dict[str, Any]] = []
+    for item in items:
+        row = conn.execute(
+            f"SELECT 1 FROM news_items WHERE url = {ph} AND published_at = {ph} LIMIT 1",
+            (item.get("url"), item.get("published_at")),
+        ).fetchone()
+        if row is None:
+            inserted_items.append(item)
+    return inserted_items
+
+
 @flow
 async def news_flow(sources: list[str] | None = None, since: str | None = None):
     """Hourly news harvest flow.
@@ -300,6 +352,7 @@ async def news_flow(sources: list[str] | None = None, since: str | None = None):
     source_watermarks: dict[str, str | None] = {}
     total_fetched = 0
     total_inserted = 0
+    total_alerts = 0
     try:
         _ensure_watermarks_table(conn)
         for source in resolved_sources:
@@ -310,8 +363,11 @@ async def news_flow(sources: list[str] | None = None, since: str | None = None):
             total_fetched += len(fetched_items)
 
             matched_items = match_entities.fn(fetched_items, conn)
+            new_items = inserted_news_items(matched_items, conn)
             inserted = persist_news.fn(matched_items, conn)
             total_inserted += inserted
+            if new_items:
+                total_alerts += await emit_news_spike_alerts(new_items, conn)
 
             source_watermarks[source] = update_source_watermark.fn(source, fetched_items, conn)
     finally:
@@ -329,6 +385,7 @@ async def news_flow(sources: list[str] | None = None, since: str | None = None):
             "watermarks": source_watermarks,
             "fetched": total_fetched,
             "inserted": total_inserted,
+            "alerts": total_alerts,
         },
     )
     return {
@@ -338,6 +395,7 @@ async def news_flow(sources: list[str] | None = None, since: str | None = None):
         "watermarks": source_watermarks,
         "fetched": total_fetched,
         "inserted": total_inserted,
+        "alerts": total_alerts,
     }
 
 

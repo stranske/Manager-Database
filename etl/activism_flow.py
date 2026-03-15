@@ -13,13 +13,13 @@ from prefect.schedules import Cron
 
 from adapters import edgar
 from adapters.base import connect_db
+from alerts.integration import fire_alerts_for_event
 from etl.activism_detection import (
     ALERT_EVENT_TYPE,
     AlertEvent,
     detect_events,
     ensure_activism_events_table,
     event_payload,
-    fire_alerts_for_event,
     insert_activism_events,
 )
 from etl.edgar_flow import BUCKET, S3
@@ -296,7 +296,7 @@ async def fetch_activism_filings(manager_id: int, since: str) -> list[dict[str, 
             detected_events = detect_events(conn, filing_row)
             persisted_events = insert_activism_events(conn, detected_events)
             for event in persisted_events:
-                fire_alerts_for_event(
+                await fire_alerts_for_event(
                     conn,
                     AlertEvent(
                         event_type=ALERT_EVENT_TYPE,

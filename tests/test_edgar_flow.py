@@ -168,6 +168,33 @@ async def test_fetch_and_store_inserts_filings_and_holdings(monkeypatch, tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_fetch_and_store_fires_new_filing_alerts(monkeypatch, tmp_path):
+    db_path = tmp_path / "dev.db"
+    _setup_relational_schema(db_path)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "ADAPTER", DummyAdapter())
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: kwargs)
+
+    events = []
+
+    async def fake_fire_alerts_for_event(conn, event):
+        _ = conn
+        events.append(event)
+        return [1]
+
+    monkeypatch.setattr(flow, "fire_alerts_for_event", fake_fire_alerts_for_event)
+
+    await flow.fetch_and_store.fn("0", "2024-01-01")
+
+    assert len(events) == 1
+    assert events[0].event_type == "new_filing"
+    assert events[0].manager_id == 100
+    assert events[0].payload["type"] == "13F-HR"
+    assert events[0].payload["source"] == "edgar"
+
+
+@pytest.mark.asyncio
 async def test_fetch_and_store_handles_empty_filings(monkeypatch, tmp_path):
     db_path = tmp_path / "dev.db"
     _setup_relational_schema(db_path)
