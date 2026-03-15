@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_TABLES = {
     "managers",
     "filings",
+    "activism_filings",
     "holdings",
     "news_items",
     "documents",
@@ -155,7 +156,7 @@ def test_conviction_scores_schema_objects(monkeypatch, tmp_path):
 
 
 def test_analytics_indexes_exist(monkeypatch, tmp_path):
-    """Verify crowded/contrarian table indexes are created."""
+    """Verify analytics and activism table indexes are created."""
     monkeypatch.delenv("DB_URL", raising=False)
     db_path = tmp_path / "schema.db"
     config = _alembic_config(f"sqlite:///{db_path}")
@@ -172,3 +173,10 @@ def test_analytics_indexes_exist(monkeypatch, tmp_path):
             row[1] for row in conn.execute("PRAGMA index_list('contrarian_signals')").fetchall()
         }
         assert {"idx_contrarian_manager", "idx_contrarian_date"}.issubset(contrarian_indexes)
+
+        activism_indexes = {
+            row[1] for row in conn.execute("PRAGMA index_list('activism_filings')").fetchall()
+        }
+        assert {"idx_activism_manager", "idx_activism_cusip", "idx_activism_date"}.issubset(
+            activism_indexes
+        )
