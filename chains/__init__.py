@@ -12,6 +12,11 @@ __all__ = [
     "format_delta_summary",
     "format_holdings_table",
     "truncate_context",
+    "NLQueryChain",
+    "NLQueryResult",
+    "RAGSearchChain",
+    "RAGSearchResult",
+    "classify_intent",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -23,6 +28,11 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "format_delta_summary": ("utils", "format_delta_summary"),
     "format_holdings_table": ("utils", "format_holdings_table"),
     "truncate_context": ("utils", "truncate_context"),
+    "NLQueryChain": ("nl_query", "NLQueryChain"),
+    "NLQueryResult": ("nl_query", "NLQueryResult"),
+    "RAGSearchChain": ("rag_search", "RAGSearchChain"),
+    "RAGSearchResult": ("rag_search", "RAGSearchResult"),
+    "classify_intent": ("intent", "classify_intent"),
 }
 
 
