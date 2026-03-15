@@ -5,11 +5,13 @@ import pandas as pd
 import streamlit as st
 
 from ui.daily_report import (
+    format_activism_event_type,
     format_news_table,
     format_percent_change,
     format_shares_delta,
     format_value_delta,
     headline_markdown,
+    load_activism_events,
     load_diffs,
     load_news,
     parse_topics,
@@ -24,6 +26,12 @@ def setup_db(tmp_path: Path) -> str:
     conn.execute("CREATE TABLE managers (manager_id TEXT, name TEXT)")
     conn.execute(
         "CREATE TABLE news_items (headline TEXT, url TEXT, published_at TEXT, source TEXT, topics TEXT, confidence REAL, manager_id TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE activism_filings (filing_id INTEGER, manager_id TEXT, filing_type TEXT, subject_company TEXT, subject_cusip TEXT, ownership_pct REAL, shares INTEGER, group_members TEXT, purpose_snippet TEXT, filed_date TEXT, url TEXT, raw_key TEXT, created_at TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE activism_events (event_id INTEGER, manager_id TEXT, filing_id INTEGER, event_type TEXT, subject_company TEXT, subject_cusip TEXT, ownership_pct REAL, previous_pct REAL, delta_pct REAL, threshold_crossed REAL, detected_at TEXT)"
     )
     diff_rows = [
         ("2024-05-01", "0", "AAA", "ADD"),
@@ -42,9 +50,45 @@ def setup_db(tmp_path: Path) -> str:
         ),
         ("Headline2", "https://example.com/2", "2024-05-01T09:00:00", "src", "guidance", 0.8, "m2"),
     ]
+    activism_filings = [
+        (
+            1,
+            "m1",
+            "SC 13D",
+            "Example Corp",
+            "AAA111111",
+            5.2,
+            100,
+            "[]",
+            "board seat",
+            "2024-05-01",
+            "https://example.com/filing/1",
+            "raw/1",
+            "2024-05-01T08:00:00",
+        )
+    ]
+    activism_events = [
+        (
+            10,
+            "m1",
+            1,
+            "threshold_crossing",
+            "Example Corp",
+            "AAA111111",
+            5.2,
+            4.9,
+            0.3,
+            5.0,
+            "2024-05-01T09:00:00",
+        )
+    ]
     conn.executemany("INSERT INTO daily_diff VALUES (?,?,?,?)", diff_rows)
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
     conn.executemany("INSERT INTO news_items VALUES (?,?,?,?,?,?,?)", news_rows)
+    conn.executemany(
+        "INSERT INTO activism_filings VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", activism_filings
+    )
+    conn.executemany("INSERT INTO activism_events VALUES (?,?,?,?,?,?,?,?,?,?,?)", activism_events)
     conn.commit()
     conn.close()
     return str(db_path)
@@ -62,6 +106,10 @@ def test_load_diffs_and_news(tmp_path, monkeypatch):
     assert len(news) == 2
     assert "manager_name" in news.columns
     assert set(news["manager_name"]) == {"Manager One", "Manager Two"}
+    activism = load_activism_events("2024-05-01")
+    assert len(activism) == 1
+    assert activism.iloc[0]["event_type"] == "threshold_crossing"
+    assert activism.iloc[0]["filed_date"] == "2024-05-01"
 
 
 def test_news_topic_helpers():
@@ -116,3 +164,8 @@ def test_format_value_and_percent_delta():
     assert format_percent_change(1000, 750) == "<span style='color:red;'>-25.0%</span>"
     assert format_percent_change(0, 200) == "<span style='color:#666;'>n/a</span>"
     assert format_percent_change(None, None) == "<span style='color:#666;'>-</span>"
+
+
+def test_format_activism_event_type():
+    assert "color:#dc2626" in format_activism_event_type("threshold_crossing")
+    assert "initial_stake" in format_activism_event_type("initial_stake")

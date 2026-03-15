@@ -103,6 +103,20 @@ def _score_result(
     return min(base + exact_bonus + hit_bonus + fts_bonus + vector_bonus, 1.0)
 
 
+def _format_activism_filing_headline(
+    manager_name: str | None,
+    subject_company: str | None,
+    ownership_pct: float | int | None,
+) -> str:
+    manager = (manager_name or "Unknown manager").strip() or "Unknown manager"
+    company = (subject_company or "Unknown subject").strip() or "Unknown subject"
+    if ownership_pct is None:
+        pct_text = "n/a"
+    else:
+        pct_text = f"{float(ownership_pct):.1f}%"
+    return f"13D Filing: {manager} -> {company} ({pct_text})"
+
+
 def _sqlite_manager_name_map(conn: Any) -> dict[int, str]:
     manager_columns = _get_columns(conn, "managers")
     if not manager_columns or "name" not in manager_columns:
@@ -199,6 +213,78 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     ),
                     url=url,
                     timestamp=str(period_end) if period_end is not None else None,
+                )
+            )
+
+    if _table_exists(conn, "activism_filings"):
+        rows = conn.execute(
+            """
+            SELECT
+                af.filing_id,
+                m.name,
+                af.filing_type,
+                af.subject_company,
+                af.subject_cusip,
+                af.ownership_pct,
+                af.filed_date,
+                af.url,
+                ts_rank(
+                    to_tsvector(
+                        'english',
+                        COALESCE(m.name, '') || ' ' || COALESCE(af.filing_type, '') || ' '
+                        || COALESCE(af.subject_company, '') || ' ' || COALESCE(af.subject_cusip, '')
+                    ),
+                    plainto_tsquery('english', %s)
+                ) AS fts_rank
+            FROM activism_filings af
+            LEFT JOIN managers m ON m.manager_id = af.manager_id
+            WHERE to_tsvector(
+                    'english',
+                    COALESCE(m.name, '') || ' ' || COALESCE(af.filing_type, '') || ' '
+                    || COALESCE(af.subject_company, '') || ' ' || COALESCE(af.subject_cusip, '')
+                ) @@ plainto_tsquery('english', %s)
+               OR upper(COALESCE(af.subject_cusip, '')) = upper(%s)
+            ORDER BY fts_rank DESC, af.filed_date DESC
+            LIMIT %s
+            """,
+            (query, query, query, limit),
+        ).fetchall()
+        for (
+            filing_id,
+            manager_name,
+            filing_type,
+            subject_company,
+            cusip,
+            ownership_pct,
+            filed_date,
+            url,
+            fts_rank,
+        ) in rows:
+            headline = _format_activism_filing_headline(
+                manager_name,
+                subject_company,
+                ownership_pct,
+            )
+            snippet = (
+                f"{filing_type or 'Activism filing'} | CUSIP: {cusip or 'n/a'} | "
+                f"Filed: {filed_date or 'n/a'}"
+            )
+            results.append(
+                SearchResult(
+                    entity_type="filing",
+                    entity_id=int(filing_id),
+                    manager_name=manager_name,
+                    headline=headline,
+                    snippet=snippet,
+                    relevance=_score_result(
+                        "filing",
+                        query,
+                        headline,
+                        snippet,
+                        fts_rank=fts_rank,
+                    ),
+                    url=url,
+                    timestamp=str(filed_date) if filed_date is not None else None,
                 )
             )
 
@@ -639,6 +725,65 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     relevance=_score_result("filing", query, headline, snippet),
                     url=url,
                     timestamp=str(period_end) if period_end is not None else None,
+                )
+            )
+
+    if _table_exists(conn, "activism_filings"):
+        manager_columns = _get_columns(conn, "managers")
+        manager_join = ""
+        manager_name_expr = "NULL"
+        if manager_columns and "name" in manager_columns:
+            manager_id_col = "manager_id" if "manager_id" in manager_columns else "id"
+            manager_join = f" LEFT JOIN managers m ON m.{manager_id_col} = af.manager_id"
+            manager_name_expr = "m.name"
+        rows = conn.execute(
+            f"SELECT af.filing_id, af.manager_id, {manager_name_expr}, af.filing_type, "
+            "af.subject_company, af.subject_cusip, af.ownership_pct, af.filed_date, af.url "
+            f"FROM activism_filings af{manager_join} "
+            "WHERE COALESCE(af.filing_type, '') LIKE ? "
+            "OR COALESCE(af.subject_company, '') LIKE ? "
+            "OR upper(COALESCE(af.subject_cusip, '')) = upper(?) "
+            + ("OR COALESCE(m.name, '') LIKE ? " if manager_join else "")
+            + "LIMIT ?",
+            (
+                (like_token, like_token, query.strip(), like_token, limit)
+                if manager_join
+                else (like_token, like_token, query.strip(), limit)
+            ),
+        ).fetchall()
+        for (
+            filing_id,
+            manager_id,
+            manager_name,
+            filing_type,
+            subject_company,
+            cusip,
+            ownership_pct,
+            filed_date,
+            url,
+        ) in rows:
+            resolved_manager_name = manager_name or (
+                manager_name_by_id.get(int(manager_id)) if manager_id is not None else None
+            )
+            headline = _format_activism_filing_headline(
+                resolved_manager_name,
+                subject_company,
+                ownership_pct,
+            )
+            snippet = (
+                f"{filing_type or 'Activism filing'} | CUSIP: {cusip or 'n/a'} | "
+                f"Filed: {filed_date or 'n/a'}"
+            )
+            results.append(
+                SearchResult(
+                    entity_type="filing",
+                    entity_id=int(filing_id),
+                    manager_name=resolved_manager_name,
+                    headline=headline,
+                    snippet=snippet,
+                    relevance=_score_result("filing", query, headline, snippet),
+                    url=url,
+                    timestamp=str(filed_date) if filed_date is not None else None,
                 )
             )
 

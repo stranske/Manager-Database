@@ -13,6 +13,12 @@ import pandas as pd
 import streamlit as st
 
 from adapters.base import connect_db
+from api.activism import (
+    query_active_campaigns,
+    query_activism_events,
+    query_activism_filings,
+    query_activism_timeline,
+)
 
 from . import require_login
 
@@ -162,6 +168,54 @@ def load_news_stream(manager_id: int | None, limit: int = 10) -> pd.DataFrame:
         )
     conn.close()
     return df
+
+
+def load_manager_activism_filings(manager_id: int, limit: int = 200) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_activism_filings(conn, manager_id=manager_id, limit=limit)
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
+
+
+def load_manager_activism_events(manager_id: int, limit: int = 200) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_activism_events(conn, manager_id=manager_id, limit=limit)
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
+
+
+def load_manager_activism_timeline(manager_id: int) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_activism_timeline(conn, manager_id)
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
+
+
+def load_active_campaigns_summary(min_ownership_pct: float = 5.0, limit: int = 10) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_active_campaigns(
+            conn,
+            min_ownership_pct=min_ownership_pct,
+            limit=limit,
+        )
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
 
 
 def load_qc_flags(manager_id: int) -> dict[str, Any]:
@@ -426,6 +480,227 @@ def render_news_stream(selected_manager_id: int | None, show_heading: bool = Tru
         st.markdown(compact_line)
 
 
+def _event_color(event_type: str) -> str:
+    if event_type == "threshold_crossing":
+        return "#C1121F"
+    if event_type in {"form_upgrade", "group_formation"}:
+        return "#F97316"
+    if event_type == "initial_stake":
+        return "#2563EB"
+    return "#475569"
+
+
+def _format_event_count(events: int) -> str:
+    return "1 event" if events == 1 else f"{events} events"
+
+
+def render_active_campaigns_widget(show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Active Campaigns")
+
+    campaigns = load_active_campaigns_summary(limit=10)
+    if campaigns.empty:
+        st.caption("No active activism campaigns.")
+        return
+
+    total_campaigns = len(campaigns)
+    total_managers = campaigns["manager_name"].fillna("Unknown").nunique()
+    st.metric(
+        "Active Campaigns",
+        f"{total_campaigns}",
+        delta=f"{total_managers} managers with positions >= 5.0%",
+    )
+    st.markdown("Top 3 most recent campaigns")
+    for row in campaigns.head(3).itertuples(index=False):
+        manager_name = row.manager_name or "Unknown manager"
+        ownership_pct = row.current_ownership_pct
+        pct_text = f"{ownership_pct:.1f}%" if ownership_pct is not None else "n/a"
+        latest_event = row.latest_event_type or "filing_only"
+        st.markdown(
+            f"- **{manager_name}** -> {row.subject_company} ({pct_text}) | "
+            f"{row.latest_filing_date} | {latest_event}"
+        )
+
+
+def render_activism_timeline(selected_manager_id: int, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Activism Timeline")
+
+    timeline = load_manager_activism_timeline(selected_manager_id)
+    if timeline.empty:
+        st.info("No activism filings or events found for the selected manager.")
+        return
+
+    timeline = timeline.copy()
+    timeline["date"] = pd.to_datetime(timeline["date"], errors="coerce")
+    timeline["primary_event_type"] = timeline["event_types"].apply(
+        lambda items: items[0] if isinstance(items, list) and items else "filing"
+    )
+    timeline["color"] = timeline["primary_event_type"].apply(_event_color)
+    chart = (
+        alt.Chart(timeline.dropna(subset=["date"]))
+        .mark_circle(size=110)
+        .encode(
+            x=alt.X("type:N", title=None),
+            y=alt.Y("date:T", title="Date"),
+            color=alt.Color(
+                "primary_event_type:N",
+                scale=alt.Scale(
+                    domain=[
+                        "filing",
+                        "initial_stake",
+                        "threshold_crossing",
+                        "form_upgrade",
+                        "group_formation",
+                        "stake_increase",
+                        "stake_decrease",
+                        "amendment",
+                        "form_downgrade",
+                    ],
+                    range=[
+                        "#1D4ED8",
+                        "#2563EB",
+                        "#C1121F",
+                        "#F97316",
+                        "#F97316",
+                        "#16A34A",
+                        "#C1121F",
+                        "#64748B",
+                        "#A16207",
+                    ],
+                ),
+                title="Timeline Type",
+            ),
+            tooltip=["date:T", "type:N", "description:N", "ownership_pct:Q"],
+        )
+        .properties(height=320)
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+    timeline_display = timeline[["date", "type", "description", "ownership_pct"]].copy()
+    timeline_display["date"] = timeline_display["date"].dt.strftime("%Y-%m-%d")
+    st.dataframe(timeline_display, use_container_width=True, hide_index=True)
+
+
+def render_current_activism_stakes(selected_manager_id: int, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Current Stakes")
+
+    filings = load_manager_activism_filings(selected_manager_id)
+    events = load_manager_activism_events(selected_manager_id)
+    if filings.empty:
+        st.info("No activism stakes found for the selected manager.")
+        return
+
+    filings = filings.copy()
+    filings["filed_date"] = pd.to_datetime(filings["filed_date"], errors="coerce")
+    filings = filings.sort_values(["filed_date", "filing_id"], ascending=[False, False])
+    latest_positions = (
+        filings.groupby(["subject_company", "subject_cusip"], as_index=False, dropna=False)
+        .first()
+        .rename(columns={"ownership_pct": "Ownership %", "filed_date": "Last Filed"})
+    )
+    if events.empty:
+        latest_positions["Events"] = 0
+    else:
+        event_counts = (
+            events.groupby(["subject_company"], dropna=False).size().reset_index(name="Events")
+        )
+        latest_positions = latest_positions.merge(
+            event_counts,
+            on="subject_company",
+            how="left",
+        )
+        latest_positions["Events"] = latest_positions["Events"].fillna(0).astype(int)
+
+    latest_positions["Ownership %"] = pd.to_numeric(
+        latest_positions["Ownership %"], errors="coerce"
+    )
+    latest_positions["Last Filed"] = pd.to_datetime(
+        latest_positions["Last Filed"], errors="coerce"
+    ).dt.strftime("%Y-%m-%d")
+    latest_positions["Events"] = latest_positions["Events"].map(_format_event_count)
+    latest_positions = latest_positions.rename(
+        columns={
+            "subject_company": "Subject Company",
+            "subject_cusip": "CUSIP",
+            "filing_type": "Filing Type",
+        }
+    )
+    st.dataframe(
+        latest_positions[
+            ["Subject Company", "CUSIP", "Ownership %", "Filing Type", "Last Filed", "Events"]
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def render_ownership_chart(selected_manager_id: int, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Ownership Chart")
+
+    filings = load_manager_activism_filings(selected_manager_id)
+    if filings.empty:
+        st.info("No activism ownership history found for the selected manager.")
+        return
+
+    filings = filings.copy()
+    filings["filed_date"] = pd.to_datetime(filings["filed_date"], errors="coerce")
+    filings["ownership_pct"] = pd.to_numeric(filings["ownership_pct"], errors="coerce")
+    filings = filings.dropna(subset=["filed_date"])
+    if filings.empty:
+        st.info("No plottable activism ownership history found.")
+        return
+
+    subject_options = sorted(
+        {
+            str(company)
+            for company in filings["subject_company"].dropna().tolist()
+            if str(company).strip()
+        }
+    )
+    if not subject_options:
+        st.info("No subject companies available for activism charting.")
+        return
+
+    selected_subject = st.selectbox(
+        "Ownership history subject",
+        subject_options,
+        key=f"activism_subject_{selected_manager_id}",
+    )
+    subject_df = filings.loc[filings["subject_company"] == selected_subject].sort_values(
+        "filed_date"
+    )
+    if subject_df.empty:
+        st.info("No activism history for the selected subject company.")
+        return
+
+    base_chart = alt.Chart(subject_df).encode(
+        x=alt.X("filed_date:T", title="Filed Date"),
+        y=alt.Y("ownership_pct:Q", title="Ownership %"),
+        tooltip=["subject_company", "filing_type", "filed_date:T", "ownership_pct:Q"],
+    )
+    line_chart = base_chart.mark_line(point=True, color="#1D4ED8")
+    threshold_df = pd.DataFrame({"threshold": [5.0, 10.0, 20.0]})
+    threshold_rules = (
+        alt.Chart(threshold_df)
+        .mark_rule(strokeDash=[6, 4], color="#94A3B8")
+        .encode(y="threshold:Q")
+    )
+    st.altair_chart(line_chart + threshold_rules, use_container_width=True)
+
+
+def render_activism_dashboard(selected_manager_id: int) -> None:
+    render_activism_timeline(selected_manager_id, show_heading=False)
+    st.divider()
+    left_col, right_col = st.columns((3, 2), gap="large")
+    with left_col:
+        render_current_activism_stakes(selected_manager_id, show_heading=False)
+    with right_col:
+        render_ownership_chart(selected_manager_id, show_heading=False)
+
+
 def render_qc_flags(selected_manager_id: int | None, show_heading: bool = True) -> None:
     if show_heading:
         st.subheader("QC Flags")
@@ -635,6 +910,7 @@ def render_all_managers_summary(show_heading: bool = True) -> None:
     col_filings.metric("Total Filings", f"{summary['total_filings']:,}")
     col_holdings.metric("Total Holdings", f"{summary['total_holdings']:,}")
     col_news.metric("Total News Items", f"{summary['total_news_items']:,}")
+    render_active_campaigns_widget(show_heading=False)
 
     activity = summary["recent_activity"]
     st.markdown("Recent Activity (30 days)")
@@ -680,20 +956,31 @@ def render_all_managers_summary(show_heading: bool = True) -> None:
 
 
 def render_manager_dashboard(selected_manager_id: int) -> None:
-    left_col, right_col = st.columns((3, 2), gap="large")
-    with left_col:
-        with st.expander("Filing Timeline", expanded=True):
-            render_filing_timeline(selected_manager_id, show_heading=False)
-        with st.expander("Latest Holdings Snapshot", expanded=True):
-            render_latest_holdings_snapshot(selected_manager_id, show_heading=False)
-        with st.expander("Top Deltas", expanded=True):
-            render_top_deltas(selected_manager_id, show_heading=False)
+    def _render_portfolio() -> None:
+        left_col, right_col = st.columns((3, 2), gap="large")
+        with left_col:
+            with st.expander("Filing Timeline", expanded=True):
+                render_filing_timeline(selected_manager_id, show_heading=False)
+            with st.expander("Latest Holdings Snapshot", expanded=True):
+                render_latest_holdings_snapshot(selected_manager_id, show_heading=False)
+            with st.expander("Top Deltas", expanded=True):
+                render_top_deltas(selected_manager_id, show_heading=False)
 
-    with right_col:
-        with st.expander("News", expanded=True):
-            render_news_stream(selected_manager_id, show_heading=False)
-        with st.expander("QC Flags", expanded=True):
-            render_qc_flags(selected_manager_id, show_heading=False)
+        with right_col:
+            with st.expander("News", expanded=True):
+                render_news_stream(selected_manager_id, show_heading=False)
+            with st.expander("QC Flags", expanded=True):
+                render_qc_flags(selected_manager_id, show_heading=False)
+
+    if not hasattr(st, "tabs"):
+        _render_portfolio()
+        return
+
+    portfolio_tab, activism_tab = st.tabs(["Portfolio", "Activism"])
+    with portfolio_tab:
+        _render_portfolio()
+    with activism_tab:
+        render_activism_dashboard(selected_manager_id)
 
 
 def render_historical_filing_trend() -> None:

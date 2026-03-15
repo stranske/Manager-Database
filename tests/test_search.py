@@ -275,6 +275,29 @@ def test_universal_search_sqlite_matches_filings_by_manager_name():
     assert filing_result.manager_name == "Elliott Management"
 
 
+def test_universal_search_sqlite_includes_activism_filings():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute(
+        "CREATE TABLE activism_filings ("
+        "filing_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_type TEXT, "
+        "subject_company TEXT, subject_cusip TEXT, ownership_pct REAL, filed_date TEXT, url TEXT)"
+    )
+    conn.execute("INSERT INTO managers(id, name) VALUES (1, 'Elliott Management')")
+    conn.execute(
+        "INSERT INTO activism_filings(filing_id, manager_id, filing_type, subject_company, "
+        "subject_cusip, ownership_pct, filed_date, url) VALUES "
+        "(10, 1, 'SC 13D', 'Apple Inc.', '037833100', 5.1, '2025-01-01', 'https://sec.example/10')"
+    )
+
+    results = universal_search("Apple", conn, limit=20)
+
+    activism_result = next(item for item in results if item.entity_id == 10)
+    assert activism_result.entity_type == "filing"
+    assert activism_result.headline == "13D Filing: Elliott Management -> Apple Inc. (5.1%)"
+    assert activism_result.url == "https://sec.example/10"
+
+
 def test_universal_search_sqlite_resolves_manager_name_for_news_items():
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT)")

@@ -86,6 +86,29 @@ def load_news(date: str) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(show_spinner=False)
+def load_activism_events(date: str) -> pd.DataFrame:
+    conn = connect_db()
+    is_sqlite = isinstance(conn, sqlite3.Connection)
+    placeholder = "?" if is_sqlite else "%s"
+    try:
+        query = (
+            "SELECT m.name AS manager_name, ae.event_type, ae.subject_company, "
+            "ae.ownership_pct, ae.previous_pct, ae.delta_pct, af.filed_date "
+            "FROM activism_events ae "
+            "JOIN activism_filings af ON af.filing_id = ae.filing_id "
+            "LEFT JOIN managers m ON m.manager_id = ae.manager_id "
+            f"WHERE af.filed_date = {placeholder} "
+            "ORDER BY af.filed_date DESC, ae.detected_at DESC"
+        )
+        table = pd.read_sql_query(query, conn, params=(date,))
+    except Exception:
+        table = pd.DataFrame()
+    finally:
+        conn.close()
+    return table
+
+
 def parse_topics(value: object) -> list[str]:
     if value is None:
         return []
@@ -184,6 +207,17 @@ def format_percent_change(value_prev: object, value_curr: object) -> str:
     return "<span style='color:#666;'>0.0%</span>"
 
 
+def format_activism_event_type(event_type: object) -> str:
+    event_name = str(event_type or "").strip()
+    colors = {
+        "initial_stake": "#2563eb",
+        "threshold_crossing": "#dc2626",
+        "form_upgrade": "#f97316",
+    }
+    color = colors.get(event_name, "#475569")
+    return f"<span style='color:{color};font-weight:700;'>{event_name or '-'}</span>"
+
+
 def main():
     if not require_login():
         st.stop()
@@ -239,6 +273,42 @@ def main():
         st.markdown(html, unsafe_allow_html=True)
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, file_name=f"diff_{date_str}.csv", mime="text/csv")
+
+        st.markdown("### Activism Alerts")
+        activism_events = load_activism_events(date_str)
+        if activism_events.empty:
+            st.caption("No activism events detected for this report date.")
+        else:
+            activism_events = activism_events.copy()
+            activism_events["Event Type"] = activism_events["event_type"].apply(
+                format_activism_event_type
+            )
+            activism_events["Manager"] = activism_events["manager_name"].fillna("Unknown")
+            activism_events["Subject Company"] = activism_events["subject_company"].fillna("")
+            activism_events["Ownership %"] = pd.to_numeric(
+                activism_events["ownership_pct"], errors="coerce"
+            ).round(2)
+            activism_events["Change"] = activism_events.apply(
+                lambda row: format_percent_change(
+                    row.get("previous_pct"),
+                    row.get("ownership_pct"),
+                ),
+                axis=1,
+            )
+            activism_events["Filed Date"] = pd.to_datetime(
+                activism_events["filed_date"], errors="coerce"
+            ).dt.strftime("%Y-%m-%d")
+            activism_html = activism_events[
+                [
+                    "Manager",
+                    "Event Type",
+                    "Subject Company",
+                    "Ownership %",
+                    "Change",
+                    "Filed Date",
+                ]
+            ].to_html(escape=False, index=False)
+            st.markdown(activism_html, unsafe_allow_html=True)
     with tab2:
         news = load_news(date_str)
         if news.empty:
