@@ -9,12 +9,13 @@ import logging
 import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Any
 
 try:
-    from scripts.langchain import semantic_matcher
+    semantic_matcher = import_module("scripts.langchain.semantic_matcher")
 except ModuleNotFoundError:
-    import semantic_matcher
+    semantic_matcher = import_module("semantic_matcher")
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ def _issue_text(issue: IssueRecord) -> str:
 def build_issue_vector_store(
     issues: Iterable[Any],
     *,
-    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
+    client_info: Any = None,
     model: str | None = None,
 ) -> IssueVectorStore | None:
     issue_records: list[IssueRecord] = []

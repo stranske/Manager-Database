@@ -10,12 +10,13 @@ import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Any
 
 try:
-    from scripts.langchain import semantic_matcher
+    semantic_matcher = import_module("scripts.langchain.semantic_matcher")
 except ModuleNotFoundError:
-    import semantic_matcher
+    semantic_matcher = import_module("semantic_matcher")
 
 
 @dataclass(frozen=True)
@@ -253,7 +254,7 @@ def _label_text(label: LabelRecord) -> str:
 def build_label_vector_store(
     labels: Iterable[Any],
     *,
-    client_info: semantic_matcher.EmbeddingClientInfo | None = None,
+    client_info: Any = None,
     model: str | None = None,
 ) -> LabelVectorStore | None:
     label_records: list[LabelRecord] = []
@@ -437,9 +438,9 @@ def find_similar_labels(
         search_fn = store.similarity_search_with_score
         score_type = "distance"
     else:
-        matches = _keyword_matches(label_store.labels, query, threshold=threshold)
-        matches.sort(key=lambda match: match.score, reverse=True)
-        return matches
+        keyword_only_matches = _keyword_matches(label_store.labels, query, threshold=threshold)
+        keyword_only_matches.sort(key=lambda match: match.score, reverse=True)
+        return keyword_only_matches
 
     limit = k or DEFAULT_LABEL_SIMILARITY_K
     try:

@@ -8,12 +8,13 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from importlib import import_module
 from typing import Any
 
 try:
-    from scripts.langchain import label_matcher
+    label_matcher = import_module("scripts.langchain.label_matcher")
 except ModuleNotFoundError:
-    import label_matcher
+    label_matcher = import_module("label_matcher")
 
 
 @dataclass
@@ -66,7 +67,7 @@ def _build_issue_text(issue: IssueData) -> str:
     return "\n\n".join(parts)
 
 
-def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore | None:
+def _build_label_store(labels: Iterable[Any]) -> Any:
     label_records = _collect_label_records(labels)
     if not label_records:
         return None
@@ -84,7 +85,7 @@ def _build_label_store(labels: Iterable[Any]) -> label_matcher.LabelVectorStore 
     )
 
 
-def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRecord]:
+def _collect_label_records(labels: Iterable[Any]) -> list[Any]:
     if labels is None:
         raise ValueError("labels must be an iterable of label records, not None.")
     if isinstance(labels, (str, bytes)):
@@ -92,7 +93,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRec
     if not isinstance(labels, Iterable):
         raise ValueError("labels must be an iterable of label records.")
 
-    records: list[label_matcher.LabelRecord] = []
+    records: list[Any] = []
     for index, item in enumerate(labels):
         record = _coerce_label_record(item)
         if record is not None:
@@ -106,7 +107,7 @@ def _collect_label_records(labels: Iterable[Any]) -> list[label_matcher.LabelRec
     return records
 
 
-def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
+def _coerce_label_record(item: Any) -> Any:
     if isinstance(item, label_matcher.LabelRecord):
         return item
     if isinstance(item, (str, bytes)):
@@ -134,11 +135,7 @@ def _coerce_label_record(item: Any) -> label_matcher.LabelRecord | None:
     )
 
 
-def _select_label_names(
-    matches: Sequence[label_matcher.LabelMatch],
-    *,
-    max_labels: int | None = None,
-) -> list[str]:
+def _select_label_names(matches: Sequence[Any], *, max_labels: int | None = None) -> list[str]:
     if not matches:
         return []
     names: list[str] = []
