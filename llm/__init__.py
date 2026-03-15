@@ -1,6 +1,7 @@
 """LLM utilities and client factory exports."""
 
 from llm.client import ClientInfo, SlotDefinition, build_chat_client
+from llm.evaluation import ManagerDBEvaluator
 from llm.injection import (
     DEFAULT_BLOCK_SUMMARY,
     INJECTION_PATTERNS,
@@ -22,6 +23,7 @@ __all__ = [
     "DEFAULT_BLOCK_SUMMARY",
     "INJECTION_PATTERNS",
     "LLMProviderConfig",
+    "ManagerDBEvaluator",
     "PromptInjectionError",
     "SlotDefinition",
     "build_chat_client",

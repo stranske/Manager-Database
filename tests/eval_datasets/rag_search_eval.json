@@ -1,0 +1,302 @@
+[
+  {
+    "question": "What changed in manager note 1?",
+    "context": "Document 1 says Apple Inc (037833100) was increased on 2026-01-01.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-1",
+        "description": "Document 1"
+      },
+      {
+        "filing_id": 1,
+        "description": "Filing 1"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-01"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-01.",
+        "sources": [
+          {
+            "document_id": "doc-1",
+            "description": "Document 1"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 2?",
+    "context": "Document 2 says Apple Inc (037833100) was increased on 2026-01-02.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-2",
+        "description": "Document 2"
+      },
+      {
+        "filing_id": 2,
+        "description": "Filing 2"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-02"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-02.",
+        "sources": [
+          {
+            "document_id": "doc-2",
+            "description": "Document 2"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 3?",
+    "context": "Document 3 says Apple Inc (037833100) was increased on 2026-01-03.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-3",
+        "description": "Document 3"
+      },
+      {
+        "filing_id": 3,
+        "description": "Filing 3"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-03"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-03.",
+        "sources": [
+          {
+            "document_id": "doc-3",
+            "description": "Document 3"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 4?",
+    "context": "Document 4 says Apple Inc (037833100) was increased on 2026-01-04.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-4",
+        "description": "Document 4"
+      },
+      {
+        "filing_id": 4,
+        "description": "Filing 4"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-04"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-04.",
+        "sources": [
+          {
+            "document_id": "doc-4",
+            "description": "Document 4"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 5?",
+    "context": "Document 5 says Apple Inc (037833100) was increased on 2026-01-05.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-5",
+        "description": "Document 5"
+      },
+      {
+        "filing_id": 5,
+        "description": "Filing 5"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-05"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-05.",
+        "sources": [
+          {
+            "document_id": "doc-5",
+            "description": "Document 5"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 6?",
+    "context": "Document 6 says Apple Inc (037833100) was increased on 2026-01-06.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-6",
+        "description": "Document 6"
+      },
+      {
+        "filing_id": 6,
+        "description": "Filing 6"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-06"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-06.",
+        "sources": [
+          {
+            "document_id": "doc-6",
+            "description": "Document 6"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 7?",
+    "context": "Document 7 says Apple Inc (037833100) was increased on 2026-01-07.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-7",
+        "description": "Document 7"
+      },
+      {
+        "filing_id": 7,
+        "description": "Filing 7"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-07"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-07.",
+        "sources": [
+          {
+            "document_id": "doc-7",
+            "description": "Document 7"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 8?",
+    "context": "Document 8 says Apple Inc (037833100) was increased on 2026-01-08.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-8",
+        "description": "Document 8"
+      },
+      {
+        "filing_id": 8,
+        "description": "Filing 8"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-08"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-08.",
+        "sources": [
+          {
+            "document_id": "doc-8",
+            "description": "Document 8"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 9?",
+    "context": "Document 9 says Apple Inc (037833100) was increased on 2026-01-09.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-9",
+        "description": "Document 9"
+      },
+      {
+        "filing_id": 9,
+        "description": "Filing 9"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-09"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-09.",
+        "sources": [
+          {
+            "document_id": "doc-9",
+            "description": "Document 9"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "What changed in manager note 10?",
+    "context": "Document 10 says Apple Inc (037833100) was increased on 2026-01-10.",
+    "retrieval_sources": [
+      {
+        "document_id": "doc-10",
+        "description": "Document 10"
+      },
+      {
+        "filing_id": 10,
+        "description": "Filing 10"
+      }
+    ],
+    "allowed_values": [
+      "Apple Inc",
+      "037833100",
+      "2026-01-10"
+    ],
+    "run": {
+      "outputs": {
+        "answer": "Apple Inc (037833100) was increased on 2026-01-10.",
+        "sources": [
+          {
+            "document_id": "doc-10",
+            "description": "Document 10"
+          }
+        ]
+      }
+    }
+  }
+]

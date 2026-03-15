@@ -33,8 +33,8 @@ class FakeColumn:
     def caption(self, value: str) -> None:
         self._st.captions.append(value)
 
-    def button(self, label: str) -> bool:
-        return self._st.button_presses.get(label, False)
+    def button(self, label: str, key: str | None = None) -> bool:
+        return self._st.button_presses.get(key or label, False)
 
 
 class FakeSidebar:
@@ -63,6 +63,7 @@ class FakeStreamlit:
         self.captions: list[str] = []
         self.code_calls: list[tuple[str, str | None]] = []
         self.error_calls: list[str] = []
+        self.toast_calls: list[str] = []
 
     def set_page_config(self, **kwargs) -> None:
         self.page_config_calls.append(kwargs)
@@ -117,6 +118,9 @@ class FakeStreamlit:
 
     def error(self, text: str) -> None:
         self.error_calls.append(text)
+
+    def toast(self, text: str) -> None:
+        self.toast_calls.append(text)
 
 
 def _load_research_module():
@@ -293,6 +297,7 @@ def test_history_renders_saved_assistant_metadata(monkeypatch):
             "latency_ms": 22,
             "trace_url": "https://trace.local/1",
             "sql": "SELECT 1;",
+            "response_id": "trace-1",
         },
     ]
 
@@ -303,6 +308,30 @@ def test_history_renders_saved_assistant_metadata(monkeypatch):
     assert "[Trace](https://trace.local/1)" in fake_st.captions
     assert ("SELECT 1;", "sql") in fake_st.code_calls
     assert "🔍 Generated SQL" in fake_st.expander_labels
+
+
+def test_feedback_button_posts_rating(monkeypatch):
+    research = _load_research_module()
+    fake_st = FakeStreamlit()
+    fake_st.button_presses["feedback_up_0"] = True
+    monkeypatch.setattr(research, "st", fake_st)
+
+    calls = {}
+
+    def _fake_post(url, *, json, timeout):
+        calls["url"] = url
+        calls["json"] = json
+        calls["timeout"] = timeout
+        return type("Resp", (), {"status_code": 200})()
+
+    monkeypatch.setattr(research.requests, "post", _fake_post)
+
+    research._render_feedback_controls({"response_id": "trace-1"}, 0)
+
+    assert calls["url"] == research.CHAT_FEEDBACK_URL
+    assert calls["json"] == {"response_id": "trace-1", "rating": 5}
+    assert calls["timeout"] == research.REQUEST_TIMEOUT_SECONDS
+    assert fake_st.toast_calls == ["Feedback recorded"]
 
 
 def test_call_chat_api_sends_expected_payload_and_session_header(monkeypatch):
