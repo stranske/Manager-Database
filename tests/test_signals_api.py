@@ -264,3 +264,29 @@ def test_signals_endpoints_return_empty_arrays_for_missing_data(tmp_path, monkey
     assert crowded.status_code == 200 and crowded.json() == []
     assert contrarian.status_code == 200 and contrarian.json() == []
     assert conviction.status_code == 200 and conviction.json() == []
+
+
+def test_get_contrarian_signals_supports_sqlite_managers_id_shape(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals_legacy.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT)")
+        conn.execute(
+            "CREATE TABLE contrarian_signals (signal_id INTEGER PRIMARY KEY, manager_id INTEGER, cusip TEXT, name_of_issuer TEXT, direction TEXT, consensus_direction TEXT, manager_delta_shares INTEGER, manager_delta_value REAL, consensus_count INTEGER, report_date TEXT, detected_at TEXT)"
+        )
+        conn.execute("INSERT INTO managers(id, name) VALUES (1, 'Legacy Manager')")
+        conn.execute(
+            "INSERT INTO contrarian_signals(signal_id, manager_id, cusip, name_of_issuer, direction, consensus_direction, manager_delta_shares, manager_delta_value, consensus_count, report_date, detected_at) VALUES (1, 1, 'AAA111111', 'Example Corp', 'SELL', 'BUY', -10, -250.0, 3, '2024-05-01', '2024-05-01T09:00:00')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    response = asyncio.run(
+        _request("/api/signals/contrarian", params={"report_date": "2024-05-01"})
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["manager_name"] == "Legacy Manager"

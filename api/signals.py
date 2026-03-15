@@ -109,7 +109,7 @@ def _resolve_latest_manager_filing_id(conn: Any, manager_id: int) -> int | None:
 def _parse_manager_ids(value: Any) -> list[int]:
     if value is None:
         return []
-    if isinstance(value, list | tuple):
+    if isinstance(value, (list, tuple)):
         parsed = []
         for item in value:
             try:
@@ -130,23 +130,36 @@ def _parse_manager_ids(value: Any) -> list[int]:
     except json.JSONDecodeError:
         return []
     if isinstance(loaded, list):
-        return [
-            int(item)
-            for item in loaded
-            if isinstance(item, int | float | str) and str(item).isdigit()
-        ]
+        parsed = []
+        for item in loaded:
+            if not isinstance(item, (int, float, str)):
+                continue
+            try:
+                parsed.append(int(item))
+            except (TypeError, ValueError):
+                continue
+        return parsed
     return []
 
 
-def _manager_name_lookup(conn: Any) -> dict[int, str]:
+def _manager_id_column(conn: Any) -> str | None:
     if not _table_exists(conn, "managers"):
-        return {}
+        return None
     manager_id_column = "manager_id"
     if _is_sqlite(conn):
         rows = conn.execute("PRAGMA table_info(managers)").fetchall()
         columns = {str(row[1]) for row in rows}
         if "manager_id" not in columns and "id" in columns:
             manager_id_column = "id"
+        elif "manager_id" not in columns:
+            return None
+    return manager_id_column
+
+
+def _manager_name_lookup(conn: Any) -> dict[int, str]:
+    manager_id_column = _manager_id_column(conn)
+    if manager_id_column is None:
+        return {}
     rows = conn.execute(f"SELECT {manager_id_column}, name FROM managers").fetchall()
     lookup: dict[int, str] = {}
     for row in rows:
@@ -240,6 +253,12 @@ def query_contrarian_signals(
         return []
 
     ph = _placeholder(conn)
+    manager_id_column = _manager_id_column(conn)
+    manager_join = (
+        f"LEFT JOIN managers m ON m.{manager_id_column} = cs.manager_id"
+        if manager_id_column is not None
+        else ""
+    )
     filters = [f"cs.report_date = {ph}"]
     params: list[Any] = [resolved_date]
     if manager_id is not None:
@@ -250,7 +269,7 @@ def query_contrarian_signals(
         "SELECT m.name, cs.cusip, cs.name_of_issuer, cs.direction, cs.consensus_direction, "
         "cs.manager_delta_value, cs.consensus_count, cs.report_date "
         "FROM contrarian_signals cs "
-        "LEFT JOIN managers m ON m.manager_id = cs.manager_id "
+        f"{manager_join} "
         f"WHERE {' AND '.join(filters)} "
         "ORDER BY cs.consensus_count DESC, ABS(COALESCE(cs.manager_delta_value, 0)) DESC, cs.cusip ASC "
         f"LIMIT {ph}",
