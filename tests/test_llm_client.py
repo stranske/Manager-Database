@@ -66,6 +66,19 @@ def test_client_kwargs_omits_temperature_for_reasoning_models():
     assert kwargs == {"timeout": 30, "max_retries": 4}
 
 
+def test_is_reasoning_model_accepts_supported_o_series_names():
+    assert llm_client._is_reasoning_model("o1")
+    assert llm_client._is_reasoning_model("o3-mini")
+    assert llm_client._is_reasoning_model("o4-mini-deep-research")
+
+
+def test_is_reasoning_model_rejects_invalid_near_matches():
+    assert not llm_client._is_reasoning_model("o")
+    assert not llm_client._is_reasoning_model("o-1")
+    assert not llm_client._is_reasoning_model("openai-o1")
+    assert not llm_client._is_reasoning_model("o1:preview")
+
+
 def test_client_kwargs_sets_temperature_for_non_reasoning_models():
     kwargs = llm_client._client_kwargs("gpt-4o-mini", timeout=30, max_retries=4)
 

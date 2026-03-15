@@ -34,7 +34,7 @@ _PROVIDER_ALIASES = {
     "azure-openai": "azure_openai",
 }
 
-_REASONING_MODEL_PATTERN = re.compile(r"^o\d+(?:[-:].*)?$", re.IGNORECASE)
+_REASONING_MODEL_PATTERN = re.compile(r"^o\d+(?:-[a-z0-9]+)*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -145,6 +145,7 @@ def _resolve_max_retries(max_retries: int | None) -> int:
 
 
 def _is_reasoning_model(model: str) -> bool:
+    """Return True for OpenAI o-series models that reject temperature."""
     return bool(_REASONING_MODEL_PATTERN.match(model.strip()))
 
 
