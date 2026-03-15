@@ -24,6 +24,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.base import connect_db
+from api.activism import router as activism_router
 from api.alerts import router as alerts_router
 from api.data import router as data_router
 from api.managers import router as managers_router
@@ -35,6 +36,7 @@ app = FastAPI()
 app.include_router(managers_router, tags=["Managers"])
 app.include_router(data_router, tags=["Data"])
 app.include_router(alerts_router, tags=["Alerts"])
+app.include_router(activism_router, tags=["Activism"])
 _APP_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 # Allow concurrent health checks without serializing every dependency probe.
 _HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=3)

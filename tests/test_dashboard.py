@@ -11,10 +11,14 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from ui import dashboard
 from ui.dashboard import (
+    load_active_campaigns_summary,
     load_all_managers_summary,
     load_delta,
     load_filing_timeline,
     load_latest_holdings_snapshot,
+    load_manager_activism_events,
+    load_manager_activism_filings,
+    load_manager_activism_timeline,
     load_managers,
     load_news_stream,
     load_qc_flags,
@@ -59,6 +63,19 @@ def setup_db(tmp_path: Path) -> str:
         "CREATE TABLE api_usage ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, ts DATETIME, source TEXT, endpoint TEXT, "
         "status INT, bytes INT, latency_ms INT, cost_usd REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE activism_filings ("
+        "filing_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_type TEXT, "
+        "subject_company TEXT, subject_cusip TEXT, ownership_pct REAL, shares INTEGER, "
+        "group_members TEXT, purpose_snippet TEXT, filed_date DATE, url TEXT, raw_key TEXT, "
+        "created_at DATETIME)"
+    )
+    conn.execute(
+        "CREATE TABLE activism_events ("
+        "event_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_id INTEGER, event_type TEXT, "
+        "subject_company TEXT, subject_cusip TEXT, ownership_pct REAL, previous_pct REAL, "
+        "delta_pct REAL, threshold_crossed REAL, detected_at DATETIME)"
     )
     manager_rows = [
         (2, "Zulu Capital"),
@@ -112,11 +129,103 @@ def setup_db(tmp_path: Path) -> str:
     usage_rows = [
         ("2024-03-20 12:30:00", "etl", "/edgar", 200, 1024, 150, 0.0),
     ]
+    activism_filings = [
+        (
+            101,
+            1,
+            "SC 13D",
+            "Issuer A",
+            "AAA",
+            5.1,
+            500000,
+            "[]",
+            "board seat",
+            "2024-03-01",
+            "https://example.com/activism/101",
+            "raw/a101",
+            "2024-03-01 08:00:00",
+        ),
+        (
+            102,
+            1,
+            "SC 13D/A",
+            "Issuer A",
+            "AAA",
+            10.2,
+            650000,
+            "[]",
+            "board seat",
+            "2024-03-15",
+            "https://example.com/activism/102",
+            "raw/a102",
+            "2024-03-15 08:00:00",
+        ),
+        (
+            103,
+            2,
+            "SC 13G",
+            "Issuer Z",
+            "ZZZ",
+            6.0,
+            200000,
+            "[]",
+            "passive stake",
+            "2024-03-12",
+            "https://example.com/activism/103",
+            "raw/a103",
+            "2024-03-12 08:00:00",
+        ),
+    ]
+    activism_events = [
+        (
+            201,
+            1,
+            101,
+            "initial_stake",
+            "Issuer A",
+            "AAA",
+            5.1,
+            None,
+            None,
+            None,
+            "2024-03-01 09:00:00",
+        ),
+        (
+            202,
+            1,
+            102,
+            "threshold_crossing",
+            "Issuer A",
+            "AAA",
+            10.2,
+            5.1,
+            5.1,
+            10.0,
+            "2024-03-15 09:00:00",
+        ),
+        (
+            203,
+            2,
+            103,
+            "initial_stake",
+            "Issuer Z",
+            "ZZZ",
+            6.0,
+            None,
+            None,
+            None,
+            "2024-03-12 10:00:00",
+        ),
+    ]
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
     conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.executemany("INSERT INTO filings VALUES (?,?,?,?,?,?,?)", filing_rows)
     conn.executemany("INSERT INTO daily_diffs VALUES (?,?,?,?,?,?,?,?,?)", delta_rows)
     conn.executemany("INSERT INTO news_items VALUES (?,?,?,?,?,?,?)", news_rows)
+    conn.executemany(
+        "INSERT INTO activism_filings VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", activism_filings
+    )
+    conn.executemany("INSERT INTO activism_events VALUES (?,?,?,?,?,?,?,?,?,?,?)", activism_events)
     conn.executemany(
         "INSERT INTO api_usage(ts, source, endpoint, status, bytes, latency_ms, cost_usd) "
         "VALUES (?,?,?,?,?,?,?)",
@@ -260,6 +369,22 @@ def test_load_delta_counts(tmp_path: Path, monkeypatch):
     df = load_delta()
     assert list(df["date"]) == ["2024-01-01", "2024-01-02"]
     assert list(df["filings"]) == [1, 2]
+
+
+def test_load_activism_helpers_and_campaigns(tmp_path: Path, monkeypatch):
+    db_path = setup_db(tmp_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    st.cache_data.clear()
+
+    filings = load_manager_activism_filings(1)
+    events = load_manager_activism_events(1)
+    timeline = load_manager_activism_timeline(1)
+    campaigns = load_active_campaigns_summary()
+
+    assert list(filings["filing_id"]) == [102, 101]
+    assert set(events["event_type"]) == {"initial_stake", "threshold_crossing"}
+    assert list(timeline["type"]) == ["event", "filing", "event", "filing"]
+    assert set(campaigns["subject_company"]) == {"Issuer A", "Issuer Z"}
 
 
 class _FakeResponse:
