@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from typing import Any
 
 from chains.rag_search import RAGSearchChain
 
@@ -121,4 +122,88 @@ def test_run_returns_low_confidence_without_context(monkeypatch):
 
     assert result["confidence"] == "low"
     assert "do not have enough context" in result["answer"]
+    conn.close()
+
+
+class _FakeCursor:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def fetchall(self):
+        return self._rows
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+
+class _FakePostgresConn:
+    def __init__(self):
+        self.queries: list[tuple[str, tuple[Any, ...]]] = []
+
+    def execute(self, query: str, params: tuple[Any, ...] = ()):
+        self.queries.append((query, tuple(params)))
+        if "to_regclass" in query:
+            return _FakeCursor([("public.anything",)])
+        if "SELECT manager_id, name, cik FROM managers" in query:
+            return _FakeCursor([(1, "Elliott", "0001791786")])
+        if "SELECT filing_id, type, filed_date, url FROM filings" in query:
+            return _FakeCursor([(11, "13F-HR", "2026-03-01", "https://example.com/filings/11")])
+        if "FROM holdings h JOIN filings f" in query:
+            return _FakeCursor([("037833100", "Apple Inc.", 1000, 150000.0, 1)])
+        if "FROM news_items" in query:
+            return _FakeCursor(
+                [
+                    (
+                        "Elliott increases Apple stake",
+                        "2026-03-02T08:00:00",
+                        "https://example.com/news/1",
+                    )
+                ]
+            )
+        if "FROM activism_filings" in query:
+            return _FakeCursor([("Apple Inc.", "SC 13D", "2026-03-03", "https://example.com/a/21")])
+        if "FROM crowded_trades" in query:
+            return _FakeCursor([("037833100", "Apple Inc.", 4, 2500000.0, "2026-03-05")])
+        raise AssertionError(f"Unexpected query: {query}")
+
+    def close(self) -> None:
+        return None
+
+
+def test_structured_search_uses_postgres_placeholders():
+    conn = _FakePostgresConn()
+    chain = RAGSearchChain(db_conn=conn)
+
+    context, sources = chain._structured_search(
+        {
+            "manager_ids": [1],
+            "cusips": ["037833100"],
+            "keywords": [],
+            "date_range": {"start": "2026-03-01", "end": "2026-03-31"},
+        }
+    )
+
+    assert "Latest holdings" in context
+    assert any(source.get("filing_id") == 11 for source in sources)
+    assert any("%s" in query for query, _params in conn.queries if " FROM filings " in query)
+    assert all("?" not in query for query, _params in conn.queries)
+
+
+def test_run_honors_explicit_context_filters(monkeypatch):
+    conn = _build_db()
+    llm = FakeLLM("Context-aware answer.")
+    chain = RAGSearchChain(llm=llm, db_conn=conn)
+    monkeypatch.setattr("chains.rag_search.search_documents", lambda *args, **kwargs: [])
+
+    result = chain.run(
+        "What changed recently?",
+        context={
+            "manager_name": "Elliott",
+            "date_range": {"start": "2026-03-01", "end": "2026-03-31"},
+        },
+    )
+
+    assert result["answer"] == "Context-aware answer."
+    assert any(source.get("filing_id") == 11 for source in result["sources"])
+    assert llm.prompts and "Recent filings" in llm.prompts[0]
     conn.close()
