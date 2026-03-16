@@ -69,6 +69,19 @@ class NLQueryChain:
         self._schema_ddl = self._load_schema_ddl()
         self._known_tables = self._extract_known_tables(self._schema_ddl)
 
+    def _guard_context(self, context: dict[str, Any] | None) -> None:
+        if not context:
+            return
+        for value in context.values():
+            if isinstance(value, str):
+                guard_input(value)
+            elif isinstance(value, dict):
+                self._guard_context(value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        guard_input(item)
+
     def _load_schema_ddl(self) -> str:
         """Load public CREATE TABLE statements and omit internal bookkeeping tables."""
         schema_path = Path(__file__).resolve().parents[1] / "schema.sql"
@@ -164,9 +177,35 @@ class NLQueryChain:
             f"Columns: {column_summary}. Sample rows: {json.dumps(sample, default=str)}"
         )
 
-    def _prompt_text(self, question: str) -> str:
+    def _context_prompt(self, context: dict[str, Any] | None) -> str:
+        if not context:
+            return ""
+        filters: list[str] = []
+        manager_ids = context.get("manager_ids")
+        if manager_ids:
+            filters.append(f"- Restrict results to manager_ids={manager_ids}")
+        manager_name = context.get("manager_name")
+        if manager_name:
+            filters.append(f"- Restrict results to manager_name={manager_name}")
+        filing_id = context.get("filing_id")
+        if filing_id:
+            filters.append(f"- Restrict results to filing_id={filing_id}")
+        date_range = context.get("date_range")
+        if date_range:
+            filters.append(f"- Restrict results to date_range={date_range}")
+        cusips = context.get("cusips")
+        if cusips:
+            filters.append(f"- Restrict results to cusips={cusips}")
+        if not filters:
+            return ""
+        return "Context filters:\n" + "\n".join(filters) + "\n"
+
+    def _prompt_text(self, question: str, context: dict[str, Any] | None = None) -> str:
         return (
-            NL_QUERY_SYSTEM_PROMPT.format(schema_ddl=self._schema_ddl) + f"\nQuestion: {question}\n"
+            NL_QUERY_SYSTEM_PROMPT.format(schema_ddl=self._schema_ddl)
+            + "\n"
+            + self._context_prompt(context)
+            + f"Question: {question}\n"
         )
 
     def _invoke_llm(self, prompt: str) -> tuple[str, str | None]:
@@ -204,9 +243,9 @@ class NLQueryChain:
 
     def run(self, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run the NL-to-SQL pipeline end-to-end."""
-        del context  # Reserved for future filters.
         guard_input(question)
-        prompt = self._prompt_text(question)
+        self._guard_context(context)
+        prompt = self._prompt_text(question, context)
         raw_response, trace_url = self._invoke_llm(prompt)
         parsed = self._parse_llm_result(raw_response)
         normalized_sql = self._normalize_sql(parsed.sql)

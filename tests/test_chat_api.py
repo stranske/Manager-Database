@@ -1,6 +1,8 @@
 import asyncio
+import sqlite3
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import httpx
@@ -255,7 +257,15 @@ def test_chat_api_autoroutes_question_to_chain(monkeypatch):
     monkeypatch.setattr(chat_api_module, "_run_chain", _capture)
 
     response = asyncio.run(
-        _request("POST", "/api/chat", json={"question": "Summarize latest filing", "chain": "auto"})
+        _request(
+            "POST",
+            "/api/chat",
+            json={
+                "question": "Summarize latest filing",
+                "chain": "auto",
+                "context": {"filing_id": 42},
+            },
+        )
     )
     body = response.json()
     assert response.status_code == 200
@@ -323,6 +333,56 @@ def test_direct_filing_summary_endpoint(monkeypatch):
     assert "Summarize filing 123" in body["answer"]
 
 
+def test_direct_filing_summary_endpoint_wires_real_chain_contract(monkeypatch):
+    seen: dict[str, Any] = {}
+
+    class FakeConn:
+        def close(self) -> None:
+            seen["close_calls"] = seen.get("close_calls", 0) + 1
+
+    class FakeFilingSummaryChain:
+        def __init__(self, *, client_info: Any, db_conn: Any):
+            seen["provider_label"] = client_info.provider_label
+            seen["db_conn_type"] = type(db_conn).__name__
+            self.db = db_conn
+
+        def run(self, filing_id: int):
+            seen["filing_id"] = filing_id
+            return SimpleNamespace(
+                model_dump=lambda: {
+                    "manager_name": "Elliott",
+                    "filing_date": "2026-03-01",
+                    "total_positions": 10,
+                    "total_aum_estimate": "$1.2B",
+                    "key_positions": [{"issuer": "Apple Inc."}],
+                    "notable_changes": ["Added Apple"],
+                    "risk_flags": ["Crowded position"],
+                }
+            )
+
+    def _import_module(name: str):
+        if name == "chains.filing_summary":
+            return SimpleNamespace(FilingSummaryChain=FakeFilingSummaryChain)
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", _import_module)
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda *args, **kwargs: FakeConn())
+    monkeypatch.setattr(
+        chat_api_module,
+        "_build_chat_client_info",
+        lambda: SimpleNamespace(client=object(), provider_label="openai/test"),
+    )
+
+    response = asyncio.run(_request("POST", "/api/chat/filing-summary", params={"filing_id": 123}))
+
+    assert response.status_code == 200
+    assert "Elliott filing summary" in response.json()["answer"]
+    assert "Top positions: Apple Inc." in response.json()["answer"]
+    assert seen["filing_id"] == 123
+    assert seen["provider_label"] == "openai/test"
+    assert seen["close_calls"] >= 1
+
+
 def test_direct_holdings_analysis_endpoint(monkeypatch):
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
 
@@ -341,6 +401,140 @@ def test_direct_holdings_analysis_endpoint(monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["chain_used"] == "holdings_analysis"
+
+
+def test_direct_holdings_analysis_endpoint_wires_real_chain_contract(tmp_path, monkeypatch):
+    db_path = tmp_path / "chat-api.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute("INSERT INTO managers(manager_id, name) VALUES (7, 'Elliott')")
+    conn.commit()
+    conn.close()
+
+    seen: dict[str, Any] = {}
+
+    class FakeHoldingsAnalysisChain:
+        def __init__(self, *, client_info: Any, db_conn: Any):
+            seen["provider_label"] = client_info.provider_label
+            self.db = db_conn
+
+        def run(
+            self,
+            question: str,
+            *,
+            manager_ids: list[int] | None = None,
+            cusips: list[str] | None = None,
+            date_range=None,
+        ):
+            seen["question"] = question
+            seen["manager_ids"] = manager_ids
+            seen["cusips"] = cusips
+            seen["date_range"] = date_range
+            return SimpleNamespace(
+                model_dump=lambda: {
+                    "thesis": "Portfolio remains concentrated in large-cap tech.",
+                    "top_positions": [{"issuer": "Apple Inc."}],
+                    "period_changes": [{"summary": "Increased Apple"}],
+                    "concentration_metrics": {"top10_weight": 0.62},
+                }
+            )
+
+    def _import_module(name: str):
+        if name == "chains.holdings_analysis":
+            return SimpleNamespace(HoldingsAnalysisChain=FakeHoldingsAnalysisChain)
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", _import_module)
+    monkeypatch.setattr(
+        chat_api_module, "connect_db", lambda *args, **kwargs: sqlite3.connect(db_path)
+    )
+    monkeypatch.setattr(
+        chat_api_module,
+        "_build_chat_client_info",
+        lambda: SimpleNamespace(client=object(), provider_label="openai/test"),
+    )
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat/holdings-analysis",
+            json={
+                "question": "Analyze positions",
+                "context": {
+                    "manager_name": "Elliott",
+                    "date_range": {"start": "2026-03-01", "end": "2026-03-31"},
+                },
+            },
+        )
+    )
+
+    assert response.status_code == 200
+    assert "Portfolio remains concentrated in large-cap tech." in response.json()["answer"]
+    assert "Top positions: Apple Inc." in response.json()["answer"]
+    assert seen["question"] == "Analyze positions"
+    assert seen["manager_ids"] == [7]
+    assert seen["cusips"] is None
+    assert seen["date_range"] is not None
+    assert tuple(value.isoformat() for value in seen["date_range"]) == ("2026-03-01", "2026-03-31")
+
+
+def test_auto_filing_summary_without_filing_id_falls_back_to_rag_search(monkeypatch):
+    seen: dict[str, Any] = {}
+
+    class FakeConn:
+        def close(self) -> None:
+            return None
+
+    class FakeRAGSearchChain:
+        def __init__(self, *, llm: Any, db_conn: Any):
+            seen["llm"] = llm
+            self.db = db_conn
+
+        def run(self, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+            seen["question"] = question
+            seen["context"] = context
+            return {"answer": "rag fallback", "sources": []}
+
+    def _import_module(name: str):
+        if name == "chains.rag_search":
+            return SimpleNamespace(RAGSearchChain=FakeRAGSearchChain)
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", _import_module)
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda *args, **kwargs: FakeConn())
+    monkeypatch.setattr(chat_api_module, "_classify_intent", lambda _q: "filing_summary")
+    monkeypatch.setattr(
+        chat_api_module,
+        "_build_chat_client_info",
+        lambda: SimpleNamespace(client=object(), provider_label="openai/test"),
+    )
+
+    response = asyncio.run(
+        _request("POST", "/api/chat", json={"question": "Summarize latest filing", "chain": "auto"})
+    )
+
+    assert response.status_code == 200
+    assert response.json()["chain_used"] == "rag_search"
+    assert response.json()["answer"] == "rag fallback"
+    assert seen["question"] == "Summarize latest filing"
+    assert seen["context"] is None
+
+
+def test_fallback_filing_summary_chain_matches_real_signature():
+    chain = chat_api_module._FallbackFilingSummaryChain()
+
+    result = chain.run(42)
+
+    assert "Filing summary for filing 42" in result["answer"]
+
+
+def test_fallback_holdings_analysis_chain_matches_real_signature():
+    chain = chat_api_module._FallbackHoldingsAnalysisChain()
+
+    result = chain.run("Analyze positions", manager_ids=[1], cusips=["037833100"])
+
+    assert "Holdings analysis: Analyze positions" in result["answer"]
+    assert result["sources"] == [{"manager_ids": [1], "cusips": ["037833100"]}]
 
 
 def test_direct_query_endpoint_returns_sql(monkeypatch):
