@@ -346,9 +346,19 @@ def test_direct_filing_summary_endpoint_wires_real_chain_contract(monkeypatch):
             seen["db_conn_type"] = type(db_conn).__name__
             self.db = db_conn
 
-        def run(self, filing_id: int) -> dict[str, Any]:
+        def run(self, filing_id: int):
             seen["filing_id"] = filing_id
-            return {"answer": f"summary for filing {filing_id}", "sources": []}
+            return SimpleNamespace(
+                model_dump=lambda: {
+                    "manager_name": "Elliott",
+                    "filing_date": "2026-03-01",
+                    "total_positions": 10,
+                    "total_aum_estimate": "$1.2B",
+                    "key_positions": [{"issuer": "Apple Inc."}],
+                    "notable_changes": ["Added Apple"],
+                    "risk_flags": ["Crowded position"],
+                }
+            )
 
     def _import_module(name: str):
         if name == "chains.filing_summary":
@@ -366,7 +376,8 @@ def test_direct_filing_summary_endpoint_wires_real_chain_contract(monkeypatch):
     response = asyncio.run(_request("POST", "/api/chat/filing-summary", params={"filing_id": 123}))
 
     assert response.status_code == 200
-    assert response.json()["answer"] == "summary for filing 123"
+    assert "Elliott filing summary" in response.json()["answer"]
+    assert "Top positions: Apple Inc." in response.json()["answer"]
     assert seen["filing_id"] == 123
     assert seen["provider_label"] == "openai/test"
     assert seen["close_calls"] >= 1
@@ -414,12 +425,19 @@ def test_direct_holdings_analysis_endpoint_wires_real_chain_contract(tmp_path, m
             manager_ids: list[int] | None = None,
             cusips: list[str] | None = None,
             date_range=None,
-        ) -> dict[str, Any]:
+        ):
             seen["question"] = question
             seen["manager_ids"] = manager_ids
             seen["cusips"] = cusips
             seen["date_range"] = date_range
-            return {"answer": "holdings analysis", "sources": []}
+            return SimpleNamespace(
+                model_dump=lambda: {
+                    "thesis": "Portfolio remains concentrated in large-cap tech.",
+                    "top_positions": [{"issuer": "Apple Inc."}],
+                    "period_changes": [{"summary": "Increased Apple"}],
+                    "concentration_metrics": {"top10_weight": 0.62},
+                }
+            )
 
     def _import_module(name: str):
         if name == "chains.holdings_analysis":
@@ -451,7 +469,8 @@ def test_direct_holdings_analysis_endpoint_wires_real_chain_contract(tmp_path, m
     )
 
     assert response.status_code == 200
-    assert response.json()["answer"] == "holdings analysis"
+    assert "Portfolio remains concentrated in large-cap tech." in response.json()["answer"]
+    assert "Top positions: Apple Inc." in response.json()["answer"]
     assert seen["question"] == "Analyze positions"
     assert seen["manager_ids"] == [7]
     assert seen["cusips"] is None
@@ -499,6 +518,23 @@ def test_auto_filing_summary_without_filing_id_falls_back_to_rag_search(monkeypa
     assert response.json()["answer"] == "rag fallback"
     assert seen["question"] == "Summarize latest filing"
     assert seen["context"] is None
+
+
+def test_fallback_filing_summary_chain_matches_real_signature():
+    chain = chat_api_module._FallbackFilingSummaryChain()
+
+    result = chain.run(42)
+
+    assert "Filing summary for filing 42" in result["answer"]
+
+
+def test_fallback_holdings_analysis_chain_matches_real_signature():
+    chain = chat_api_module._FallbackHoldingsAnalysisChain()
+
+    result = chain.run("Analyze positions", manager_ids=[1], cusips=["037833100"])
+
+    assert "Holdings analysis: Analyze positions" in result["answer"]
+    assert result["sources"] == [{"manager_ids": [1], "cusips": ["037833100"]}]
 
 
 def test_direct_query_endpoint_returns_sql(monkeypatch):

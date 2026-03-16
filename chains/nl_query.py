@@ -69,6 +69,19 @@ class NLQueryChain:
         self._schema_ddl = self._load_schema_ddl()
         self._known_tables = self._extract_known_tables(self._schema_ddl)
 
+    def _guard_context(self, context: dict[str, Any] | None) -> None:
+        if not context:
+            return
+        for value in context.values():
+            if isinstance(value, str):
+                guard_input(value)
+            elif isinstance(value, dict):
+                self._guard_context(value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        guard_input(item)
+
     def _load_schema_ddl(self) -> str:
         """Load public CREATE TABLE statements and omit internal bookkeeping tables."""
         schema_path = Path(__file__).resolve().parents[1] / "schema.sql"
@@ -231,6 +244,7 @@ class NLQueryChain:
     def run(self, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run the NL-to-SQL pipeline end-to-end."""
         guard_input(question)
+        self._guard_context(context)
         prompt = self._prompt_text(question, context)
         raw_response, trace_url = self._invoke_llm(prompt)
         parsed = self._parse_llm_result(raw_response)

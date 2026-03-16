@@ -576,15 +576,28 @@ def _classify_intent(question: str) -> str:
 
 
 class _FallbackFilingSummaryChain:
-    def run(self, *, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-        filing_id = (context or {}).get("filing_id")
+    def run(self, filing_id: int) -> dict[str, Any]:
         detail = f" for filing {filing_id}" if filing_id else ""
-        return {"answer": f"Filing summary{detail}: {question}", "sources": []}
+        return {"answer": f"Filing summary{detail}", "sources": []}
 
 
 class _FallbackHoldingsAnalysisChain:
-    def run(self, *, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-        return {"answer": f"Holdings analysis: {question}", "sources": context or {}}
+    def run(
+        self,
+        question: str,
+        *,
+        manager_ids: list[int] | None = None,
+        cusips: list[str] | None = None,
+        date_range: tuple[date, date] | None = None,
+    ) -> dict[str, Any]:
+        context: dict[str, Any] = {}
+        if manager_ids:
+            context["manager_ids"] = manager_ids
+        if cusips:
+            context["cusips"] = cusips
+        if date_range is not None:
+            context["date_range"] = [item.isoformat() for item in date_range]
+        return {"answer": f"Holdings analysis: {question}", "sources": [context] if context else []}
 
 
 class _FallbackNLQueryChain:
@@ -657,6 +670,72 @@ def _extract_chain_payload(result: Any) -> tuple[str, list[dict[str, Any]], str 
     sql = getattr(result, "sql", None)
     trace_url = getattr(result, "trace_url", None)
     return answer, sources, sql, trace_url
+
+
+def _format_filing_summary_payload(result: Any) -> dict[str, Any]:
+    payload = result.model_dump() if hasattr(result, "model_dump") else dict(result)
+    manager_name = str(payload.get("manager_name") or "Unknown manager")
+    filing_date = str(payload.get("filing_date") or "n/a")
+    total_positions = payload.get("total_positions")
+    total_aum_estimate = payload.get("total_aum_estimate") or "n/a"
+    lines = [
+        f"{manager_name} filing summary ({filing_date})",
+        f"Total positions: {total_positions}",
+        f"Estimated AUM: {total_aum_estimate}",
+    ]
+    key_positions = payload.get("key_positions") or []
+    if isinstance(key_positions, list) and key_positions:
+        top_names = [
+            str(
+                position.get("name_of_issuer")
+                or position.get("issuer")
+                or position.get("cusip")
+                or ""
+            )
+            for position in key_positions[:5]
+            if isinstance(position, dict)
+        ]
+        top_names = [name for name in top_names if name]
+        if top_names:
+            lines.append("Top positions: " + ", ".join(top_names))
+    notable_changes = payload.get("notable_changes") or []
+    if isinstance(notable_changes, list) and notable_changes:
+        lines.append("Notable changes: " + "; ".join(str(change) for change in notable_changes[:3]))
+    risk_flags = payload.get("risk_flags") or []
+    if isinstance(risk_flags, list) and risk_flags:
+        lines.append("Risk flags: " + "; ".join(str(flag) for flag in risk_flags[:3]))
+    return {"answer": "\n".join(lines), "sources": [], "sql": None, "trace_url": None}
+
+
+def _format_holdings_analysis_payload(result: Any) -> dict[str, Any]:
+    payload = result.model_dump() if hasattr(result, "model_dump") else dict(result)
+    thesis = str(payload.get("thesis") or "Holdings analysis complete.")
+    lines = [thesis]
+    top_positions = payload.get("top_positions") or []
+    if isinstance(top_positions, list) and top_positions:
+        top_names = [
+            str(
+                position.get("name_of_issuer")
+                or position.get("issuer")
+                or position.get("cusip")
+                or ""
+            )
+            for position in top_positions[:5]
+            if isinstance(position, dict)
+        ]
+        top_names = [name for name in top_names if name]
+        if top_names:
+            lines.append("Top positions: " + ", ".join(top_names))
+    period_changes = payload.get("period_changes") or []
+    if isinstance(period_changes, list) and period_changes:
+        lines.append(
+            "Period changes: "
+            + "; ".join(str(change.get("summary") or change) for change in period_changes[:3])
+        )
+    concentration_metrics = payload.get("concentration_metrics") or {}
+    if isinstance(concentration_metrics, dict) and concentration_metrics:
+        lines.append("Concentration metrics: " + json.dumps(concentration_metrics, default=str))
+    return {"answer": "\n".join(lines), "sources": [], "sql": None, "trace_url": None}
 
 
 def _response_id_from_trace_url(trace_url: str | None) -> str:
@@ -760,6 +839,7 @@ async def _run_chain(
                     status_code=400,
                     detail="filing_summary requires context.filing_id",
                 ) from exc
+            result = _format_filing_summary_payload(result)
         elif chain_name == "holdings_analysis":
             result = chain.run(
                 question,
@@ -767,6 +847,7 @@ async def _run_chain(
                 cusips=_normalize_cusips(normalized_context.get("cusips")) or None,
                 date_range=_parse_date_range(normalized_context.get("date_range")),
             )
+            result = _format_holdings_analysis_payload(result)
         elif hasattr(chain, "run"):
             result = chain.run(question=question, context=normalized_context or None)
         elif hasattr(chain, "invoke"):

@@ -52,6 +52,19 @@ class RAGSearchChain:
         self.llm = llm
         self.db = db_conn
 
+    def _guard_context(self, context: dict[str, Any] | None) -> None:
+        if not context:
+            return
+        for value in context.values():
+            if isinstance(value, str):
+                guard_input(value)
+            elif isinstance(value, dict):
+                self._guard_context(value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        guard_input(item)
+
     def _acquire_connection(self):
         if self.db is not None:
             return self.db, False
@@ -398,6 +411,7 @@ class RAGSearchChain:
     def run(self, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run vector retrieval and structured retrieval, then answer with source attribution."""
         guard_input(question)
+        self._guard_context(context)
         entities = self._merge_context(self._entity_extraction(question), context)
         manager_filter = entities["manager_ids"][0] if len(entities["manager_ids"]) == 1 else None
         documents = self._vector_search(question, k=5, manager_id=manager_filter)
