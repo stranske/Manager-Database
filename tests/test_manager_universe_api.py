@@ -12,7 +12,7 @@ from api.chat import app
 
 
 async def _post_universe(payload):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -20,11 +20,11 @@ async def _post_universe(payload):
         ) as client:
             return await client.post("/managers/import/universe", json=payload)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _get_manager_stats():
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -32,11 +32,11 @@ async def _get_manager_stats():
         ) as client:
             return await client.get("/managers/stats")
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _get_managers(params: dict[str, str] | None = None):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -44,7 +44,7 @@ async def _get_managers(params: dict[str, str] | None = None):
         ) as client:
             return await client.get("/managers", params=params)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 def test_universe_import_creates_updates_and_skips_records(tmp_path, monkeypatch):

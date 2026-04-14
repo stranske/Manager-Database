@@ -110,6 +110,10 @@ module = ["scripts.langchain.*"]
 ignore_errors = true
 
 [[tool.mypy.overrides]]
+module = ["tests.*"]
+disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
 module = [
     "semantic_matcher",
     "label_matcher",

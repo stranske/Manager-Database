@@ -14,7 +14,7 @@ from api.chat import app
 
 async def _post_bulk_json(payload: list[dict] | None):
     # Use ASGI transport to avoid spinning up a server for bulk import tests.
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -24,12 +24,12 @@ async def _post_bulk_json(payload: list[dict] | None):
                 return await client.post("/api/managers/bulk")
             return await client.post("/api/managers/bulk", json=payload)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _post_bulk_csv(contents: str):
     # Post raw CSV payloads with the text/csv content type.
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -41,7 +41,7 @@ async def _post_bulk_csv(contents: str):
                 headers={"content-type": "text/csv"},
             )
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 def test_bulk_json_imports_valid_records(tmp_path, monkeypatch):
