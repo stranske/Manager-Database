@@ -19,13 +19,13 @@ async def _request(
     json: dict | None = None,
     headers: dict[str, str] | None = None,
 ):
-    await chat_api_module.app.router.startup()
+    await cast(Any, chat_api_module.app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             return await client.request(method, path, json=json, headers=headers)
     finally:
-        await chat_api_module.app.router.shutdown()
+        await cast(Any, chat_api_module.app.router).shutdown()
 
 
 @pytest.fixture

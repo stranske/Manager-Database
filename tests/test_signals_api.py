@@ -12,7 +12,7 @@ from api.chat import app
 
 
 async def _request(path: str, params: dict[str, Any] | None = None):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -20,7 +20,7 @@ async def _request(path: str, params: dict[str, Any] | None = None):
         ) as client:
             return await client.get(path, params=params)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 def _seed_db(db_path: Path) -> None:

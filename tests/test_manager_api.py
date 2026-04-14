@@ -14,7 +14,7 @@ from api.chat import app
 
 async def _post_manager(payload: dict):
     # Use the ASGI transport to exercise validation without a live server.
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         # Timeout keeps stuck ASGI calls from stalling the test suite.
@@ -23,12 +23,12 @@ async def _post_manager(payload: dict):
         ) as client:
             return await client.post("/managers", json=payload)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _get_managers(params: dict | None = None):
     # Use the ASGI transport to exercise list behavior without a live server.
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -36,11 +36,11 @@ async def _get_managers(params: dict | None = None):
         ) as client:
             return await client.get("/managers", params=params)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _get_manager_stats():
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -48,12 +48,12 @@ async def _get_manager_stats():
         ) as client:
             return await client.get("/managers/stats")
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _get_manager(manager_id: int):
     # Use the ASGI transport to exercise detail behavior without a live server.
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -61,11 +61,11 @@ async def _get_manager(manager_id: int):
         ) as client:
             return await client.get(f"/managers/{manager_id}")
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _patch_manager(manager_id: int, payload: dict):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -73,11 +73,11 @@ async def _patch_manager(manager_id: int, payload: dict):
         ) as client:
             return await client.patch(f"/managers/{manager_id}", json=payload)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _patch_manager_tags(manager_id: int, payload: dict):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -85,11 +85,11 @@ async def _patch_manager_tags(manager_id: int, payload: dict):
         ) as client:
             return await client.patch(f"/managers/{manager_id}/tags", json=payload)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _delete_manager(manager_id: int):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -97,7 +97,7 @@ async def _delete_manager(manager_id: int):
         ) as client:
             return await client.delete(f"/managers/{manager_id}")
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 def test_manager_empty_name_returns_400(tmp_path, monkeypatch):

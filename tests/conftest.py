@@ -4,7 +4,42 @@ This conftest.py automatically skips tests marked as `nightly` unless
 explicitly requested via `-m nightly` or `--run-nightly`.
 """
 
+from contextlib import AsyncExitStack
+from typing import Any, cast
+
 import pytest
+
+from api.chat import app as chat_app
+
+
+def _install_router_lifespan_shim() -> None:
+    """Restore the legacy router startup/shutdown hooks expected by older tests."""
+
+    router = cast(Any, chat_app.router)
+
+    if hasattr(router, "startup") and hasattr(router, "shutdown"):
+        return
+
+    async def _startup() -> None:
+        stack = getattr(router, "_codex_lifespan_stack", None)
+        if stack is not None:
+            return
+        stack = AsyncExitStack()
+        await stack.enter_async_context(chat_app.router.lifespan_context(chat_app))
+        router._codex_lifespan_stack = stack
+
+    async def _shutdown() -> None:
+        stack = getattr(router, "_codex_lifespan_stack", None)
+        if stack is None:
+            return
+        router._codex_lifespan_stack = None
+        await stack.aclose()
+
+    router.startup = _startup
+    router.shutdown = _shutdown
+
+
+_install_router_lifespan_shim()
 
 
 def pytest_configure(config):

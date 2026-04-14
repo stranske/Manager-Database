@@ -12,7 +12,7 @@ from api.chat import app
 
 
 async def _get_data():
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -20,7 +20,7 @@ async def _get_data():
         ) as client:
             return await client.get("/api/data")
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 def _patch_upstream(monkeypatch, text: str) -> None:
