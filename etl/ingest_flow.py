@@ -8,7 +8,7 @@ import os
 import sqlite3
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import boto3
 from prefect import flow, task
@@ -58,6 +58,8 @@ _IDENTIFIER_DEFAULT = {
 
 configure_logging("ingest_flow")
 logger = logging.getLogger(__name__)
+
+Fetcher = Callable[[str, str], Awaitable[list[dict[str, Any]]]]
 
 
 def _is_sqlite(conn: Any) -> bool:
@@ -449,10 +451,11 @@ async def ingest_flow(
     jurisdiction: str,
     identifiers: list[str] | None = None,
     since: str | None = None,
-    fetcher: Callable[[str, str], Awaitable[list[dict[str, Any]]]] | None = None,
+    fetcher: object | None = None,
 ) -> list[dict[str, Any]]:
     identifiers = identifiers if identifiers is not None else _default_identifiers(jurisdiction)
     since = since or "1970-01-01"
+    resolved_fetcher: Fetcher
     if fetcher is None:
 
         async def _default_fetcher(identifier: str, since_date: str) -> list[dict[str, Any]]:
@@ -462,12 +465,16 @@ async def ingest_flow(
                 jurisdiction=jurisdiction,
             )
 
-        fetcher = _default_fetcher
+        resolved_fetcher = _default_fetcher
+    elif callable(fetcher):
+        resolved_fetcher = cast(Fetcher, fetcher)
+    else:
+        raise TypeError("fetcher must be callable")
 
     all_rows: list[dict[str, Any]] = []
     for identifier in identifiers:
         try:
-            rows = await fetcher(identifier, since)
+            rows = await resolved_fetcher(identifier, since)
             all_rows.extend(rows)
             log_outcome(
                 logger,
