@@ -70,7 +70,7 @@ def _reset_chat_rate_limiter():
 
 
 async def _request(method: str, path: str, *, json: dict | None = None, params: dict | None = None):
-    await chat_api_module.app.router.startup()
+    await cast(Any, chat_api_module.app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
         async with httpx.AsyncClient(
@@ -78,7 +78,7 @@ async def _request(method: str, path: str, *, json: dict | None = None, params: 
         ) as client:
             return await client.request(method, path, json=json, params=params)
     finally:
-        await chat_api_module.app.router.shutdown()
+        await cast(Any, chat_api_module.app.router).shutdown()
 
 
 def test_chat_api_returns_503_when_no_provider(monkeypatch):
@@ -580,7 +580,7 @@ def test_chat_api_rate_limiting_11th_request_returns_429(monkeypatch):
     monkeypatch.setattr(chat_api_module, "_run_chain", _stub)
 
     async def _exercise_limit():
-        await chat_api_module.app.router.startup()
+        await cast(Any, chat_api_module.app.router).startup()
         try:
             transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
             async with httpx.AsyncClient(
@@ -598,7 +598,7 @@ def test_chat_api_rate_limiting_11th_request_returns_429(monkeypatch):
                     )
                 return responses
         finally:
-            await chat_api_module.app.router.shutdown()
+            await cast(Any, chat_api_module.app.router).shutdown()
 
     responses = asyncio.run(_exercise_limit())
     assert all(resp.status_code == 200 for resp in responses[:10])

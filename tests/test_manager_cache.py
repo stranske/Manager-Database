@@ -13,7 +13,7 @@ from api.chat import app
 
 
 async def _post_manager(payload: dict):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -21,11 +21,11 @@ async def _post_manager(payload: dict):
         ) as client:
             return await client.post("/managers", json=payload)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 async def _get_managers(params: dict | None = None):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -33,7 +33,7 @@ async def _get_managers(params: dict | None = None):
         ) as client:
             return await client.get("/managers", params=params)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 def _configure_cache(monkeypatch) -> None:

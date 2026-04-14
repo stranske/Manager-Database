@@ -12,7 +12,7 @@ from api.chat import app
 
 
 async def _request(method: str, path: str, **kwargs):
-    await app.router.startup()
+    await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
@@ -20,7 +20,7 @@ async def _request(method: str, path: str, **kwargs):
         ) as client:
             return await client.request(method, path, **kwargs)
     finally:
-        await app.router.shutdown()
+        await cast(Any, app.router).shutdown()
 
 
 def test_alerts_router_is_registered():

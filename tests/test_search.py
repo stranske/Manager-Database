@@ -435,7 +435,7 @@ def test_api_search_filtered_results_are_json_serializable(tmp_path: Path, monke
 async def _http_get(
     path: str, *, params: dict[str, str | int | float | bool | None] | None = None
 ) -> httpx.Response:
-    await chat_api_module.app.router.startup()
+    await cast(Any, chat_api_module.app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
         async with httpx.AsyncClient(
@@ -443,7 +443,7 @@ async def _http_get(
         ) as client:
             return await client.get(path, params=params)
     finally:
-        await chat_api_module.app.router.shutdown()
+        await cast(Any, chat_api_module.app.router).shutdown()
 
 
 def test_api_search_http_endpoint_returns_searchresult_payload(tmp_path: Path, monkeypatch):
