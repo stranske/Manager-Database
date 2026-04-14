@@ -55,7 +55,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=82.0.1"]
 build-backend = "setuptools.build_meta"
 
 # Explicit package discovery for flat layout with multiple top-level packages
