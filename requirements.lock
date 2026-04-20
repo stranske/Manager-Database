@@ -43,7 +43,7 @@ beartype==0.22.9
     #   py-key-value-shared
 beautifulsoup4==4.14.3
     # via manager-database (pyproject.toml)
-black==26.1.0
+black==26.3.1
     # via manager-database (pyproject.toml)
 blinker==1.9.0
     # via streamlit
@@ -94,7 +94,7 @@ colorama==0.4.6
     #   tqdm
 coolname==2.2.0
     # via prefect
-coverage==7.13.4
+coverage==7.13.5
     # via
     #   manager-database (pyproject.toml)
     #   pytest-cov
@@ -254,7 +254,7 @@ markupsafe==3.0.3
     #   mako
 mdurl==0.1.2
     # via markdown-it-py
-mypy==1.19.1
+mypy==1.20.1
     # via manager-database (pyproject.toml)
 mypy-extensions==1.1.0
     # via
@@ -393,14 +393,14 @@ pyjwt==2.10.1
     # via streamlit-authenticator
 pypdfium2==5.6.0
     # via pdfplumber
-pytest==9.0.2
+pytest==9.0.3
     # via
     #   manager-database (pyproject.toml)
     #   pytest-asyncio
     #   pytest-cov
 pytest-asyncio==1.3.0
     # via manager-database (pyproject.toml)
-pytest-cov==7.0.0
+pytest-cov==7.1.0
     # via manager-database (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via
@@ -478,7 +478,7 @@ ruamel-yaml==0.19.1
     # via prefect
 ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
     # via prefect
-ruff==0.15.1
+ruff==0.15.10
     # via manager-database (pyproject.toml)
 s3transfer==0.16.0
     # via boto3
