@@ -421,7 +421,11 @@ def build_chat_clients(
                             model=second_model,
                         )
                     )
-        elif selected_provider == PROVIDER_ANTHROPIC and anthropic_token and chat_anthropic is not None:
+        elif (
+            selected_provider == PROVIDER_ANTHROPIC
+            and anthropic_token
+            and chat_anthropic is not None
+        ):
             with contextlib.suppress(Exception):
                 clients.append(
                     ClientInfo(
@@ -460,7 +464,9 @@ def build_chat_clients(
         if any(
             (
                 slot.provider == PROVIDER_OPENAI and openai_token,
-                slot.provider == PROVIDER_ANTHROPIC and anthropic_token and chat_anthropic is not None,
+                slot.provider == PROVIDER_ANTHROPIC
+                and anthropic_token
+                and chat_anthropic is not None,
                 slot.provider == PROVIDER_GITHUB and github_token,
             )
         ):
