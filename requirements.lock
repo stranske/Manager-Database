@@ -27,8 +27,6 @@ apprise==1.9.6
     # via prefect
 asgi-lifespan==2.1.0
     # via prefect
-async-timeout==5.0.1 ; python_full_version < '3.11.3'
-    # via redis
 asyncpg==0.31.0
     # via prefect
 attrs==25.4.0
@@ -238,7 +236,7 @@ langsmith==0.7.30
     # via
     #   manager-database (pyproject.toml)
     #   langchain-core
-librt==0.7.7 ; platform_python_implementation != 'PyPy'
+librt==0.9.0 ; platform_python_implementation != 'PyPy'
     # via mypy
 lupa==2.6
     # via fakeredis
@@ -417,7 +415,7 @@ python-json-logger==4.0.0
     #   pydocket
 python-slugify==8.0.4
     # via prefect
-pytokens==0.3.0
+pytokens==0.4.1
     # via black
 pytz==2025.2
     # via
@@ -529,8 +527,6 @@ toml==0.10.2
     # via
     #   prefect
     #   streamlit
-tomli==2.4.1 ; python_full_version < '3.12'
-    # via coverage
 tornado==6.5.4
     # via streamlit
 tqdm==4.67.3
