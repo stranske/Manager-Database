@@ -1,7 +1,7 @@
 import datetime as dt
 import importlib.util
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any
 
 import pytest
 
@@ -22,7 +22,7 @@ def _load_verify_memory_acceptance():
 
 
 verify_memory_acceptance = _load_verify_memory_acceptance()
-MemorySample: TypeAlias = Any
+type MemorySample = Any
 
 
 def _write_csv(path: Path, rows: list[tuple[str, int, int, int]]) -> None:

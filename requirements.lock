@@ -529,7 +529,7 @@ toml==0.10.2
     # via
     #   prefect
     #   streamlit
-tomli==2.4.1 ; python_full_version <= '3.11'
+tomli==2.4.1 ; python_full_version < '3.12'
     # via coverage
 tornado==6.5.4
     # via streamlit
