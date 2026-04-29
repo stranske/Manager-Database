@@ -88,9 +88,7 @@ def test_schema_sql_bootstraps_clean_postgres(pg_url, psycopg_module):
         _apply_schema_sql(conn)
 
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT tablename FROM pg_tables WHERE schemaname = current_schema()"
-            )
+            cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()")
             tables = {row[0] for row in cur.fetchall()}
         missing_tables = EXPECTED_TABLES - tables
         assert not missing_tables, f"schema.sql did not create expected tables: {missing_tables}"
@@ -109,13 +107,9 @@ def test_schema_sql_creates_matviews_before_their_indexes(pg_url, psycopg_module
         _apply_schema_sql(conn)
 
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT matviewname FROM pg_matviews WHERE schemaname = current_schema()"
-            )
+            cur.execute("SELECT matviewname FROM pg_matviews WHERE schemaname = current_schema()")
             matviews = {row[0] for row in cur.fetchall()}
-            cur.execute(
-                "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
-            )
+            cur.execute("SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()")
             indexes = {row[0] for row in cur.fetchall()}
 
         missing_matviews = EXPECTED_MATVIEWS - matviews
