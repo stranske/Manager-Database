@@ -36,6 +36,23 @@ services:
       - db
       - minio
 
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    volumes:
+      - .:/app
+    environment:
+      DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - minio
+
   ui:
     build:
       context: .
@@ -48,6 +65,7 @@ services:
       - "8501:8501"
     depends_on:
       - db
+      - api
 
 volumes:
   pgdata:
