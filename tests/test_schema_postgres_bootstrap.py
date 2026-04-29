@@ -54,6 +54,31 @@ EXPECTED_MATVIEWS = {"monthly_usage", "mv_daily_report"}
 EXPECTED_INDEXES = {"mv_daily_report_idx"}
 
 
+def test_mv_daily_report_idx_defined_after_matview_in_sql():
+    """Text-level ordering guard: mv_daily_report_idx must appear after the matview DDL.
+
+    Runs without a live Postgres instance so it catches regressions in every CI path,
+    not just when MGRDB_PG_TEST_URL is set.
+    """
+    sql = SCHEMA_SQL.read_text()
+    matview_pos = sql.find("CREATE MATERIALIZED VIEW mv_daily_report")
+    index_pos = sql.find("CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx")
+
+    assert matview_pos != -1, (
+        "schema.sql does not contain 'CREATE MATERIALIZED VIEW mv_daily_report' — "
+        "matview definition is missing or was renamed"
+    )
+    assert index_pos != -1, (
+        "schema.sql does not contain 'CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx' — "
+        "index definition is missing or was renamed"
+    )
+    assert matview_pos < index_pos, (
+        f"schema.sql ordering error: mv_daily_report_idx (offset {index_pos}) appears before "
+        f"CREATE MATERIALIZED VIEW mv_daily_report (offset {matview_pos}). "
+        "Move the index creation to after the matview DDL."
+    )
+
+
 @pytest.fixture(scope="module")
 def pg_url() -> str:
     url = os.environ.get("MGRDB_PG_TEST_URL")
