@@ -340,9 +340,6 @@ CREATE TABLE IF NOT EXISTS contrarian_signals (
 CREATE INDEX IF NOT EXISTS idx_contrarian_manager ON contrarian_signals(manager_id);
 CREATE INDEX IF NOT EXISTS idx_contrarian_date ON contrarian_signals(report_date DESC);
 
-CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx
-    ON mv_daily_report (report_date, manager_id, cusip, delta_type);
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -371,3 +368,6 @@ BEGIN
   END IF;
 END
 $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx
+    ON mv_daily_report (report_date, manager_id, cusip, delta_type);

@@ -91,6 +91,41 @@ Validation failures return HTTP 400 with field-level error messages:
 }
 ```
 
+## Schema bootstrap smoke
+
+`schema.sql` is mounted into Postgres at compose-up via
+`/docker-entrypoint-initdb.d/schema.sql`. To verify it bootstraps a clean
+database end-to-end (catching object-ordering bugs that the SQLite-side
+Alembic tests cannot see), run these commands from a fresh checkout:
+
+```bash
+# 1. Create your local environment file (only needed once)
+cp .env.example .env
+
+# 2. Start the Postgres container (schema.sql is applied automatically on first start)
+docker compose up -d db
+
+# 3. Point the smoke test at the local container.
+#    The default password from .env.example is "postgres"; adjust if you changed it.
+export MGRDB_PG_TEST_URL=postgresql://postgres:postgres@localhost:5432/postgres
+
+# 4. Run the bootstrap smoke
+pytest tests/test_schema_postgres_bootstrap.py
+```
+
+If you customised `POSTGRES_PASSWORD` in your `.env`, substitute it in the URL:
+
+```bash
+export MGRDB_PG_TEST_URL=postgresql://postgres:<your-password>@localhost:5432/postgres
+```
+
+The smoke drops and recreates the `public` schema before each test, applies
+`schema.sql` statement-by-statement, and asserts that the API/ETL-critical
+tables, materialized views, and indexes (notably `mv_daily_report` and
+`mv_daily_report_idx`) are all present. If any statement fails the test
+reports the exact statement and error. Tests skip cleanly when
+`MGRDB_PG_TEST_URL` is unset, so the SQLite-only CI path is unaffected.
+
 ## Further reading
 
 - SEC EDGAR API docs[^1]
