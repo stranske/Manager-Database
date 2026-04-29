@@ -8,8 +8,23 @@ This repo provides a minimal stack to begin experimenting with the Manager-Intel
    includes a `DB_URL` pointing at the bundled Postgres container. Set
    `UI_USERNAME` and `UI_PASSWORD` to enable Streamlit UI authentication (if
    unset, the UI runs without authentication for local development).
-2. Run `docker compose up -d` to start Postgres, MinIO and a placeholder ETL container.
-3. Run `pytest -q` to verify the environment.
+2. Start the local product stack:
+   ```bash
+   docker compose up -d db minio api ui
+   ```
+   This brings up Postgres, MinIO, the FastAPI service (`api.chat:app` on
+   port 8000), and the Streamlit UI (port 8501) in one step. The placeholder
+   ETL container can be started alongside with `docker compose up -d etl` if
+   you also want to exercise the ingest path.
+3. Seed the baseline manager records and run the readiness smoke:
+   ```bash
+   python scripts/seed_managers.py
+   python scripts/readiness_smoke.py
+   ```
+   The smoke verifies `/health/detailed`, `/managers`, and `/chat` against
+   the locally seeded data and exits non-zero if any dependency is
+   unreachable. Pass `--base-url` to point it at a non-default API URL.
+4. Run `pytest -q` to verify the rest of the test suite.
 
 The `schema.sql` file defines an `api_usage` table used for cost telemetry. Apply it to the Postgres container once it is running:
 
@@ -49,7 +64,10 @@ Feel free to open issues or pull requests as you iterate.
    streamlit run ui/upload.py
    ```
 
-6. Start the chat API:
+6. The chat API runs as the `api` compose service started in step 2 of the
+   Quick start. To run it directly against an out-of-compose environment
+   (for example with `--reload` for fast iteration), you can still launch
+   it manually:
    ```bash
    uvicorn api.chat:app --reload
    ```
