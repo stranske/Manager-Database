@@ -59,7 +59,7 @@ def _ok_chat() -> httpx.Response:
     return httpx.Response(
         200,
         json={
-            "answer": "No documents found.",
+            "answer": "Context: Readiness smoke deterministic fact: manager universe bootstrap is healthy.",
             "latency_ms": 0,
             "chain_used": "legacy_search",
             "sources": [],
@@ -130,7 +130,7 @@ def test_chat_missing_answer_raises():
 
 
 def test_main_exit_codes(monkeypatch, capsys):
-    def passing_run(base_url: str, timeout_s: float) -> int:
+    def passing_run(base_url: str, timeout_s: float, clean_stack: bool) -> int:
         return 0
 
     monkeypatch.setattr(readiness_smoke, "run", passing_run)
@@ -138,7 +138,7 @@ def test_main_exit_codes(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "readiness smoke OK" in out
 
-    def failing_run(base_url: str, timeout_s: float) -> int:
+    def failing_run(base_url: str, timeout_s: float, clean_stack: bool) -> int:
         raise readiness_smoke.ReadinessError("simulated failure")
 
     monkeypatch.setattr(readiness_smoke, "run", failing_run)
@@ -149,10 +149,46 @@ def test_main_exit_codes(monkeypatch, capsys):
 
 
 def test_main_handles_transport_error(monkeypatch, capsys):
-    def raise_transport(base_url: str, timeout_s: float) -> int:
+    def raise_transport(base_url: str, timeout_s: float, clean_stack: bool) -> int:
         raise httpx.ConnectError("refused")
 
     monkeypatch.setattr(readiness_smoke, "run", raise_transport)
     assert readiness_smoke.main([]) == 1
     err = capsys.readouterr().err
     assert "transport" in err
+
+
+def test_run_invokes_seed_and_optional_clean_stack(monkeypatch):
+    calls: list[str] = []
+    original_client = httpx.Client
+
+    def fake_clean_stack() -> None:
+        calls.append("clean")
+
+    def fake_seed() -> None:
+        calls.append("seed")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health/detailed":
+            return _ok_health()
+        if request.url.path == "/managers":
+            return _ok_managers()
+        if request.url.path == "/chat":
+            return _ok_chat()
+        raise AssertionError(f"unexpected path {request.url.path!r}")
+
+    monkeypatch.setattr(readiness_smoke, "bring_up_clean_stack", fake_clean_stack)
+    monkeypatch.setattr(readiness_smoke, "seed_local_readiness_data", fake_seed)
+    monkeypatch.setattr(
+        readiness_smoke.httpx,
+        "Client",
+        lambda *args, **kwargs: original_client(
+            transport=httpx.MockTransport(handler), base_url="http://test"
+        ),
+    )
+
+    assert readiness_smoke.run("http://test", 1.0, clean_stack=False) == 0
+    assert calls == ["seed"]
+    calls.clear()
+    assert readiness_smoke.run("http://test", 1.0, clean_stack=True) == 0
+    assert calls == ["clean", "seed"]
