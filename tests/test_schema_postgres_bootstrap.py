@@ -54,6 +54,37 @@ EXPECTED_MATVIEWS = {"monthly_usage", "mv_daily_report"}
 EXPECTED_INDEXES = {"mv_daily_report_idx"}
 
 
+def test_split_sql_statements_handles_dollar_quotes():
+    """_split_sql_statements must keep a DO $$...$$; block as a single statement."""
+    sql = (
+        "CREATE TABLE t (id int);\n"
+        "DO $$\n"
+        "BEGIN\n"
+        "  EXECUTE $mv$CREATE VIEW v AS SELECT 1$mv$;\n"
+        "END\n"
+        "$$;\n"
+        "CREATE INDEX i ON t (id);\n"
+    )
+    stmts = _split_sql_statements(sql)
+    assert len(stmts) == 3, f"expected 3 statements, got {len(stmts)}: {stmts}"
+    assert any("DO" in s for s in stmts), "DO block missing from split result"
+    assert any("CREATE TABLE" in s for s in stmts)
+    assert any("CREATE INDEX" in s for s in stmts)
+
+
+def test_split_sql_statements_parses_schema_sql():
+    """schema.sql should split into non-empty statements; the DO blocks must stay whole."""
+    sql = SCHEMA_SQL.read_text()
+    stmts = _split_sql_statements(sql)
+    assert len(stmts) >= 30, f"expected ≥30 statements in schema.sql, got {len(stmts)}"
+    for i, stmt in enumerate(stmts, 1):
+        assert stmt.strip(), f"statement {i} is empty after split"
+    do_stmts = [s for s in stmts if s.lstrip().upper().startswith("DO")]
+    assert (
+        len(do_stmts) == 2
+    ), f"expected exactly 2 DO blocks (monthly_usage + mv_daily_report), got {len(do_stmts)}"
+
+
 def test_mv_daily_report_idx_defined_after_matview_in_sql():
     """Text-level ordering guard: mv_daily_report_idx must appear after the matview DDL.
 
@@ -93,6 +124,67 @@ def psycopg_module():
     return psycopg
 
 
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split SQL text into individual statements, correctly handling dollar-quoted blocks.
+
+    PostgreSQL dollar-quoting ($$...$$, $tag$...$tag$) can contain semicolons that must
+    not be treated as statement terminators.  This parser tracks the outermost dollar-quote
+    tag so DO-blocks and EXECUTE strings are kept as a single statement.
+    """
+    stmts: list[str] = []
+    buf: list[str] = []
+    in_dollar_quote = False
+    dollar_tag = ""
+    i = 0
+    n = len(sql)
+
+    while i < n:
+        ch = sql[i]
+        if not in_dollar_quote:
+            if ch == "-" and i + 1 < n and sql[i + 1] == "-":
+                # Line comment — skip to end of line (not added to buf)
+                while i < n and sql[i] != "\n":
+                    i += 1
+                continue
+            if ch == "$":
+                # Scan forward to find the closing $, forming a tag like $$ or $mv$
+                j = i + 1
+                while j < n and sql[j] != "$":
+                    j += 1
+                if j < n:
+                    tag = sql[i : j + 1]
+                    in_dollar_quote = True
+                    dollar_tag = tag
+                    buf.append(tag)
+                    i = j + 1
+                    continue
+            if ch == ";":
+                buf.append(";")
+                stmt = "".join(buf).strip()
+                if stmt:
+                    stmts.append(stmt)
+                buf = []
+                i += 1
+                continue
+        else:
+            # Inside dollar-quote: only the matching closing tag ends it
+            if sql[i : i + len(dollar_tag)] == dollar_tag:
+                buf.append(dollar_tag)
+                i += len(dollar_tag)
+                in_dollar_quote = False
+                dollar_tag = ""
+                continue
+
+        buf.append(ch)
+        i += 1
+
+    remaining = "".join(buf).strip()
+    if remaining:
+        stmts.append(remaining)
+
+    return stmts
+
+
 def _reset_public_schema(conn) -> None:
     """Drop and recreate the public schema so schema.sql runs against a clean slate."""
     with conn.cursor() as cur:
@@ -103,22 +195,26 @@ def _reset_public_schema(conn) -> None:
 
 
 def _apply_schema_sql(conn) -> None:
-    """Apply the canonical schema.sql, surfacing the exact failing statement on error."""
+    """Apply schema.sql one statement at a time; report the exact failing statement."""
     sql = SCHEMA_SQL.read_text()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(sql)
-        conn.commit()
-    except Exception as exc:
-        conn.rollback()
-        pytest.fail(
-            f"schema.sql bootstrap failed: {type(exc).__name__}: {exc}\n"
-            f"(this almost always indicates an object-ordering problem in schema.sql)"
-        )
+    stmts = _split_sql_statements(sql)
+    for idx, stmt in enumerate(stmts, 1):
+        try:
+            with conn.cursor() as cur:
+                cur.execute(stmt)
+        except Exception as exc:
+            conn.rollback()
+            preview = stmt if len(stmt) <= 400 else stmt[:400] + "..."
+            pytest.fail(
+                f"schema.sql failed at statement {idx}/{len(stmts)}:\n"
+                f"  {type(exc).__name__}: {exc}\n"
+                f"Statement:\n{preview}"
+            )
+    conn.commit()
 
 
 def test_schema_sql_bootstraps_clean_postgres(pg_url, psycopg_module):
-    """schema.sql must apply end-to-end to a freshly created public schema."""
+    """schema.sql must apply end-to-end and create all API/ETL-critical tables and matviews."""
     with psycopg_module.connect(pg_url, autocommit=False) as conn:
         _reset_public_schema(conn)
         _apply_schema_sql(conn)
@@ -126,8 +222,19 @@ def test_schema_sql_bootstraps_clean_postgres(pg_url, psycopg_module):
         with conn.cursor() as cur:
             cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()")
             tables = {row[0] for row in cur.fetchall()}
+            cur.execute("SELECT matviewname FROM pg_matviews WHERE schemaname = current_schema()")
+            matviews = {row[0] for row in cur.fetchall()}
+
         missing_tables = EXPECTED_TABLES - tables
-        assert not missing_tables, f"schema.sql did not create expected tables: {missing_tables}"
+        assert not missing_tables, (
+            f"schema.sql did not create expected tables: {missing_tables!r}\n"
+            f"tables present: {sorted(tables)}"
+        )
+        missing_matviews = EXPECTED_MATVIEWS - matviews
+        assert not missing_matviews, (
+            f"schema.sql did not create expected matviews: {missing_matviews!r}\n"
+            f"matviews present: {sorted(matviews)}"
+        )
 
 
 def test_schema_sql_creates_matviews_before_their_indexes(pg_url, psycopg_module):
