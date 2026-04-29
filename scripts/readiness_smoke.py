@@ -32,9 +32,7 @@ def check_health(client: httpx.Client) -> dict[str, Any]:
     """Verify /health/detailed reports app/database/minio healthy."""
     resp = client.get("/health/detailed")
     if resp.status_code != 200:
-        raise ReadinessError(
-            f"/health/detailed returned {resp.status_code}: {resp.text[:300]}"
-        )
+        raise ReadinessError(f"/health/detailed returned {resp.status_code}: {resp.text[:300]}")
     body = resp.json()
     if not body.get("healthy"):
         raise ReadinessError(f"/health/detailed reports unhealthy: {body}")
