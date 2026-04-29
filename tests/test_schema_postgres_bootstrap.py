@@ -26,18 +26,29 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_SQL = ROOT / "schema.sql"
 
 # API/ETL-critical tables that downstream services (api/, etl/, alerts/, dashboard/,
-# chains/) all assume exist after bootstrap. This list is intentionally narrow —
-# the SQLite-side test_schema.py owns the broad "every canonical table" check.
+# chains/) all assume exist after bootstrap. Grouped by category:
+#   core:     managers, filings, holdings, daily_diffs, api_usage, documents
+#   alerts:   alert_rules, alert_history
+#   signals:  conviction_scores, crowded_trades, contrarian_signals
+#   activism: activism_filings, activism_events
 EXPECTED_TABLES = {
+    # core
     "managers",
     "filings",
     "holdings",
     "daily_diffs",
     "api_usage",
     "documents",
+    # alerts
     "alert_rules",
     "alert_history",
+    # signals / computed
     "conviction_scores",
+    "crowded_trades",
+    "contrarian_signals",
+    # activism
+    "activism_filings",
+    "activism_events",
 }
 EXPECTED_MATVIEWS = {"monthly_usage", "mv_daily_report"}
 EXPECTED_INDEXES = {"mv_daily_report_idx"}
