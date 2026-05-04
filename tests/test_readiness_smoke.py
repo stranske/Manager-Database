@@ -314,3 +314,23 @@ def test_run_waits_for_api_health_before_in_compose_seed(monkeypatch):
 
     assert readiness_smoke.run("http://test", "http://ui", 1.0, True, "compose.yml") == 0
     assert calls[:4] == ["clean:compose.yml", "health", "health", "seed:compose.yml:True"]
+
+
+def test_ensure_compose_services_running_passes(monkeypatch):
+    monkeypatch.setattr(
+        readiness_smoke,
+        "_run_cmd_capture",
+        lambda cmd, cwd=None, env=None: "db\nminio\napi\nui\n",
+    )
+    readiness_smoke.ensure_compose_services_running("compose.yml")
+
+
+def test_ensure_compose_services_running_raises_for_missing_service(monkeypatch):
+    monkeypatch.setattr(
+        readiness_smoke,
+        "_run_cmd_capture",
+        lambda cmd, cwd=None, env=None: "db\nminio\napi\n",
+    )
+    with pytest.raises(readiness_smoke.ReadinessError) as info:
+        readiness_smoke.ensure_compose_services_running("compose.yml")
+    assert "ui" in str(info.value)

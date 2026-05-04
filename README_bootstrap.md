@@ -67,12 +67,7 @@ Feel free to open issues or pull requests as you iterate.
    ```
 
 6. The chat API runs as the `api` compose service started in step 2 of the
-   Quick start. To run it directly against an out-of-compose environment
-   (for example with `--reload` for fast iteration), you can still launch
-   it manually:
-   ```bash
-   uvicorn api.chat:app --reload
-   ```
+   Quick start.
 
 ### API examples
 

@@ -64,6 +64,50 @@ def _run_cmd(cmd: list[str], cwd: str | None = None, env: dict[str, str] | None 
         raise ReadinessError(f"command failed ({exc.returncode}): {joined}") from exc
 
 
+def _run_cmd_capture(
+    cmd: list[str], cwd: str | None = None, env: dict[str, str] | None = None
+) -> str:
+    try:
+        completed = subprocess.run(
+            cmd,
+            check=True,
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout
+    except subprocess.CalledProcessError as exc:
+        joined = " ".join(cmd)
+        stderr = (exc.stderr or "").strip()
+        detail = f": {stderr}" if stderr else ""
+        raise ReadinessError(f"command failed ({exc.returncode}): {joined}{detail}") from exc
+
+
+def ensure_compose_services_running(compose_file: str = "docker-compose.yml") -> None:
+    """Verify compose reports the required local stack services as running."""
+    output = _run_cmd_capture(
+        [
+            "docker",
+            "compose",
+            "-f",
+            compose_file,
+            "ps",
+            "--services",
+            "--status",
+            "running",
+        ]
+    )
+    running = {line.strip() for line in output.splitlines() if line.strip()}
+    missing = [svc for svc in DEFAULT_COMPOSE_SERVICES if svc not in running]
+    if missing:
+        raise ReadinessError(
+            "compose did not report required running services: "
+            + ", ".join(missing)
+            + f" (running={sorted(running)})"
+        )
+
+
 def bring_up_clean_stack(compose_file: str = "docker-compose.yml") -> None:
     """Reset compose state and start the local readiness services."""
     _run_cmd(["docker", "compose", "-f", compose_file, "down", "-v"])
@@ -78,6 +122,7 @@ def bring_up_clean_stack(compose_file: str = "docker-compose.yml") -> None:
             *DEFAULT_COMPOSE_SERVICES,
         ]
     )
+    ensure_compose_services_running(compose_file)
 
 
 def seed_local_readiness_data(
