@@ -49,7 +49,7 @@ def _ok_managers() -> httpx.Response:
                 }
             ],
             "total": 1,
-            "limit": 1,
+            "limit": readiness_smoke.DEFAULT_MANAGER_PAGE_SIZE,
             "offset": 0,
         },
     )
@@ -172,7 +172,7 @@ def test_managers_requires_expected_seeded_name():
             json={
                 "items": [{"manager_id": 99, "name": "Unexpected Manager"}],
                 "total": 1,
-                "limit": 100,
+                "limit": readiness_smoke.DEFAULT_MANAGER_PAGE_SIZE,
                 "offset": 0,
             },
         )
@@ -182,17 +182,49 @@ def test_managers_requires_expected_seeded_name():
             readiness_smoke.check_managers(client)
 
 
+def test_managers_pages_until_expected_seeded_name():
+    requests: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(dict(request.url.params))
+        if request.url.params["offset"] == "0":
+            return httpx.Response(
+                200,
+                json={
+                    "items": [{"manager_id": i, "name": f"Manager {i}"} for i in range(100)],
+                    "total": 101,
+                    "limit": 100,
+                    "offset": 0,
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "items": [{"manager_id": 101, "name": readiness_smoke.EXPECTED_MANAGER_NAME}],
+                "total": 101,
+                "limit": 100,
+                "offset": 100,
+            },
+        )
+
+    with _client(handler) as client:
+        assert readiness_smoke.check_managers(client)["offset"] == 100
+    assert [params["offset"] for params in requests] == ["0", "100"]
+
+
 def test_main_exit_codes(monkeypatch, capsys):
     def passing_run(
         base_url: str,
         ui_url: str,
         timeout_s: float,
-        clean_stack: bool,
+        start_stack: bool,
+        reset_volumes: bool,
         compose_file: str,
     ) -> int:
         assert base_url == "http://test"
         assert ui_url == readiness_smoke.DEFAULT_UI_BASE
-        assert clean_stack is True
+        assert start_stack is True
+        assert reset_volumes is False
         assert compose_file == "docker-compose.yml"
         return 0
 
@@ -205,7 +237,8 @@ def test_main_exit_codes(monkeypatch, capsys):
         base_url: str,
         ui_url: str,
         timeout_s: float,
-        clean_stack: bool,
+        start_stack: bool,
+        reset_volumes: bool,
         compose_file: str,
     ) -> int:
         raise readiness_smoke.ReadinessError("simulated failure")
@@ -222,7 +255,8 @@ def test_main_handles_transport_error(monkeypatch, capsys):
         base_url: str,
         ui_url: str,
         timeout_s: float,
-        clean_stack: bool,
+        start_stack: bool,
+        reset_volumes: bool,
         compose_file: str,
     ) -> int:
         raise httpx.ConnectError("refused")
@@ -233,12 +267,12 @@ def test_main_handles_transport_error(monkeypatch, capsys):
     assert "transport" in err
 
 
-def test_run_invokes_compose_seed_and_clean_stack_by_default(monkeypatch):
+def test_run_invokes_compose_seed_and_stack_start_by_default(monkeypatch):
     calls: list[str] = []
     original_client = httpx.Client
 
-    def fake_clean_stack(compose_file: str) -> None:
-        calls.append(f"clean:{compose_file}")
+    def fake_stack(compose_file: str, *, reset_volumes: bool = False) -> None:
+        calls.append(f"stack:{compose_file}:{reset_volumes}")
 
     def fake_seed(compose_file: str, *, in_compose: bool = False) -> None:
         calls.append(f"seed:{compose_file}:{in_compose}")
@@ -255,7 +289,7 @@ def test_run_invokes_compose_seed_and_clean_stack_by_default(monkeypatch):
             return _ok_chat()
         raise AssertionError(f"unexpected path {request.url.path!r}")
 
-    monkeypatch.setattr(readiness_smoke, "bring_up_clean_stack", fake_clean_stack)
+    monkeypatch.setattr(readiness_smoke, "bring_up_stack", fake_stack)
     monkeypatch.setattr(readiness_smoke, "seed_local_readiness_data", fake_seed)
     monkeypatch.setattr(readiness_smoke, "check_ui", fake_check_ui)
     monkeypatch.setattr(
@@ -266,10 +300,13 @@ def test_run_invokes_compose_seed_and_clean_stack_by_default(monkeypatch):
         ),
     )
 
-    assert readiness_smoke.run("http://test", "http://ui", 1.0, True, "compose.yml") == 0
-    assert calls == ["clean:compose.yml", "seed:compose.yml:True", "ui:http://ui:1.0"]
+    assert readiness_smoke.run("http://test", "http://ui", 1.0, True, False, "compose.yml") == 0
+    assert calls == ["stack:compose.yml:False", "seed:compose.yml:True", "ui:http://ui:1.0"]
     calls.clear()
-    assert readiness_smoke.run("http://test", "http://ui", 1.0, False, "compose.yml") == 0
+    assert readiness_smoke.run("http://test", "http://ui", 1.0, True, True, "compose.yml") == 0
+    assert calls == ["stack:compose.yml:True", "seed:compose.yml:True", "ui:http://ui:1.0"]
+    calls.clear()
+    assert readiness_smoke.run("http://test", "http://ui", 1.0, False, False, "compose.yml") == 0
     assert calls == ["seed:compose.yml:False", "ui:http://ui:1.0"]
 
 
@@ -280,8 +317,10 @@ def test_run_waits_for_api_health_before_in_compose_seed(monkeypatch):
 
     monkeypatch.setattr(
         readiness_smoke,
-        "bring_up_clean_stack",
-        lambda compose_file: calls.append(f"clean:{compose_file}"),
+        "bring_up_stack",
+        lambda compose_file, *, reset_volumes=False: calls.append(
+            f"stack:{compose_file}:{reset_volumes}"
+        ),
     )
     monkeypatch.setattr(
         readiness_smoke,
@@ -312,5 +351,5 @@ def test_run_waits_for_api_health_before_in_compose_seed(monkeypatch):
         ),
     )
 
-    assert readiness_smoke.run("http://test", "http://ui", 1.0, True, "compose.yml") == 0
-    assert calls[:4] == ["clean:compose.yml", "health", "health", "seed:compose.yml:True"]
+    assert readiness_smoke.run("http://test", "http://ui", 1.0, True, False, "compose.yml") == 0
+    assert calls[:4] == ["stack:compose.yml:False", "health", "health", "seed:compose.yml:True"]

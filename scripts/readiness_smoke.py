@@ -4,7 +4,7 @@ Hits the FastAPI surface that the docker-compose stack exposes (default
 http://localhost:8000), the Streamlit UI (default http://localhost:8501),
 and verifies that the database, object storage, manager API, and
 chat/research path are all reachable. Designed to run without external
-provider credentials so it can be invoked as the single clean-stack
+provider credentials so it can be invoked as a one-command local
 validation step.
 
 Exit codes:
@@ -26,8 +26,9 @@ import httpx
 
 DEFAULT_API_BASE = "http://localhost:8000"
 DEFAULT_UI_BASE = "http://localhost:8501"
-DEFAULT_TIMEOUT_S = 10.0
+DEFAULT_TIMEOUT_S = 150.0
 DEFAULT_COMPOSE_SERVICES = ("db", "minio", "api", "ui")
+DEFAULT_MANAGER_PAGE_SIZE = 100
 DEFAULT_CHAT_QUERY = "readiness smoke deterministic fact"
 EXPECTED_CHAT_SNIPPET = "Readiness smoke deterministic fact"
 EXPECTED_MANAGER_NAME = "Elliott Investment Management L.P."
@@ -64,9 +65,12 @@ def _run_cmd(cmd: list[str], cwd: str | None = None, env: dict[str, str] | None 
         raise ReadinessError(f"command failed ({exc.returncode}): {joined}") from exc
 
 
-def bring_up_clean_stack(compose_file: str = "docker-compose.yml") -> None:
-    """Reset compose state and start the local readiness services."""
-    _run_cmd(["docker", "compose", "-f", compose_file, "down", "-v"])
+def bring_up_stack(
+    compose_file: str = "docker-compose.yml", *, reset_volumes: bool = False
+) -> None:
+    """Start the local readiness services, optionally resetting compose state first."""
+    if reset_volumes:
+        _run_cmd(["docker", "compose", "-f", compose_file, "down", "-v"])
     _run_cmd(
         [
             "docker",
@@ -78,6 +82,11 @@ def bring_up_clean_stack(compose_file: str = "docker-compose.yml") -> None:
             *DEFAULT_COMPOSE_SERVICES,
         ]
     )
+
+
+def bring_up_clean_stack(compose_file: str = "docker-compose.yml") -> None:
+    """Reset compose state and start the local readiness services."""
+    bring_up_stack(compose_file, reset_volumes=True)
 
 
 def seed_local_readiness_data(
@@ -127,22 +136,40 @@ def check_health(client: httpx.Client) -> dict[str, Any]:
 
 def check_managers(client: httpx.Client) -> dict[str, Any]:
     """Verify the manager API returns deterministic seeded records."""
-    resp = client.get("/managers", params={"limit": 100, "offset": 0})
-    if resp.status_code != 200:
-        raise ReadinessError(f"/managers returned {resp.status_code}: {resp.text[:300]}")
-    body = resp.json()
-    items = body.get("items") if isinstance(body, dict) else None
-    if not items:
-        raise ReadinessError(
-            "/managers returned no records — run `python scripts/seed_managers.py` "
-            "to seed the baseline managers before invoking the smoke."
+    offset = 0
+    seen = 0
+    last_body: dict[str, Any] | None = None
+    while True:
+        resp = client.get(
+            "/managers",
+            params={"limit": DEFAULT_MANAGER_PAGE_SIZE, "offset": offset},
         )
-    manager_names = {str(item.get("name", "")) for item in items if isinstance(item, dict)}
-    if EXPECTED_MANAGER_NAME not in manager_names:
-        raise ReadinessError(
-            f"/managers response missing expected seeded manager {EXPECTED_MANAGER_NAME!r}"
-        )
-    return body
+        if resp.status_code != 200:
+            raise ReadinessError(f"/managers returned {resp.status_code}: {resp.text[:300]}")
+        body = resp.json()
+        last_body = body
+        items = body.get("items") if isinstance(body, dict) else None
+        if not items:
+            if seen == 0:
+                raise ReadinessError(
+                    "/managers returned no records — run `python scripts/seed_managers.py` "
+                    "to seed the baseline managers before invoking the smoke."
+                )
+            break
+        manager_names = {str(item.get("name", "")) for item in items if isinstance(item, dict)}
+        if EXPECTED_MANAGER_NAME in manager_names:
+            return body
+        seen += len(items)
+        total = body.get("total")
+        if isinstance(total, int) and seen >= total:
+            break
+        if len(items) < DEFAULT_MANAGER_PAGE_SIZE:
+            break
+        offset += DEFAULT_MANAGER_PAGE_SIZE
+    raise ReadinessError(
+        f"/managers response missing expected seeded manager {EXPECTED_MANAGER_NAME!r} "
+        f"after scanning {seen} record(s): {last_body}"
+    )
 
 
 def check_chat(client: httpx.Client) -> dict[str, Any]:
@@ -176,19 +203,20 @@ def run(
     base_url: str,
     ui_url: str,
     timeout_s: float,
-    clean_stack: bool,
+    start_stack: bool,
+    reset_volumes: bool,
     compose_file: str,
 ) -> int:
-    if clean_stack:
-        bring_up_clean_stack(compose_file)
+    if start_stack:
+        bring_up_stack(compose_file, reset_volumes=reset_volumes)
     with httpx.Client(base_url=base_url, timeout=timeout_s) as client:
-        if clean_stack:
+        if start_stack:
             _retry_until_ready(
                 "API health before readiness seeding",
                 timeout_s,
                 lambda: check_health(client),
             )
-    seed_local_readiness_data(compose_file, in_compose=clean_stack)
+    seed_local_readiness_data(compose_file, in_compose=start_stack)
     with httpx.Client(base_url=base_url, timeout=timeout_s) as client:
         check_health(client)
         check_managers(client)
@@ -220,7 +248,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         default="docker-compose.yml",
         help="Compose file used for clean-stack startup and in-container seeding.",
     )
-    parser.add_argument(
+    stack_group = parser.add_mutually_exclusive_group()
+    stack_group.add_argument(
+        "--clean-stack",
+        action="store_true",
+        help="Reset compose state with `docker compose down -v` before starting services.",
+    )
+    stack_group.add_argument(
         "--skip-stack-start",
         action="store_true",
         help="Probe an already-running stack and seed through the local Python environment.",
@@ -231,7 +265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.base_url,
             args.ui_url,
             args.timeout,
-            clean_stack=not args.skip_stack_start,
+            start_stack=not args.skip_stack_start,
+            reset_volumes=args.clean_stack,
             compose_file=args.compose_file,
         )
     except ReadinessError as exc:

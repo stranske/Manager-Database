@@ -12,14 +12,16 @@ This repo provides a minimal stack to begin experimenting with the Manager-Intel
    ```bash
    python scripts/readiness_smoke.py
    ```
-   The smoke resets compose state, starts Postgres, MinIO, the FastAPI service
-   (`api.chat:app` on port 8000), and the Streamlit UI (port 8501), seeds the
-   deterministic manager/research fixtures inside the API container, probes
+   The smoke starts or reuses Postgres, MinIO, the FastAPI service (`api.chat:app`
+   on port 8000), and the Streamlit UI (port 8501), seeds the deterministic
+   manager/research fixtures inside the API container, probes
    `/health/detailed`, `/managers`, `/chat`, and verifies the UI is reachable.
    It exits non-zero if the API, database, object storage, manager route,
    chat/research route, or UI is not ready. Pass `--base-url` or `--ui-url` to
-   target non-default ports. Use `--skip-stack-start` only when you have already
-   started the stack and want to seed through the local Python environment.
+   target non-default ports. Use `--clean-stack` when you want an explicit
+   `docker compose down -v` reset before startup. Use `--skip-stack-start` only
+   when you have already started the stack and want to seed through the local
+   Python environment.
 3. If you want to bring up services manually for iterative work:
    ```bash
    docker compose up -d db minio api ui
