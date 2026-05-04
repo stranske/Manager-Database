@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import sqlite3
 from collections.abc import Callable
-from typing import Any
 
 from adapters.base import connect_db
 

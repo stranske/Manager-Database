@@ -75,7 +75,7 @@ def _get_backend() -> _CacheBackend:
             )
             return _CACHE_BACKEND
 
-    cache = TTLCache(maxsize=_cache_max_items(), ttl=_cache_ttl_seconds())
+    cache: TTLCache[str, Any] = TTLCache(maxsize=_cache_max_items(), ttl=_cache_ttl_seconds())
     cache_lock = Lock()
 
     def _memory_get(key: str) -> Any:
