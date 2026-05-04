@@ -1,10 +1,11 @@
 """Local readiness smoke for the Manager-Intel stack.
 
 Hits the FastAPI surface that the docker-compose stack exposes (default
-http://localhost:8000) and verifies that the database, object storage,
-manager API, and chat/research path are all reachable. Designed to run
-without external provider credentials so it can be invoked as the single
-post-`docker compose up` validation step.
+http://localhost:8000), the Streamlit UI (default http://localhost:8501),
+and verifies that the database, object storage, manager API, and
+chat/research path are all reachable. Designed to run without external
+provider credentials so it can be invoked as the single clean-stack
+validation step.
 
 Exit codes:
     0 — all probes succeeded
@@ -17,20 +18,42 @@ import argparse
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import httpx
 
 DEFAULT_API_BASE = "http://localhost:8000"
+DEFAULT_UI_BASE = "http://localhost:8501"
 DEFAULT_TIMEOUT_S = 10.0
 DEFAULT_COMPOSE_SERVICES = ("db", "minio", "api", "ui")
 DEFAULT_CHAT_QUERY = "readiness smoke deterministic fact"
 EXPECTED_CHAT_SNIPPET = "Readiness smoke deterministic fact"
+EXPECTED_MANAGER_NAME = "Elliott Investment Management L.P."
 
 
 class ReadinessError(RuntimeError):
     """Raised when a readiness probe fails."""
+
+
+def _retry_until_ready(
+    label: str,
+    timeout_s: float,
+    fn: Callable[[], Any],
+) -> Any:
+    """Run a readiness action until it succeeds or the timeout budget expires."""
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            return fn()
+        except (ReadinessError, httpx.HTTPError) as exc:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ReadinessError(
+                    f"{label} did not become ready within {timeout_s:.1f}s: {exc}"
+                ) from exc
+            time.sleep(min(1.0, remaining))
 
 
 def _run_cmd(cmd: list[str], cwd: str | None = None, env: dict[str, str] | None = None) -> None:
@@ -57,10 +80,29 @@ def bring_up_clean_stack(compose_file: str = "docker-compose.yml") -> None:
     )
 
 
-def seed_local_readiness_data() -> None:
+def seed_local_readiness_data(
+    compose_file: str = "docker-compose.yml", *, in_compose: bool = False
+) -> None:
     """Seed deterministic local records used by readiness probes."""
     env = os.environ.copy()
     env.setdefault("USE_SIMPLE_EMBED", "1")
+    if in_compose:
+        _run_cmd(
+            [
+                "docker",
+                "compose",
+                "-f",
+                compose_file,
+                "exec",
+                "-T",
+                "-e",
+                "USE_SIMPLE_EMBED=1",
+                "api",
+                "python",
+                "scripts/seed_readiness_data.py",
+            ]
+        )
+        return
     _run_cmd(["python", "scripts/seed_readiness_data.py"], cwd=".", env=env)
 
 
@@ -84,8 +126,8 @@ def check_health(client: httpx.Client) -> dict[str, Any]:
 
 
 def check_managers(client: httpx.Client) -> dict[str, Any]:
-    """Verify the manager API returns at least one seeded record."""
-    resp = client.get("/managers", params={"limit": 1})
+    """Verify the manager API returns deterministic seeded records."""
+    resp = client.get("/managers", params={"limit": 100, "offset": 0})
     if resp.status_code != 200:
         raise ReadinessError(f"/managers returned {resp.status_code}: {resp.text[:300]}")
     body = resp.json()
@@ -94,6 +136,11 @@ def check_managers(client: httpx.Client) -> dict[str, Any]:
         raise ReadinessError(
             "/managers returned no records — run `python scripts/seed_managers.py` "
             "to seed the baseline managers before invoking the smoke."
+        )
+    manager_names = {str(item.get("name", "")) for item in items if isinstance(item, dict)}
+    if EXPECTED_MANAGER_NAME not in manager_names:
+        raise ReadinessError(
+            f"/managers response missing expected seeded manager {EXPECTED_MANAGER_NAME!r}"
         )
     return body
 
@@ -109,20 +156,44 @@ def check_chat(client: httpx.Client) -> dict[str, Any]:
     answer = str(body.get("answer", ""))
     if EXPECTED_CHAT_SNIPPET not in answer:
         raise ReadinessError(
-            f"/chat answer missing deterministic seeded snippet {EXPECTED_CHAT_SNIPPET!r}: "
-            f"{answer[:300]}"
+            f"/chat answer missing deterministic seeded snippet {EXPECTED_CHAT_SNIPPET!r}: {answer[:300]}"
         )
     return body
 
 
-def run(base_url: str, timeout_s: float, clean_stack: bool) -> int:
+def check_ui(base_url: str, timeout_s: float) -> None:
+    """Verify the Streamlit UI service is reachable."""
+
+    def _probe() -> None:
+        resp = httpx.get(base_url, timeout=timeout_s)
+        if resp.status_code >= 400:
+            raise ReadinessError(f"UI returned {resp.status_code}: {resp.text[:300]}")
+
+    _retry_until_ready("Streamlit UI", timeout_s, _probe)
+
+
+def run(
+    base_url: str,
+    ui_url: str,
+    timeout_s: float,
+    clean_stack: bool,
+    compose_file: str,
+) -> int:
     if clean_stack:
-        bring_up_clean_stack()
-    seed_local_readiness_data()
+        bring_up_clean_stack(compose_file)
+    with httpx.Client(base_url=base_url, timeout=timeout_s) as client:
+        if clean_stack:
+            _retry_until_ready(
+                "API health before readiness seeding",
+                timeout_s,
+                lambda: check_health(client),
+            )
+    seed_local_readiness_data(compose_file, in_compose=clean_stack)
     with httpx.Client(base_url=base_url, timeout=timeout_s) as client:
         check_health(client)
         check_managers(client)
         check_chat(client)
+    check_ui(ui_url, timeout_s)
     return 0
 
 
@@ -134,26 +205,42 @@ def main(argv: Sequence[str] | None = None) -> int:
         help=f"FastAPI base URL (default: {DEFAULT_API_BASE})",
     )
     parser.add_argument(
+        "--ui-url",
+        default=DEFAULT_UI_BASE,
+        help=f"Streamlit UI base URL (default: {DEFAULT_UI_BASE})",
+    )
+    parser.add_argument(
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT_S,
         help=f"Per-request timeout in seconds (default: {DEFAULT_TIMEOUT_S})",
     )
     parser.add_argument(
-        "--clean-stack",
+        "--compose-file",
+        default="docker-compose.yml",
+        help="Compose file used for clean-stack startup and in-container seeding.",
+    )
+    parser.add_argument(
+        "--skip-stack-start",
         action="store_true",
-        help="Run `docker compose down -v` then bring up db/minio/api/ui before probing.",
+        help="Probe an already-running stack and seed through the local Python environment.",
     )
     args = parser.parse_args(argv)
     try:
-        run(args.base_url, args.timeout, args.clean_stack)
+        run(
+            args.base_url,
+            args.ui_url,
+            args.timeout,
+            clean_stack=not args.skip_stack_start,
+            compose_file=args.compose_file,
+        )
     except ReadinessError as exc:
         print(f"readiness smoke FAILED: {exc}", file=sys.stderr)
         return 1
     except httpx.HTTPError as exc:
         print(f"readiness smoke FAILED (transport): {exc}", file=sys.stderr)
         return 1
-    print(f"readiness smoke OK ({args.base_url})")
+    print(f"readiness smoke OK (api={args.base_url}, ui={args.ui_url})")
     return 0
 
 

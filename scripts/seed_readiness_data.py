@@ -3,20 +3,30 @@
 from __future__ import annotations
 
 import os
-
-from embeddings import store_document
-from scripts.seed_managers import seed_managers
+from collections.abc import Callable
 
 READINESS_DOC_TEXT = "Readiness smoke deterministic fact: manager universe bootstrap is healthy."
 READINESS_DOC_FILENAME = "readiness-smoke-note.txt"
 
 
-def seed_readiness_data() -> int:
+def seed_readiness_data(
+    seed_managers_fn: Callable[[], int] | None = None,
+    store_document_fn: Callable[..., int] | None = None,
+) -> int:
     """Seed baseline managers and one deterministic local research document."""
+    if seed_managers_fn is None:
+        from scripts.seed_managers import seed_managers
+
+        seed_managers_fn = seed_managers
+    if store_document_fn is None:
+        from embeddings import store_document
+
+        store_document_fn = store_document
+
     # Keep embeddings deterministic and lightweight in local/docker runs.
     os.environ.setdefault("USE_SIMPLE_EMBED", "1")
-    seed_managers()
-    return store_document(
+    seed_managers_fn()
+    return store_document_fn(
         READINESS_DOC_TEXT,
         kind="note",
         filename=READINESS_DOC_FILENAME,

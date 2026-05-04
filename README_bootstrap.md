@@ -8,22 +8,24 @@ This repo provides a minimal stack to begin experimenting with the Manager-Intel
    includes a `DB_URL` pointing at the bundled Postgres container. Set
    `UI_USERNAME` and `UI_PASSWORD` to enable Streamlit UI authentication (if
    unset, the UI runs without authentication for local development).
-2. Start the local product stack:
+2. Run the one-command local readiness smoke:
+   ```bash
+   python scripts/readiness_smoke.py
+   ```
+   The smoke resets compose state, starts Postgres, MinIO, the FastAPI service
+   (`api.chat:app` on port 8000), and the Streamlit UI (port 8501), seeds the
+   deterministic manager/research fixtures inside the API container, probes
+   `/health/detailed`, `/managers`, `/chat`, and verifies the UI is reachable.
+   It exits non-zero if the API, database, object storage, manager route,
+   chat/research route, or UI is not ready. Pass `--base-url` or `--ui-url` to
+   target non-default ports. Use `--skip-stack-start` only when you have already
+   started the stack and want to seed through the local Python environment.
+3. If you want to bring up services manually for iterative work:
    ```bash
    docker compose up -d db minio api ui
    ```
-   This brings up Postgres, MinIO, the FastAPI service (`api.chat:app` on
-   port 8000), and the Streamlit UI (port 8501) in one step. The placeholder
-   ETL container can be started alongside with `docker compose up -d etl` if
-   you also want to exercise the ingest path.
-3. Seed the baseline manager records and run the readiness smoke:
-   ```bash
-   python scripts/seed_managers.py
-   python scripts/readiness_smoke.py
-   ```
-   The smoke verifies `/health/detailed`, `/managers`, and `/chat` against
-   the locally seeded data and exits non-zero if any dependency is
-   unreachable. Pass `--base-url` to point it at a non-default API URL.
+   The placeholder ETL container can be started alongside with
+   `docker compose up -d etl` if you also want to exercise the ingest path.
 4. Run `pytest -q` to verify the rest of the test suite.
 
 The `schema.sql` file defines an `api_usage` table used for cost telemetry. Apply it to the Postgres container once it is running:
