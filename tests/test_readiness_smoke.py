@@ -45,7 +45,7 @@ def _ok_managers() -> httpx.Response:
             "items": [
                 {
                     "manager_id": 1,
-                    "name": "Elliott Investment Management L.P.",
+                    "name": readiness_smoke.EXPECTED_MANAGER_NAME,
                 }
             ],
             "total": 1,
@@ -146,7 +146,7 @@ def test_chat_missing_answer_raises():
             readiness_smoke.check_chat(client)
 
 
-def test_chat_accepts_deterministic_tokens_without_exact_snippet():
+def test_chat_missing_expected_snippet_raises():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
@@ -157,7 +157,25 @@ def test_chat_accepts_deterministic_tokens_without_exact_snippet():
         )
 
     with _client(handler) as client:
-        assert readiness_smoke.check_chat(client)["answer"]
+        with pytest.raises(readiness_smoke.ReadinessError):
+            readiness_smoke.check_chat(client)
+
+
+def test_managers_requires_expected_seeded_name():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "items": [{"manager_id": 99, "name": "Unexpected Manager"}],
+                "total": 1,
+                "limit": 100,
+                "offset": 0,
+            },
+        )
+
+    with _client(handler) as client:
+        with pytest.raises(readiness_smoke.ReadinessError):
+            readiness_smoke.check_managers(client)
 
 
 def test_main_exit_codes(monkeypatch, capsys):

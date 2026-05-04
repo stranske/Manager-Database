@@ -29,7 +29,7 @@ DEFAULT_TIMEOUT_S = 10.0
 DEFAULT_COMPOSE_SERVICES = ("db", "minio", "api", "ui")
 DEFAULT_CHAT_QUERY = "readiness smoke deterministic fact"
 EXPECTED_CHAT_SNIPPET = "Readiness smoke deterministic fact"
-EXPECTED_CHAT_TOKENS = ("readiness", "smoke", "manager", "bootstrap")
+EXPECTED_MANAGER_NAME = "Elliott Investment Management L.P."
 
 
 class ReadinessError(RuntimeError):
@@ -106,8 +106,8 @@ def check_health(client: httpx.Client) -> dict[str, Any]:
 
 
 def check_managers(client: httpx.Client) -> dict[str, Any]:
-    """Verify the manager API returns at least one seeded record."""
-    resp = client.get("/managers", params={"limit": 1})
+    """Verify the manager API returns deterministic seeded records."""
+    resp = client.get("/managers", params={"limit": 100, "offset": 0})
     if resp.status_code != 200:
         raise ReadinessError(f"/managers returned {resp.status_code}: {resp.text[:300]}")
     body = resp.json()
@@ -116,6 +116,15 @@ def check_managers(client: httpx.Client) -> dict[str, Any]:
         raise ReadinessError(
             "/managers returned no records — run `python scripts/seed_managers.py` "
             "to seed the baseline managers before invoking the smoke."
+        )
+    manager_names = {
+        str(item.get("name", ""))
+        for item in items
+        if isinstance(item, dict)
+    }
+    if EXPECTED_MANAGER_NAME not in manager_names:
+        raise ReadinessError(
+            f"/managers response missing expected seeded manager {EXPECTED_MANAGER_NAME!r}"
         )
     return body
 
@@ -129,13 +138,9 @@ def check_chat(client: httpx.Client) -> dict[str, Any]:
     if "answer" not in body:
         raise ReadinessError(f"/chat response missing 'answer' field: {body}")
     answer = str(body.get("answer", ""))
-    normalized_answer = answer.lower()
-    if EXPECTED_CHAT_SNIPPET not in answer and not all(
-        token in normalized_answer for token in EXPECTED_CHAT_TOKENS
-    ):
+    if EXPECTED_CHAT_SNIPPET not in answer:
         raise ReadinessError(
-            f"/chat answer missing deterministic seeded evidence {EXPECTED_CHAT_TOKENS!r}: "
-            f"{answer[:300]}"
+            f"/chat answer missing deterministic seeded snippet {EXPECTED_CHAT_SNIPPET!r}: {answer[:300]}"
         )
     return body
 
