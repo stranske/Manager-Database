@@ -15,9 +15,13 @@ def seed_readiness_data(
 ) -> int:
     """Seed baseline managers and one deterministic local research document."""
     if seed_managers_fn is None:
-        from scripts.seed_managers import seed_managers as seed_managers_fn
+        from scripts.seed_managers import seed_managers
+
+        seed_managers_fn = seed_managers
     if store_document_fn is None:
-        from embeddings import store_document as store_document_fn
+        from embeddings import store_document
+
+        store_document_fn = store_document
 
     # Keep embeddings deterministic and lightweight in local/docker runs.
     os.environ.setdefault("USE_SIMPLE_EMBED", "1")
