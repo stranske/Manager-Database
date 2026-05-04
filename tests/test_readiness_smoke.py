@@ -87,13 +87,17 @@ def test_run_passes_when_all_components_healthy():
 
 
 def test_check_ui_requires_success_status(monkeypatch):
+    responses = [httpx.Response(503, text="warming"), httpx.Response(200, text="streamlit")]
+    monkeypatch.setattr(readiness_smoke.time, "sleep", lambda seconds: None)
+
     def fake_get(url: str, timeout: float) -> httpx.Response:
         assert url == "http://ui"
         assert timeout == 1.0
-        return httpx.Response(200, text="streamlit")
+        return responses.pop(0)
 
     monkeypatch.setattr(readiness_smoke.httpx, "get", fake_get)
     readiness_smoke.check_ui("http://ui", 1.0)
+    assert responses == []
 
     def failing_get(url: str, timeout: float) -> httpx.Response:
         return httpx.Response(503, text="warming")
@@ -267,3 +271,46 @@ def test_run_invokes_compose_seed_and_clean_stack_by_default(monkeypatch):
     calls.clear()
     assert readiness_smoke.run("http://test", "http://ui", 1.0, False, "compose.yml") == 0
     assert calls == ["seed:compose.yml:False", "ui:http://ui:1.0"]
+
+
+def test_run_waits_for_api_health_before_in_compose_seed(monkeypatch):
+    calls: list[str] = []
+    original_client = httpx.Client
+    health_attempts = [httpx.Response(503, json={"healthy": False}), _ok_health()]
+
+    monkeypatch.setattr(
+        readiness_smoke,
+        "bring_up_clean_stack",
+        lambda compose_file: calls.append(f"clean:{compose_file}"),
+    )
+    monkeypatch.setattr(
+        readiness_smoke,
+        "seed_local_readiness_data",
+        lambda compose_file, *, in_compose=False: calls.append(f"seed:{compose_file}:{in_compose}"),
+    )
+    monkeypatch.setattr(
+        readiness_smoke,
+        "check_ui",
+        lambda ui_url, timeout_s: calls.append(f"ui:{ui_url}:{timeout_s}"),
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health/detailed":
+            calls.append("health")
+            return health_attempts.pop(0) if health_attempts else _ok_health()
+        if request.url.path == "/managers":
+            return _ok_managers()
+        if request.url.path == "/chat":
+            return _ok_chat()
+        raise AssertionError(f"unexpected path {request.url.path!r}")
+
+    monkeypatch.setattr(
+        readiness_smoke.httpx,
+        "Client",
+        lambda *args, **kwargs: original_client(
+            transport=httpx.MockTransport(handler), base_url="http://test"
+        ),
+    )
+
+    assert readiness_smoke.run("http://test", "http://ui", 1.0, True, "compose.yml") == 0
+    assert calls[:4] == ["clean:compose.yml", "health", "health", "seed:compose.yml:True"]

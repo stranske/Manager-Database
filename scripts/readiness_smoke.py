@@ -18,7 +18,8 @@ import argparse
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import httpx
@@ -34,6 +35,25 @@ EXPECTED_MANAGER_NAME = "Elliott Investment Management L.P."
 
 class ReadinessError(RuntimeError):
     """Raised when a readiness probe fails."""
+
+
+def _retry_until_ready(
+    label: str,
+    timeout_s: float,
+    fn: Callable[[], Any],
+) -> Any:
+    """Run a readiness action until it succeeds or the timeout budget expires."""
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            return fn()
+        except (ReadinessError, httpx.HTTPError) as exc:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ReadinessError(
+                    f"{label} did not become ready within {timeout_s:.1f}s: {exc}"
+                ) from exc
+            time.sleep(min(1.0, remaining))
 
 
 def _run_cmd(cmd: list[str], cwd: str | None = None, env: dict[str, str] | None = None) -> None:
@@ -117,11 +137,7 @@ def check_managers(client: httpx.Client) -> dict[str, Any]:
             "/managers returned no records — run `python scripts/seed_managers.py` "
             "to seed the baseline managers before invoking the smoke."
         )
-    manager_names = {
-        str(item.get("name", ""))
-        for item in items
-        if isinstance(item, dict)
-    }
+    manager_names = {str(item.get("name", "")) for item in items if isinstance(item, dict)}
     if EXPECTED_MANAGER_NAME not in manager_names:
         raise ReadinessError(
             f"/managers response missing expected seeded manager {EXPECTED_MANAGER_NAME!r}"
@@ -147,9 +163,13 @@ def check_chat(client: httpx.Client) -> dict[str, Any]:
 
 def check_ui(base_url: str, timeout_s: float) -> None:
     """Verify the Streamlit UI service is reachable."""
-    resp = httpx.get(base_url, timeout=timeout_s)
-    if resp.status_code >= 400:
-        raise ReadinessError(f"UI returned {resp.status_code}: {resp.text[:300]}")
+
+    def _probe() -> None:
+        resp = httpx.get(base_url, timeout=timeout_s)
+        if resp.status_code >= 400:
+            raise ReadinessError(f"UI returned {resp.status_code}: {resp.text[:300]}")
+
+    _retry_until_ready("Streamlit UI", timeout_s, _probe)
 
 
 def run(
@@ -161,6 +181,13 @@ def run(
 ) -> int:
     if clean_stack:
         bring_up_clean_stack(compose_file)
+    with httpx.Client(base_url=base_url, timeout=timeout_s) as client:
+        if clean_stack:
+            _retry_until_ready(
+                "API health before readiness seeding",
+                timeout_s,
+                lambda: check_health(client),
+            )
     seed_local_readiness_data(compose_file, in_compose=clean_stack)
     with httpx.Client(base_url=base_url, timeout=timeout_s) as client:
         check_health(client)
