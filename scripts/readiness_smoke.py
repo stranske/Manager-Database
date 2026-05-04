@@ -252,7 +252,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     stack_group.add_argument(
         "--clean-stack",
         action="store_true",
-        help="Reset compose state with `docker compose down -v` before starting services.",
+        help="Reset compose state with `docker compose down -v` before starting services (default).",
+    )
+    stack_group.add_argument(
+        "--reuse-stack",
+        action="store_true",
+        help="Start/seed services without resetting compose volumes first.",
     )
     stack_group.add_argument(
         "--skip-stack-start",
@@ -260,13 +265,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Probe an already-running stack and seed through the local Python environment.",
     )
     args = parser.parse_args(argv)
+    start_stack = not args.skip_stack_start
+    reset_volumes = start_stack and not args.reuse_stack
     try:
         run(
             args.base_url,
             args.ui_url,
             args.timeout,
-            start_stack=not args.skip_stack_start,
-            reset_volumes=args.clean_stack,
+            start_stack=start_stack,
+            reset_volumes=reset_volumes,
             compose_file=args.compose_file,
         )
     except ReadinessError as exc:

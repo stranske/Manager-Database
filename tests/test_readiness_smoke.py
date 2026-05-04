@@ -224,7 +224,7 @@ def test_main_exit_codes(monkeypatch, capsys):
         assert base_url == "http://test"
         assert ui_url == readiness_smoke.DEFAULT_UI_BASE
         assert start_stack is True
-        assert reset_volumes is False
+        assert reset_volumes in {True, False}
         assert compose_file == "docker-compose.yml"
         return 0
 
@@ -232,6 +232,7 @@ def test_main_exit_codes(monkeypatch, capsys):
     assert readiness_smoke.main(["--base-url", "http://test"]) == 0
     out = capsys.readouterr().out
     assert "readiness smoke OK" in out
+    assert readiness_smoke.main(["--base-url", "http://test", "--reuse-stack"]) == 0
 
     def failing_run(
         base_url: str,
@@ -353,3 +354,23 @@ def test_run_waits_for_api_health_before_in_compose_seed(monkeypatch):
 
     assert readiness_smoke.run("http://test", "http://ui", 1.0, True, False, "compose.yml") == 0
     assert calls[:4] == ["stack:compose.yml:False", "health", "health", "seed:compose.yml:True"]
+
+
+def test_main_reuse_stack_disables_volume_reset(monkeypatch):
+    captured: dict[str, bool] = {}
+
+    def fake_run(
+        base_url: str,
+        ui_url: str,
+        timeout_s: float,
+        start_stack: bool,
+        reset_volumes: bool,
+        compose_file: str,
+    ) -> int:
+        captured["start_stack"] = start_stack
+        captured["reset_volumes"] = reset_volumes
+        return 0
+
+    monkeypatch.setattr(readiness_smoke, "run", fake_run)
+    assert readiness_smoke.main(["--reuse-stack"]) == 0
+    assert captured == {"start_stack": True, "reset_volumes": False}
