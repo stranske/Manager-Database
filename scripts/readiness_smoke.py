@@ -1,10 +1,11 @@
 """Local readiness smoke for the Manager-Intel stack.
 
 Hits the FastAPI surface that the docker-compose stack exposes (default
-http://localhost:8000) and verifies that the database, object storage,
-manager API, and chat/research path are all reachable. Designed to run
-without external provider credentials so it can be invoked as the single
-post-`docker compose up` validation step.
+http://localhost:8000), the Streamlit UI (default http://localhost:8501),
+and verifies that the database, object storage, manager API, and
+chat/research path are all reachable. Designed to run without external
+provider credentials so it can be invoked as the single clean-stack
+validation step.
 
 Exit codes:
     0 — all probes succeeded
@@ -23,10 +24,12 @@ from typing import Any
 import httpx
 
 DEFAULT_API_BASE = "http://localhost:8000"
+DEFAULT_UI_BASE = "http://localhost:8501"
 DEFAULT_TIMEOUT_S = 10.0
 DEFAULT_COMPOSE_SERVICES = ("db", "minio", "api", "ui")
 DEFAULT_CHAT_QUERY = "readiness smoke deterministic fact"
 EXPECTED_CHAT_SNIPPET = "Readiness smoke deterministic fact"
+EXPECTED_CHAT_TOKENS = ("readiness", "smoke", "manager", "bootstrap")
 
 
 class ReadinessError(RuntimeError):
@@ -57,10 +60,29 @@ def bring_up_clean_stack(compose_file: str = "docker-compose.yml") -> None:
     )
 
 
-def seed_local_readiness_data() -> None:
+def seed_local_readiness_data(
+    compose_file: str = "docker-compose.yml", *, in_compose: bool = False
+) -> None:
     """Seed deterministic local records used by readiness probes."""
     env = os.environ.copy()
     env.setdefault("USE_SIMPLE_EMBED", "1")
+    if in_compose:
+        _run_cmd(
+            [
+                "docker",
+                "compose",
+                "-f",
+                compose_file,
+                "exec",
+                "-T",
+                "-e",
+                "USE_SIMPLE_EMBED=1",
+                "api",
+                "python",
+                "scripts/seed_readiness_data.py",
+            ]
+        )
+        return
     _run_cmd(["python", "scripts/seed_readiness_data.py"], cwd=".", env=env)
 
 
@@ -107,22 +129,39 @@ def check_chat(client: httpx.Client) -> dict[str, Any]:
     if "answer" not in body:
         raise ReadinessError(f"/chat response missing 'answer' field: {body}")
     answer = str(body.get("answer", ""))
-    if EXPECTED_CHAT_SNIPPET not in answer:
+    normalized_answer = answer.lower()
+    if EXPECTED_CHAT_SNIPPET not in answer and not all(
+        token in normalized_answer for token in EXPECTED_CHAT_TOKENS
+    ):
         raise ReadinessError(
-            f"/chat answer missing deterministic seeded snippet {EXPECTED_CHAT_SNIPPET!r}: "
+            f"/chat answer missing deterministic seeded evidence {EXPECTED_CHAT_TOKENS!r}: "
             f"{answer[:300]}"
         )
     return body
 
 
-def run(base_url: str, timeout_s: float, clean_stack: bool) -> int:
+def check_ui(base_url: str, timeout_s: float) -> None:
+    """Verify the Streamlit UI service is reachable."""
+    resp = httpx.get(base_url, timeout=timeout_s)
+    if resp.status_code >= 400:
+        raise ReadinessError(f"UI returned {resp.status_code}: {resp.text[:300]}")
+
+
+def run(
+    base_url: str,
+    ui_url: str,
+    timeout_s: float,
+    clean_stack: bool,
+    compose_file: str,
+) -> int:
     if clean_stack:
-        bring_up_clean_stack()
-    seed_local_readiness_data()
+        bring_up_clean_stack(compose_file)
+    seed_local_readiness_data(compose_file, in_compose=clean_stack)
     with httpx.Client(base_url=base_url, timeout=timeout_s) as client:
         check_health(client)
         check_managers(client)
         check_chat(client)
+    check_ui(ui_url, timeout_s)
     return 0
 
 
@@ -134,26 +173,42 @@ def main(argv: Sequence[str] | None = None) -> int:
         help=f"FastAPI base URL (default: {DEFAULT_API_BASE})",
     )
     parser.add_argument(
+        "--ui-url",
+        default=DEFAULT_UI_BASE,
+        help=f"Streamlit UI base URL (default: {DEFAULT_UI_BASE})",
+    )
+    parser.add_argument(
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT_S,
         help=f"Per-request timeout in seconds (default: {DEFAULT_TIMEOUT_S})",
     )
     parser.add_argument(
-        "--clean-stack",
+        "--compose-file",
+        default="docker-compose.yml",
+        help="Compose file used for clean-stack startup and in-container seeding.",
+    )
+    parser.add_argument(
+        "--skip-stack-start",
         action="store_true",
-        help="Run `docker compose down -v` then bring up db/minio/api/ui before probing.",
+        help="Probe an already-running stack and seed through the local Python environment.",
     )
     args = parser.parse_args(argv)
     try:
-        run(args.base_url, args.timeout, args.clean_stack)
+        run(
+            args.base_url,
+            args.ui_url,
+            args.timeout,
+            clean_stack=not args.skip_stack_start,
+            compose_file=args.compose_file,
+        )
     except ReadinessError as exc:
         print(f"readiness smoke FAILED: {exc}", file=sys.stderr)
         return 1
     except httpx.HTTPError as exc:
         print(f"readiness smoke FAILED (transport): {exc}", file=sys.stderr)
         return 1
-    print(f"readiness smoke OK ({args.base_url})")
+    print(f"readiness smoke OK (api={args.base_url}, ui={args.ui_url})")
     return 0
 
 

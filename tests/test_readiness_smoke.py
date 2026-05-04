@@ -86,6 +86,23 @@ def test_run_passes_when_all_components_healthy():
         assert readiness_smoke.check_chat(client)["answer"]
 
 
+def test_check_ui_requires_success_status(monkeypatch):
+    def fake_get(url: str, timeout: float) -> httpx.Response:
+        assert url == "http://ui"
+        assert timeout == 1.0
+        return httpx.Response(200, text="streamlit")
+
+    monkeypatch.setattr(readiness_smoke.httpx, "get", fake_get)
+    readiness_smoke.check_ui("http://ui", 1.0)
+
+    def failing_get(url: str, timeout: float) -> httpx.Response:
+        return httpx.Response(503, text="warming")
+
+    monkeypatch.setattr(readiness_smoke.httpx, "get", failing_get)
+    with pytest.raises(readiness_smoke.ReadinessError):
+        readiness_smoke.check_ui("http://ui", 1.0)
+
+
 def test_health_failure_raises_readiness_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -129,8 +146,32 @@ def test_chat_missing_answer_raises():
             readiness_smoke.check_chat(client)
 
 
+def test_chat_accepts_deterministic_tokens_without_exact_snippet():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "answer": "The readiness smoke confirms manager bootstrap data is present.",
+                "sources": [],
+            },
+        )
+
+    with _client(handler) as client:
+        assert readiness_smoke.check_chat(client)["answer"]
+
+
 def test_main_exit_codes(monkeypatch, capsys):
-    def passing_run(base_url: str, timeout_s: float, clean_stack: bool) -> int:
+    def passing_run(
+        base_url: str,
+        ui_url: str,
+        timeout_s: float,
+        clean_stack: bool,
+        compose_file: str,
+    ) -> int:
+        assert base_url == "http://test"
+        assert ui_url == readiness_smoke.DEFAULT_UI_BASE
+        assert clean_stack is True
+        assert compose_file == "docker-compose.yml"
         return 0
 
     monkeypatch.setattr(readiness_smoke, "run", passing_run)
@@ -138,7 +179,13 @@ def test_main_exit_codes(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "readiness smoke OK" in out
 
-    def failing_run(base_url: str, timeout_s: float, clean_stack: bool) -> int:
+    def failing_run(
+        base_url: str,
+        ui_url: str,
+        timeout_s: float,
+        clean_stack: bool,
+        compose_file: str,
+    ) -> int:
         raise readiness_smoke.ReadinessError("simulated failure")
 
     monkeypatch.setattr(readiness_smoke, "run", failing_run)
@@ -149,24 +196,33 @@ def test_main_exit_codes(monkeypatch, capsys):
 
 
 def test_main_handles_transport_error(monkeypatch, capsys):
-    def raise_transport(base_url: str, timeout_s: float, clean_stack: bool) -> int:
+    def raise_transport(
+        base_url: str,
+        ui_url: str,
+        timeout_s: float,
+        clean_stack: bool,
+        compose_file: str,
+    ) -> int:
         raise httpx.ConnectError("refused")
 
     monkeypatch.setattr(readiness_smoke, "run", raise_transport)
-    assert readiness_smoke.main([]) == 1
+    assert readiness_smoke.main(["--skip-stack-start"]) == 1
     err = capsys.readouterr().err
     assert "transport" in err
 
 
-def test_run_invokes_seed_and_optional_clean_stack(monkeypatch):
+def test_run_invokes_compose_seed_and_clean_stack_by_default(monkeypatch):
     calls: list[str] = []
     original_client = httpx.Client
 
-    def fake_clean_stack() -> None:
-        calls.append("clean")
+    def fake_clean_stack(compose_file: str) -> None:
+        calls.append(f"clean:{compose_file}")
 
-    def fake_seed() -> None:
-        calls.append("seed")
+    def fake_seed(compose_file: str, *, in_compose: bool = False) -> None:
+        calls.append(f"seed:{compose_file}:{in_compose}")
+
+    def fake_check_ui(ui_url: str, timeout_s: float) -> None:
+        calls.append(f"ui:{ui_url}:{timeout_s}")
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health/detailed":
@@ -179,6 +235,7 @@ def test_run_invokes_seed_and_optional_clean_stack(monkeypatch):
 
     monkeypatch.setattr(readiness_smoke, "bring_up_clean_stack", fake_clean_stack)
     monkeypatch.setattr(readiness_smoke, "seed_local_readiness_data", fake_seed)
+    monkeypatch.setattr(readiness_smoke, "check_ui", fake_check_ui)
     monkeypatch.setattr(
         readiness_smoke.httpx,
         "Client",
@@ -187,8 +244,8 @@ def test_run_invokes_seed_and_optional_clean_stack(monkeypatch):
         ),
     )
 
-    assert readiness_smoke.run("http://test", 1.0, clean_stack=False) == 0
-    assert calls == ["seed"]
+    assert readiness_smoke.run("http://test", "http://ui", 1.0, True, "compose.yml") == 0
+    assert calls == ["clean:compose.yml", "seed:compose.yml:True", "ui:http://ui:1.0"]
     calls.clear()
-    assert readiness_smoke.run("http://test", 1.0, clean_stack=True) == 0
-    assert calls == ["clean", "seed"]
+    assert readiness_smoke.run("http://test", "http://ui", 1.0, False, "compose.yml") == 0
+    assert calls == ["seed:compose.yml:False", "ui:http://ui:1.0"]
