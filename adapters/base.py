@@ -79,6 +79,49 @@ def connect_db(
             attempt += 1
 
 
+def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS api_usage (
+            id INTEGER PRIMARY KEY,
+            ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            source TEXT,
+            endpoint TEXT,
+            status INT,
+            bytes INT,
+            latency_ms INT,
+            cost_usd REAL
+        )"""
+    )
+    conn.execute(
+        "CREATE VIEW IF NOT EXISTS monthly_usage AS "
+        "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
+        "COUNT(*) AS calls, SUM(bytes) AS mb, SUM(cost_usd) AS cost "
+        "FROM api_usage GROUP BY 1,2"
+    )
+
+
+def _ensure_postgres_usage_schema(conn: Any) -> None:
+    conn.execute("SELECT to_regclass('api_usage')")
+    conn.execute(
+        """
+        DO $$
+        BEGIN
+          IF to_regclass('monthly_usage') IS NULL THEN
+            CREATE MATERIALIZED VIEW monthly_usage AS
+            SELECT date_trunc('month', ts) AS month,
+                   source,
+                   count(*)      AS calls,
+                   sum(bytes)    AS mb,
+                   sum(cost_usd) AS cost
+            FROM api_usage
+            GROUP BY 1, 2;
+          END IF;
+        END
+        $$;
+        """
+    )
+
+
 @asynccontextmanager
 async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None):
     """Record API usage metrics in the ``api_usage`` table.
@@ -115,34 +158,12 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
         status = getattr(resp, "status_code", 0)
         size = len(getattr(resp, "content", b""))
         conn = connect_db(db_path)
-        conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                source TEXT,
-                endpoint TEXT,
-                status INT,
-                bytes INT,
-                latency_ms INT,
-                cost_usd REAL
-            )""")
         if isinstance(conn, sqlite3.Connection):
-            conn.execute(
-                "CREATE VIEW IF NOT EXISTS monthly_usage AS "
-                "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
-                "COUNT(*) AS calls, SUM(bytes) AS mb, SUM(cost_usd) AS cost "
-                "FROM api_usage GROUP BY 1,2"
-            )
+            _ensure_sqlite_usage_schema(conn)
+            placeholder = "?"
         else:  # Postgres
-            try:
-                conn.execute(
-                    "CREATE MATERIALIZED VIEW monthly_usage AS "
-                    "SELECT date_trunc('month', ts) AS month, source, "
-                    "COUNT(*) AS calls, SUM(bytes) AS mb, SUM(cost_usd) AS cost "
-                    "FROM api_usage GROUP BY 1,2"
-                )
-            except Exception:
-                pass
-        placeholder = "%s" if not isinstance(conn, sqlite3.Connection) else "?"
+            _ensure_postgres_usage_schema(conn)
+            placeholder = "%s"
         values_clause = ",".join([placeholder] * 6)
         sql = (
             "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd)"
