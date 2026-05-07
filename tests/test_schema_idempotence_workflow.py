@@ -1,26 +1,41 @@
 from pathlib import Path
 
+import yaml  # type: ignore[import-untyped]
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "schema-idempotence.yml"
+SCHEMA_PATHS = [
+    "schema.sql",
+    "scripts/verify_schema_idempotence.sh",
+    ".github/workflows/schema-idempotence.yml",
+]
+
+
+def load_workflow() -> dict:
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
 def test_schema_idempotence_workflow_runs_verifier_against_pg16_service():
-    workflow = WORKFLOW.read_text()
+    workflow = load_workflow()
+    job = workflow["jobs"]["schema-verifier"]
+    service = job["services"]["postgres"]
+    run_step = job["steps"][-1]
 
-    assert "schema-verifier:" in workflow
-    assert "image: pgvector/pgvector:pg16" in workflow
-    assert "PGHOST: localhost" in workflow
-    assert "PGPORT: '5432'" in workflow
-    assert "PGUSER: postgres" in workflow
-    assert "bash scripts/verify_schema_idempotence.sh" in workflow
+    assert service["image"] == "pgvector/pgvector:pg16"
+    assert run_step["env"] == {
+        "PGHOST": "localhost",
+        "PGPORT": "5432",
+        "PGUSER": "postgres",
+    }
+    assert run_step["run"] == "bash scripts/verify_schema_idempotence.sh"
 
 
 def test_schema_idempotence_workflow_runs_on_schema_changes_and_schedule():
-    workflow = WORKFLOW.read_text()
+    workflow = load_workflow()
+    triggers = workflow[True]
 
-    assert "push:" in workflow
-    assert "pull_request:" in workflow
-    assert "schedule:" in workflow
-    assert "workflow_dispatch:" in workflow
-    assert "schema.sql" in workflow
-    assert "scripts/verify_schema_idempotence.sh" in workflow
+    assert triggers["push"]["branches"] == ["main"]
+    assert triggers["push"]["paths"] == SCHEMA_PATHS
+    assert triggers["pull_request"]["paths"] == SCHEMA_PATHS
+    assert triggers["schedule"] == [{"cron": "30 4 * * *"}]
+    assert triggers["workflow_dispatch"] is None
