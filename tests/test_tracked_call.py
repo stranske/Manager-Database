@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+from _pg_fakes import StrictPostgresConn
 
 from adapters import base
 from adapters.base import tracked_call
@@ -38,25 +39,8 @@ async def test_tracked_call_defaults_when_no_response(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_tracked_call_postgres_placeholder(monkeypatch):
-    class DummyConn:
-        def __init__(self):
-            self.executed = []
-            self.committed = False
-            self.closed = False
-
-        def execute(self, sql, params=None):
-            self.executed.append((sql, params))
-            if "CREATE MATERIALIZED VIEW" in sql:
-                raise Exception("not supported")
-
-        def commit(self):
-            self.committed = True
-
-        def close(self):
-            self.closed = True
-
-    dummy = DummyConn()
+async def test_tracked_call_postgres_uses_strict_backend_safe_sql(monkeypatch):
+    dummy = StrictPostgresConn()
     monkeypatch.setattr(base, "connect_db", lambda _db_path=None: dummy)
 
     async with tracked_call("pg", "http://pg") as log:
@@ -65,9 +49,11 @@ async def test_tracked_call_postgres_placeholder(monkeypatch):
     insert_calls = [call for call in dummy.executed if call[0].startswith("INSERT INTO")]
     assert len(insert_calls) == 1
     sql, params = insert_calls[0]
-    assert "%s" in sql
+    assert "VALUES (%s,%s,%s,%s,%s,%s)" in sql
     assert params[:3] == ("pg", "http://pg", 201)
     assert params[3] == 3
     assert params[5] == 0.0
+    assert any(call[0] == "SELECT to_regclass('api_usage')" for call in dummy.executed)
+    assert any("CREATE MATERIALIZED VIEW monthly_usage AS" in call[0] for call in dummy.executed)
     assert dummy.committed is True
     assert dummy.closed is True

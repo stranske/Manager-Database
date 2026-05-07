@@ -1,6 +1,7 @@
 import sqlite3
 
 import pytest
+from _pg_fakes import StrictPostgresConn
 
 from adapters import base
 from adapters.base import _db_retry_config, connect_db, get_adapter
@@ -182,32 +183,12 @@ async def test_tracked_call_writes_sqlite_usage(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_tracked_call_postgres_placeholder(monkeypatch):
-    class DummyConn:
-        def __init__(self):
-            self.statements = []
-            self.params = []
-            self.committed = False
-            self.closed = False
-
-        def execute(self, sql, params=None):
-            self.statements.append(sql)
-            if params is not None:
-                self.params.append(params)
-            if "CREATE MATERIALIZED VIEW" in sql:
-                raise RuntimeError("no permission")
-
-        def commit(self):
-            self.committed = True
-
-        def close(self):
-            self.closed = True
-
+async def test_tracked_call_postgres_uses_strict_backend_safe_sql(monkeypatch):
     class DummyResponse:
         status_code = 200
         content = b"abc"
 
-    dummy_conn = DummyConn()
+    dummy_conn = StrictPostgresConn()
     monkeypatch.setattr(base, "connect_db", lambda _db_path=None: dummy_conn)
 
     async with base.tracked_call("edgar", "endpoint") as log:
@@ -216,5 +197,9 @@ async def test_tracked_call_postgres_placeholder(monkeypatch):
     insert_sql = next(sql for sql in dummy_conn.statements if sql.startswith("INSERT"))
     assert "VALUES (%s,%s,%s,%s,%s,%s)" in insert_sql
     assert dummy_conn.params[-1][:4] == ("edgar", "endpoint", 200, 3)
+    assert dummy_conn.params[-1][4] >= 0
+    assert dummy_conn.params[-1][5] == 0.0
+    assert "SELECT to_regclass('api_usage')" in dummy_conn.statements
+    assert any("CREATE MATERIALIZED VIEW monthly_usage AS" in sql for sql in dummy_conn.statements)
     assert dummy_conn.committed is True
     assert dummy_conn.closed is True
