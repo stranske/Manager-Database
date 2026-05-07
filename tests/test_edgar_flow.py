@@ -61,6 +61,68 @@ class MultiRowAdapter:
         ]
 
 
+class StrictPostgresCursor:
+    def __init__(self, rows=None):
+        self._rows = rows or []
+
+    def fetchall(self):
+        return self._rows
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+
+class StrictPostgresConnection:
+    columns = {
+        "managers": {"manager_id", "cik"},
+        "filings": {
+            "filing_id",
+            "manager_id",
+            "type",
+            "filed_date",
+            "source",
+            "raw_key",
+            "parsed_payload",
+        },
+        "holdings": {"holding_id", "filing_id", "cusip", "name_of_issuer", "shares", "value_usd"},
+    }
+
+    def __init__(self):
+        self.sql = []
+        self.params = []
+        self.filings = []
+        self.holdings = []
+        self.commits = 0
+        self.closed = False
+
+    def execute(self, sql, params=()):
+        forbidden = ["PRAGMA", "AUTOINCREMENT", "INSERT OR IGNORE"]
+        upper_sql = sql.upper()
+        assert not any(token in upper_sql for token in forbidden), sql
+        assert "?" not in sql, sql
+        self.sql.append(sql)
+        self.params.append(tuple(params))
+
+        if "information_schema.columns" in sql:
+            table = params[0]
+            return StrictPostgresCursor([(column,) for column in self.columns.get(table, set())])
+        if "FROM managers" in sql:
+            return StrictPostgresCursor([(321,)])
+        if "INSERT INTO filings" in sql:
+            self.filings.append(tuple(params))
+            return StrictPostgresCursor([(9001,)])
+        if "INSERT INTO holdings" in sql:
+            self.holdings.append(tuple(params))
+            return StrictPostgresCursor([])
+        return StrictPostgresCursor([])
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        self.closed = True
+
+
 def _setup_relational_schema(db_path: Path, cik: str = "0", manager_id: int = 100) -> None:
     conn = sqlite3.connect(db_path)
     conn.execute("""CREATE TABLE IF NOT EXISTS managers (
@@ -268,6 +330,60 @@ async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
     ).fetchall()
     conn.close()
     assert rows == [(filing_id, "AAA", 1, 1), (filing_id, "BBB", 2, 2)]
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_uses_postgres_safe_persistence(monkeypatch):
+    conn = StrictPostgresConnection()
+    monkeypatch.setattr(flow, "connect_db", lambda db_path: conn)
+    monkeypatch.setattr(flow, "DB_PATH", "postgres://manager-db")
+    monkeypatch.setattr(flow, "ADAPTER", MultiRowAdapter())
+
+    put_calls = []
+    stored = []
+    events = []
+
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: put_calls.append(kwargs))
+    monkeypatch.setattr(flow, "store_document", lambda raw, **kwargs: stored.append((raw, kwargs)))
+
+    async def fake_fire_alerts_for_event(db_conn, event):
+        assert db_conn is conn
+        events.append(event)
+        return [1]
+
+    monkeypatch.setattr(flow, "fire_alerts_for_event", fake_fire_alerts_for_event)
+
+    rows = await flow.fetch_and_store.fn("0", "2024-01-01")
+
+    assert len(rows) == 2
+    assert len(put_calls) == 1
+    assert put_calls[0]["ServerSideEncryption"] == "AES256"
+    assert stored == [
+        (
+            "<xml></xml>",
+            {
+                "db_path": "postgres://manager-db",
+                "manager_id": 321,
+                "kind": "filing_text",
+                "filename": "1.xml",
+            },
+        )
+    ]
+    assert conn.filings == [
+        (321, "13F-HR", "2024-05-01", "edgar", put_calls[0]["Key"], '{"raw_key": "'
+         + put_calls[0]["Key"]
+         + '"}')
+    ]
+    assert conn.holdings == [
+        (9001, "AAA", "CorpA", 1, 1),
+        (9001, "BBB", "CorpB", 2, 2),
+    ]
+    assert conn.commits == 1
+    assert conn.closed is True
+    assert len(events) == 1
+    assert events[0].event_type == "new_filing"
+    assert events[0].manager_id == 321
+    assert events[0].payload["filing_id"] == 9001
 
 
 @pytest.mark.asyncio
