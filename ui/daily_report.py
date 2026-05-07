@@ -26,11 +26,12 @@ def load_diffs(date: str) -> pd.DataFrame:
   FROM mv_daily_report
   WHERE report_date = {placeholder}
   ORDER BY manager_name, delta_type"""
-    fallback_query = f"""SELECT cik AS manager_name, cusip, '' AS name_of_issuer, change AS delta_type,
-         NULL AS shares_prev, NULL AS shares_curr, NULL AS value_prev, NULL AS value_curr
-  FROM daily_diff
-  WHERE date = {placeholder}
-  ORDER BY manager_name, delta_type"""
+    fallback_query = f"""SELECT m.name AS manager_name, d.cusip, d.name_of_issuer, d.delta_type,
+         d.shares_prev, d.shares_curr, d.value_prev, d.value_curr
+  FROM daily_diffs d
+  JOIN managers m ON m.manager_id = d.manager_id
+  WHERE d.report_date = {placeholder}
+  ORDER BY manager_name, d.delta_type"""
     try:
         df = pd.read_sql_query(view_query, conn, params=(date,))
     except Exception as exc:
