@@ -80,8 +80,7 @@ def connect_db(
 
 
 def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS api_usage (
+    conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
             id INTEGER PRIMARY KEY,
             ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             source TEXT,
@@ -90,8 +89,7 @@ def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
             bytes INT,
             latency_ms INT,
             cost_usd REAL
-        )"""
-    )
+        )""")
     conn.execute(
         "CREATE VIEW IF NOT EXISTS monthly_usage AS "
         "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
@@ -102,24 +100,27 @@ def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
 
 def _ensure_postgres_usage_schema(conn: Any) -> None:
     conn.execute("SELECT to_regclass('api_usage')")
-    conn.execute(
-        """
+    conn.execute("""
         DO $$
         BEGIN
-          IF to_regclass('monthly_usage') IS NULL THEN
-            CREATE MATERIALIZED VIEW monthly_usage AS
-            SELECT date_trunc('month', ts) AS month,
-                   source,
-                   count(*)      AS calls,
-                   sum(bytes)    AS mb,
-                   sum(cost_usd) AS cost
-            FROM api_usage
-            GROUP BY 1, 2;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_matviews
+            WHERE schemaname = current_schema() AND matviewname = 'monthly_usage'
+          ) THEN
+            EXECUTE $mv$
+              CREATE MATERIALIZED VIEW monthly_usage AS
+              SELECT date_trunc('month', ts) AS month,
+                     source,
+                     count(*)        AS calls,
+                     sum(bytes)      AS mb,
+                     sum(cost_usd)   AS cost
+              FROM api_usage
+              GROUP BY 1, 2
+            $mv$;
           END IF;
         END
         $$;
-        """
-    )
+        """)
 
 
 @asynccontextmanager

@@ -1,36 +1,10 @@
 import sqlite3
 
 import pytest
+from _pg_fakes import StrictPostgresConn
 
 from adapters import base
 from adapters.base import _db_retry_config, connect_db, get_adapter
-
-
-class StrictPostgresConn:
-    forbidden_tokens = ("AUTOINCREMENT", "INSERT OR IGNORE", "PRAGMA")
-
-    def __init__(self):
-        self.statements = []
-        self.params = []
-        self.committed = False
-        self.closed = False
-
-    def execute(self, sql, params=None):
-        normalized = " ".join(sql.split())
-        for token in self.forbidden_tokens:
-            if token in normalized.upper():
-                raise AssertionError(f"SQLite-only SQL used for Postgres: {token}")
-        if "?" in normalized:
-            raise AssertionError("SQLite placeholder used for Postgres")
-        self.statements.append(normalized)
-        if params is not None:
-            self.params.append(params)
-
-    def commit(self):
-        self.committed = True
-
-    def close(self):
-        self.closed = True
 
 
 def test_connect_db_respects_timeout(tmp_path):
@@ -226,9 +200,6 @@ async def test_tracked_call_postgres_uses_strict_backend_safe_sql(monkeypatch):
     assert dummy_conn.params[-1][4] >= 0
     assert dummy_conn.params[-1][5] == 0.0
     assert "SELECT to_regclass('api_usage')" in dummy_conn.statements
-    assert any(
-        "CREATE MATERIALIZED VIEW monthly_usage AS" in sql
-        for sql in dummy_conn.statements
-    )
+    assert any("CREATE MATERIALIZED VIEW monthly_usage AS" in sql for sql in dummy_conn.statements)
     assert dummy_conn.committed is True
     assert dummy_conn.closed is True
