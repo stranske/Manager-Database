@@ -83,7 +83,8 @@ async def test_summarise_against_canonical_daily_diffs(tmp_path, monkeypatch):
     assert result == "2 changes on 2024-01-02"
     assert "COUNT(*) AS change_count" in calls["sql"]
     assert "daily_diffs" in calls["sql"]
-    assert "JOIN managers" not in calls["sql"]
+    assert "JOIN managers" in calls["sql"]
+    assert "m.manager_id = d.manager_id" in calls["sql"]
     assert calls["params"] == ("2024-01-02",)
 
 
@@ -115,6 +116,8 @@ async def test_summarise_uses_canonical_postgres_query(monkeypatch):
     legacy_column_pattern = re.compile(r"\bd\.change\b")
     assert "COUNT(*) AS change_count" in captured["sql"]
     assert "daily_diffs" in captured["sql"]
+    assert "JOIN managers" in captured["sql"]
+    assert "m.manager_id = d.manager_id" in captured["sql"]
     assert legacy_table_pattern.search(captured["sql"]) is None
     assert legacy_column_pattern.search(captured["sql"]) is None
     assert "report_date = %s" in captured["sql"]

@@ -27,6 +27,7 @@ async def summarise(date: str) -> str:
         df = pd.read_sql_query(
             "SELECT COUNT(*) AS change_count "
             "FROM daily_diffs d "
+            "JOIN managers m ON m.manager_id = d.manager_id "
             f"WHERE d.report_date = {ph}",
             conn,
             params=(date,),
