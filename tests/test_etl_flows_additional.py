@@ -403,6 +403,35 @@ async def test_summarise_skips_webhook_when_unset(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_summarise_uses_postgres_placeholder_with_canonical_tables(monkeypatch):
+    captured = {}
+
+    class StrictPostgresConn:
+        def close(self):
+            captured["closed"] = True
+
+    def fake_read_sql_query(sql, conn, params):
+        captured["sql"] = sql
+        captured["params"] = params
+        import pandas as pd
+
+        return pd.DataFrame([{"change_count": 3}])
+
+    monkeypatch.setattr(summariser_flow, "connect_db", lambda: StrictPostgresConn())
+    monkeypatch.setattr(summariser_flow.pd, "read_sql_query", fake_read_sql_query)
+
+    result = await summariser_flow.summarise.fn("2024-01-02")
+
+    assert result == "3 changes on 2024-01-02"
+    assert "FROM daily_diffs d" in captured["sql"]
+    assert "JOIN managers m ON m.manager_id = d.manager_id" in captured["sql"]
+    assert "d.report_date = %s" in captured["sql"]
+    assert "daily_diff " not in captured["sql"]
+    assert captured["params"] == ("2024-01-02",)
+    assert captured["closed"] is True
+
+
+@pytest.mark.asyncio
 async def test_summariser_flow_defaults_to_yesterday(monkeypatch):
     monkeypatch.setattr(summariser_flow.dt, "date", FixedDate)
     seen = {}
