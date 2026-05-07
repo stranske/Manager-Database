@@ -113,11 +113,18 @@ def _ensure_legacy_tables(conn: Any) -> None:
         conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
                 holding_id INTEGER PRIMARY KEY,
                 filing_id INTEGER NOT NULL,
+                manager_id INTEGER,
+                cik TEXT,
+                accession TEXT,
                 cusip TEXT,
                 isin TEXT,
                 name_of_issuer TEXT,
+                nameOfIssuer TEXT,
                 shares INTEGER,
+                sshPrnamt INTEGER,
                 value_usd NUMERIC,
+                value NUMERIC,
+                filed TEXT,
                 delta_type TEXT,
                 FOREIGN KEY(filing_id) REFERENCES filings(filing_id)
             )""")
