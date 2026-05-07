@@ -146,6 +146,12 @@ tables, materialized views, and indexes (notably `mv_daily_report` and
 reports the exact statement and error. Tests skip cleanly when
 `MGRDB_PG_TEST_URL` is unset, so the SQLite-only CI path is unaffected.
 
+The Schema Idempotence workflow also runs
+`scripts/verify_schema_idempotence.sh` against a `pgvector/pgvector:pg16`
+service on schema-related pull requests, pushes to `main`, nightly schedule,
+and manual dispatch. That gate applies `schema.sql` twice to a fresh Postgres
+database, so non-idempotent schema changes fail in CI before merge.
+
 ## Further reading
 
 - SEC EDGAR API docs[^1]

@@ -1,0 +1,49 @@
+name: Schema Idempotence
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - schema.sql
+      - scripts/verify_schema_idempotence.sh
+      - .github/workflows/schema-idempotence.yml
+  pull_request:
+    paths:
+      - schema.sql
+      - scripts/verify_schema_idempotence.sh
+      - .github/workflows/schema-idempotence.yml
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  schema-verifier:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h localhost -p 5432 -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Run scripts/verify_schema_idempotence.sh
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+        run: bash scripts/verify_schema_idempotence.sh
