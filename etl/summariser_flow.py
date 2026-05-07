@@ -11,6 +11,7 @@ import requests  # type: ignore
 from prefect import flow, task
 
 from adapters.base import connect_db, tracked_call
+from etl.daily_diff_flow import _placeholder
 from etl.logging_setup import configure_logging, log_outcome
 
 configure_logging("summariser_flow")
@@ -19,15 +20,22 @@ logger = logging.getLogger(__name__)
 
 @task
 async def summarise(date: str) -> str:
-    """Return and optionally post the daily change summary."""
+    """Return and optionally post the daily diff summary."""
     conn = connect_db()
-    df = pd.read_sql_query(
-        "SELECT cik, cusip, change FROM daily_diff WHERE date = ?",
-        conn,
-        params=(date,),
-    )
-    conn.close()
-    summary = f"{len(df)} changes on {date}"
+    ph = _placeholder(conn)
+    try:
+        df = pd.read_sql_query(
+            "SELECT COUNT(*) AS change_count "
+            "FROM daily_diffs d "
+            "JOIN managers m ON m.manager_id = d.manager_id "
+            f"WHERE d.report_date = {ph}",
+            conn,
+            params=(date,),
+        )
+    finally:
+        conn.close()
+    change_count = int(df["change_count"].iloc[0])
+    summary = f"{change_count} changes on {date}"
     webhook = os.getenv("SLACK_WEBHOOK_URL")
     if webhook:
         # log Slack webhook usage to api_usage table
@@ -49,8 +57,8 @@ async def summarise(date: str) -> str:
     log_outcome(
         logger,
         "Summary generated",
-        has_data=not df.empty,
-        extra={"date": date, "rows": len(df)},
+        has_data=change_count > 0,
+        extra={"date": date, "rows": change_count},
     )
     return summary
 
