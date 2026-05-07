@@ -146,6 +146,19 @@ tables, materialized views, and indexes (notably `mv_daily_report` and
 reports the exact statement and error. Tests skip cleanly when
 `MGRDB_PG_TEST_URL` is unset, so the SQLite-only CI path is unaffected.
 
+### EDGAR Postgres persistence smoke
+
+The EDGAR ingest path has a strict Postgres-style persistence smoke that
+rejects SQLite-only SQL while verifying raw upload, document metadata,
+canonical filing and holding writes, and `new_filing` alert dispatch:
+
+```bash
+pytest tests/test_edgar_flow.py::test_fetch_and_store_uses_postgres_safe_persistence -q
+```
+
+Run it with the schema bootstrap smoke above when changing compose `DB_URL`,
+MinIO, or canonical filing/holding columns.
+
 ## Further reading
 
 - SEC EDGAR API docs[^1]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import sqlite3
@@ -60,10 +61,21 @@ class _EdgarLogProxy:
 
 def _columns(conn: Any, table: str) -> set[str]:
     try:
-        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-    except sqlite3.OperationalError:
+        if isinstance(conn, sqlite3.Connection):
+            rows = conn.execute(f"PRAGMA table_xinfo({table})").fetchall()
+            return {str(row[1]) for row in rows}
+        rows = conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = %s",
+            (table,),
+        ).fetchall()
+        return {str(row[0]) for row in rows}
+    except Exception:
         return set()
     return {str(row[1]) for row in rows}
+
+
+def _placeholder(conn: Any) -> str:
+    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
 
 def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
@@ -75,38 +87,68 @@ def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
     )
     if not id_col or "cik" not in manager_cols:
         return None
-    row = conn.execute(f"SELECT {id_col} FROM managers WHERE cik = ? LIMIT 1", (cik,)).fetchone()
+    marker = _placeholder(conn)
+    row = conn.execute(
+        f"SELECT {id_col} FROM managers WHERE cik = {marker} LIMIT 1", (cik,)
+    ).fetchone()
     if not row or row[0] is None:
         return None
     return int(row[0])
 
 
 def _ensure_legacy_tables(conn: Any) -> None:
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute("""CREATE TABLE IF NOT EXISTS filings (
+                filing_id INTEGER PRIMARY KEY,
+                manager_id INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                period_end TEXT,
+                filed_date TEXT,
+                source TEXT NOT NULL,
+                url TEXT,
+                raw_key TEXT UNIQUE,
+                parsed_payload TEXT,
+                schema_version INTEGER
+            )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
+                holding_id INTEGER PRIMARY KEY,
+                filing_id INTEGER NOT NULL,
+                cusip TEXT,
+                isin TEXT,
+                name_of_issuer TEXT,
+                shares INTEGER,
+                value_usd NUMERIC,
+                delta_type TEXT,
+                FOREIGN KEY(filing_id) REFERENCES filings(filing_id)
+            )""")
+        return
     conn.execute("""CREATE TABLE IF NOT EXISTS filings (
-            filing_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            manager_id INTEGER NOT NULL,
-            type TEXT NOT NULL,
-            filed_date TEXT,
-            source TEXT,
-            url TEXT,
-            raw_key TEXT UNIQUE,
-            schema_version INTEGER
+            filing_id bigserial PRIMARY KEY,
+            manager_id bigint NOT NULL REFERENCES managers(manager_id),
+            type text NOT NULL,
+            period_end date,
+            filed_date date,
+            source text NOT NULL,
+            url text,
+            raw_key text,
+            parsed_payload jsonb,
+            schema_version int DEFAULT 1,
+            created_at timestamptz DEFAULT now()
         )""")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_filings_raw_key_unique "
+        "ON filings (raw_key) WHERE raw_key IS NOT NULL"
+    )
     conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
-            holding_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filing_id INTEGER,
-            manager_id INTEGER,
-            cik TEXT,
-            accession TEXT,
-            filed DATE,
-            nameOfIssuer TEXT,
-            cusip TEXT,
-            value INTEGER,
-            sshPrnamt INTEGER,
-            name_of_issuer TEXT,
-            shares INTEGER,
-            value_usd INTEGER,
-            FOREIGN KEY(filing_id) REFERENCES filings(filing_id)
+            holding_id bigserial PRIMARY KEY,
+            filing_id bigint NOT NULL REFERENCES filings(filing_id),
+            cusip text,
+            isin text,
+            name_of_issuer text,
+            shares bigint,
+            value_usd numeric(18,2),
+            delta_type text,
+            created_at timestamptz DEFAULT now()
         )""")
 
 
@@ -115,12 +157,39 @@ def _upsert_filing_legacy(
 ) -> int:
     if manager_id is None:
         return 0
-    conn.execute(
-        "INSERT OR IGNORE INTO filings(manager_id, type, filed_date, source, raw_key) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (manager_id, filing_type, filed_date, "edgar", raw_key),
-    )
-    row = conn.execute("SELECT filing_id FROM filings WHERE raw_key = ?", (raw_key,)).fetchone()
+    payload = json.dumps({"raw_key": raw_key})
+    if isinstance(conn, sqlite3.Connection):
+        columns = _columns(conn, "filings")
+        values: dict[str, Any] = {
+            "manager_id": manager_id,
+            "type": filing_type,
+            "filed_date": filed_date,
+            "source": "edgar",
+            "raw_key": raw_key,
+            "parsed_payload": payload,
+        }
+        insert_columns = [column for column in values if column in columns]
+        update_columns = [column for column in insert_columns if column != "raw_key"]
+        row = conn.execute(
+            f"INSERT INTO filings({', '.join(insert_columns)}) "
+            f"VALUES ({', '.join('?' for _ in insert_columns)}) "
+            "ON CONFLICT(raw_key) DO UPDATE SET "
+            f"{', '.join(f'{column} = excluded.{column}' for column in update_columns)} "
+            "RETURNING filing_id",
+            [values[column] for column in insert_columns],
+        ).fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+    row = conn.execute(
+        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload) "
+        "VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
+        "ON CONFLICT (raw_key) WHERE raw_key IS NOT NULL DO UPDATE SET "
+        "manager_id = EXCLUDED.manager_id, "
+        "type = EXCLUDED.type, "
+        "filed_date = EXCLUDED.filed_date, "
+        "parsed_payload = EXCLUDED.parsed_payload "
+        "RETURNING filing_id",
+        (manager_id, filing_type, filed_date, "edgar", raw_key, payload),
+    ).fetchone()
     return int(row[0]) if row and row[0] is not None else 0
 
 
@@ -135,26 +204,32 @@ def _insert_holding_legacy(
     filed_date: str | None,
 ) -> None:
     columns = _columns(conn, "holdings")
+    marker = _placeholder(conn)
     values: dict[str, Any] = {
         "filing_id": filing_id,
-        "manager_id": manager_id,
-        "cik": cik,
-        "accession": accession,
-        "filed": filed_date,
-        "nameOfIssuer": row.get("nameOfIssuer"),
         "cusip": row.get("cusip"),
-        "value": int(row.get("value") or 0),
-        "sshPrnamt": int(row.get("sshPrnamt") or 0),
         "name_of_issuer": row.get("nameOfIssuer"),
         "shares": int(row.get("sshPrnamt") or 0),
         "value_usd": int(row.get("value") or 0),
     }
+    if isinstance(conn, sqlite3.Connection):
+        values.update(
+            {
+                "manager_id": manager_id,
+                "cik": cik,
+                "accession": accession,
+                "filed": filed_date,
+                "nameOfIssuer": row.get("nameOfIssuer"),
+                "value": int(row.get("value") or 0),
+                "sshPrnamt": int(row.get("sshPrnamt") or 0),
+            }
+        )
     insert_columns = [column for column in values if column in columns]
     if not insert_columns:
         return
     conn.execute(
         f"INSERT INTO holdings({', '.join(insert_columns)}) "
-        f"VALUES ({', '.join('?' for _ in insert_columns)})",
+        f"VALUES ({', '.join(marker for _ in insert_columns)})",
         [values[column] for column in insert_columns],
     )
 
