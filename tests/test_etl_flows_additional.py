@@ -11,6 +11,28 @@ import etl.edgar_flow as edgar_flow
 import etl.summariser_flow as summariser_flow
 
 
+def seed_daily_diffs(db_path, rows):
+    conn = sqlite3.connect(db_path)
+    conn.execute("""CREATE TABLE IF NOT EXISTS managers (
+            manager_id INTEGER PRIMARY KEY,
+            name TEXT,
+            cik TEXT UNIQUE
+        )""")
+    conn.execute(
+        "INSERT OR IGNORE INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
+        (1, "Manager", "1"),
+    )
+    daily_flow._ensure_daily_diffs_table(conn)
+    conn.executemany(
+        "INSERT INTO daily_diffs "
+        "(manager_id, report_date, cusip, name_of_issuer, delta_type) "
+        "VALUES (?, ?, ?, ?, ?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+
+
 def seed_manager(db_path, cik, manager_id=1):
     conn = sqlite3.connect(db_path)
     conn.execute("""CREATE TABLE IF NOT EXISTS managers (
@@ -323,14 +345,7 @@ def test_daily_diff_flow_idempotent_rerun(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_summarise_posts_to_slack_when_webhook_set(tmp_path, monkeypatch):
     db_file = tmp_path / "dev.db"
-    conn = sqlite3.connect(db_file)
-    conn.execute("CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)")
-    conn.execute(
-        "INSERT INTO daily_diff VALUES (?,?,?,?)",
-        ("2024-01-02", "1", "AAA", "ADD"),
-    )
-    conn.commit()
-    conn.close()
+    seed_daily_diffs(db_file, [(1, "2024-01-02", "AAA", "Alpha Corp", "ADD")])
     monkeypatch.setenv("DB_PATH", str(db_file))
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://example.test/webhook")
     calls = {}
@@ -366,17 +381,13 @@ async def test_summarise_posts_to_slack_when_webhook_set(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_summarise_skips_webhook_when_unset(tmp_path, monkeypatch):
     db_file = tmp_path / "dev.db"
-    conn = sqlite3.connect(db_file)
-    conn.execute("CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)")
-    conn.executemany(
-        "INSERT INTO daily_diff VALUES (?,?,?,?)",
+    seed_daily_diffs(
+        db_file,
         [
-            ("2024-01-02", "1", "AAA", "ADD"),
-            ("2024-01-02", "2", "BBB", "EXIT"),
+            (1, "2024-01-02", "AAA", "Alpha Corp", "ADD"),
+            (1, "2024-01-02", "BBB", "Beta Corp", "EXIT"),
         ],
     )
-    conn.commit()
-    conn.close()
     monkeypatch.setenv("DB_PATH", str(db_file))
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
 

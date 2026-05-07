@@ -5,6 +5,8 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import os
+import sqlite3
+from typing import Any
 
 import pandas as pd
 import requests  # type: ignore
@@ -17,12 +19,21 @@ configure_logging("summariser_flow")
 logger = logging.getLogger(__name__)
 
 
+def _placeholder(conn: Any) -> str:
+    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
+
+
 @task
 async def summarise(date: str) -> str:
-    """Return and optionally post the daily change summary."""
+    """Return and optionally post the daily diff summary."""
     conn = connect_db()
+    ph = _placeholder(conn)
     df = pd.read_sql_query(
-        "SELECT cik, cusip, change FROM daily_diff WHERE date = ?",
+        "SELECT m.name AS manager_name, d.cusip, d.delta_type "
+        "FROM daily_diffs d "
+        "JOIN managers m ON m.manager_id = d.manager_id "
+        f"WHERE d.report_date = {ph} "
+        "ORDER BY m.name, d.delta_type, d.cusip",
         conn,
         params=(date,),
     )
