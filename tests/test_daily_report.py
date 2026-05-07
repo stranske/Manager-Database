@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from etl.daily_diff_flow import _ensure_daily_diffs_table
 from ui.daily_report import (
     format_activism_event_type,
     format_news_table,
@@ -25,7 +26,6 @@ from ui.daily_report import (
 def setup_db(tmp_path: Path) -> str:
     db_path = tmp_path / "dev.db"
     conn = sqlite3.connect(db_path)
-    conn.execute("CREATE TABLE daily_diff (date TEXT, cik TEXT, cusip TEXT, change TEXT)")
     conn.execute("CREATE TABLE managers (manager_id TEXT, name TEXT)")
     conn.execute(
         "CREATE TABLE news_items (headline TEXT, url TEXT, published_at TEXT, source TEXT, topics TEXT, confidence REAL, manager_id TEXT)"
@@ -42,9 +42,10 @@ def setup_db(tmp_path: Path) -> str:
     conn.execute(
         "CREATE TABLE contrarian_signals (signal_id INTEGER, manager_id TEXT, cusip TEXT, name_of_issuer TEXT, direction TEXT, consensus_direction TEXT, manager_delta_shares INTEGER, manager_delta_value REAL, consensus_count INTEGER, report_date TEXT, detected_at TEXT)"
     )
+    _ensure_daily_diffs_table(conn)
     diff_rows = [
-        ("2024-05-01", "0", "AAA", "ADD"),
-        ("2024-05-01", "0", "BBB", "EXIT"),
+        ("m1", "2024-05-01", "AAA", "Alpha Corp", "ADD", 10, 20, 100.0, 200.0),
+        ("m2", "2024-05-01", "BBB", "Beta Corp", "EXIT", 30, 0, 300.0, 0.0),
     ]
     manager_rows = [("m1", "Manager One"), ("m2", "Manager Two")]
     news_rows = [
@@ -120,8 +121,14 @@ def setup_db(tmp_path: Path) -> str:
             "2024-05-01T11:00:00",
         )
     ]
-    conn.executemany("INSERT INTO daily_diff VALUES (?,?,?,?)", diff_rows)
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
+    conn.executemany(
+        "INSERT INTO daily_diffs "
+        "(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        diff_rows,
+    )
     conn.executemany("INSERT INTO news_items VALUES (?,?,?,?,?,?,?)", news_rows)
     conn.executemany(
         "INSERT INTO activism_filings VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", activism_filings
@@ -144,7 +151,7 @@ def test_load_diffs_and_news(tmp_path, monkeypatch):
     news = load_news("2024-05-01")
     assert len(diffs) == 2
     assert set(diffs["delta_type"]) == {"ADD", "EXIT"}
-    assert set(diffs["manager_name"]) == {"0"}
+    assert set(diffs["manager_name"]) == {"Manager One", "Manager Two"}
     assert len(news) == 2
     assert "manager_name" in news.columns
     assert set(news["manager_name"]) == {"Manager One", "Manager Two"}

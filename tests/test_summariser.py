@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import pandas as pd
 import pytest
 
 from etl.daily_diff_flow import _ensure_daily_diffs_table
@@ -67,10 +68,23 @@ async def test_summarise_against_canonical_daily_diffs(tmp_path, monkeypatch):
     db_file = tmp_path / "dev.db"
     setup_db(db_file)
     monkeypatch.setenv("DB_PATH", str(db_file))
+    calls = {}
+    original_read_sql_query = pd.read_sql_query
+
+    def capture_read_sql_query(sql, conn, params):
+        calls["sql"] = sql
+        calls["params"] = params
+        return original_read_sql_query(sql, conn, params=params)
+
+    monkeypatch.setattr("etl.summariser_flow.pd.read_sql_query", capture_read_sql_query)
 
     result = await summarise.fn("2024-01-02")
 
     assert result == "2 changes on 2024-01-02"
+    assert "COUNT(*) AS change_count" in calls["sql"]
+    assert "daily_diffs" in calls["sql"]
+    assert "JOIN managers" not in calls["sql"]
+    assert calls["params"] == ("2024-01-02",)
 
 
 @pytest.mark.asyncio
@@ -87,9 +101,7 @@ async def test_summarise_uses_canonical_postgres_query(monkeypatch):
         captured["params"] = params
         import pandas as pd
 
-        return pd.DataFrame(
-            [{"manager_name": "Example Manager", "cusip": "AAA", "delta_type": "ADD"}]
-        )
+        return pd.DataFrame([{"change_count": 1}])
 
     monkeypatch.setattr("etl.summariser_flow.connect_db", lambda: StrictPostgresConn())
     monkeypatch.setattr("etl.summariser_flow.pd.read_sql_query", fake_read_sql_query)
@@ -97,13 +109,14 @@ async def test_summarise_uses_canonical_postgres_query(monkeypatch):
     result = await summarise.fn("2024-01-02")
 
     assert result == "1 changes on 2024-01-02"
-    legacy_table = "daily_" + "diff "
-    legacy_table_with_newline = " daily_" + "diff\n"
-    legacy_column = "chan" + "ge"
+    import re
+
+    legacy_table_pattern = re.compile(r"\bdaily_diff\b")
+    legacy_column_pattern = re.compile(r"\bd\.change\b")
+    assert "COUNT(*) AS change_count" in captured["sql"]
     assert "daily_diffs" in captured["sql"]
-    assert legacy_table not in captured["sql"]
-    assert legacy_table_with_newline not in captured["sql"]
-    assert legacy_column not in captured["sql"]
+    assert legacy_table_pattern.search(captured["sql"]) is None
+    assert legacy_column_pattern.search(captured["sql"]) is None
     assert "report_date = %s" in captured["sql"]
     assert captured["params"] == ("2024-01-02",)
     assert captured["closed"] is True
