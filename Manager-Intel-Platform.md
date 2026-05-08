@@ -116,11 +116,11 @@ Region	Free endpoint you can hit today	What you actually get	Caveats & upgrade f
 US	SEC EDGAR Submissions JSON & Documents API	All filings + meta in real time	Free; 10 rps/IP hard-limit (it will 429). Paid sec-api tier buys higher throughput and historical search.
 UK	Companies House REST API api.companieshouse.gov.uk	Full company register & PDF filings	Free key; soft 600 req/5 min cap. Paid feeds add daily bulk dumps and images 
 developer.company-information.service.gov.uk
-Canada	SEDAR+ public search (HTML, but stable)	PDFs / XBRLs for all issuers	No official API. Free scraping is fine for a dozen managers; heavy use → licence with CSA’s bulk feed 
+Canada	SEDAR+ public search (HTML, but stable)	PDFs / XBRLs for all issuers	Registered as `ca` via `adapters/canada.py`; listing/downloading is wired, parsing returns a structured `unsupported` status until a SEDAR parser exists. No official API. Free scraping is fine for a dozen managers; heavy use → licence with CSA’s bulk feed
 sedarplus.ca
-Australia	ASIC monthly CSV dumps on data.gov.au	Snapshots of company register	No filings PDFs; those are pay-per-doc. CSVs are free and good for status/addresses 
+Australia	ASIC monthly CSV dumps on data.gov.au	Snapshots of company register	Registered as `au` via `adapters/asic.py`; free CSV snapshots are stored as metadata and filing-document parsing returns `unsupported` because PDFs are pay-per-doc. CSVs are free and good for status/addresses
 asic.gov.au
-Singapore	MAS API (gov.sg)	Licences, enforcement, macro data	GA release Mar 2025, free key but 5 k req/day. Premium tier adds real-time feeds
+Singapore	MAS API (gov.sg)	Licences, enforcement, macro data	Registered as `sg` via `adapters/mas.py`; MAS metadata can be selected by ingest flow, but manager filing documents return `unsupported` until a concrete endpoint/feed is configured. GA release Mar 2025, free key but 5 k req/day. Premium tier adds real-time feeds
 
 Add one adapter.py per source. Each exposes the same three coroutine signatures:
 

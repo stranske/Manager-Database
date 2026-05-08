@@ -62,8 +62,17 @@ async def test_download_returns_bytes(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_parse_returns_raw_length():
+async def test_parse_returns_structured_unsupported_status():
     raw = b"file contents"
 
-    # Coverage for the minimal parse path.
-    assert await canada.parse(raw) == [{"raw_bytes": len(raw)}]
+    result = await canada.parse(raw)
+
+    assert result == [
+        {
+            "status": "unsupported",
+            "source": "ca",
+            "filing_type": "sedar_document",
+            "errors": ["sedar_parse_not_implemented"],
+            "raw_bytes": len(raw),
+        }
+    ]

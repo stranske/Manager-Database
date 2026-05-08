@@ -1,0 +1,25 @@
+## 2026-05-08T23:03:33Z - opener lane selected issue #908
+
+- Lane: opener (codex scheduled run).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: `#908` (`Complete the source-adapter matrix for Canada and APAC`), priority normal.
+- Branch: `codex/issue-908-source-adapter-matrix`.
+- Selection context:
+  - High-priority `Inv-Man-Intake#379` and `#381` were skipped because they are reopened verifier-hold issues after merged PRs `#393` and `#400`.
+  - Older normal-priority `Counter_Risk#476` was skipped because it is reopened for verifier disposition after merged PR `#572`; `Counter_Risk#477` already has open PR `#573`.
+  - `Manager-Database#908` had no open Manager PRs and no closed PR search hit for issue `#908`.
+- Cap-health before implementation:
+  - Initial: `total_opener_owned=4`, `raw_cap_reached=false`, `normal_cap_reached=false`, `non_drainable_cap_blocker=false`, `drainable_count=3`, `non_drainable_count=1`.
+  - Initially non-drainable: `Trend_Model_Project#5260`, state `infra-stalled`, first reason `latest gate-followups evaluator skipped instead of dispatching keepalive`.
+  - Infra repair dispatched Gate Followups for `Trend_Model_Project#5260` with `agent:retry` already present.
+  - Post-repair: raw cap still below five and no non-drainable cap blocker; `Trend_Model_Project#5260` still `infra-stalled` but not cap-blocking while capacity exists.
+- Implementation plan:
+  - Replace Canada's raw-byte success placeholder with structured unsupported parse status.
+  - Register `sg` and `au` ingest jurisdictions with MAS and ASIC adapter modules.
+  - Store APAC metadata payloads as filing rows without expanding fake holdings.
+  - Add focused adapter/ingest tests and update source-adapter documentation.
+- Validation:
+  - `python -m pytest tests/test_canada_adapter.py tests/test_apac_adapters.py tests/test_adapter_registry.py tests/test_ingest_flow.py --no-cov` passed: `18 passed, 8 warnings`.
+  - `python -m compileall -q adapters etl tests/test_canada_adapter.py tests/test_apac_adapters.py tests/test_adapter_registry.py tests/test_ingest_flow.py` passed.
+  - `git diff --check` passed.
+- Next action: commit, push, open ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`.
