@@ -22,4 +22,8 @@
   - `python -m pytest tests/test_canada_adapter.py tests/test_apac_adapters.py tests/test_adapter_registry.py tests/test_ingest_flow.py --no-cov` passed: `18 passed, 8 warnings`.
   - `python -m compileall -q adapters etl tests/test_canada_adapter.py tests/test_apac_adapters.py tests/test_adapter_registry.py tests/test_ingest_flow.py` passed.
   - `git diff --check` passed.
-- Next action: commit, push, open ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`.
+- Commit pushed: `7f57bbf4d686af57be6cb9a6dff3e61525daf35b`.
+- PR opened: `stranske/Manager-Database#1001` (`https://github.com/stranske/Manager-Database/pull/1001`), non-draft, base `main`, linked to `#908`.
+- PR labels verified: `agent:codex`, `agents:keepalive`, and `autofix`.
+- Relay event emitted: `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=908 active.source_pr=1001 active.next_action=wait_for_keepalive`.
+- Next action: wait for keepalive; opener is done with this issue.
