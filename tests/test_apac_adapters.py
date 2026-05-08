@@ -17,11 +17,7 @@ async def dummy_tracked_call(*_args, **_kwargs):
 @pytest.mark.asyncio
 async def test_mas_lists_metadata_records(monkeypatch):
     payload = {
-        "result": {
-            "records": [
-                {"_id": "mas-1", "date": "2024-03-01", "entity": "Example Capital"}
-            ]
-        }
+        "result": {"records": [{"_id": "mas-1", "date": "2024-03-01", "entity": "Example Capital"}]}
     }
 
     class DummyClient:
@@ -65,6 +61,22 @@ async def test_mas_parse_returns_unsupported_status():
 
 @pytest.mark.asyncio
 async def test_asic_lists_register_snapshot(monkeypatch):
+    search_payload = {
+        "result": {
+            "results": [
+                {
+                    "resources": [
+                        {
+                            "format": "CSV",
+                            "url": "https://data.gov.au/example/asic-companies.csv",
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    requests: list[str] = []
+
     class DummyClient:
         async def __aenter__(self):
             return self
@@ -72,10 +84,17 @@ async def test_asic_lists_register_snapshot(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-        async def get(self, *args, **kwargs):
+        async def get(self, url, *args, **kwargs):
+            requests.append(url)
+            if url == asic.BASE_URL:
+                return httpx.Response(
+                    200,
+                    request=httpx.Request("GET", url),
+                    json=search_payload,
+                )
             return httpx.Response(
                 200,
-                request=httpx.Request("GET", "x"),
+                request=httpx.Request("GET", url),
                 text="ACN,Name\n123,Example Pty Ltd\n",
             )
 
@@ -90,6 +109,10 @@ async def test_asic_lists_register_snapshot(monkeypatch):
             "date": "2024-01-01",
             "raw": "ACN,Name\n123,Example Pty Ltd\n",
         }
+    ]
+    assert requests == [
+        asic.BASE_URL,
+        "https://data.gov.au/example/asic-companies.csv",
     ]
 
 

@@ -13,7 +13,7 @@ def test_get_adapter_returns_module():
     assert hasattr(adapter, "list_new_filings")
 
 
-def test_get_adapter_returns_apac_modules():
+def test_get_adapter_returns_non_us_uk_modules():
     for name in ("canada", "mas", "asic"):
         adapter = get_adapter(name)
         assert isinstance(adapter, types.ModuleType)
