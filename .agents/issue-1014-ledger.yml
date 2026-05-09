@@ -6,10 +6,10 @@ tasks:
   - id: task-01
     title: Implement dialect-aware table creation logic in embeddings.py that uses
       AUTOINCREMENT for SQLite and SERIAL or IDENTITY for Postgres primary keys
-    status: doing
+    status: done
     started_at: '2026-05-09T17:50:41Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-05-09T17:50:50Z'
+    commit: 471b47d6b7f911138f7980bb393acb530a1a4934
     notes: []
   - id: task-02
     title: Implement dialect-aware schema inspection in embeddings.py that uses PRAGMA
