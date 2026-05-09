@@ -22,4 +22,11 @@
   - `pytest tests/test_chat_api.py tests/test_manager_api.py tests/test_data_api.py tests/test_rate_limit_contract.py` passed: 92 passed.
   - `git diff --check` passed.
 - Branch: `codex/issue-1000-rate-limit-contract`.
-- Next action: open ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`; relay `pr_opened` so keepalive takes over.
+- PR: `#1012` (`https://github.com/stranske/Manager-Database/pull/1012`), opened ready-for-review with `agent:codex`, `agents:keepalive`, and `autofix`.
+- Relay:
+  - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1000 active.source_pr=1012 active.next_action=wait_for_keepalive`
+- Post-open repair:
+  - Immediate cap-health initially classified `#1012` as `needs-dispatch-evidence` because early Gate/Gate Followups runs cancelled before runner evidence appeared.
+  - Ran `opener-repair-infra-stalls.py --json`; it added `agent:retry` and dispatched Gate Followups for `#1012`.
+  - Fresh cap-health at `2026-05-09T16:07:49Z` reported `#1012` as `draining` with active Gate and Agents Gate Followups runs; fleet totals were `total_opener_owned=2`, `drainable_count=2`, `non_drainable_count=0`, `raw_cap_reached=false`, `normal_cap_reached=false`.
+- Next action: keepalive owns CI/check follow-up for PR `#1012`.
