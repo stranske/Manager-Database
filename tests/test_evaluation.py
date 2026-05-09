@@ -202,3 +202,46 @@ def test_live_evaluation_suite_scores_live_chain_outputs(tmp_path):
     assert summary["metrics"]["hallucination"] == 1.0
     assert summary["failures"] == {}
     conn.close()
+
+
+def test_seed_live_evaluation_database_is_deterministic(tmp_path):
+    conn = sqlite3.connect(tmp_path / "live-eval.db")
+
+    evaluation_flow.seed_live_evaluation_database(conn)
+    first_snapshot = {
+        "managers": conn.execute("SELECT manager_id, name, cik FROM managers").fetchall(),
+        "filings": conn.execute(
+            "SELECT filing_id, manager_id, type, period_end, filed_date FROM filings"
+        ).fetchall(),
+        "holdings": conn.execute(
+            "SELECT filing_id, cusip, name_of_issuer, shares, value_usd FROM holdings ORDER BY holding_id"
+        ).fetchall(),
+        "daily_diffs": conn.execute(
+            "SELECT manager_id, filing_id, cusip, delta_type, shares_curr FROM daily_diffs ORDER BY diff_id"
+        ).fetchall(),
+        "news_items": conn.execute(
+            "SELECT news_id, manager_id, source, headline FROM news_items"
+        ).fetchall(),
+    }
+
+    evaluation_flow.seed_live_evaluation_database(conn)
+    second_snapshot = {
+        "managers": conn.execute("SELECT manager_id, name, cik FROM managers").fetchall(),
+        "filings": conn.execute(
+            "SELECT filing_id, manager_id, type, period_end, filed_date FROM filings"
+        ).fetchall(),
+        "holdings": conn.execute(
+            "SELECT filing_id, cusip, name_of_issuer, shares, value_usd FROM holdings ORDER BY holding_id"
+        ).fetchall(),
+        "daily_diffs": conn.execute(
+            "SELECT manager_id, filing_id, cusip, delta_type, shares_curr FROM daily_diffs ORDER BY diff_id"
+        ).fetchall(),
+        "news_items": conn.execute(
+            "SELECT news_id, manager_id, source, headline FROM news_items"
+        ).fetchall(),
+    }
+
+    assert first_snapshot == second_snapshot
+    assert len(second_snapshot["holdings"]) == 3
+    assert len(second_snapshot["daily_diffs"]) == 1
+    conn.close()
