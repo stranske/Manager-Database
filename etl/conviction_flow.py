@@ -36,6 +36,24 @@ def _placeholder(conn: Any) -> str:
     return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
 
+def _is_missing_postgres_table_error(exc: Exception) -> bool:
+    message = str(exc)
+    exc_name = exc.__class__.__name__
+    pgcode = getattr(exc, "pgcode", None)
+    return "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_name
+
+
+def _ensure_postgres_table_exists(conn: Any, table_name: str) -> None:
+    try:
+        conn.execute(f"SELECT 1 FROM {table_name} LIMIT 1")
+    except Exception as exc:
+        if _is_missing_postgres_table_error(exc):
+            raise RuntimeError(
+                f"{table_name} table is missing on Postgres; apply schema migrations first"
+            ) from exc
+        raise
+
+
 def _ensure_conviction_scores_table(conn: Any) -> None:
     """Create conviction_scores on SQLite; fail fast on missing Postgres schema."""
     if isinstance(conn, sqlite3.Connection):
@@ -61,20 +79,7 @@ def _ensure_conviction_scores_table(conn: Any) -> None:
         )
         return
 
-    try:
-        conn.execute("SELECT 1 FROM conviction_scores LIMIT 1")
-    except Exception as exc:
-        message = str(exc)
-        exc_name = exc.__class__.__name__
-        pgcode = getattr(exc, "pgcode", None)
-        missing_table = (
-            "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_name
-        )
-        if missing_table:
-            raise RuntimeError(
-                "conviction_scores table is missing on Postgres; apply schema migrations first"
-            ) from exc
-        raise
+    _ensure_postgres_table_exists(conn, "conviction_scores")
 
 
 def _ensure_api_usage_table(conn: Any) -> None:
@@ -88,9 +93,9 @@ def _ensure_api_usage_table(conn: Any) -> None:
                 bytes INT,
                 latency_ms INT,
                 cost_usd REAL
-            )""")
+        )""")
         return
-    conn.execute("SELECT 1 FROM api_usage LIMIT 1")
+    _ensure_postgres_table_exists(conn, "api_usage")
 
 
 def _record_flow_usage(
@@ -245,7 +250,7 @@ def _ensure_crowded_trades_table(conn: Any) -> None:
             UNIQUE (cusip, report_date)
         )""")
         return
-    conn.execute("SELECT 1 FROM crowded_trades LIMIT 1")
+    _ensure_postgres_table_exists(conn, "crowded_trades")
 
 
 def _ensure_contrarian_signals_table(conn: Any) -> None:
@@ -267,7 +272,7 @@ def _ensure_contrarian_signals_table(conn: Any) -> None:
             UNIQUE (manager_id, cusip, report_date)
         )""")
         return
-    conn.execute("SELECT 1 FROM contrarian_signals LIMIT 1")
+    _ensure_postgres_table_exists(conn, "contrarian_signals")
 
 
 def _fetch_latest_conviction_rows(
