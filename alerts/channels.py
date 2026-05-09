@@ -80,6 +80,27 @@ def _send_via_smtp(
         smtp.send_message(message)
 
 
+def send_email_message_via_smtp(
+    message: EmailMessage,
+    *,
+    host: str,
+    port: int,
+    username: str | None,
+    password: str | None,
+    use_tls: bool,
+    timeout_seconds: float,
+) -> None:
+    _send_via_smtp(
+        message,
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+        use_tls=use_tls,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 class EmailChannel(NotificationChannel):
     """Send HTML email alerts using SMTP or SendGrid."""
 

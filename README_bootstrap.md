@@ -48,12 +48,22 @@ Feel free to open issues or pull requests as you iterate.
    ```
    Parsed rows will be stored in `dev.db` and raw filings uploaded to the `filings` bucket in MinIO.
 
-3. Start the Streamlit app shell:
+3. Generate the local analyst digest without sending email:
+   ```bash
+   DIGEST_DRY_RUN=true DIGEST_OUTPUT_PATH=/tmp/manager-digest.txt python etl/digest_flow.py
+   ```
+   The digest reads recent `filings`, manager-linked `news_items`, and unacknowledged
+   important `alert_history` rows from `DB_PATH`/`DB_URL`. Configure
+   `DIGEST_LOOKBACK_HOURS`, `DIGEST_EMAIL_TO`, and `DIGEST_EMAIL_FROM` for scheduled
+   delivery; it reuses the existing SMTP/SendGrid environment variables from alert email
+   delivery.
+
+4. Start the Streamlit app shell:
    ```bash
    streamlit run ui/app.py
    ```
 
-4. You can still run individual pages directly if needed:
+5. You can still run individual pages directly if needed:
    ```bash
    streamlit run ui/daily_report.py
    ```
@@ -61,12 +71,12 @@ Feel free to open issues or pull requests as you iterate.
    streamlit run ui/search.py
    ```
    The multipage shell exposes routes like `/daily-report`, `/search`, `/upload`, and `/research`.
-5. Upload your own notes:
+6. Upload your own notes:
    ```bash
    streamlit run ui/upload.py
    ```
 
-6. The chat API runs as the `api` compose service started in step 2 of the
+7. The chat API runs as the `api` compose service started in step 2 of the
    Quick start. To run it directly against an out-of-compose environment
    (for example with `--reload` for fast iteration), you can still launch
    it manually:
