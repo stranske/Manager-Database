@@ -451,9 +451,9 @@ class FilingSummaryChain:
         )
 
     def _log_usage(self, *, filing_id: int, output_text: str, latency_ms: int, status: int) -> None:
-        try:
-            self.db.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+        if self._is_sqlite_connection(self.db):
+            create_usage_sql = """CREATE TABLE IF NOT EXISTS api_usage (
+                id INTEGER PRIMARY KEY,
                 ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 source TEXT,
                 endpoint TEXT,
@@ -461,21 +461,23 @@ class FilingSummaryChain:
                 bytes INT,
                 latency_ms INT,
                 cost_usd REAL
-            )""")
+            )"""
+        else:
+            create_usage_sql = """CREATE TABLE IF NOT EXISTS api_usage (
+                id BIGSERIAL PRIMARY KEY,
+                ts TIMESTAMPTZ DEFAULT now(),
+                source TEXT,
+                endpoint TEXT,
+                status INT,
+                bytes INT,
+                latency_ms INT,
+                cost_usd NUMERIC(10,4)
+            )"""
+
+        try:
+            self.db.execute(create_usage_sql)
         except Exception:
-            try:
-                self.db.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                    id BIGSERIAL PRIMARY KEY,
-                    ts TIMESTAMPTZ DEFAULT now(),
-                    source TEXT,
-                    endpoint TEXT,
-                    status INT,
-                    bytes INT,
-                    latency_ms INT,
-                    cost_usd NUMERIC(10,4)
-                )""")
-            except Exception:
-                return
+            return
 
         placeholder = self._placeholder(self.db)
         insert_sql = (
