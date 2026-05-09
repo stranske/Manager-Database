@@ -7,6 +7,7 @@ import heapq
 import json
 import math
 import os
+import sqlite3
 from collections import Counter
 from typing import Any
 
@@ -47,6 +48,20 @@ def embed_text(text: str) -> list[float]:
     return vec.tolist()
 
 
+def _is_postgres_connection(conn: Any) -> bool:
+    return conn.__class__.__name__ == "Connection" and hasattr(conn, "info")
+
+
+def _sqlite_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    try:
+        cursor = conn.execute(f"SELECT * FROM {table} LIMIT 0")
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc).lower():
+            return set()
+        raise
+    return {str(column[0]) for column in cursor.description or ()}
+
+
 def store_document(
     text: str,
     db_path: str | None = None,
@@ -67,7 +82,7 @@ def store_document(
         doc_id of the inserted/existing document
     """
     conn = connect_db(db_path)
-    is_pg = conn.__class__.__name__ == "Connection" and hasattr(conn, "info")
+    is_pg = _is_postgres_connection(conn)
     sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
     if is_pg:
         if register_vector:
@@ -110,7 +125,7 @@ def store_document(
             doc_id = int(existing[0])
     else:
         conn.execute("""CREATE TABLE IF NOT EXISTS documents (
-                doc_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                doc_id INTEGER PRIMARY KEY,
                 manager_id INTEGER,
                 kind TEXT NOT NULL DEFAULT 'note',
                 filename TEXT,
@@ -119,7 +134,7 @@ def store_document(
                 embedding TEXT,
                 created_at TEXT DEFAULT (datetime('now'))
             )""")
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(documents)").fetchall()}
+        columns = _sqlite_columns(conn, "documents")
         id_col = "doc_id" if "doc_id" in columns else "id"
         text_col = "text" if "text" in columns else "content"
         if "sha256" in columns:
@@ -147,11 +162,15 @@ def store_document(
         insert_cols.append("embedding")
         insert_values.append(emb)
         placeholders = ",".join("?" for _ in insert_cols)
-        insert_verb = "INSERT OR IGNORE" if "sha256" in columns else "INSERT"
-        cur = conn.execute(
-            f"{insert_verb} INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})",
-            insert_values,
-        )
+        cur = None
+        try:
+            cur = conn.execute(
+                f"INSERT INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})",
+                insert_values,
+            )
+        except sqlite3.IntegrityError:
+            if "sha256" not in columns:
+                raise
         if "sha256" in columns:
             existing = conn.execute(
                 f"SELECT {id_col} FROM documents WHERE sha256 = ?",
@@ -177,10 +196,13 @@ def search_documents(
     if k <= 0:
         return []
     conn = connect_db(db_path)
-    is_pg = conn.__class__.__name__ == "Connection" and hasattr(conn, "info")
-    if is_pg and register_vector:
-        register_vector(conn)
-        qvec = Vector(embed_text(query))
+    is_pg = _is_postgres_connection(conn)
+    if is_pg:
+        if register_vector:
+            register_vector(conn)
+            qvec = Vector(embed_text(query))
+        else:
+            qvec = embed_text(query)
         where_clause = ""
         params: list[Any] = [qvec]
         if manager_id is not None:
@@ -210,22 +232,17 @@ def search_documents(
         ]
     # Process documents one at a time to avoid loading entire dataset into memory
     # Use a heap to keep only top k results, bounding memory to O(k) instead of O(n)
-    columns = {row[1] for row in conn.execute("PRAGMA table_info(documents)").fetchall()}
+    columns = _sqlite_columns(conn, "documents")
     if not columns:
         conn.close()
         return []
     id_col = "doc_id" if "doc_id" in columns else "id"
     text_col = "text" if "text" in columns else "content"
     has_manager_id = "manager_id" in columns
-    manager_table_exists = bool(
-        conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='managers'"
-        ).fetchone()
-    )
     manager_pk_col = None
     manager_columns: set[str] = set()
-    if has_manager_id and manager_table_exists:
-        manager_columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+    if has_manager_id:
+        manager_columns = _sqlite_columns(conn, "managers")
         if "manager_id" in manager_columns:
             manager_pk_col = "manager_id"
         elif "id" in manager_columns:

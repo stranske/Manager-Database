@@ -5,6 +5,14 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from embeddings import embed_text, search_documents, store_document
+from scripts.check_dialect_portability import scan
+
+
+def _assert_postgres_safe(sql: str) -> None:
+    forbidden = ("AUTOINCREMENT", "INSERT OR IGNORE", "PRAGMA")
+    upper_sql = sql.upper()
+    assert not any(token in upper_sql for token in forbidden), sql
+    assert "?" not in sql, sql
 
 
 def test_store_document_with_metadata_populates_columns(tmp_path, monkeypatch):
@@ -227,6 +235,7 @@ def test_store_and_search_pgvector(monkeypatch):
             self.closed = False
 
         def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
             self.executed.append((sql, params))
             if sql.startswith("SELECT doc_id FROM documents WHERE sha256"):
                 return type("Result", (), {"fetchone": lambda self: None})()
@@ -282,6 +291,7 @@ def test_store_document_pgvector_conflict_returns_existing(monkeypatch):
             self.closed = False
 
         def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
             self.executed.append((sql, params))
             if sql.startswith("INSERT INTO documents"):
                 return type("Result", (), {"fetchone": lambda self: None})()
@@ -309,3 +319,55 @@ def test_store_document_pgvector_conflict_returns_existing(monkeypatch):
     )
     assert conn.committed is True
     assert conn.closed is True
+
+
+def test_search_documents_postgres_without_registered_vector_uses_percent_placeholders(
+    monkeypatch,
+):
+    class Connection:
+        def __init__(self):
+            self.info = object()
+            self.executed = []
+            self.closed = False
+
+        def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
+            self.executed.append((sql, params))
+            if sql.startswith("SELECT d.doc_id"):
+                return type(
+                    "Result",
+                    (),
+                    {"fetchall": lambda self: [(7, "alpha", "memo", None, None, 0.25)]},
+                )()
+            return type("Result", (), {"fetchall": lambda self: []})()
+
+        def close(self):
+            self.closed = True
+
+    conn = Connection()
+    monkeypatch.setattr("embeddings.connect_db", lambda _path=None: conn)
+    monkeypatch.setattr("embeddings.register_vector", None)
+    monkeypatch.setattr("embeddings.embed_text", lambda _text: [0.1, 0.9])
+
+    results = search_documents("alpha", "ignored.db", k=1, manager_id=99)
+
+    assert results == [
+        {
+            "doc_id": 7,
+            "content": "alpha",
+            "kind": "memo",
+            "filename": None,
+            "manager_name": None,
+            "distance": 0.25,
+        }
+    ]
+    assert conn.executed[0][1] == ([0.1, 0.9], 99, 1)
+    assert conn.closed is True
+
+
+def test_embeddings_pass_dialect_gate_without_allowlist() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+
+    findings = scan([repo_root / "embeddings.py"], repo_root=repo_root, allowlist={})
+
+    assert findings == []
