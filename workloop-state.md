@@ -23,7 +23,14 @@
   - `ruff check chains/filing_summary.py chains/holdings_analysis.py tests/test_chain_dialect_portability.py scripts/check_dialect_portability.py` -> passed.
   - `black --target-version py312 --check chains/filing_summary.py chains/holdings_analysis.py tests/test_chain_dialect_portability.py scripts/check_dialect_portability.py` -> passed.
   - `git diff --check` -> passed.
-- Next action: commit, push, open ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`, then emit `pr_opened`.
+- Commit/push:
+  - Commit `758a042` (`Issue #1006: make chain usage logs dialect-aware`) pushed to `codex/issue-1006-chain-persistence-dialect`.
+- PR:
+  - Opened ready-for-review PR `#1017`: `https://github.com/stranske/Manager-Database/pull/1017`.
+  - PR labels verified: `agent:codex`, `agents:keepalive`, `autofix`; `isDraft=false`.
+- Relay:
+  - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1006 active.source_pr=1017 active.next_action=wait_for_keepalive`.
+- Next action: keepalive owns CI/check follow-up for PR `#1017`.
 
 ## 2026-05-09T16:24:12Z - closer lane addressed PR #1012 review threads
 
