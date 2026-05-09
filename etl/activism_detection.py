@@ -186,8 +186,8 @@ def ensure_activism_events_table(conn: Any) -> None:
 
     conn.execute("""CREATE TABLE IF NOT EXISTS activism_events (
             event_id BIGSERIAL PRIMARY KEY,
-            manager_id INTEGER NOT NULL,
-            filing_id INTEGER NOT NULL,
+            manager_id BIGINT NOT NULL REFERENCES managers(manager_id),
+            filing_id BIGINT NOT NULL REFERENCES activism_filings(filing_id),
             event_type TEXT NOT NULL CHECK (
                 event_type IN (
                     'initial_stake',
@@ -202,10 +202,10 @@ def ensure_activism_events_table(conn: Any) -> None:
             ),
             subject_company TEXT NOT NULL,
             subject_cusip TEXT,
-            ownership_pct DOUBLE PRECISION,
-            previous_pct DOUBLE PRECISION,
-            delta_pct DOUBLE PRECISION,
-            threshold_crossed DOUBLE PRECISION,
+            ownership_pct NUMERIC(8,4),
+            previous_pct NUMERIC(8,4),
+            delta_pct NUMERIC(8,4),
+            threshold_crossed NUMERIC(8,4),
             detected_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         )""")
     conn.execute(

@@ -73,15 +73,17 @@ def _ensure_activism_filings_table(conn: Any) -> None:
 
     conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
             filing_id BIGSERIAL PRIMARY KEY,
-            manager_id INTEGER NOT NULL,
-            filing_type TEXT NOT NULL,
+            manager_id BIGINT NOT NULL REFERENCES managers(manager_id),
+            filing_type TEXT NOT NULL CHECK (
+                filing_type IN ('SC 13D', 'SC 13D/A', 'SC 13G', 'SC 13G/A')
+            ),
             subject_company TEXT NOT NULL,
             subject_cusip TEXT,
-            ownership_pct DOUBLE PRECISION,
+            ownership_pct NUMERIC(8,4),
             shares BIGINT,
-            group_members TEXT[],
+            group_members TEXT[] DEFAULT '{}',
             purpose_snippet TEXT,
-            filed_date TEXT NOT NULL,
+            filed_date DATE NOT NULL,
             url TEXT NOT NULL,
             raw_key TEXT,
             created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

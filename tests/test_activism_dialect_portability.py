@@ -57,7 +57,16 @@ def test_activism_table_setup_uses_postgres_ddl_without_sqlite_tokens() -> None:
 
     statements = "\n".join(conn.statements)
     assert "BIGSERIAL PRIMARY KEY" in statements
+    assert "MANAGER_ID BIGINT NOT NULL REFERENCES MANAGERS(MANAGER_ID)" in statements.upper()
+    assert "FILING_ID BIGINT NOT NULL REFERENCES ACTIVISM_FILINGS(FILING_ID)" in statements.upper()
+    assert "FILING_TYPE TEXT NOT NULL CHECK" in statements.upper()
+    assert "FILED_DATE DATE NOT NULL" in statements.upper()
+    assert "NUMERIC(8,4)" in statements.upper()
     assert "TEXT[]" in statements
+    assert "DOUBLE PRECISION" not in statements.upper()
+    assert "MANAGER_ID INTEGER" not in statements.upper()
+    assert "FILING_ID INTEGER" not in statements.upper()
+    assert "FILED_DATE TEXT" not in statements.upper()
     assert "AUTOINCREMENT" not in statements
     assert "INSERT OR IGNORE" not in statements
     assert "PRAGMA" not in statements
