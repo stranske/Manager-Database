@@ -44,6 +44,10 @@ def _is_sqlite(conn: Any) -> bool:
     return isinstance(conn, sqlite3.Connection)
 
 
+def _is_postgres(conn: Any) -> bool:
+    return not _is_sqlite(conn) and hasattr(conn, "execute")
+
+
 def _placeholder(conn: Any) -> str:
     return "?" if _is_sqlite(conn) else "%s"
 
@@ -137,7 +141,7 @@ def _deserialize_group_members(raw: Any) -> list[str]:
 def ensure_activism_events_table(conn: Any) -> None:
     if _is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_events (
-                event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id INTEGER PRIMARY KEY,
                 manager_id INTEGER NOT NULL,
                 filing_id INTEGER NOT NULL,
                 event_type TEXT NOT NULL CHECK (
@@ -184,20 +188,56 @@ def ensure_activism_events_table(conn: Any) -> None:
         )
         return
 
-    try:
-        conn.execute("SELECT 1 FROM activism_events LIMIT 1")
-    except Exception as exc:
-        message = str(exc)
-        exc_name = exc.__class__.__name__
-        pgcode = getattr(exc, "pgcode", None)
-        missing_table = (
-            "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_name
+    if _is_postgres(conn):
+        conn.execute("""CREATE TABLE IF NOT EXISTS activism_events (
+            event_id BIGSERIAL PRIMARY KEY,
+            manager_id BIGINT NOT NULL REFERENCES managers(manager_id),
+            filing_id BIGINT NOT NULL REFERENCES activism_filings(filing_id),
+            event_type TEXT NOT NULL CHECK (
+                event_type IN (
+                    'initial_stake',
+                    'threshold_crossing',
+                    'stake_increase',
+                    'stake_decrease',
+                    'group_formation',
+                    'amendment',
+                    'form_upgrade',
+                    'form_downgrade'
+                )
+            ),
+            subject_company TEXT NOT NULL,
+            subject_cusip TEXT,
+            ownership_pct NUMERIC(8,4),
+            previous_pct NUMERIC(8,4),
+            delta_pct NUMERIC(8,4),
+            threshold_crossed NUMERIC(8,4),
+            detected_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )""")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_events_manager ON activism_events(manager_id)"
         )
-        if missing_table:
-            raise RuntimeError(
-                "activism_events table is missing on Postgres; apply schema migrations first"
-            ) from exc
-        raise
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_events_type ON activism_events(event_type)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_events_date ON activism_events(detected_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_events_cusip ON activism_events(subject_cusip)"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_base "
+            "ON activism_events(manager_id, filing_id, event_type) "
+            "WHERE threshold_crossed IS NULL"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_threshold "
+            "ON activism_events(manager_id, filing_id, event_type, threshold_crossed) "
+            "WHERE threshold_crossed IS NOT NULL"
+        )
+        return
+
+    raise TypeError(f"Unsupported database connection type: {type(conn)!r}")
 
 
 def _prior_filing_query(conn: Any, *, has_cusip: bool) -> tuple[str, tuple[Any, ...]]:
@@ -369,23 +409,14 @@ def insert_activism_events(conn: Any, events: Iterable[ActivismEvent]) -> list[A
             event.delta_pct,
             event.threshold_crossed,
         )
-        if _is_sqlite(conn):
-            cursor = conn.execute(
-                "INSERT OR IGNORE INTO activism_events("
-                "manager_id, filing_id, event_type, subject_company, subject_cusip, "
-                "ownership_pct, previous_pct, delta_pct, threshold_crossed"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                params,
-            )
-        else:
-            cursor = conn.execute(
-                "INSERT INTO activism_events("
-                "manager_id, filing_id, event_type, subject_company, subject_cusip, "
-                "ownership_pct, previous_pct, delta_pct, threshold_crossed"
-                f") VALUES ({', '.join([ph] * 9)}) "
-                "ON CONFLICT DO NOTHING",
-                params,
-            )
+        cursor = conn.execute(
+            "INSERT INTO activism_events("
+            "manager_id, filing_id, event_type, subject_company, subject_cusip, "
+            "ownership_pct, previous_pct, delta_pct, threshold_crossed"
+            f") VALUES ({', '.join([ph] * 9)}) "
+            "ON CONFLICT DO NOTHING",
+            params,
+        )
         if getattr(cursor, "rowcount", 0):
             inserted.append(event)
     return inserted

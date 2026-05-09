@@ -1,5 +1,38 @@
 # Workloop State
 
+## 2026-05-09T22:12:00Z - opener lane selected issue #1007 activism dialect work
+
+- Automation: `pd-workloop-resume` (codex opener lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: `#1007` (`Make activism ETL SQL dialect-aware`, `priority:normal`, `repo-review-approved`).
+- Selection:
+  - ACTION A succeeded from the neutral Code workspace.
+  - Full priority discovery ran across supported repos using `priority:high`, `priority:normal`, and `priority:low`.
+  - Skipped high-priority `stranske/Workflows#2073` as an auth-expiry operational alert.
+  - Skipped high-priority `stranske/Inv-Man-Intake#381` because merged PR `#400` already serves it and the issue is open only pending verifier disposition.
+  - Skipped normal-priority items already served by merged/open PRs, including `stranske/Counter_Risk#476`, `stranske/Manager-Database#910`, `stranske/Manager-Database#1006`, and prior Trend issues.
+  - Initial cap-health reported `total_opener_owned=3`, `raw_cap_reached=false`, `normal_cap_reached=false`, and no cap blocker; `stranske/Manager-Database#1017` needed dispatch evidence below cap.
+  - `opener-repair-infra-stalls.py --json` added `agent:retry` and dispatched Gate Followups for `#1017`.
+  - Fresh cap-health reported `total_opener_owned=3`, `drainable_count=3`, `non_drainable_count=0`, `raw_cap_reached=false`, `normal_cap_reached=false`.
+- Implementation:
+  - Updated `etl/activism_detection.py` so activism event table setup uses SQLite `INTEGER PRIMARY KEY` and Postgres `BIGSERIAL`/`DOUBLE PRECISION`/`TIMESTAMPTZ` DDL branches, and duplicate-safe event inserts use backend placeholders with `ON CONFLICT DO NOTHING`.
+  - Updated `etl/activism_flow.py` so activism filing table setup uses SQLite/Postgres DDL branches, including Postgres `TEXT[]` group members, and preserves backend-aware insert/update paths.
+  - Removed `etl/activism_detection.py` and `etl/activism_flow.py` from `scripts/check_dialect_portability.py` allowlist.
+  - Updated `docs/reports/dialect_portability_audit.md` to mark follow-up `#1007` resolved.
+  - Added `tests/test_activism_dialect_portability.py` with strict Postgres fake coverage for table setup, event inserts, and filing upserts.
+- Validation:
+  - `python scripts/check_dialect_portability.py --no-allowlist etl/activism_detection.py etl/activism_flow.py` -> passed.
+  - `pytest tests/test_activism_dialect_portability.py tests/test_activism_detection.py tests/test_activism_adapter.py tests/test_dialect_portability_gate.py --no-cov` -> 29 passed, 8 existing warnings.
+  - `ruff check etl/activism_detection.py etl/activism_flow.py tests/test_activism_dialect_portability.py scripts/check_dialect_portability.py` -> passed.
+  - `black --target-version py312 --check etl/activism_detection.py etl/activism_flow.py tests/test_activism_dialect_portability.py scripts/check_dialect_portability.py` -> passed.
+  - `git diff --check` -> passed.
+- Branch: `codex/issue-1007-activism-etl-dialect`.
+- Commit: `203da91` (`Issue #1007: make activism ETL dialect-aware`).
+- PR: `#1018` (`https://github.com/stranske/Manager-Database/pull/1018`), opened ready-for-review with `agent:codex`, `agents:keepalive`, and `autofix`.
+- Relay:
+  - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1007 active.source_pr=1018 active.next_action=wait_for_keepalive`
+- Next action: keepalive owns CI/check follow-up for PR `#1018`.
+
 ## 2026-05-09T21:08:00Z - opener lane implementing issue #1006
 
 - Automation: `pd-workloop-resume` (codex opener lane).

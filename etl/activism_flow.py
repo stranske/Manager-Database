@@ -38,6 +38,10 @@ def _is_sqlite(conn: Any) -> bool:
     return isinstance(conn, sqlite3.Connection)
 
 
+def _is_postgres(conn: Any) -> bool:
+    return not _is_sqlite(conn) and hasattr(conn, "execute")
+
+
 def _placeholder(conn: Any) -> str:
     return "?" if _is_sqlite(conn) else "%s"
 
@@ -45,7 +49,7 @@ def _placeholder(conn: Any) -> str:
 def _ensure_activism_filings_table(conn: Any) -> None:
     if _is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
-                filing_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filing_id INTEGER PRIMARY KEY,
                 manager_id INTEGER NOT NULL,
                 filing_type TEXT NOT NULL,
                 subject_company TEXT NOT NULL,
@@ -71,20 +75,37 @@ def _ensure_activism_filings_table(conn: Any) -> None:
         )
         return
 
-    try:
-        conn.execute("SELECT 1 FROM activism_filings LIMIT 1")
-    except Exception as exc:
-        message = str(exc)
-        exc_name = exc.__class__.__name__
-        pgcode = getattr(exc, "pgcode", None)
-        missing_table = (
-            "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_name
+    if _is_postgres(conn):
+        conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
+            filing_id BIGSERIAL PRIMARY KEY,
+            manager_id BIGINT NOT NULL REFERENCES managers(manager_id),
+            filing_type TEXT NOT NULL CHECK (
+                filing_type IN ('SC 13D', 'SC 13D/A', 'SC 13G', 'SC 13G/A')
+            ),
+            subject_company TEXT NOT NULL,
+            subject_cusip TEXT,
+            ownership_pct NUMERIC(8,4),
+            shares BIGINT,
+            group_members TEXT[] DEFAULT '{}',
+            purpose_snippet TEXT,
+            filed_date DATE NOT NULL,
+            url TEXT NOT NULL,
+            raw_key TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (manager_id, filing_type, subject_cusip, filed_date)
+        )""")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_manager ON activism_filings(manager_id)"
         )
-        if missing_table:
-            raise RuntimeError(
-                "activism_filings table is missing on Postgres; apply schema migrations first"
-            ) from exc
-        raise
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_cusip ON activism_filings(subject_cusip)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_date ON activism_filings(filed_date DESC)"
+        )
+        return
+
+    raise TypeError(f"Unsupported database connection type: {type(conn)!r}")
 
 
 def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
