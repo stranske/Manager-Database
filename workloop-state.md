@@ -27,7 +27,11 @@
   - `black --target-version py312 --check etl/activism_detection.py etl/activism_flow.py tests/test_activism_dialect_portability.py scripts/check_dialect_portability.py` -> passed.
   - `git diff --check` -> passed.
 - Branch: `codex/issue-1007-activism-etl-dialect`.
-- Next action: commit, push, open a ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`.
+- Commit: `203da91` (`Issue #1007: make activism ETL dialect-aware`).
+- PR: `#1018` (`https://github.com/stranske/Manager-Database/pull/1018`), opened ready-for-review with `agent:codex`, `agents:keepalive`, and `autofix`.
+- Relay:
+  - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1007 active.source_pr=1018 active.next_action=wait_for_keepalive`
+- Next action: keepalive owns CI/check follow-up for PR `#1018`.
 
 ## 2026-05-09T21:08:00Z - opener lane implementing issue #1006
 
