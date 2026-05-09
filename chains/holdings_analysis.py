@@ -85,6 +85,30 @@ class HoldingsAnalysisChain:
         return "?" if HoldingsAnalysisChain._is_sqlite_connection(conn) else "%s"
 
     @staticmethod
+    def _usage_table_ddl(conn: Any) -> str:
+        if HoldingsAnalysisChain._is_sqlite_connection(conn):
+            return """CREATE TABLE IF NOT EXISTS api_usage (
+                id INTEGER PRIMARY KEY,
+                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source TEXT,
+                endpoint TEXT,
+                status INT,
+                bytes INT,
+                latency_ms INT,
+                cost_usd REAL
+            )"""
+        return """CREATE TABLE IF NOT EXISTS api_usage (
+            id BIGSERIAL PRIMARY KEY,
+            ts TIMESTAMPTZ DEFAULT now(),
+            source TEXT,
+            endpoint TEXT,
+            status INT,
+            bytes INT,
+            latency_ms INT,
+            cost_usd NUMERIC(10,4)
+        )"""
+
+    @staticmethod
     def _is_missing_table_error(exc: Exception, table_name: str) -> bool:
         message = str(exc).lower()
         return (
@@ -503,30 +527,9 @@ class HoldingsAnalysisChain:
 
     def _log_usage(self, *, question: str, output_text: str, latency_ms: int, status: int) -> None:
         try:
-            self.db.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                source TEXT,
-                endpoint TEXT,
-                status INT,
-                bytes INT,
-                latency_ms INT,
-                cost_usd REAL
-            )""")
+            self.db.execute(self._usage_table_ddl(self.db))
         except Exception:
-            try:
-                self.db.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                    id BIGSERIAL PRIMARY KEY,
-                    ts TIMESTAMPTZ DEFAULT now(),
-                    source TEXT,
-                    endpoint TEXT,
-                    status INT,
-                    bytes INT,
-                    latency_ms INT,
-                    cost_usd NUMERIC(10,4)
-                )""")
-            except Exception:
-                return
+            return
 
         placeholder = self._placeholder(self.db)
         insert_sql = (

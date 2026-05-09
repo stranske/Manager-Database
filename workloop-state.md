@@ -1,5 +1,37 @@
 # Workloop State
 
+## 2026-05-09T21:08:00Z - opener lane implementing issue #1006
+
+- Automation: `pd-workloop-resume` (codex opener lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: `#1006` (`Make chain persistence tables dialect-aware`, `priority:normal`, `repo-review-approved`).
+- Selection:
+  - ACTION A succeeded from the neutral Code workspace.
+  - Full fleet priority discovery ran across `priority:high`, `priority:normal`, and `priority:low`.
+  - Skipped `Workflows#2073` as an operational auth-expiry alert.
+  - Skipped `Inv-Man-Intake#381`, `Counter_Risk#476`, `Manager-Database#910`, and served Trend issues because each already has a merged/open PR pending verifier or closer work.
+  - Cap health after infra-repair preflight was below cap: `total_opener_owned=2`, `drainable_count=2`, `non_drainable_count=0`, `raw_cap_reached=false`, `normal_cap_reached=false`.
+  - No existing PR was found for `Manager-Database#1006`.
+- Implementation in progress:
+  - Branch: `codex/issue-1006-chain-persistence-dialect`.
+  - Replaced SQLite-only chain usage-log DDL with explicit SQLite/Postgres branches in `chains/filing_summary.py` and `chains/holdings_analysis.py`.
+  - Removed both chain files from `scripts/check_dialect_portability.py` allowlist and updated `docs/reports/dialect_portability_audit.md`.
+  - Added `tests/test_chain_dialect_portability.py` with strict Postgres fake coverage for both chain usage-log paths.
+- Validation so far:
+  - `python scripts/check_dialect_portability.py --no-allowlist chains/holdings_analysis.py chains/filing_summary.py` -> passed.
+  - `pytest tests/test_chain_dialect_portability.py tests/test_filing_summary_chain.py tests/test_holdings_analysis_chain.py tests/test_dialect_portability_gate.py --no-cov` -> 43 passed, 7 existing warnings.
+  - `ruff check chains/filing_summary.py chains/holdings_analysis.py tests/test_chain_dialect_portability.py scripts/check_dialect_portability.py` -> passed.
+  - `black --target-version py312 --check chains/filing_summary.py chains/holdings_analysis.py tests/test_chain_dialect_portability.py scripts/check_dialect_portability.py` -> passed.
+  - `git diff --check` -> passed.
+- Commit/push:
+  - Commit `758a042` (`Issue #1006: make chain usage logs dialect-aware`) pushed to `codex/issue-1006-chain-persistence-dialect`.
+- PR:
+  - Opened ready-for-review PR `#1017`: `https://github.com/stranske/Manager-Database/pull/1017`.
+  - PR labels verified: `agent:codex`, `agents:keepalive`, `autofix`; `isDraft=false`.
+- Relay:
+  - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1006 active.source_pr=1017 active.next_action=wait_for_keepalive`.
+- Next action: keepalive owns CI/check follow-up for PR `#1017`.
+
 ## 2026-05-09T16:24:12Z - closer lane addressed PR #1012 review threads
 
 - Automation: `imi-merge-verify-closer` (codex closer lane).

@@ -1,10 +1,10 @@
 import sqlite3
 
 import pytest
-from _pg_fakes import StrictPostgresConn
 
 from adapters import base
 from adapters.base import _db_retry_config, connect_db, get_adapter
+from tests._pg_fakes import StrictPostgresConn
 
 
 def test_connect_db_respects_timeout(tmp_path):
