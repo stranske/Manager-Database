@@ -128,7 +128,9 @@ def test_evaluate_rag_source_attribution_rejects_phantom_sources(tmp_path):
     )
 
     assert good.score == 1.0
+    assert good.key == "source_attribution"
     assert bad.score < 1.0
+    assert bad.key == "source_attribution"
     conn.close()
 
 
@@ -199,6 +201,7 @@ def test_live_evaluation_suite_scores_live_chain_outputs(tmp_path):
     assert summary["metrics"]["sql_correctness"] == 1.0
     assert summary["metrics"]["sql_safety"] == 1.0
     assert summary["metrics"]["rag_faithfulness"] == 1.0
+    assert summary["metrics"]["source_attribution"] == 1.0
     assert summary["metrics"]["hallucination"] == 1.0
     assert summary["failures"] == {}
     conn.close()

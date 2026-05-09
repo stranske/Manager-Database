@@ -215,7 +215,7 @@ class ManagerDBEvaluator:
         }
         score = sum(1.0 for passed in checks.values() if passed) / len(checks)
         return EvaluationResult(
-            key="rag_source_attribution",
+            key="source_attribution",
             score=round(score, 3),
             comment=self._comment_from_checks(checks),
             extra={"checks": checks},
