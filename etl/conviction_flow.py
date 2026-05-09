@@ -40,7 +40,7 @@ def _ensure_conviction_scores_table(conn: Any) -> None:
     """Create conviction_scores on SQLite; fail fast on missing Postgres schema."""
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS conviction_scores (
-                score_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                score_id INTEGER PRIMARY KEY,
                 manager_id INTEGER NOT NULL,
                 filing_id INTEGER NOT NULL,
                 cusip TEXT NOT NULL,
@@ -80,7 +80,7 @@ def _ensure_conviction_scores_table(conn: Any) -> None:
 def _ensure_api_usage_table(conn: Any) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 source TEXT,
                 endpoint TEXT,
@@ -230,10 +230,9 @@ def _resolve_crowded_trade_min_managers(default: int = 3) -> int:
 
 
 def _ensure_crowded_trades_table(conn: Any) -> None:
-    if not isinstance(conn, sqlite3.Connection):
-        return
-    conn.execute("""CREATE TABLE IF NOT EXISTS crowded_trades (
-            crowd_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute("""CREATE TABLE IF NOT EXISTS crowded_trades (
+            crowd_id INTEGER PRIMARY KEY,
             cusip TEXT NOT NULL,
             name_of_issuer TEXT,
             manager_count INTEGER NOT NULL,
@@ -245,13 +244,14 @@ def _ensure_crowded_trades_table(conn: Any) -> None:
             computed_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (cusip, report_date)
         )""")
+        return
+    conn.execute("SELECT 1 FROM crowded_trades LIMIT 1")
 
 
 def _ensure_contrarian_signals_table(conn: Any) -> None:
-    if not isinstance(conn, sqlite3.Connection):
-        return
-    conn.execute("""CREATE TABLE IF NOT EXISTS contrarian_signals (
-            signal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute("""CREATE TABLE IF NOT EXISTS contrarian_signals (
+            signal_id INTEGER PRIMARY KEY,
             manager_id INTEGER NOT NULL,
             cusip TEXT NOT NULL,
             name_of_issuer TEXT,
@@ -266,6 +266,8 @@ def _ensure_contrarian_signals_table(conn: Any) -> None:
             detected_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (manager_id, cusip, report_date)
         )""")
+        return
+    conn.execute("SELECT 1 FROM contrarian_signals LIMIT 1")
 
 
 def _fetch_latest_conviction_rows(
