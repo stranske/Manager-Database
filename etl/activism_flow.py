@@ -38,6 +38,10 @@ def _is_sqlite(conn: Any) -> bool:
     return isinstance(conn, sqlite3.Connection)
 
 
+def _is_postgres(conn: Any) -> bool:
+    return not _is_sqlite(conn) and hasattr(conn, "execute")
+
+
 def _placeholder(conn: Any) -> str:
     return "?" if _is_sqlite(conn) else "%s"
 
@@ -71,7 +75,8 @@ def _ensure_activism_filings_table(conn: Any) -> None:
         )
         return
 
-    conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
+    if _is_postgres(conn):
+        conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
             filing_id BIGSERIAL PRIMARY KEY,
             manager_id BIGINT NOT NULL REFERENCES managers(manager_id),
             filing_type TEXT NOT NULL CHECK (
@@ -89,11 +94,18 @@ def _ensure_activism_filings_table(conn: Any) -> None:
             created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (manager_id, filing_type, subject_cusip, filed_date)
         )""")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_activism_manager ON activism_filings(manager_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_activism_cusip ON activism_filings(subject_cusip)")
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_activism_date ON activism_filings(filed_date DESC)"
-    )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_manager ON activism_filings(manager_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_cusip ON activism_filings(subject_cusip)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activism_date ON activism_filings(filed_date DESC)"
+        )
+        return
+
+    raise TypeError(f"Unsupported database connection type: {type(conn)!r}")
 
 
 def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
