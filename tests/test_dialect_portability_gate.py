@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.check_dialect_portability import AUDITED_SQLITE_ONLY_ALLOWLIST, scan
+from scripts.check_dialect_portability import (
+    AUDITED_SQLITE_ONLY_ALLOWLIST,
+    allowlist_paths_missing_from_audit,
+    scan,
+)
 
 
 def test_dialect_gate_accepts_current_audited_repo_state() -> None:
@@ -118,3 +122,52 @@ def test_dialect_gate_rejects_legacy_daily_diff_schema_names(tmp_path: Path) -> 
         "legacy daily_diff table",
         "legacy d.change column",
     ]
+
+
+def test_allowlist_paths_missing_from_audit_reports_missing_entry(tmp_path: Path) -> None:
+    report = tmp_path / "docs" / "reports" / "dialect_portability_audit.md"
+    report.parent.mkdir(parents=True)
+    report.write_text(
+        "\n".join(
+            [
+                "# Dialect Portability Audit",
+                "",
+                "| Surface | Classification | Evidence | Failure Mode Or Justification | Disposition |",
+                "| --- | --- | --- | --- | --- |",
+                "| `api/chat.py` | postgres-incompatible | `PRAGMA table_info` | sample | Follow-up #1009 |",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    missing = allowlist_paths_missing_from_audit(
+        repo_root=tmp_path,
+        allowlist={"api/chat.py": {"PRAGMA table_info"}, "api/search.py": {"PRAGMA table_info"}},
+    )
+
+    assert missing == ["api/search.py"]
+
+
+def test_allowlist_paths_missing_from_audit_accepts_documented_entries(tmp_path: Path) -> None:
+    report = tmp_path / "docs" / "reports" / "dialect_portability_audit.md"
+    report.parent.mkdir(parents=True)
+    report.write_text(
+        "\n".join(
+            [
+                "# Dialect Portability Audit",
+                "",
+                "| Surface | Classification | Evidence | Failure Mode Or Justification | Disposition |",
+                "| --- | --- | --- | --- | --- |",
+                "| `api/chat.py` | postgres-incompatible | `PRAGMA table_info` | sample | Follow-up #1009 |",
+                "| `api/search.py` | postgres-incompatible | `PRAGMA table_info` | sample | Follow-up #1009 |",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    missing = allowlist_paths_missing_from_audit(
+        repo_root=tmp_path,
+        allowlist={"api/chat.py": {"PRAGMA table_info"}, "api/search.py": {"PRAGMA table_info"}},
+    )
+
+    assert missing == []

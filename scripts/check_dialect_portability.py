@@ -62,6 +62,8 @@ AUDITED_SQLITE_ONLY_ALLOWLIST: dict[str, set[str]] = {
     "scripts/seed_universe.py": {"AUTOINCREMENT", "PRAGMA table_info"},
 }
 
+AUDIT_REPORT_PATH = Path("docs/reports/dialect_portability_audit.md")
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -124,6 +126,27 @@ def scan(paths: list[Path], *, repo_root: Path, allowlist: dict[str, set[str]]) 
     return findings
 
 
+def documented_audit_paths(audit_report: Path) -> set[str]:
+    """Return audited module paths listed in the disposition table."""
+    if not audit_report.exists():
+        return set()
+
+    paths: set[str] = set()
+    for line in audit_report.read_text(encoding="utf-8").splitlines():
+        match = re.search(r"\|\s*`([^`]+\.py)`\s*\|", line)
+        if match:
+            paths.add(match.group(1))
+    return paths
+
+
+def allowlist_paths_missing_from_audit(
+    *, repo_root: Path, allowlist: dict[str, set[str]]
+) -> list[str]:
+    audited_paths = documented_audit_paths(repo_root / AUDIT_REPORT_PATH)
+    missing = sorted(path for path in allowlist if path not in audited_paths)
+    return missing
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -147,6 +170,23 @@ def main(argv: list[str] | None = None) -> int:
     raw_paths = args.paths or list(DEFAULT_SCAN_ROOTS)
     paths = [(repo_root / raw_path).resolve() for raw_path in raw_paths]
     allowlist = {} if args.no_allowlist else AUDITED_SQLITE_ONLY_ALLOWLIST
+    if allowlist:
+        missing_audit_entries = allowlist_paths_missing_from_audit(
+            repo_root=repo_root,
+            allowlist=allowlist,
+        )
+        if missing_audit_entries:
+            for path in missing_audit_entries:
+                print(
+                    f"allowlist entry missing from audit report: {path}",
+                    file=sys.stderr,
+                )
+            print(
+                f"Update {AUDIT_REPORT_PATH.as_posix()} disposition table before allowlisting new paths.",
+                file=sys.stderr,
+            )
+            return 1
+
     findings = scan(paths, repo_root=repo_root, allowlist=allowlist)
     if findings:
         for finding in findings:
