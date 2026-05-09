@@ -6,6 +6,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from embeddings import (
     _is_postgres_connection,
+    _postgres_columns,
     _sqlite_columns,
     embed_text,
     search_documents,
@@ -277,6 +278,25 @@ def test_sqlite_schema_inspection_handles_legacy_and_missing_tables(tmp_path):
         conn.close()
 
 
+def test_postgres_schema_inspection_uses_information_schema(monkeypatch):
+    class Connection:
+        def __init__(self):
+            self.info = object()
+            self.executed = []
+
+        def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
+            self.executed.append((sql, params))
+            if "information_schema.columns" in sql:
+                return type("Result", (), {"fetchall": lambda self: [("doc_id",), ("text",)]})()
+            return type("Result", (), {"fetchall": lambda self: []})()
+
+    conn = Connection()
+
+    assert _postgres_columns(conn, "documents") == {"doc_id", "text"}
+    assert any("information_schema.columns" in sql for sql, _params in conn.executed)
+
+
 def test_store_and_search_pgvector(monkeypatch):
     class Connection:
         def __init__(self):
@@ -288,6 +308,22 @@ def test_store_and_search_pgvector(monkeypatch):
         def execute(self, sql, params=None):
             _assert_postgres_safe(sql)
             self.executed.append((sql, params))
+            if "information_schema.columns" in sql:
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "fetchall": lambda self: [
+                            ("doc_id",),
+                            ("manager_id",),
+                            ("kind",),
+                            ("filename",),
+                            ("sha256",),
+                            ("text",),
+                            ("embedding",),
+                        ]
+                    },
+                )()
             if sql.startswith("SELECT doc_id FROM documents WHERE sha256"):
                 return type("Result", (), {"fetchone": lambda self: None})()
             if sql.startswith("SELECT d.doc_id"):
@@ -342,6 +378,22 @@ def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeyp
         def execute(self, sql, params=None):
             _assert_postgres_safe(sql)
             self.executed.append((sql, params))
+            if "information_schema.columns" in sql:
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "fetchall": lambda self: [
+                            ("doc_id",),
+                            ("manager_id",),
+                            ("kind",),
+                            ("filename",),
+                            ("sha256",),
+                            ("text",),
+                            ("embedding",),
+                        ]
+                    },
+                )()
             if sql.startswith("INSERT INTO documents"):
                 return type("Result", (), {"fetchone": lambda self: (9,)})()
             return type("Result", (), {"fetchall": lambda self: []})()
@@ -378,6 +430,22 @@ def test_store_document_pgvector_conflict_returns_existing(monkeypatch):
         def execute(self, sql, params=None):
             _assert_postgres_safe(sql)
             self.executed.append((sql, params))
+            if "information_schema.columns" in sql:
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "fetchall": lambda self: [
+                            ("doc_id",),
+                            ("manager_id",),
+                            ("kind",),
+                            ("filename",),
+                            ("sha256",),
+                            ("text",),
+                            ("embedding",),
+                        ]
+                    },
+                )()
             if sql.startswith("INSERT INTO documents"):
                 return type("Result", (), {"fetchone": lambda self: None})()
             if sql.startswith("SELECT doc_id FROM documents WHERE sha256"):
