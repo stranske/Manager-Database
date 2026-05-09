@@ -1,0 +1,204 @@
+version: 1
+issue: 1014
+base: main
+branch: codex/issue-1014
+tasks:
+  - id: task-01
+    title: Implement dialect-aware table creation logic in embeddings.py that uses
+      AUTOINCREMENT for SQLite and SERIAL or IDENTITY for Postgres primary keys
+    status: doing
+    started_at: '2026-05-09T17:50:41Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: Implement dialect-aware schema inspection in embeddings.py that uses PRAGMA
+      table_info for SQLite and information_schema queries for Postgres
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Implement dialect-aware idempotent insert logic in embeddings.py that uses
+      INSERT OR IGNORE for SQLite and INSERT ON CONFLICT DO NOTHING for Postgres
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: Add test cases in test_embeddings.py that verify SQLite table creation
+      uses AUTOINCREMENT syntax correctly
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: Add test cases in test_embeddings.py that verify SQLite schema introspection
+      using PRAGMA table_info returns expected column metadata
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: Add test cases in test_embeddings.py that verify SQLite duplicate-safe
+      inserts result in exactly one row when inserting the same embedding twice
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: Add test cases in test_embeddings.py that verify Postgres table creation
+      uses SERIAL or IDENTITY syntax correctly
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Add test cases in test_embeddings.py that verify Postgres schema introspection
+      using information_schema returns expected column metadata
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: Add test cases in test_embeddings.py that verify Postgres duplicate-safe
+      inserts result in exactly one row when inserting the same embedding twice
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: Add a portability regression test or test helper in test_embeddings.py
+      that validates the SQL generated/executed by embeddings.py does not rely on
+      SQLite-only syntax when running in Postgres mode
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: Remove unrelated rate-limiting documentation edits from api_rate_limiting.md
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: Remove the accidental inclusion of workloop-state.md from this change set
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: 'Run `python scripts/check_dialect_portability.py --no-allowlist embeddings.py`
+      and verify it exits with status code 0 and reports no SQLite-only syntax violations
+      for `embeddings.py` (blocked: requires scripts/check_dialect_portability.py
+      to exist in the repository)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: In `embeddings.py`, table creation SQL is selected by dialect such that
+      the SQLite branch contains SQLite-compatible primary key creation and the Postgres
+      branch does not contain the token `AUTOINCREMENT` in any SQL executed for Postgres
+      mode
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: In `embeddings.py`, schema inspection is selected by dialect such that
+      SQLite mode uses SQLite-compatible introspection and Postgres mode does not
+      execute `PRAGMA table_info`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: In `embeddings.py`, duplicate-safe insert behavior is implemented for both
+      dialects such that inserting the same logical embedding row twice results in
+      exactly one stored row in SQLite mode and exactly one stored row in Postgres
+      mode
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: '`test_embeddings.py` contains at least one automated test that exercises
+      the SQLite code path for schema creation'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: '`test_embeddings.py` contains at least one automated test that exercises
+      the Postgres code path for schema creation'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: '`test_embeddings.py` contains at least one SQLite duplicate-insert test'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: '`test_embeddings.py` contains at least one Postgres duplicate-insert test'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: The Postgres-specific tests in `test_embeddings.py` fail if SQL executed
+      in Postgres mode contains any of the SQLite-only fragments `AUTOINCREMENT`,
+      `PRAGMA table_info`, or `INSERT OR IGNORE`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-22
+    title: Running `pytest test_embeddings.py -q` passes and executes tests covering
+      both dialect branches without any skipped Postgres portability regression test
+      related to SQLite-only SQL detection
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-23
+    title: The diff for embeddings.py includes all modified functions that contain
+      dialect-specific branching logic, with no truncated function bodies or omitted
+      conditional blocks
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-24
+    title: The final diff for this issue does not modify `api_rate_limiting.md` or
+      `workloop-state.md`
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
