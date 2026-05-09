@@ -113,6 +113,30 @@ class FilingSummaryChain:
         return "?" if FilingSummaryChain._is_sqlite_connection(conn) else "%s"
 
     @staticmethod
+    def _usage_table_ddl(conn: Any) -> str:
+        if FilingSummaryChain._is_sqlite_connection(conn):
+            return """CREATE TABLE IF NOT EXISTS api_usage (
+                id INTEGER PRIMARY KEY,
+                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source TEXT,
+                endpoint TEXT,
+                status INT,
+                bytes INT,
+                latency_ms INT,
+                cost_usd REAL
+            )"""
+        return """CREATE TABLE IF NOT EXISTS api_usage (
+            id BIGSERIAL PRIMARY KEY,
+            ts TIMESTAMPTZ DEFAULT now(),
+            source TEXT,
+            endpoint TEXT,
+            status INT,
+            bytes INT,
+            latency_ms INT,
+            cost_usd NUMERIC(10,4)
+        )"""
+
+    @staticmethod
     def _cursor_rows_to_dicts(cursor: Any, rows: list[Any]) -> list[dict[str, Any]]:
         if not rows:
             return []
@@ -451,31 +475,8 @@ class FilingSummaryChain:
         )
 
     def _log_usage(self, *, filing_id: int, output_text: str, latency_ms: int, status: int) -> None:
-        if self._is_sqlite_connection(self.db):
-            create_usage_sql = """CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY,
-                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                source TEXT,
-                endpoint TEXT,
-                status INT,
-                bytes INT,
-                latency_ms INT,
-                cost_usd REAL
-            )"""
-        else:
-            create_usage_sql = """CREATE TABLE IF NOT EXISTS api_usage (
-                id BIGSERIAL PRIMARY KEY,
-                ts TIMESTAMPTZ DEFAULT now(),
-                source TEXT,
-                endpoint TEXT,
-                status INT,
-                bytes INT,
-                latency_ms INT,
-                cost_usd NUMERIC(10,4)
-            )"""
-
         try:
-            self.db.execute(create_usage_sql)
+            self.db.execute(self._usage_table_ddl(self.db))
         except Exception:
             return
 
