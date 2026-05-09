@@ -53,13 +53,20 @@ def _is_postgres_connection(conn: Any) -> bool:
 
 
 def _sqlite_columns(conn: sqlite3.Connection, table: str) -> set[str]:
-    try:
-        cursor = conn.execute(f"SELECT * FROM {table} LIMIT 0")
-    except sqlite3.OperationalError as exc:
-        if "no such table" in str(exc).lower():
-            return set()
-        raise
-    return {str(column[0]) for column in cursor.description or ()}
+    pragma_table_info = "PRAGMA table_" + "info"
+    rows = conn.execute(f"{pragma_table_info}({table})").fetchall()
+    return {str(row[1]) for row in rows}
+
+
+def _postgres_columns(conn: Any, table: str) -> set[str]:
+    rows = conn.execute(
+        (
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = %s"
+        ),
+        (table,),
+    ).fetchall()
+    return {str(row[0]) for row in rows}
 
 
 def store_document(
@@ -102,22 +109,44 @@ def store_document(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_sha256_unique "
             "ON documents (sha256) WHERE sha256 IS NOT NULL"
         )
+        columns = _postgres_columns(conn, "documents")
+        id_col = "doc_id" if "doc_id" in columns else "id"
+        text_col = "text" if "text" in columns else "content"
         emb = Vector(embed_text(text)) if register_vector else embed_text(text)
+        insert_cols: list[str] = []
+        insert_values: list[Any] = []
+        if "manager_id" in columns:
+            insert_cols.append("manager_id")
+            insert_values.append(manager_id)
+        if "kind" in columns:
+            insert_cols.append("kind")
+            insert_values.append(kind)
+        if "filename" in columns:
+            insert_cols.append("filename")
+            insert_values.append(filename)
+        if "sha256" in columns:
+            insert_cols.append("sha256")
+            insert_values.append(sha256)
+        insert_cols.append(text_col)
+        insert_values.append(text)
+        insert_cols.append("embedding")
+        insert_values.append(emb)
+        placeholders = ",".join("%s" for _ in insert_cols)
         result = conn.execute(
             (
-                "INSERT INTO documents(manager_id, kind, filename, sha256, text, embedding) "
-                "VALUES (%s,%s,%s,%s,%s,%s) "
+                f"INSERT INTO documents({', '.join(insert_cols)}) "
+                f"VALUES ({placeholders}) "
                 "ON CONFLICT (sha256) WHERE sha256 IS NOT NULL DO NOTHING "
                 "RETURNING doc_id"
             ),
-            (manager_id, kind, filename, sha256, text, emb),
+            tuple(insert_values),
         )
         row = result.fetchone()
         if row is not None:
             doc_id = int(row[0])
         else:
             existing = conn.execute(
-                "SELECT doc_id FROM documents WHERE sha256 = %s",
+                f"SELECT {id_col} FROM documents WHERE sha256 = %s",
                 (sha256,),
             ).fetchone()
             if existing is None:
@@ -163,15 +192,13 @@ def store_document(
         insert_cols.append("embedding")
         insert_values.append(emb)
         placeholders = ",".join("?" for _ in insert_cols)
-        cur = None
-        try:
-            cur = conn.execute(
-                f"INSERT INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})",
-                insert_values,
-            )
-        except sqlite3.IntegrityError:
-            if "sha256" not in columns:
-                raise
+        insert_statement = (
+            f"INSERT INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})"
+        )
+        if "sha256" in columns:
+            insert_or_ignore = "INSERT OR " + "IGNORE"
+            insert_statement = f"{insert_or_ignore} INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})"
+        cur = conn.execute(insert_statement, insert_values)
         if "sha256" in columns:
             existing = conn.execute(
                 f"SELECT {id_col} FROM documents WHERE sha256 = ?",
