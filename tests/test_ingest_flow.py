@@ -215,6 +215,28 @@ def test_adapter_registry_covers_documented_jurisdictions():
     assert set(ingest_flow._IDENTIFIER_ENV) == {"us", "uk", "ca", "sg", "au"}
 
 
+@pytest.mark.parametrize(
+    ("jurisdiction", "env_key", "default_value"),
+    [
+        ("us", "CIK_LIST", "0001791786,0001434997"),
+        ("uk", "UK_COMPANY_NUMBERS", ""),
+        ("ca", "CA_CIK_LIST", ""),
+        ("sg", "SG_ENTITY_IDS", ""),
+        ("au", "AU_ASIC_IDS", ""),
+    ],
+)
+def test_default_identifiers_uses_jurisdiction_environment_mapping(
+    monkeypatch, jurisdiction, env_key, default_value
+):
+    monkeypatch.delenv(env_key, raising=False)
+    assert ingest_flow._default_identifiers(jurisdiction) == (
+        default_value.split(",") if default_value else []
+    )
+
+    monkeypatch.setenv(env_key, " ID-1 , ID-2 ")
+    assert ingest_flow._default_identifiers(jurisdiction) == ["ID-1", "ID-2"]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("jurisdiction", "registry_ids", "identifier", "filing_id", "date"),
