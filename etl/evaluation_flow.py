@@ -22,6 +22,7 @@ QUALITY_THRESHOLDS: dict[str, float] = {
     "sql_correctness": 0.85,
     "sql_safety": 1.0,
     "rag_faithfulness": 0.7,
+    "source_attribution": 0.9,
     "hallucination": 0.95,
 }
 EVALUATION_FLOW_CRON = os.getenv("EVALUATION_FLOW_CRON", "0 6 * * 0")
@@ -286,6 +287,11 @@ def build_live_evaluation_datasets(db_conn: sqlite3.Connection) -> dict[str, lis
                 "retrieval_sources": [
                     {"document_id": "doc-live-1", "description": "elliott-apple-note.md"},
                     {"filing_id": 1, "description": "13F-HR filed 2026-03-01"},
+                    {
+                        "news_reference": "Elliott Investment Management increases Apple stake",
+                        "description": "Published 2026-03-02T08:00:00",
+                        "url": "https://example.com/news/1",
+                    },
                 ],
                 "allowed_values": [
                     "Apple Inc",
@@ -339,9 +345,13 @@ def run_evaluation_suite(
             )
         for entry in datasets.get("rag_search", []):
             faithfulness = evaluator.evaluate_rag_faithfulness(entry.get("run", {}), entry)
+            attribution = evaluator.evaluate_rag_source_attribution(entry.get("run", {}), entry)
             hallucination = evaluator.evaluate_hallucination(entry.get("run", {}), entry)
             summary.setdefault("datasets", {}).setdefault("rag_faithfulness", []).append(
                 float(faithfulness.score or 0.0)
+            )
+            summary.setdefault("datasets", {}).setdefault("source_attribution", []).append(
+                float(attribution.score or 0.0)
             )
             summary.setdefault("datasets", {}).setdefault("hallucination", []).append(
                 float(hallucination.score or 0.0)
