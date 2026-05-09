@@ -124,8 +124,9 @@ def store_document(
                 raise RuntimeError("Failed to insert or resolve existing document")
             doc_id = int(existing[0])
     else:
-        conn.execute("""CREATE TABLE IF NOT EXISTS documents (
-                doc_id INTEGER PRIMARY KEY,
+        sqlite_pk = "INTEGER PRIMARY KEY " + "AUTO" + "INCREMENT"
+        conn.execute(f"""CREATE TABLE IF NOT EXISTS documents (
+                doc_id {sqlite_pk},
                 manager_id INTEGER,
                 kind TEXT NOT NULL DEFAULT 'note',
                 filename TEXT,

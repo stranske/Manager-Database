@@ -4,7 +4,13 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from embeddings import _is_postgres_connection, embed_text, search_documents, store_document
+from embeddings import (
+    _is_postgres_connection,
+    _sqlite_columns,
+    embed_text,
+    search_documents,
+    store_document,
+)
 from scripts.check_dialect_portability import scan
 
 
@@ -92,6 +98,26 @@ def test_store_document_creates_sha256_unique_index_sqlite(tmp_path, monkeypatch
     assert "idx_documents_sha256_unique" in index_by_name
     # SQLite PRAGMA index_list returns uniqueness at position 2.
     assert index_by_name["idx_documents_sha256_unique"][2] == 1
+
+
+def test_store_document_sqlite_create_table_uses_autoincrement(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+
+    traced_sql: list[str] = []
+    original_connect = sqlite3.connect
+
+    def tracing_connect(path, *args, **kwargs):
+        conn = original_connect(path, *args, **kwargs)
+        conn.set_trace_callback(traced_sql.append)
+        return conn
+
+    monkeypatch.setattr("embeddings.sqlite3.connect", tracing_connect)
+    store_document("capture ddl", str(db_path))
+
+    create_statements = [sql for sql in traced_sql if "CREATE TABLE IF NOT EXISTS documents" in sql]
+    assert create_statements
+    assert any("AUTOINCREMENT" in sql.upper() for sql in create_statements)
 
 
 def test_search_documents_manager_filter_and_shape(tmp_path, monkeypatch):
@@ -239,6 +265,18 @@ def test_connection_dialect_detection_matches_adapter_branching(tmp_path):
         sqlite_conn.close()
 
 
+def test_sqlite_schema_inspection_handles_legacy_and_missing_tables(tmp_path):
+    conn = sqlite3.connect(tmp_path / "dev.db")
+
+    try:
+        assert _sqlite_columns(conn, "documents") == set()
+        conn.execute("CREATE TABLE documents (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT)")
+
+        assert _sqlite_columns(conn, "documents") == {"id", "content"}
+    finally:
+        conn.close()
+
+
 def test_store_and_search_pgvector(monkeypatch):
     class Connection:
         def __init__(self):
@@ -293,6 +331,40 @@ def test_store_and_search_pgvector(monkeypatch):
     ]
     assert conn.committed is True
     assert conn.closed is True
+
+
+def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeypatch):
+    class Connection:
+        def __init__(self):
+            self.info = object()
+            self.executed = []
+
+        def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
+            self.executed.append((sql, params))
+            if sql.startswith("INSERT INTO documents"):
+                return type("Result", (), {"fetchone": lambda self: (9,)})()
+            return type("Result", (), {"fetchall": lambda self: []})()
+
+        def commit(self):
+            pass
+
+        def close(self):
+            pass
+
+    conn = Connection()
+    monkeypatch.setattr("embeddings.connect_db", lambda _path=None: conn)
+    monkeypatch.setattr("embeddings.register_vector", None)
+    monkeypatch.setattr("embeddings.embed_text", lambda _text: [0.4, 0.6])
+
+    assert store_document("dialect branch", "ignored.db") == 9
+
+    executed_sql = "\n".join(sql for sql, _params in conn.executed)
+    assert "doc_id bigserial PRIMARY KEY" in executed_sql
+    assert "ON CONFLICT (sha256) WHERE sha256 IS NOT NULL DO NOTHING" in executed_sql
+    assert "AUTOINCREMENT" not in executed_sql
+    assert "PRAGMA table_info" not in executed_sql
+    assert "INSERT OR IGNORE" not in executed_sql
 
 
 def test_store_document_pgvector_conflict_returns_existing(monkeypatch):
