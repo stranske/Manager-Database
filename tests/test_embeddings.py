@@ -4,7 +4,13 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from embeddings import _is_postgres_connection, embed_text, search_documents, store_document
+from embeddings import (
+    _is_postgres_connection,
+    _sqlite_columns,
+    embed_text,
+    search_documents,
+    store_document,
+)
 from scripts.check_dialect_portability import scan
 
 
@@ -239,6 +245,18 @@ def test_connection_dialect_detection_matches_adapter_branching(tmp_path):
         sqlite_conn.close()
 
 
+def test_sqlite_schema_inspection_handles_legacy_and_missing_tables(tmp_path):
+    conn = sqlite3.connect(tmp_path / "dev.db")
+
+    try:
+        assert _sqlite_columns(conn, "documents") == set()
+        conn.execute("CREATE TABLE documents (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT)")
+
+        assert _sqlite_columns(conn, "documents") == {"id", "content"}
+    finally:
+        conn.close()
+
+
 def test_store_and_search_pgvector(monkeypatch):
     class Connection:
         def __init__(self):
@@ -293,6 +311,40 @@ def test_store_and_search_pgvector(monkeypatch):
     ]
     assert conn.committed is True
     assert conn.closed is True
+
+
+def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeypatch):
+    class Connection:
+        def __init__(self):
+            self.info = object()
+            self.executed = []
+
+        def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
+            self.executed.append((sql, params))
+            if sql.startswith("INSERT INTO documents"):
+                return type("Result", (), {"fetchone": lambda self: (9,)})()
+            return type("Result", (), {"fetchall": lambda self: []})()
+
+        def commit(self):
+            pass
+
+        def close(self):
+            pass
+
+    conn = Connection()
+    monkeypatch.setattr("embeddings.connect_db", lambda _path=None: conn)
+    monkeypatch.setattr("embeddings.register_vector", None)
+    monkeypatch.setattr("embeddings.embed_text", lambda _text: [0.4, 0.6])
+
+    assert store_document("dialect branch", "ignored.db") == 9
+
+    executed_sql = "\n".join(sql for sql, _params in conn.executed)
+    assert "doc_id bigserial PRIMARY KEY" in executed_sql
+    assert "ON CONFLICT (sha256) WHERE sha256 IS NOT NULL DO NOTHING" in executed_sql
+    assert "AUTOINCREMENT" not in executed_sql
+    assert "PRAGMA table_info" not in executed_sql
+    assert "INSERT OR IGNORE" not in executed_sql
 
 
 def test_store_document_pgvector_conflict_returns_existing(monkeypatch):
