@@ -128,7 +128,9 @@ def test_evaluate_rag_source_attribution_rejects_phantom_sources(tmp_path):
     )
 
     assert good.score == 1.0
+    assert good.key == "source_attribution"
     assert bad.score < 1.0
+    assert bad.key == "source_attribution"
     conn.close()
 
 
