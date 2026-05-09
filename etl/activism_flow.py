@@ -45,7 +45,7 @@ def _placeholder(conn: Any) -> str:
 def _ensure_activism_filings_table(conn: Any) -> None:
     if _is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
-                filing_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filing_id INTEGER PRIMARY KEY,
                 manager_id INTEGER NOT NULL,
                 filing_type TEXT NOT NULL,
                 subject_company TEXT NOT NULL,
@@ -71,20 +71,27 @@ def _ensure_activism_filings_table(conn: Any) -> None:
         )
         return
 
-    try:
-        conn.execute("SELECT 1 FROM activism_filings LIMIT 1")
-    except Exception as exc:
-        message = str(exc)
-        exc_name = exc.__class__.__name__
-        pgcode = getattr(exc, "pgcode", None)
-        missing_table = (
-            "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_name
-        )
-        if missing_table:
-            raise RuntimeError(
-                "activism_filings table is missing on Postgres; apply schema migrations first"
-            ) from exc
-        raise
+    conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
+            filing_id BIGSERIAL PRIMARY KEY,
+            manager_id INTEGER NOT NULL,
+            filing_type TEXT NOT NULL,
+            subject_company TEXT NOT NULL,
+            subject_cusip TEXT,
+            ownership_pct DOUBLE PRECISION,
+            shares BIGINT,
+            group_members TEXT[],
+            purpose_snippet TEXT,
+            filed_date TEXT NOT NULL,
+            url TEXT NOT NULL,
+            raw_key TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (manager_id, filing_type, subject_cusip, filed_date)
+        )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_activism_manager ON activism_filings(manager_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_activism_cusip ON activism_filings(subject_cusip)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_activism_date ON activism_filings(filed_date DESC)"
+    )
 
 
 def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:

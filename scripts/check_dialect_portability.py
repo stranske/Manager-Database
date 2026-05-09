@@ -46,8 +46,6 @@ AUDITED_SQLITE_ONLY_ALLOWLIST: dict[str, set[str]] = {
     "api/managers.py": {"AUTOINCREMENT", "PRAGMA table_info"},
     "api/search.py": {"PRAGMA table_info"},
     "api/signals.py": {"PRAGMA table_info"},
-    "etl/activism_detection.py": {"AUTOINCREMENT", "INSERT OR IGNORE"},
-    "etl/activism_flow.py": {"AUTOINCREMENT"},
     "etl/conviction_flow.py": {"AUTOINCREMENT"},
     "etl/daily_diff_flow.py": {"AUTOINCREMENT"},
     "etl/digest_flow.py": {"PRAGMA table_xinfo"},
