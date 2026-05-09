@@ -60,7 +60,18 @@
   - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1008 uv run --extra dev ruff check etl/ingest_flow.py etl/conviction_flow.py etl/evaluation_flow.py scripts/check_dialect_portability.py` -> passed.
   - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1008 uv run --extra dev black --target-version py312 --check etl/ingest_flow.py etl/conviction_flow.py etl/evaluation_flow.py scripts/check_dialect_portability.py` -> passed.
   - `git diff --check` -> passed.
-- Next action: commit, push, open a ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`, then emit the `pr_opened` relay event.
+- Commit/push:
+  - Commit `5ae21ea` (`Issue #1008: make remaining ETL dialect-aware`) pushed to `codex/issue-1008-etl-dialect`.
+- PR:
+  - Opened ready-for-review PR `#1019`: `https://github.com/stranske/Manager-Database/pull/1019`.
+  - PR labels verified: `agent:codex`, `agents:keepalive`, `autofix`; `isDraft=false`.
+- Relay:
+  - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1008 active.source_pr=1019 active.next_action=wait_for_keepalive`.
+- Post-open repair:
+  - Immediate post-open cap-health classified `#1019` as `needs-dispatch-evidence` after early Gate/Gate Followups cancellations.
+  - Ran `opener-repair-infra-stalls.py --json`; it added `agent:retry` and dispatched Gate Followups for `#1019`.
+  - Fresh cap-health at `2026-05-09T23:07:29Z` reported `#1019` as `draining` with active Gate and Agents Gate Followups runs; fleet totals were `total_opener_owned=4`, `drainable_count=4`, `non_drainable_count=0`, `raw_cap_reached=false`, `normal_cap_reached=false`.
+- Next action: keepalive owns CI/check follow-up for PR `#1019`.
 
 ## 2026-05-09T21:08:00Z - opener lane implementing issue #1006
 
