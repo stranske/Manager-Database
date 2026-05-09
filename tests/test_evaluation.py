@@ -171,3 +171,33 @@ def test_evaluation_flow_reports_failures_and_alerts(monkeypatch):
 
     assert summary["failures"] == {"filing_summary_accuracy": 0.5}
     assert summary["alerts_fired"] == 1
+
+
+def test_live_evaluation_builds_outputs_from_actual_chains(tmp_path):
+    conn = sqlite3.connect(tmp_path / "live-eval.db")
+
+    datasets = evaluation_flow.build_live_evaluation_datasets(conn)
+
+    filing_output = datasets["filing_summary"][0]["run"]["outputs"]
+    nl_output = datasets["nl_query"][0]["run"]["outputs"]
+    rag_output = datasets["rag_search"][0]["run"]["outputs"]
+    assert filing_output["total_positions"] == 3
+    assert any(position["cusip"] == "037833100" for position in filing_output["key_positions"])
+    assert nl_output["results"] == [{"manager_count": 1}]
+    assert "Structured data" not in rag_output["answer"]
+    assert any(source.get("document_id") == "doc-live-1" for source in rag_output["sources"])
+    assert any(source.get("filing_id") == 1 for source in rag_output["sources"])
+    conn.close()
+
+
+def test_live_evaluation_suite_scores_live_chain_outputs(tmp_path):
+    conn = sqlite3.connect(tmp_path / "live-eval.db")
+
+    summary = evaluation_flow.run_live_evaluation_suite.fn(db_conn=conn)
+
+    assert summary["metrics"]["filing_summary_accuracy"] == 1.0
+    assert summary["metrics"]["sql_correctness"] == 1.0
+    assert summary["metrics"]["rag_faithfulness"] == 1.0
+    assert summary["metrics"]["hallucination"] == 1.0
+    assert summary["failures"] == {}
+    conn.close()

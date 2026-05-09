@@ -1,0 +1,25 @@
+## 2026-05-09T01:08:02Z
+
+- Opener (codex) selected `stranske/Manager-Database#909` for implementation after full fleet discovery and cap-health checks.
+- Sentinel on entry: `active.source_repo=stranske/Manager-Database`, `active.source_issue=908`, `active.source_pr=1001`, `active.next_action=wait_for_verifier`; treated as cross-lane informational only.
+- Queue context: `approved-issue-queue.json` has `generated_on=2026-05-07`, `approved_count=0`, and `deeper_review_count=0`; live priority issue discovery was authoritative.
+- Discovery:
+  - `priority:high`: `Inv-Man-Intake#381/#379`, skipped as previously reopened verifier-hold issues with merged issue-linked PRs.
+  - `priority:normal`: selected `Manager-Database#909` after older issues were already linked to open/merged PRs or verifier-hold lanes; no existing PR found for `#909`.
+  - `priority:low`: deferred because normal-priority eligible work existed.
+- Cap-health before work: `total_opener_owned=4`, `raw_cap_reached=false`, `normal_cap_reached=false`, `non_drainable_cap_blocker=false`, `drainable_count=4`.
+  - Drainable items: `Counter_Risk#573`, `Trend_Model_Project#5257`, `Trend_Model_Project#5258`, and `Trend_Model_Project#5260`.
+- Infra repair: `/Users/teacher/.codex/bin/opener-repair-infra-stalls.py --json` returned `repair_count=0`; all four opener-owned PRs were skipped as non-repairable `draining`.
+- Post-repair cap-health remained `total_opener_owned=4`, `raw_cap_reached=false`, `normal_cap_reached=false`, `non_drainable_cap_blocker=false`, `drainable_count=4`.
+- Branch: `codex/issue-909-live-mode-evaluation` from fresh `origin/main` in isolated worktree `/Users/teacher/Library/CloudStorage/Dropbox/Learning/Code/Manager-Database-issue-909`; canonical checkout had unrelated local `.gitignore` and untracked `workloop-state.md` changes.
+- Changes:
+  - Added deterministic live evaluation helpers that seed a local SQLite corpus and run the actual filing summary, NL-to-SQL, and RAG chains with offline fake providers.
+  - Added `run_live_evaluation_suite` and `live_evaluation_flow` so live-mode outputs feed the existing evaluator, summary metrics, failure thresholds, and alert path.
+  - Documented the local no-credential live evaluation command in `tests/eval_datasets/README.md`.
+  - Added tests proving live outputs come from chain execution and score through the evaluator.
+- Validation:
+  - `python -m pytest tests/test_evaluation.py --no-cov` passed: `9 passed, 8 warnings`.
+  - `python -m ruff check etl/evaluation_flow.py tests/test_evaluation.py` passed.
+  - `python -m compileall -q etl/evaluation_flow.py tests/test_evaluation.py` passed.
+  - `git diff --check` passed.
+- Next action: commit, push, open a ready-for-review PR for issue `#909`, apply `agent:codex`, `agents:keepalive`, and `autofix`, then emit `pr_opened` relay.

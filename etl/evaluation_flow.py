@@ -8,6 +8,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from langchain_core.runnables import RunnableLambda
 from prefect import flow, task
 from prefect.schedules import Cron
 
@@ -25,6 +26,72 @@ QUALITY_THRESHOLDS: dict[str, float] = {
 EVALUATION_FLOW_CRON = os.getenv("EVALUATION_FLOW_CRON", "0 6 * * 0")
 EVALUATION_FLOW_TIMEZONE = os.getenv("EVALUATION_FLOW_TIMEZONE", "UTC")
 _DATASET_DIR = Path(__file__).resolve().parents[1] / "tests" / "eval_datasets"
+
+
+class _DeterministicFilingSummaryLLM:
+    def with_structured_output(self, _schema: type[Any]) -> RunnableLambda:
+        return RunnableLambda(
+            lambda _payload: {
+                "manager_name": "Elliott Investment Management",
+                "filing_date": "2026-03-01",
+                "total_positions": 3,
+                "total_aum_estimate": "$10.00M",
+                "key_positions": [
+                    {
+                        "cusip": "037833100",
+                        "name_of_issuer": "Apple Inc",
+                        "value_usd": 4_000_000,
+                    },
+                    {
+                        "cusip": "594918104",
+                        "name_of_issuer": "Microsoft Corp",
+                        "value_usd": 3_000_000,
+                    },
+                    {
+                        "cusip": "02079K305",
+                        "name_of_issuer": "Alphabet Inc",
+                        "value_usd": 3_000_000,
+                    },
+                ],
+                "notable_changes": ["ADD: Apple Inc"],
+                "sector_concentration": [{"sector": "Technology", "weight": 1.0}],
+                "risk_flags": ["No risk flags"],
+            }
+        )
+
+    def __call__(self, _prompt: Any) -> str:
+        return "{}"
+
+
+class _DeterministicNLQueryLLM:
+    def invoke(self, prompt: str, config: Any | None = None) -> str:
+        _ = config
+        if "How many managers" in prompt:
+            return json.dumps(
+                {
+                    "sql": "SELECT COUNT(*) AS manager_count FROM managers",
+                    "columns": ["manager_count"],
+                }
+            )
+        return json.dumps(
+            {
+                "sql": (
+                    "SELECT h.name_of_issuer, h.value_usd FROM holdings h "
+                    "JOIN filings f ON f.filing_id = h.filing_id "
+                    "JOIN managers m ON m.manager_id = f.manager_id "
+                    "WHERE m.name LIKE '%Elliott%' ORDER BY h.value_usd DESC LIMIT 5"
+                ),
+                "columns": ["name_of_issuer", "value_usd"],
+            }
+        )
+
+
+class _DeterministicRAGLLM:
+    def invoke(self, _prompt: str, config: Any | None = None) -> str:
+        _ = config
+        return (
+            "Apple Inc (037833100) remained a top Elliott Investment Management holding."
+        )
 
 
 def _placeholder(conn: Any) -> str:
@@ -55,6 +122,185 @@ def _ensure_api_usage_table(conn: Any) -> None:
             latency_ms int,
             cost_usd numeric(10,4)
         )""")
+
+
+def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
+    """Seed a deterministic local corpus for live-chain evaluation."""
+
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS managers (
+            manager_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            cik TEXT
+        );
+        CREATE TABLE IF NOT EXISTS filings (
+            filing_id INTEGER PRIMARY KEY,
+            manager_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            period_end TEXT,
+            filed_date TEXT,
+            source TEXT NOT NULL,
+            url TEXT
+        );
+        CREATE TABLE IF NOT EXISTS holdings (
+            holding_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filing_id INTEGER NOT NULL,
+            cusip TEXT,
+            name_of_issuer TEXT,
+            shares INTEGER,
+            value_usd REAL,
+            sector TEXT
+        );
+        CREATE TABLE IF NOT EXISTS daily_diffs (
+            diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manager_id INTEGER NOT NULL,
+            filing_id INTEGER,
+            report_date TEXT,
+            cusip TEXT,
+            name_of_issuer TEXT,
+            delta_type TEXT,
+            shares_prev INTEGER,
+            shares_curr INTEGER,
+            value_prev REAL,
+            value_curr REAL
+        );
+        CREATE TABLE IF NOT EXISTS news_items (
+            news_id INTEGER PRIMARY KEY,
+            manager_id INTEGER,
+            published_at TEXT,
+            source TEXT,
+            headline TEXT,
+            url TEXT,
+            body_snippet TEXT
+        );
+        """
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
+        (1, "Elliott Investment Management", "0001791786"),
+    )
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO filings(
+            filing_id, manager_id, type, period_end, filed_date, source, url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (1, 1, "13F-HR", "2025-12-31", "2026-03-01", "sec", "https://example.com/13f/1"),
+    )
+    conn.execute("DELETE FROM holdings WHERE filing_id = ?", (1,))
+    conn.executemany(
+        """
+        INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd, sector)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (1, "037833100", "Apple Inc", 10_000, 4_000_000.0, "Technology"),
+            (1, "594918104", "Microsoft Corp", 8_000, 3_000_000.0, "Technology"),
+            (1, "02079K305", "Alphabet Inc", 7_000, 3_000_000.0, "Technology"),
+        ],
+    )
+    conn.execute("DELETE FROM daily_diffs WHERE filing_id = ?", (1,))
+    conn.execute(
+        """
+        INSERT INTO daily_diffs(
+            manager_id, filing_id, report_date, cusip, name_of_issuer, delta_type,
+            shares_prev, shares_curr, value_prev, value_curr
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (1, 1, "2025-12-31", "037833100", "Apple Inc", "ADD", 0, 10_000, 0.0, 4_000_000.0),
+    )
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO news_items(
+            news_id, manager_id, published_at, source, headline, url, body_snippet
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            1,
+            1,
+            "2026-03-02T08:00:00",
+            "Reuters",
+            "Elliott Investment Management increases Apple stake",
+            "https://example.com/news/1",
+            "Apple Inc remains a top position.",
+        ),
+    )
+    conn.commit()
+
+
+def build_live_evaluation_datasets(db_conn: sqlite3.Connection) -> dict[str, list[dict[str, Any]]]:
+    """Run actual local chains and return evaluator-compatible live outputs."""
+
+    from chains.filing_summary import FilingSummaryChain
+    from chains.nl_query import NLQueryChain
+    from chains.rag_search import RAGSearchChain
+    from tools.langchain_client import ClientInfo
+
+    seed_live_evaluation_database(db_conn)
+    filing_chain = FilingSummaryChain(
+        ClientInfo(
+            client=_DeterministicFilingSummaryLLM(),
+            provider="deterministic",
+            model="offline-live-eval",
+        ),
+        db_conn,
+    )
+    nl_chain = NLQueryChain(llm=_DeterministicNLQueryLLM(), db_conn=db_conn)
+    rag_chain = RAGSearchChain(llm=_DeterministicRAGLLM(), db_conn=db_conn)
+    rag_chain._vector_search = lambda _query, k=5, manager_id=None: [  # type: ignore[method-assign]
+        {
+            "doc_id": "doc-live-1",
+            "content": "Apple Inc (037833100) remained a top holding on 2026-03-01.",
+            "filename": "elliott-apple-note.md",
+            "kind": "memo",
+            "manager_id": manager_id,
+        }
+    ][:k]
+
+    filing_summary = filing_chain.run(1).model_dump()
+    nl_result = nl_chain.run("How many managers are in the database?")
+    rag_result = rag_chain.run(
+        "What does Elliott Investment Management hold in Apple?",
+        context={"manager_ids": [1], "date_range": {"start": "2026-03-01", "end": "2026-03-02"}},
+    )
+
+    return {
+        "filing_summary": [
+            {
+                "filing_id": 1,
+                "run": {"outputs": filing_summary},
+            }
+        ],
+        "nl_query": [
+            {
+                "question": "How many managers are in the database?",
+                "expected_sql_pattern": r"SELECT.+COUNT.+FROM\s+managers",
+                "expected_result_type": "single_number",
+                "run": {"outputs": nl_result},
+            }
+        ],
+        "rag_search": [
+            {
+                "question": "What does Elliott Investment Management hold in Apple?",
+                "context": (
+                    "Apple Inc (037833100) remained a top Elliott Investment Management "
+                    "holding."
+                ),
+                "retrieval_sources": [
+                    {"document_id": "doc-live-1", "description": "elliott-apple-note.md"},
+                    {"filing_id": 1, "description": "13F-HR filed 2026-03-01"},
+                ],
+                "allowed_values": [
+                    "Apple Inc",
+                    "037833100",
+                    "Elliott Investment Management",
+                    "2026-03-01",
+                ],
+                "run": {"outputs": rag_result},
+            }
+        ],
+    }
 
 
 @task
@@ -118,6 +364,20 @@ def run_evaluation_suite(
 
 
 @task
+def run_live_evaluation_suite(db_conn: Any | None = None) -> dict[str, Any]:
+    conn = db_conn or sqlite3.connect(":memory:")
+    owns_connection = db_conn is None
+    try:
+        if not isinstance(conn, sqlite3.Connection):
+            raise TypeError("live evaluation mode currently requires a SQLite connection")
+        datasets = build_live_evaluation_datasets(conn)
+        return run_evaluation_suite.fn(db_conn=conn, datasets=datasets)
+    finally:
+        if owns_connection:
+            conn.close()
+
+
+@task
 def log_evaluation_summary(summary: dict[str, Any], db_conn: Any | None = None) -> None:
     conn = db_conn or connect_db()
     owns_connection = db_conn is None
@@ -171,6 +431,14 @@ def fire_quality_alerts(summary: dict[str, Any], db_conn: Any | None = None) -> 
 def evaluation_flow() -> dict[str, Any]:
     datasets = load_evaluation_datasets.fn()
     summary = run_evaluation_suite.fn(datasets=datasets)
+    log_evaluation_summary.fn(summary)
+    summary["alerts_fired"] = fire_quality_alerts.fn(summary)
+    return summary
+
+
+@flow(name="research-assistant-live-evaluation")
+def live_evaluation_flow() -> dict[str, Any]:
+    summary = run_live_evaluation_suite.fn()
     log_evaluation_summary.fn(summary)
     summary["alerts_fired"] = fire_quality_alerts.fn(summary)
     return summary
