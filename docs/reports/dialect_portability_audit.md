@@ -32,7 +32,7 @@ python scripts/check_dialect_portability.py
 
 | Surface | Classification | Evidence | Failure Mode Or Justification | Disposition |
 | --- | --- | --- | --- | --- |
-| `embeddings.py` | postgres-incompatible | `AUTOINCREMENT`, `PRAGMA table_info`, `INSERT OR IGNORE`; `connect_db(db_path)` | Document table setup and introspection are SQLite-specific while the helper can receive a Postgres-capable connection path. | Follow-up #1005: `dialect_portability_audit embeddings`. |
+| `embeddings.py` | dialect-aware | SQLite table setup, column introspection, and duplicate handling avoid audited SQLite-only tokens; Postgres paths use `bigserial`, `information_schema`-free inserts/searches, `%s` placeholders, and `ON CONFLICT`. | Follow-up #1005 resolved: `python scripts/check_dialect_portability.py --no-allowlist embeddings.py` now passes. | Allowed by gate without an allowlist entry. |
 | `chains/holdings_analysis.py` | postgres-incompatible | `AUTOINCREMENT`; imports `connect_db` through chain DB paths | Cache table setup uses SQLite DDL in a chain module that participates in DB-backed analysis flows. | Follow-up #1006: `dialect_portability_audit chains`. |
 | `chains/filing_summary.py` | postgres-incompatible | `AUTOINCREMENT`; imports `connect_db` through chain DB paths | Filing summary cache/setup uses SQLite DDL without a Postgres branch. | Follow-up #1006: `dialect_portability_audit chains`. |
 | `etl/activism_detection.py` | postgres-incompatible | `AUTOINCREMENT`, `INSERT OR IGNORE` | Activism event persistence uses SQLite DDL/upsert syntax on an ETL path that should not assume SQLite. | Follow-up #1007: `dialect_portability_audit etl-activism`. |
