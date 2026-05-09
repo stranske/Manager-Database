@@ -17,7 +17,7 @@ import httpx
 from prefect import flow, task
 
 from adapters.base import connect_db
-from alerts.channels import DeliveryResult, _send_via_smtp
+from alerts.channels import DeliveryResult, send_email_message_via_smtp
 from alerts.db import deserialize_json_object
 from etl.logging_setup import configure_logging, log_outcome
 
@@ -118,7 +118,9 @@ def _payload_summary(payload: dict[str, Any]) -> str:
 
 
 @task
-def build_digest(conn: Any, lookback_hours: int = 24, now: datetime | None = None) -> DigestDocument:
+def build_digest(
+    conn: Any, lookback_hours: int = 24, now: datetime | None = None
+) -> DigestDocument:
     """Query recent filings, news, and unacknowledged alerts into one digest."""
     generated_at = _coerce_utc(now)
     window_start = generated_at - timedelta(hours=lookback_hours)
@@ -127,15 +129,25 @@ def build_digest(conn: Any, lookback_hours: int = 24, now: datetime | None = Non
 
     filing_cols = _columns(conn, "filings")
     if {"manager_id", "type", "source"} <= filing_cols and _table_exists(conn, "managers"):
-        date_expr = "COALESCE(f.filed_date, f.created_at)" if "created_at" in filing_cols else "f.filed_date"
+        filter_expr = "f.created_at" if "created_at" in filing_cols else "f.filed_date"
+        filter_value = (
+            window_start.isoformat()
+            if "created_at" in filing_cols
+            else window_start.date().isoformat()
+        )
+        display_date_expr = (
+            "COALESCE(f.filed_date, f.created_at)"
+            if "created_at" in filing_cols
+            else "f.filed_date"
+        )
         rows = conn.execute(
-            f"""SELECT COALESCE(m.name, 'Manager ' || f.manager_id), f.type, {date_expr},
+            f"""SELECT COALESCE(m.name, 'Manager ' || CAST(f.manager_id AS TEXT)), f.type, {display_date_expr},
                        f.source, f.url
                   FROM filings AS f
                   LEFT JOIN managers AS m ON m.manager_id = f.manager_id
-                 WHERE {date_expr} >= {ph}
-                 ORDER BY {date_expr} DESC, f.filing_id DESC""",
-            (window_start.date().isoformat(),),
+                 WHERE {filter_expr} >= {ph}
+                 ORDER BY {filter_expr} DESC, f.filing_id DESC""",
+            (filter_value,),
         ).fetchall()
         digest.filings = [
             DigestFiling(
@@ -151,7 +163,14 @@ def build_digest(conn: Any, lookback_hours: int = 24, now: datetime | None = Non
     news_cols = _columns(conn, "news_items")
     if {"manager_id", "published_at", "source", "headline"} <= news_cols:
         rows = conn.execute(
-            f"""SELECT COALESCE(m.name, 'Manager ' || n.manager_id, 'Unlinked manager'),
+            f"""SELECT COALESCE(
+                       m.name,
+                       CASE
+                           WHEN n.manager_id IS NOT NULL
+                           THEN 'Manager ' || CAST(n.manager_id AS TEXT)
+                       END,
+                       'Unlinked manager'
+                   ),
                        n.headline, n.source, n.published_at, n.url
                   FROM news_items AS n
                   LEFT JOIN managers AS m ON m.manager_id = n.manager_id
@@ -214,9 +233,7 @@ def render_digest_plain_text(digest: DigestDocument) -> str:
         )
     lines.extend(["", f"News ({len(digest.news)})"])
     for item in digest.news:
-        lines.append(
-            f"- {item.manager_name}: {item.headline} ({item.source}, {item.published_at})"
-        )
+        lines.append(f"- {item.manager_name}: {item.headline} ({item.source}, {item.published_at})")
     lines.extend(["", f"Important alerts ({len(digest.alerts)})"])
     for item in digest.alerts:
         manager = f" [{item.manager_name}]" if item.manager_name else ""
@@ -290,19 +307,30 @@ async def deliver_digest_email(digest: DigestDocument, *, dry_run: bool = False)
     recipients = _split_csv(os.getenv("DIGEST_EMAIL_TO") or os.getenv("ALERT_EMAIL_TO"))
     if not sender:
         return DeliveryResult(
-            channel="email", success=True, skipped=True, error_message="DIGEST_EMAIL_FROM is not configured"
+            channel="email",
+            success=True,
+            skipped=True,
+            error_message="DIGEST_EMAIL_FROM is not configured",
         )
     if not recipients:
         return DeliveryResult(
-            channel="email", success=True, skipped=True, error_message="DIGEST_EMAIL_TO is not configured"
+            channel="email",
+            success=True,
+            skipped=True,
+            error_message="DIGEST_EMAIL_TO is not configured",
         )
 
-    provider = (os.getenv("DIGEST_EMAIL_PROVIDER") or os.getenv("ALERT_EMAIL_PROVIDER") or "smtp").lower()
+    provider = (
+        os.getenv("DIGEST_EMAIL_PROVIDER") or os.getenv("ALERT_EMAIL_PROVIDER") or "smtp"
+    ).lower()
     if provider == "sendgrid":
         api_key = os.getenv("SENDGRID_API_KEY")
         if not api_key:
             return DeliveryResult(
-                channel="email", success=True, skipped=True, error_message="SENDGRID_API_KEY is not configured"
+                channel="email",
+                success=True,
+                skipped=True,
+                error_message="SENDGRID_API_KEY is not configured",
             )
         payload = {
             "personalizations": [{"to": [{"email": recipient} for recipient in recipients]}],
@@ -313,11 +341,18 @@ async def deliver_digest_email(digest: DigestDocument, *, dry_run: bool = False)
                 {"type": "text/html", "value": render_digest_html(digest)},
             ],
         }
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                "https://api.sendgrid.com/v3/mail/send",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json=payload,
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    "https://api.sendgrid.com/v3/mail/send",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json=payload,
+                )
+        except httpx.HTTPError as exc:
+            return DeliveryResult(
+                channel="email",
+                success=False,
+                error_message=f"SendGrid digest delivery failed: {exc}",
             )
         if response.status_code not in (200, 202):
             return DeliveryResult(
@@ -333,16 +368,23 @@ async def deliver_digest_email(digest: DigestDocument, *, dry_run: bool = False)
             channel="email", success=True, skipped=True, error_message="SMTP_HOST is not configured"
         )
     message = build_digest_email_message(digest, sender=sender, recipients=recipients)
-    await asyncio.to_thread(
-        _send_via_smtp,
-        message,
-        host=smtp_host,
-        port=int(os.getenv("SMTP_PORT", "587")),
-        username=os.getenv("SMTP_USER"),
-        password=os.getenv("SMTP_PASSWORD"),
-        use_tls=os.getenv("ALERT_EMAIL_USE_TLS", "true").strip().lower() != "false",
-        timeout_seconds=10.0,
-    )
+    try:
+        await asyncio.to_thread(
+            send_email_message_via_smtp,
+            message,
+            host=smtp_host,
+            port=int(os.getenv("SMTP_PORT", "587")),
+            username=os.getenv("SMTP_USER"),
+            password=os.getenv("SMTP_PASSWORD"),
+            use_tls=os.getenv("ALERT_EMAIL_USE_TLS", "true").strip().lower() != "false",
+            timeout_seconds=10.0,
+        )
+    except Exception as exc:  # pragma: no cover - defensive against network stack specifics
+        return DeliveryResult(
+            channel="email",
+            success=False,
+            error_message=f"SMTP digest delivery failed: {exc}",
+        )
     return DeliveryResult(channel="email", success=True)
 
 
@@ -355,7 +397,11 @@ async def digest_flow(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Build and optionally deliver the automated analyst digest."""
-    resolved_lookback = lookback_hours or int(os.getenv("DIGEST_LOOKBACK_HOURS", "24"))
+    resolved_lookback = (
+        int(os.getenv("DIGEST_LOOKBACK_HOURS", "24")) if lookback_hours is None else lookback_hours
+    )
+    if resolved_lookback <= 0:
+        raise ValueError("lookback_hours must be greater than 0")
     resolved_dry_run = (
         os.getenv("DIGEST_DRY_RUN", "true").strip().lower() != "false"
         if dry_run is None
