@@ -1,5 +1,34 @@
 # Workloop State
 
+## 2026-05-09T16:24:12Z - closer lane addressed PR #1012 review threads
+
+- Automation: `imi-merge-verify-closer` (codex closer lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: `#1000`.
+- Source PR: `#1012` (`Issue #1000: Align rate limit docs with shipped API`), branch `codex/issue-1000-rate-limit-contract`.
+- Batch sweep:
+  - No safe terminal sweep action was available.
+  - `stranske/Inv-Man-Intake#401/#404` was already merged, had `verify:compare`, had durable all-provider PASS, and the source issue was already closed.
+  - `stranske/Trend_Model_Project#5172/#5260` had green Gate checks and resolved/outdated review threads, but remained `UNSTABLE` due to the non-required `claude-review` failure and was deferred.
+  - Maintenance PRs in Workflows/Portable-Alpha were excluded; remaining verifier non-PASS lanes were deferred.
+- Selected lane evidence:
+  - PR `#1012` was open, non-draft, `MERGEABLE/CLEAN`, and all current CI/Gate checks were green.
+  - GraphQL review-thread audit found three unresolved Copilot threads:
+    - Document that delegated `POST /api/chat/*` routes share the chat limiter.
+    - Add those routes to `tests/test_rate_limit_contract.py`.
+    - Anchor the docs path in the doc-contract test to the repo root.
+- Action:
+  - Updated `docs/api_rate_limiting.md` to list `POST /api/chat/filing-summary`, `/holdings-analysis`, `/query`, and `/search` as session-keyed chat-handler routes.
+  - Extended `tests/test_rate_limit_contract.py` to assert those routes emit no rate-limit headers.
+  - Changed the docs contract read to `Path(__file__).resolve().parents[1]`.
+- Validation:
+  - `python -m pytest tests/test_rate_limit_contract.py --no-cov` -> 13 passed.
+  - `python -m pytest tests/test_chat_api.py tests/test_manager_api.py tests/test_data_api.py tests/test_rate_limit_contract.py --no-cov` -> 96 passed.
+  - `python -m ruff check tests/test_rate_limit_contract.py` -> passed.
+  - `python -m black --target-version py312 --check tests/test_rate_limit_contract.py` -> passed.
+  - `git diff --check` -> passed.
+- Next action: push this review-thread fix to PR `#1012`, resolve the three Copilot review threads, then re-check fresh CI before merge/verify-label sequencing.
+
 ## 2026-05-09T16:05:58Z - opener lane opened issue #1000 rate-limit contract PR
 
 - Automation: `pd-workloop-resume` (codex opener lane).

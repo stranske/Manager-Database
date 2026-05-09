@@ -20,6 +20,8 @@ RATE_LIMIT_HEADERS = {
     "retry-after",
 }
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 async def _request(
     method: str,
@@ -63,6 +65,14 @@ def _clear_chat_rate_limiter():
     [
         ("GET", "/chat", {"params": {"q": "missing docs"}}),
         ("POST", "/api/chat", {"json": {"question": "Summarize filings"}}),
+        ("POST", "/api/chat/filing-summary", {"params": {"filing_id": 1}}),
+        (
+            "POST",
+            "/api/chat/holdings-analysis",
+            {"json": {"question": "Analyze holdings", "context": {}}},
+        ),
+        ("POST", "/api/chat/query", {"params": {"question": "List managers"}}),
+        ("POST", "/api/chat/search", {"params": {"question": "Find filings"}}),
         ("GET", "/managers", {}),
         ("POST", "/api/managers/bulk", {"json": []}),
         ("GET", "/api/data", {}),
@@ -149,9 +159,13 @@ def test_feedback_limiter_shares_documented_bare_429_shape(monkeypatch: pytest.M
 
 
 def test_rate_limit_document_matches_shipped_header_contract():
-    doc = Path("docs/api_rate_limiting.md").read_text(encoding="utf-8")
+    doc = (REPO_ROOT / "docs/api_rate_limiting.md").read_text(encoding="utf-8")
 
     assert "X-RateLimit" not in doc
     assert "Retry-After" not in doc
     assert "POST /api/chat" in doc
+    assert "POST /api/chat/filing-summary" in doc
+    assert "POST /api/chat/holdings-analysis" in doc
+    assert "POST /api/chat/query" in doc
+    assert "POST /api/chat/search" in doc
     assert "POST /api/chat/feedback" in doc
