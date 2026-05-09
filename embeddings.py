@@ -49,7 +49,7 @@ def embed_text(text: str) -> list[float]:
 
 
 def _is_postgres_connection(conn: Any) -> bool:
-    return conn.__class__.__name__ == "Connection" and hasattr(conn, "info")
+    return not isinstance(conn, sqlite3.Connection)
 
 
 def _sqlite_columns(conn: sqlite3.Connection, table: str) -> set[str]:

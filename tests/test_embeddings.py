@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from embeddings import embed_text, search_documents, store_document
+from embeddings import _is_postgres_connection, embed_text, search_documents, store_document
 from scripts.check_dialect_portability import scan
 
 
@@ -224,6 +224,19 @@ def test_embed_text_uses_model_when_available(monkeypatch):
     monkeypatch.delenv("USE_SIMPLE_EMBED", raising=False)
     monkeypatch.setattr("embeddings.MODEL", FakeModel())
     assert embed_text("hello") == [1.0, 2.0]
+
+
+def test_connection_dialect_detection_matches_adapter_branching(tmp_path):
+    sqlite_conn = sqlite3.connect(tmp_path / "dev.db")
+
+    class WrappedPostgresConnection:
+        pass
+
+    try:
+        assert _is_postgres_connection(sqlite_conn) is False
+        assert _is_postgres_connection(WrappedPostgresConnection()) is True
+    finally:
+        sqlite_conn.close()
 
 
 def test_store_and_search_pgvector(monkeypatch):
