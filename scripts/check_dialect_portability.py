@@ -13,7 +13,18 @@ from pathlib import Path
 SQLITE_ONLY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("AUTOINCREMENT", re.compile(r"\bAUTOINCREMENT\b", re.IGNORECASE)),
     ("INSERT OR IGNORE", re.compile(r"\bINSERT\s+OR\s+IGNORE\b", re.IGNORECASE)),
-    ("PRAGMA table_info", re.compile(r"\bPRAGMA\s+table_(?:info|xinfo)\b", re.IGNORECASE)),
+    ("PRAGMA table_info", re.compile(r"\bPRAGMA\s+table_info\b", re.IGNORECASE)),
+    ("PRAGMA table_xinfo", re.compile(r"\bPRAGMA\s+table_xinfo\b", re.IGNORECASE)),
+    (
+        "SQLITE ? placeholder",
+        re.compile(
+            r"\b(?:execute|executemany)\s*\([^#\n]*"
+            r"(?:SELECT|INSERT|UPDATE|DELETE|VALUES|WHERE)[^#\n]*\?",
+            re.IGNORECASE,
+        ),
+    ),
+    ("legacy daily_diff table", re.compile(r"\bdaily_diff\b", re.IGNORECASE)),
+    ("legacy d.change column", re.compile(r"\bd\.change\b", re.IGNORECASE)),
 )
 
 DEFAULT_SCAN_ROOTS = (
@@ -42,9 +53,9 @@ AUDITED_SQLITE_ONLY_ALLOWLIST: dict[str, set[str]] = {
     "etl/activism_flow.py": {"AUTOINCREMENT"},
     "etl/conviction_flow.py": {"AUTOINCREMENT"},
     "etl/daily_diff_flow.py": {"AUTOINCREMENT"},
-    "etl/digest_flow.py": {"PRAGMA table_info"},
-    "etl/edgar_flow.py": {"PRAGMA table_info"},
-    "etl/evaluation_flow.py": {"AUTOINCREMENT"},
+    "etl/digest_flow.py": {"PRAGMA table_xinfo"},
+    "etl/edgar_flow.py": {"PRAGMA table_xinfo"},
+    "etl/evaluation_flow.py": {"AUTOINCREMENT", "SQLITE ? placeholder"},
     "etl/ingest_flow.py": {"AUTOINCREMENT", "PRAGMA table_info"},
     "llm/cost_tracking.py": {"AUTOINCREMENT"},
     "scripts/resolve_aliases.py": {"PRAGMA table_info"},
@@ -89,7 +100,9 @@ def _imports_connect_db(source: str) -> bool:
         return "connect_db(" in source
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            if node.module == "adapters.base" and any(alias.name == "connect_db" for alias in node.names):
+            if node.module == "adapters.base" and any(
+                alias.name == "connect_db" for alias in node.names
+            ):
                 return True
         elif isinstance(node, ast.FunctionDef) and node.name == "connect_db":
             return True

@@ -23,7 +23,7 @@ Already-covered dispositions:
 ## Audit Commands
 
 ```bash
-rg -n "AUTOINCREMENT|INSERT OR IGNORE|PRAGMA table_info" adapters etl chains alerts api ui llm scripts embeddings.py diff_holdings.py
+rg -n "AUTOINCREMENT|INSERT OR IGNORE|PRAGMA table_(?:info|xinfo)|execute(?:many)?\\([^#\\n]*(?:SELECT|INSERT|UPDATE|DELETE|VALUES|WHERE)[^#\\n]*\\?|\\bdaily_diff\\b|\\bd\\.change\\b" adapters etl chains alerts api ui llm scripts embeddings.py diff_holdings.py
 rg -n "connect_db\(" adapters etl chains alerts api ui llm scripts embeddings.py diff_holdings.py
 python scripts/check_dialect_portability.py
 ```
@@ -39,7 +39,7 @@ python scripts/check_dialect_portability.py
 | `etl/activism_flow.py` | postgres-incompatible | `AUTOINCREMENT`; `connect_db(DB_PATH)` | Legacy filing setup is SQLite-only and separate from the EDGAR dialect-aware fix. | Follow-up #1007: `dialect_portability_audit etl-activism`. |
 | `etl/conviction_flow.py` | postgres-incompatible | multiple `AUTOINCREMENT`; `connect_db()` | Conviction score/crowding/signal setup uses SQLite DDL in a backend-flexible ETL flow. | Follow-up #1008: `dialect_portability_audit etl-conviction`. |
 | `etl/ingest_flow.py` | postgres-incompatible | `PRAGMA table_info`, `AUTOINCREMENT`; `connect_db(db_path or DB_PATH)` | Ingest setup still introspects and creates local tables with SQLite-only syntax. | Follow-up #1008: `dialect_portability_audit etl-ingest`. |
-| `etl/evaluation_flow.py` | postgres-incompatible | multiple `AUTOINCREMENT`; `connect_db()` | Evaluation dataset and holding/diff setup use SQLite DDL without a Postgres branch. | Follow-up #1008: `dialect_portability_audit etl-evaluation`. |
+| `etl/evaluation_flow.py` | postgres-incompatible | multiple `AUTOINCREMENT`, unconditional `?` placeholders; `connect_db()` | Evaluation dataset and holding/diff setup use SQLite DDL and SQLite placeholders without a Postgres branch. | Follow-up #1008: `dialect_portability_audit etl-evaluation`. |
 | `etl/daily_diff_flow.py` | dialect-aware | `AUTOINCREMENT`; `connect_db()` | `_ensure_daily_diffs_table` branches on `sqlite3.Connection`; Postgres requires migrations and fails fast if missing. | Allowed by gate. |
 | `etl/digest_flow.py` | dialect-aware | `PRAGMA table_xinfo`; `connect_db(db_path)` | `_columns` first branches on `sqlite3.Connection`; Postgres uses `information_schema.columns`. | Allowed by gate. |
 | `etl/edgar_flow.py` | dialect-aware | `PRAGMA table_xinfo`; `connect_db(DB_PATH)` | `_columns`, placeholders, table setup, filing upsert, and holding inserts branch for SQLite vs Postgres after PR #977. | Fixed by PR #977; allowed by gate. |
@@ -58,7 +58,7 @@ python scripts/check_dialect_portability.py
 
 - It scans production Python surfaces only.
 - It only flags modules that define or import `connect_db`.
-- It rejects unaudited `AUTOINCREMENT`, `INSERT OR IGNORE`, and `PRAGMA table_info` or `PRAGMA table_xinfo`.
+- It rejects unaudited `AUTOINCREMENT`, `INSERT OR IGNORE`, `PRAGMA table_info`, `PRAGMA table_xinfo`, direct `execute` / `executemany` calls with unconditional SQLite `?` placeholders, and legacy `daily_diff` / `d.change` schema names.
 - Existing entries in this report are mirrored in the script allowlist so CI stays green while follow-up issues drain the debt.
 
 New code should either use dialect-aware helpers, branch on `sqlite3.Connection`,
