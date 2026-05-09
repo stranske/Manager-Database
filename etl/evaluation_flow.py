@@ -20,6 +20,7 @@ from llm.evaluation import ManagerDBEvaluator
 QUALITY_THRESHOLDS: dict[str, float] = {
     "filing_summary_accuracy": 0.8,
     "sql_correctness": 0.85,
+    "sql_safety": 1.0,
     "rag_faithfulness": 0.7,
     "hallucination": 0.95,
 }
@@ -89,9 +90,7 @@ class _DeterministicNLQueryLLM:
 class _DeterministicRAGLLM:
     def invoke(self, _prompt: str, config: Any | None = None) -> str:
         _ = config
-        return (
-            "Apple Inc (037833100) remained a top Elliott Investment Management holding."
-        )
+        return "Apple Inc (037833100) remained a top Elliott Investment Management holding."
 
 
 def _placeholder(conn: Any) -> str:
@@ -127,8 +126,7 @@ def _ensure_api_usage_table(conn: Any) -> None:
 def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
     """Seed a deterministic local corpus for live-chain evaluation."""
 
-    conn.executescript(
-        """
+    conn.executescript("""
         CREATE TABLE IF NOT EXISTS managers (
             manager_id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
@@ -174,8 +172,7 @@ def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
             url TEXT,
             body_snippet TEXT
         );
-        """
-    )
+        """)
     conn.execute(
         "INSERT OR REPLACE INTO managers(manager_id, name, cik) VALUES (?, ?, ?)",
         (1, "Elliott Investment Management", "0001791786"),
@@ -284,8 +281,7 @@ def build_live_evaluation_datasets(db_conn: sqlite3.Connection) -> dict[str, lis
             {
                 "question": "What does Elliott Investment Management hold in Apple?",
                 "context": (
-                    "Apple Inc (037833100) remained a top Elliott Investment Management "
-                    "holding."
+                    "Apple Inc (037833100) remained a top Elliott Investment Management " "holding."
                 ),
                 "retrieval_sources": [
                     {"document_id": "doc-live-1", "description": "elliott-apple-note.md"},
@@ -334,8 +330,12 @@ def run_evaluation_suite(
             )
         for entry in datasets.get("nl_query", []):
             result = evaluator.evaluate_sql_correctness(entry.get("run", {}), entry)
+            safety = evaluator.evaluate_sql_safety(entry.get("run", {}), entry)
             summary.setdefault("datasets", {}).setdefault("sql_correctness", []).append(
                 float(result.score or 0.0)
+            )
+            summary.setdefault("datasets", {}).setdefault("sql_safety", []).append(
+                float(safety.score or 0.0)
             )
         for entry in datasets.get("rag_search", []):
             faithfulness = evaluator.evaluate_rag_faithfulness(entry.get("run", {}), entry)

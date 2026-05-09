@@ -197,6 +197,7 @@ def test_live_evaluation_suite_scores_live_chain_outputs(tmp_path):
 
     assert summary["metrics"]["filing_summary_accuracy"] == 1.0
     assert summary["metrics"]["sql_correctness"] == 1.0
+    assert summary["metrics"]["sql_safety"] == 1.0
     assert summary["metrics"]["rag_faithfulness"] == 1.0
     assert summary["metrics"]["hallucination"] == 1.0
     assert summary["failures"] == {}
