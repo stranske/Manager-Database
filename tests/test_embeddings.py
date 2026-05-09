@@ -100,6 +100,26 @@ def test_store_document_creates_sha256_unique_index_sqlite(tmp_path, monkeypatch
     assert index_by_name["idx_documents_sha256_unique"][2] == 1
 
 
+def test_store_document_sqlite_create_table_uses_autoincrement(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+
+    traced_sql: list[str] = []
+    original_connect = sqlite3.connect
+
+    def tracing_connect(path, *args, **kwargs):
+        conn = original_connect(path, *args, **kwargs)
+        conn.set_trace_callback(traced_sql.append)
+        return conn
+
+    monkeypatch.setattr("embeddings.sqlite3.connect", tracing_connect)
+    store_document("capture ddl", str(db_path))
+
+    create_statements = [sql for sql in traced_sql if "CREATE TABLE IF NOT EXISTS documents" in sql]
+    assert create_statements
+    assert any("AUTOINCREMENT" in sql.upper() for sql in create_statements)
+
+
 def test_search_documents_manager_filter_and_shape(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
