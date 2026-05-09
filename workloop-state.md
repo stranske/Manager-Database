@@ -22,4 +22,7 @@
   - `python -m ruff check etl/evaluation_flow.py tests/test_evaluation.py` passed.
   - `python -m compileall -q etl/evaluation_flow.py tests/test_evaluation.py` passed.
   - `git diff --check` passed.
-- Next action: commit, push, open a ready-for-review PR for issue `#909`, apply `agent:codex`, `agents:keepalive`, and `autofix`, then emit `pr_opened` relay.
+- Commit pushed: `d1d0f14` (`Issue #909: add live evaluation smoke path`) on branch `codex/issue-909-live-mode-evaluation`.
+- PR opened: `stranske/Manager-Database#1002` (`https://github.com/stranske/Manager-Database/pull/1002`), non-draft, linked to issue `#909`, with labels `agent:codex`, `agents:keepalive`, and `autofix`.
+- Relay event emitted: `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=909 active.source_pr=1002 active.next_action=wait_for_keepalive`.
+- No CI wait was performed; keepalive now owns PR follow-up.
