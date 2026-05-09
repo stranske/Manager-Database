@@ -2,10 +2,10 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from _pg_fakes import StrictPostgresConn
 
 from adapters import base
 from adapters.base import tracked_call
+from tests._pg_fakes import StrictPostgresConn
 
 
 class DummyResp:
