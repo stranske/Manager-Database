@@ -17,6 +17,19 @@ def test_dialect_gate_accepts_current_audited_repo_state() -> None:
     assert findings == []
 
 
+def test_etl_1008_surfaces_pass_without_allowlist_entries() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    etl_surfaces = [
+        repo_root / "etl" / "ingest_flow.py",
+        repo_root / "etl" / "conviction_flow.py",
+        repo_root / "etl" / "evaluation_flow.py",
+    ]
+
+    findings = scan(etl_surfaces, repo_root=repo_root, allowlist={})
+
+    assert findings == []
+
+
 def test_dialect_gate_rejects_unaudited_sqlite_only_token(tmp_path: Path) -> None:
     module = tmp_path / "feature.py"
     module.write_text(
