@@ -11,3 +11,12 @@ def test_get_adapter_returns_module():
     adapter = get_adapter("edgar")
     assert isinstance(adapter, types.ModuleType)
     assert hasattr(adapter, "list_new_filings")
+
+
+def test_get_adapter_returns_non_us_uk_modules():
+    for name in ("canada", "mas", "asic"):
+        adapter = get_adapter(name)
+        assert isinstance(adapter, types.ModuleType)
+        assert hasattr(adapter, "list_new_filings")
+        assert hasattr(adapter, "download")
+        assert hasattr(adapter, "parse")

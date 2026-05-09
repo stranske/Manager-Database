@@ -63,6 +63,30 @@ class _UKAdapterWithFormType:
         ]
 
 
+class _MetadataOnlyAdapter:
+    def __init__(self, *, source, filing_id, date):
+        self.source = source
+        self.filing_id = filing_id
+        self.date = date
+
+    async def list_new_filings(self, identifier, since):
+        return [{"id": self.filing_id, "date": self.date}]
+
+    async def download(self, filing):
+        return b"metadata"
+
+    async def parse(self, raw):
+        return [
+            {
+                "status": "unsupported",
+                "source": self.source,
+                "filing_type": f"{self.source}_metadata",
+                "errors": [f"{self.source}_documents_not_supported"],
+                "raw_bytes": len(raw),
+            }
+        ]
+
+
 @pytest.mark.asyncio
 async def test_fetch_and_store_us_uses_manager_cik_and_inserts_holdings(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
@@ -177,6 +201,110 @@ async def test_fetch_and_store_uk_uses_form_type_and_never_inserts_holdings(tmp_
     payload = json.loads(filing[4])
     assert payload[0]["company_number"] == "12345678"
     assert payload[0]["form_type"] == "CS01"
+    assert holdings_count == 0
+
+
+def test_adapter_registry_covers_documented_jurisdictions():
+    assert ingest_flow._ADAPTER_MAP == {
+        "us": "edgar",
+        "uk": "uk",
+        "ca": "canada",
+        "sg": "mas",
+        "au": "asic",
+    }
+    assert set(ingest_flow._IDENTIFIER_ENV) == {"us", "uk", "ca", "sg", "au"}
+
+
+@pytest.mark.parametrize(
+    ("jurisdiction", "env_key", "default_value"),
+    [
+        ("us", "CIK_LIST", "0001791786,0001434997"),
+        ("uk", "UK_COMPANY_NUMBERS", ""),
+        ("ca", "CA_CIK_LIST", ""),
+        ("sg", "SG_ENTITY_IDS", ""),
+        ("au", "AU_ASIC_IDS", ""),
+    ],
+)
+def test_default_identifiers_uses_jurisdiction_environment_mapping(
+    monkeypatch, jurisdiction, env_key, default_value
+):
+    monkeypatch.delenv(env_key, raising=False)
+    assert ingest_flow._default_identifiers(jurisdiction) == (
+        default_value.split(",") if default_value else []
+    )
+
+    monkeypatch.setenv(env_key, " ID-1 , ID-2 ")
+    assert ingest_flow._default_identifiers(jurisdiction) == ["ID-1", "ID-2"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("jurisdiction", "registry_ids", "identifier", "filing_id", "date"),
+    [
+        ("ca", {}, "0000000002", "sedar-1", None),
+        ("sg", {"sg_entity_id": "MAS-123"}, "MAS-123", "mas-1", "2024-03-01"),
+        ("au", {"au_asic_id": "ASIC-123"}, "ASIC-123", "asic-1", "2024-04-01"),
+    ],
+)
+async def test_fetch_and_store_metadata_jurisdictions_store_payload_without_holdings(
+    tmp_path,
+    monkeypatch,
+    jurisdiction,
+    registry_ids,
+    identifier,
+    filing_id,
+    date,
+):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (id INTEGER PRIMARY KEY AUTOINCREMENT, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO managers(cik, registry_ids) VALUES (?, ?)",
+        (identifier if jurisdiction == "ca" else "", json.dumps(registry_ids)),
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(
+        ingest_flow,
+        "get_adapter",
+        lambda adapter_name: _MetadataOnlyAdapter(
+            source=jurisdiction,
+            filing_id=filing_id,
+            date=date,
+        ),
+    )
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+
+    rows = await ingest_flow.fetch_and_store.fn(
+        identifier,
+        "2024-01-01",
+        jurisdiction=jurisdiction,
+        db_path=str(db_path),
+    )
+
+    assert rows == [
+        {
+            "status": "unsupported",
+            "source": jurisdiction,
+            "filing_type": f"{jurisdiction}_metadata",
+            "errors": [f"{jurisdiction}_documents_not_supported"],
+            "raw_bytes": len(b"metadata"),
+        }
+    ]
+
+    conn = sqlite3.connect(db_path)
+    filing = conn.execute(
+        "SELECT manager_id, source, external_id, filed_date, type, parsed_payload FROM filings"
+    ).fetchone()
+    holdings_count = conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0]
+    conn.close()
+
+    assert filing[:5] == (1, jurisdiction, filing_id, date, f"{jurisdiction}_metadata")
+    assert json.loads(filing[5])[0]["status"] == "unsupported"
     assert holdings_count == 0
 
 

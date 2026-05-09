@@ -44,16 +44,20 @@ S3 = boto3.client(
 BUCKET = os.getenv("MINIO_BUCKET", "filings")
 DB_PATH = os.getenv("DB_PATH", "dev.db")
 
-_ADAPTER_MAP = {"us": "edgar", "uk": "uk", "ca": "canada"}
+_ADAPTER_MAP = {"us": "edgar", "uk": "uk", "ca": "canada", "sg": "mas", "au": "asic"}
 _IDENTIFIER_ENV = {
     "us": "CIK_LIST",
     "uk": "UK_COMPANY_NUMBERS",
     "ca": "CA_CIK_LIST",
+    "sg": "SG_ENTITY_IDS",
+    "au": "AU_ASIC_IDS",
 }
 _IDENTIFIER_DEFAULT = {
     "us": "0001791786,0001434997",
     "uk": "",
     "ca": "",
+    "sg": "",
+    "au": "",
 }
 
 configure_logging("ingest_flow")
@@ -169,17 +173,22 @@ def _lookup_manager_id(conn: Any, jurisdiction: str, identifier: str) -> int | N
                 f"SELECT {id_column} FROM managers WHERE cik = {marker} LIMIT 1",
                 (identifier,),
             ).fetchone()
-        elif jurisdiction == "uk":
+        elif jurisdiction in {"uk", "sg", "au"}:
+            registry_key = {
+                "uk": "uk_company_number",
+                "sg": "sg_entity_id",
+                "au": "au_asic_id",
+            }[jurisdiction]
             if _is_sqlite(conn):
                 row = conn.execute(
                     f"SELECT {id_column} FROM managers "
-                    "WHERE json_extract(registry_ids, '$.uk_company_number') = ? LIMIT 1",
+                    f"WHERE json_extract(registry_ids, '$.{registry_key}') = ? LIMIT 1",
                     (identifier,),
                 ).fetchone()
             else:
                 row = conn.execute(
                     f"SELECT {id_column} FROM managers "
-                    "WHERE registry_ids->>'uk_company_number' = %s LIMIT 1",
+                    f"WHERE registry_ids->>'{registry_key}' = %s LIMIT 1",
                     (identifier,),
                 ).fetchone()
         else:
@@ -199,11 +208,13 @@ def _lookup_manager_id(conn: Any, jurisdiction: str, identifier: str) -> int | N
 def _filing_external_id(filing: dict[str, Any], jurisdiction: str) -> str:
     if jurisdiction == "uk":
         return str(filing.get("transaction_id", ""))
+    if jurisdiction in {"ca", "sg", "au"}:
+        return str(filing.get("id") or filing.get("accession") or "")
     return str(filing.get("accession", ""))
 
 
 def _filing_date(filing: dict[str, Any], jurisdiction: str) -> str | None:
-    if jurisdiction == "uk":
+    if jurisdiction in {"uk", "sg", "au"}:
         return filing.get("date")
     return filing.get("filed")
 
@@ -211,7 +222,7 @@ def _filing_date(filing: dict[str, Any], jurisdiction: str) -> str | None:
 def _filing_type(
     parsed_rows: list[dict[str, Any]], filing: dict[str, Any], jurisdiction: str
 ) -> str:
-    if jurisdiction == "uk":
+    if jurisdiction in {"uk", "ca", "sg", "au"}:
         if not parsed_rows:
             return "unknown"
         first_row = parsed_rows[0]

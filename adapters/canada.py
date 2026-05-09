@@ -33,5 +33,18 @@ async def download(filing: dict[str, str]):
 
 
 async def parse(raw: bytes):
-    """Return placeholder parsed output for Canadian filings."""
-    return [{"raw_bytes": len(raw)}]
+    """Return a structured unsupported status for SEDAR+ filing content.
+
+    The adapter can list and download SEDAR+ documents, but it does not yet
+    implement a document parser. Returning an explicit skipped/error payload
+    keeps ingestion deterministic without pretending raw bytes are parsed data.
+    """
+    return [
+        {
+            "status": "unsupported",
+            "source": "ca",
+            "filing_type": "sedar_document",
+            "errors": ["sedar_parse_not_implemented"],
+            "raw_bytes": len(raw),
+        }
+    ]
