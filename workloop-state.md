@@ -28,7 +28,18 @@
   - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1010 uv run --extra dev ruff check llm/cost_tracking.py scripts/seed_universe.py scripts/resolve_aliases.py scripts/check_dialect_portability.py tests/test_cost_script_dialect_portability.py` -> passed.
   - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1010 uv run --extra dev black --target-version py312 --check llm/cost_tracking.py scripts/seed_universe.py scripts/resolve_aliases.py scripts/check_dialect_portability.py tests/test_cost_script_dialect_portability.py` -> passed.
   - `git diff --check` -> passed.
-- Next action: commit, push, open a ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`, then emit `pr_opened`.
+- Commit/push:
+  - Commit `d0401d9` (`Issue #1010: make cost scripts dialect-aware`) pushed to `codex/issue-1010-cost-script-dialect`.
+- PR:
+  - Opened ready-for-review PR `#1021`: `https://github.com/stranske/Manager-Database/pull/1021`.
+  - PR labels verified: `agent:codex`, `agents:keepalive`, `autofix`; `isDraft=false`.
+- Relay:
+  - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1010 active.source_pr=1021 active.next_action=wait_for_keepalive`.
+- Post-open repair:
+  - Immediate post-open cap-health classified `#1021` as `needs-dispatch-evidence`.
+  - Ran `opener-repair-infra-stalls.py --json`; it added `agent:retry` and dispatched Gate Followups for `#1021`.
+  - Fresh cap-health at `2026-05-10T01:08:41Z` reported `#1021` as `draining` with active Gate and Agents Gate Followups runs; fleet totals were `total_opener_owned=4`, `drainable_count=4`, `non_drainable_count=0`, `raw_cap_reached=false`, `normal_cap_reached=false`.
+- Next action: keepalive owns CI/check follow-up for PR `#1021`.
 
 ## 2026-05-09T22:12:00Z - opener lane selected issue #1007 activism dialect work
 
