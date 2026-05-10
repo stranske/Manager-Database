@@ -9,6 +9,8 @@ from typing import Any
 
 from alerts.models import AlertRule, FiredAlert
 
+SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
+
 try:  # pragma: no cover - optional dependency
     import psycopg as psycopg
 except ImportError:  # pragma: no cover - psycopg not installed for SQLite-only tests
@@ -74,8 +76,8 @@ def parse_timestamp(raw: Any) -> datetime:
 
 
 def _sqlite_columns(conn: sqlite3.Connection, table: str) -> set[str]:
-    rows = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
-    return {str(row[1]) for row in rows}
+    rows = conn.execute(SQLITE_TABLE_INFO_SQL, (table,)).fetchall()
+    return {str(row[0]) for row in rows}
 
 
 def _sqlite_add_column_if_missing(
@@ -93,7 +95,7 @@ def _sqlite_add_column_if_missing(
 def ensure_alert_tables(conn: Any) -> None:
     if is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS alert_rules (
-                rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT,
                 event_type TEXT NOT NULL CHECK (
@@ -125,7 +127,7 @@ def ensure_alert_tables(conn: Any) -> None:
             )
 
         conn.execute("""CREATE TABLE IF NOT EXISTS alert_history (
-                alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_id INTEGER PRIMARY KEY,
                 rule_id INTEGER NOT NULL,
                 fired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 event_type TEXT NOT NULL,

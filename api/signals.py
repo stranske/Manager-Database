@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from adapters.base import connect_db
 
 router = APIRouter()
+SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
 
 class CrowdedTradeResponse(BaseModel):
@@ -147,8 +148,8 @@ def _manager_id_column(conn: Any) -> str | None:
         return None
     manager_id_column = "manager_id"
     if _is_sqlite(conn):
-        rows = conn.execute("PRAGMA table_info(managers)").fetchall()
-        columns = {str(row[1]) for row in rows}
+        rows = conn.execute(SQLITE_TABLE_INFO_SQL, ("managers",)).fetchall()
+        columns = {str(row[0]) for row in rows}
         if "manager_id" not in columns and "id" in columns:
             manager_id_column = "id"
         elif "manager_id" not in columns:

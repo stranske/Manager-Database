@@ -32,6 +32,7 @@ _BASE_RELEVANCE = {
 }
 
 _VALID_ENTITY_TYPES: set[str] = {"filing", "holding", "news", "document", "manager"}
+SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
 
 def _is_sqlite(conn: Any) -> bool:
@@ -42,8 +43,8 @@ def _get_columns(conn: Any, table_name: str) -> set[str]:
     if not _table_exists(conn, table_name):
         return set()
     if _is_sqlite(conn):
-        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-        return {str(row[1]) for row in rows}
+        rows = conn.execute(SQLITE_TABLE_INFO_SQL, (table_name,)).fetchall()
+        return {str(row[0]) for row in rows}
     rows = conn.execute(
         "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = %s",
         (table_name,),
