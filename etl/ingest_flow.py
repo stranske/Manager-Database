@@ -76,14 +76,8 @@ def _placeholder(conn: Any) -> str:
 
 def _table_columns(conn: Any, table: str) -> set[str]:
     try:
-        if _is_sqlite(conn):
-            rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-            return {str(row[1]) for row in rows}
-        rows = conn.execute(
-            "SELECT column_name FROM information_schema.columns WHERE table_name = %s",
-            (table,),
-        ).fetchall()
-        return {str(row[0]) for row in rows}
+        cursor = conn.execute(f"SELECT * FROM {table} LIMIT 0")
+        return {str(column[0]) for column in cursor.description or ()}
     except Exception:
         return set()
 
@@ -100,7 +94,7 @@ def _manager_id_column(conn: Any) -> str | None:
 def _ensure_filing_tables(conn: Any) -> None:
     if _is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS filings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 manager_id INTEGER,
                 source TEXT NOT NULL,
                 external_id TEXT NOT NULL,
@@ -119,7 +113,7 @@ def _ensure_filing_tables(conn: Any) -> None:
                 "CREATE UNIQUE INDEX IF NOT EXISTS filings_raw_key_idx " "ON filings(raw_key)"
             )
         conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 filing_id INTEGER,
                 manager_id INTEGER,
                 cik TEXT,

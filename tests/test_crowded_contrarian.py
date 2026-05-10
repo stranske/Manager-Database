@@ -2,6 +2,8 @@ import importlib
 import json
 import sqlite3
 
+import pytest
+
 import etl.conviction_flow as conviction_module
 from etl.conviction_flow import conviction_flow, detect_contrarian_signals, detect_crowded_trades
 
@@ -111,6 +113,34 @@ def _setup_db(tmp_path, manager_count: int) -> str:
     conn.commit()
     conn.close()
     return str(db_path)
+
+
+class _MissingPostgresTableError(Exception):
+    pgcode = "42P01"
+
+
+class _MissingTablePostgresConn:
+    def __init__(self, missing_table: str) -> None:
+        self.missing_table = missing_table
+
+    def execute(self, sql: str):
+        if self.missing_table in sql:
+            raise _MissingPostgresTableError(f'relation "{self.missing_table}" does not exist')
+        return None
+
+
+def test_crowded_table_check_wraps_missing_postgres_schema():
+    conn = _MissingTablePostgresConn("crowded_trades")
+
+    with pytest.raises(RuntimeError, match="crowded_trades table is missing on Postgres"):
+        conviction_module._ensure_crowded_trades_table(conn)
+
+
+def test_contrarian_table_check_wraps_missing_postgres_schema():
+    conn = _MissingTablePostgresConn("contrarian_signals")
+
+    with pytest.raises(RuntimeError, match="contrarian_signals table is missing on Postgres"):
+        conviction_module._ensure_contrarian_signals_table(conn)
 
 
 def test_detect_crowded_trades_identifies_aapl_across_latest_filings(tmp_path):

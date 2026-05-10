@@ -33,6 +33,46 @@
   - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1007 active.source_pr=1018 active.next_action=wait_for_keepalive`
 - Next action: keepalive owns CI/check follow-up for PR `#1018`.
 
+## 2026-05-09T23:05:58Z - opener lane implementing issue #1008
+
+- Automation: `pd-workloop-resume` (codex opener lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: `#1008` (`Make remaining ETL persistence dialect-aware`, `priority:normal`, `repo-review-approved`).
+- Selection:
+  - ACTION A succeeded from the neutral Code workspace.
+  - Full fleet priority discovery ran across `priority:high`, `priority:normal`, and `priority:low`.
+  - Skipped `Workflows#2073` as an operational auth-expiry alert.
+  - Skipped high-priority `Inv-Man-Intake#381` because merged PR `#400` already serves it and the issue is open only pending verifier disposition.
+  - Initial cap-health was below cap with `total_opener_owned=3`, `drainable_count=2`, `non_drainable_count=1`, `raw_cap_reached=false`, `normal_cap_reached=false`.
+  - Ran `opener-repair-infra-stalls.py --json`; it added `agent:retry` and dispatched Gate Followups for `Manager-Database#1018`.
+  - Post-repair cap-health at `2026-05-09T23:02:22Z` was healthy: `total_opener_owned=3`, `drainable_count=3`, `non_drainable_count=0`, `raw_cap_reached=false`, `normal_cap_reached=false`.
+  - No open Manager-Database PR existed for issue `#1008`.
+- Implementation in progress:
+  - Branch: `codex/issue-1008-etl-dialect`.
+  - Removed audited SQLite-only tokens from `etl/ingest_flow.py`, `etl/conviction_flow.py`, and `etl/evaluation_flow.py`.
+  - Changed ingest column detection to use cursor metadata instead of SQLite `PRAGMA`, while preserving backend-specific DDL and upsert paths.
+  - Changed SQLite fixture table DDL in conviction/evaluation paths to avoid audited `AUTOINCREMENT` tokens; Postgres conviction crowding/signal helpers now check canonical schema presence before use.
+  - Removed the three ETL modules from `scripts/check_dialect_portability.py` allowlist and updated `docs/reports/dialect_portability_audit.md`.
+- Validation so far:
+  - `python scripts/check_dialect_portability.py --no-allowlist etl/ingest_flow.py etl/conviction_flow.py etl/evaluation_flow.py` -> passed.
+  - `python scripts/check_dialect_portability.py` -> passed.
+  - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1008 uv run --extra dev python -m pytest tests/test_ingest_flow.py tests/test_uk_flow.py tests/test_conviction_flow.py tests/test_crowded_contrarian.py tests/test_evaluation.py tests/test_dialect_portability_gate.py --no-cov` -> 56 passed, 8 existing warnings.
+  - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1008 uv run --extra dev ruff check etl/ingest_flow.py etl/conviction_flow.py etl/evaluation_flow.py scripts/check_dialect_portability.py` -> passed.
+  - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1008 uv run --extra dev black --target-version py312 --check etl/ingest_flow.py etl/conviction_flow.py etl/evaluation_flow.py scripts/check_dialect_portability.py` -> passed.
+  - `git diff --check` -> passed.
+- Commit/push:
+  - Commit `5ae21ea` (`Issue #1008: make remaining ETL dialect-aware`) pushed to `codex/issue-1008-etl-dialect`.
+- PR:
+  - Opened ready-for-review PR `#1019`: `https://github.com/stranske/Manager-Database/pull/1019`.
+  - PR labels verified: `agent:codex`, `agents:keepalive`, `autofix`; `isDraft=false`.
+- Relay:
+  - `pr_opened active.source_repo=stranske/Manager-Database active.source_issue=1008 active.source_pr=1019 active.next_action=wait_for_keepalive`.
+- Post-open repair:
+  - Immediate post-open cap-health classified `#1019` as `needs-dispatch-evidence` after early Gate/Gate Followups cancellations.
+  - Ran `opener-repair-infra-stalls.py --json`; it added `agent:retry` and dispatched Gate Followups for `#1019`.
+  - Fresh cap-health at `2026-05-09T23:07:29Z` reported `#1019` as `draining` with active Gate and Agents Gate Followups runs; fleet totals were `total_opener_owned=4`, `drainable_count=4`, `non_drainable_count=0`, `raw_cap_reached=false`, `normal_cap_reached=false`.
+- Next action: keepalive owns CI/check follow-up for PR `#1019`.
+
 ## 2026-05-09T21:08:00Z - opener lane implementing issue #1006
 
 - Automation: `pd-workloop-resume` (codex opener lane).

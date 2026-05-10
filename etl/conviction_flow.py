@@ -36,11 +36,29 @@ def _placeholder(conn: Any) -> str:
     return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
 
+def _is_missing_postgres_table_error(exc: Exception) -> bool:
+    message = str(exc)
+    exc_name = exc.__class__.__name__
+    pgcode = getattr(exc, "pgcode", None)
+    return "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_name
+
+
+def _ensure_postgres_table_exists(conn: Any, table_name: str) -> None:
+    try:
+        conn.execute(f"SELECT 1 FROM {table_name} LIMIT 1")
+    except Exception as exc:
+        if _is_missing_postgres_table_error(exc):
+            raise RuntimeError(
+                f"{table_name} table is missing on Postgres; apply schema migrations first"
+            ) from exc
+        raise
+
+
 def _ensure_conviction_scores_table(conn: Any) -> None:
     """Create conviction_scores on SQLite; fail fast on missing Postgres schema."""
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS conviction_scores (
-                score_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                score_id INTEGER PRIMARY KEY,
                 manager_id INTEGER NOT NULL,
                 filing_id INTEGER NOT NULL,
                 cusip TEXT NOT NULL,
@@ -61,26 +79,13 @@ def _ensure_conviction_scores_table(conn: Any) -> None:
         )
         return
 
-    try:
-        conn.execute("SELECT 1 FROM conviction_scores LIMIT 1")
-    except Exception as exc:
-        message = str(exc)
-        exc_name = exc.__class__.__name__
-        pgcode = getattr(exc, "pgcode", None)
-        missing_table = (
-            "does not exist" in message or pgcode == "42P01" or "UndefinedTable" in exc_name
-        )
-        if missing_table:
-            raise RuntimeError(
-                "conviction_scores table is missing on Postgres; apply schema migrations first"
-            ) from exc
-        raise
+    _ensure_postgres_table_exists(conn, "conviction_scores")
 
 
 def _ensure_api_usage_table(conn: Any) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 source TEXT,
                 endpoint TEXT,
@@ -88,9 +93,9 @@ def _ensure_api_usage_table(conn: Any) -> None:
                 bytes INT,
                 latency_ms INT,
                 cost_usd REAL
-            )""")
+        )""")
         return
-    conn.execute("SELECT 1 FROM api_usage LIMIT 1")
+    _ensure_postgres_table_exists(conn, "api_usage")
 
 
 def _record_flow_usage(
@@ -230,10 +235,9 @@ def _resolve_crowded_trade_min_managers(default: int = 3) -> int:
 
 
 def _ensure_crowded_trades_table(conn: Any) -> None:
-    if not isinstance(conn, sqlite3.Connection):
-        return
-    conn.execute("""CREATE TABLE IF NOT EXISTS crowded_trades (
-            crowd_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute("""CREATE TABLE IF NOT EXISTS crowded_trades (
+            crowd_id INTEGER PRIMARY KEY,
             cusip TEXT NOT NULL,
             name_of_issuer TEXT,
             manager_count INTEGER NOT NULL,
@@ -245,13 +249,14 @@ def _ensure_crowded_trades_table(conn: Any) -> None:
             computed_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (cusip, report_date)
         )""")
+        return
+    _ensure_postgres_table_exists(conn, "crowded_trades")
 
 
 def _ensure_contrarian_signals_table(conn: Any) -> None:
-    if not isinstance(conn, sqlite3.Connection):
-        return
-    conn.execute("""CREATE TABLE IF NOT EXISTS contrarian_signals (
-            signal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    if isinstance(conn, sqlite3.Connection):
+        conn.execute("""CREATE TABLE IF NOT EXISTS contrarian_signals (
+            signal_id INTEGER PRIMARY KEY,
             manager_id INTEGER NOT NULL,
             cusip TEXT NOT NULL,
             name_of_issuer TEXT,
@@ -266,6 +271,8 @@ def _ensure_contrarian_signals_table(conn: Any) -> None:
             detected_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (manager_id, cusip, report_date)
         )""")
+        return
+    _ensure_postgres_table_exists(conn, "contrarian_signals")
 
 
 def _fetch_latest_conviction_rows(

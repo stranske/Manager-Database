@@ -101,7 +101,7 @@ def _placeholder(conn: Any) -> str:
 def _ensure_api_usage_table(conn: Any) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 source TEXT,
                 endpoint TEXT,
@@ -143,7 +143,7 @@ def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
             url TEXT
         );
         CREATE TABLE IF NOT EXISTS holdings (
-            holding_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            holding_id INTEGER PRIMARY KEY,
             filing_id INTEGER NOT NULL,
             cusip TEXT,
             name_of_issuer TEXT,
@@ -152,7 +152,7 @@ def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
             sector TEXT
         );
         CREATE TABLE IF NOT EXISTS daily_diffs (
-            diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            diff_id INTEGER PRIMARY KEY,
             manager_id INTEGER NOT NULL,
             filing_id INTEGER,
             report_date TEXT,
@@ -186,7 +186,8 @@ def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
         """,
         (1, 1, "13F-HR", "2025-12-31", "2026-03-01", "sec", "https://example.com/13f/1"),
     )
-    conn.execute("DELETE FROM holdings WHERE filing_id = ?", (1,))
+    ph = _placeholder(conn)
+    conn.execute(f"DELETE FROM holdings WHERE filing_id = {ph}", (1,))
     conn.executemany(
         """
         INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd, sector)
@@ -198,7 +199,7 @@ def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
             (1, "02079K305", "Alphabet Inc", 7_000, 3_000_000.0, "Technology"),
         ],
     )
-    conn.execute("DELETE FROM daily_diffs WHERE filing_id = ?", (1,))
+    conn.execute(f"DELETE FROM daily_diffs WHERE filing_id = {ph}", (1,))
     conn.execute(
         """
         INSERT INTO daily_diffs(
