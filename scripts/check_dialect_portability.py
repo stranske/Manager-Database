@@ -41,11 +41,6 @@ DEFAULT_SCAN_ROOTS = (
 )
 
 AUDITED_SQLITE_ONLY_ALLOWLIST: dict[str, set[str]] = {
-    "alerts/db.py": {"AUTOINCREMENT", "PRAGMA table_info"},
-    "api/chat.py": {"AUTOINCREMENT", "PRAGMA table_info"},
-    "api/managers.py": {"AUTOINCREMENT", "PRAGMA table_info"},
-    "api/search.py": {"PRAGMA table_info"},
-    "api/signals.py": {"PRAGMA table_info"},
     "etl/daily_diff_flow.py": {"AUTOINCREMENT"},
     "etl/digest_flow.py": {"PRAGMA table_xinfo"},
     "etl/edgar_flow.py": {"PRAGMA table_xinfo"},
@@ -103,11 +98,17 @@ def _imports_connect_db(source: str) -> bool:
     return "connect_db(" in source
 
 
-def scan(paths: list[Path], *, repo_root: Path, allowlist: dict[str, set[str]]) -> list[Finding]:
+def scan(
+    paths: list[Path],
+    *,
+    repo_root: Path,
+    allowlist: dict[str, set[str]],
+    scan_all: bool = False,
+) -> list[Finding]:
     findings: list[Finding] = []
     for path in _python_files(paths):
         source = path.read_text(encoding="utf-8")
-        if not _imports_connect_db(source):
+        if not scan_all and not _imports_connect_db(source):
             continue
         rel_path = _relative_path(path, repo_root)
         allowed_tokens = allowlist.get(rel_path, set())
@@ -179,7 +180,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-    findings = scan(paths, repo_root=repo_root, allowlist=allowlist)
+    findings = scan(
+        paths,
+        repo_root=repo_root,
+        allowlist=allowlist,
+        scan_all=bool(args.paths),
+    )
     if findings:
         for finding in findings:
             print(

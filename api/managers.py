@@ -47,6 +47,7 @@ REQUIRED_FIELD_ERRORS = {
 }
 DEFAULT_BULK_IMPORT_MAX_BYTES = 2_000_000
 CIK_PATTERN = re.compile(r"^\d{10}$")
+SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
 
 class ManagerCreate(BaseModel):
@@ -131,7 +132,7 @@ def _ensure_manager_table(conn) -> None:
     """Ensure the managers table is available."""
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS managers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 cik TEXT,
                 lei TEXT,
@@ -218,7 +219,9 @@ def _ensure_universe_schema(conn: Any) -> None:
     """Ensure managers table has the columns/index needed for universe imports."""
     _ensure_manager_table(conn)
     if isinstance(conn, sqlite3.Connection):
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        columns = {
+            str(row[0]) for row in conn.execute(SQLITE_TABLE_INFO_SQL, ("managers",)).fetchall()
+        }
         if "cik" not in columns:
             conn.execute("ALTER TABLE managers ADD COLUMN cik TEXT")
         if "jurisdiction" not in columns:

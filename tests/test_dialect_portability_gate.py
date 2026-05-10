@@ -30,6 +30,14 @@ def test_etl_1008_surfaces_pass_without_allowlist_entries() -> None:
     assert findings == []
 
 
+def test_api_alert_1009_surfaces_have_no_allowlist_entries() -> None:
+    assert "alerts/db.py" not in AUDITED_SQLITE_ONLY_ALLOWLIST
+    assert "api/chat.py" not in AUDITED_SQLITE_ONLY_ALLOWLIST
+    assert "api/managers.py" not in AUDITED_SQLITE_ONLY_ALLOWLIST
+    assert "api/search.py" not in AUDITED_SQLITE_ONLY_ALLOWLIST
+    assert "api/signals.py" not in AUDITED_SQLITE_ONLY_ALLOWLIST
+
+
 def test_dialect_gate_rejects_unaudited_sqlite_only_token(tmp_path: Path) -> None:
     module = tmp_path / "feature.py"
     module.write_text(

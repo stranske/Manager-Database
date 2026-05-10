@@ -349,6 +349,7 @@ DIRECT_CHAIN_PATHS = {
     "nl_query": ("chains.nl_query", "NLQueryChain"),
     "rag_search": ("chains.rag_search", "RAGSearchChain"),
 }
+SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
 _CHAT_RATE_LIMIT_PER_MINUTE = 10
 _CHAT_RATE_LIMIT_WINDOW_SECONDS = 60.0
@@ -460,8 +461,8 @@ def _is_sqlite_connection(conn: Any) -> bool:
 
 def _manager_id_column(conn: Any) -> str:
     if _is_sqlite_connection(conn):
-        rows = conn.execute("PRAGMA table_info(managers)").fetchall()
-        columns = {str(row[1]) for row in rows}
+        rows = conn.execute(SQLITE_TABLE_INFO_SQL, ("managers",)).fetchall()
+        columns = {str(row[0]) for row in rows}
     else:
         rows = conn.execute(
             "SELECT column_name FROM information_schema.columns "
@@ -760,7 +761,7 @@ def _postgres_table_exists(conn: Any, table_name: str) -> bool:
 def _ensure_chat_feedback_table(conn: Any) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS chat_feedback (
-                feedback_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                feedback_id INTEGER PRIMARY KEY,
                 response_id TEXT NOT NULL,
                 rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
                 comment TEXT,
