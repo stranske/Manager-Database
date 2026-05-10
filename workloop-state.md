@@ -1,35 +1,5 @@
 # Workloop State
 
-## 2026-05-10T01:05:55Z - opener lane implementing issue #1010
-
-- Automation: `pd-workloop-resume` (codex opener lane).
-- Source repo: `stranske/Manager-Database`.
-- Source issue: `#1010` (`Make cost tracking and scripts dialect-aware`, `priority:normal`, `repo-review-approved`).
-- Selection:
-  - ACTION A succeeded from the neutral Code workspace.
-  - Full fleet discovery ran across `priority:high`, `priority:normal`, and `priority:low`.
-  - Skipped `stranske/Workflows#2073` as an auth-expiry operational alert.
-  - Skipped `stranske/Inv-Man-Intake#381`, `stranske/Counter_Risk#476`, `stranske/Trend_Model_Project#5168/#5169/#5170/#5172`, and `stranske/Manager-Database#910` because each is already served by a merged PR and remains open for verifier/follow-up disposition.
-  - Initial cap-health reported `total_opener_owned=3`, `raw_cap_reached=false`, `normal_cap_reached=false`, `non_drainable_count=1`; `stranske/Manager-Database#1020` needed dispatch evidence.
-  - `opener-repair-infra-stalls.py --json` added `agent:retry` and dispatched Gate Followups for `#1020`.
-  - Fresh cap-health reported `total_opener_owned=3`, `drainable_count=3`, `non_drainable_count=0`, `raw_cap_reached=false`, `normal_cap_reached=false`; `#1020` had active Gate/Gate Followups evidence.
-- Implementation:
-  - Branch: `codex/issue-1010-cost-script-dialect`.
-  - Updated `llm/cost_tracking.py` so SQLite `api_usage` setup avoids audited autoincrement tokens while preserving the Postgres `bigserial` branch and backend placeholders.
-  - Updated `scripts/seed_universe.py` so SQLite manager setup avoids audited autoincrement tokens and SQLite column detection uses table-valued introspection instead of `PRAGMA table_info`.
-  - Updated `scripts/resolve_aliases.py` so SQLite manager-id detection uses table-valued introspection; Postgres remains information-schema and `%s` placeholder based.
-  - Removed `llm/cost_tracking.py`, `scripts/seed_universe.py`, and `scripts/resolve_aliases.py` from `scripts/check_dialect_portability.py` allowlist.
-  - Updated `docs/reports/dialect_portability_audit.md` to mark follow-up `#1010` resolved.
-  - Added `tests/test_cost_script_dialect_portability.py` with strict Postgres fake coverage for cost logging, universe seeding, and alias updating paths.
-- Validation:
-  - `python scripts/check_dialect_portability.py --no-allowlist llm/cost_tracking.py scripts/seed_universe.py scripts/resolve_aliases.py` -> passed.
-  - `python scripts/check_dialect_portability.py` -> passed.
-  - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1010 uv run --extra dev python -m pytest tests/test_cost_script_dialect_portability.py tests/test_llm_cost_tracking.py tests/test_seed_universe.py tests/test_resolve_aliases.py tests/test_dialect_portability_gate.py --no-cov` -> 20 passed, 7 existing warnings.
-  - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1010 uv run --extra dev ruff check llm/cost_tracking.py scripts/seed_universe.py scripts/resolve_aliases.py scripts/check_dialect_portability.py tests/test_cost_script_dialect_portability.py` -> passed.
-  - `UV_CACHE_DIR=/private/tmp/uv-cache-manager-1010 uv run --extra dev black --target-version py312 --check llm/cost_tracking.py scripts/seed_universe.py scripts/resolve_aliases.py scripts/check_dialect_portability.py tests/test_cost_script_dialect_portability.py` -> passed.
-  - `git diff --check` -> passed.
-- Next action: commit, push, open a ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`, then emit `pr_opened`.
-
 ## 2026-05-09T22:12:00Z - opener lane selected issue #1007 activism dialect work
 
 - Automation: `pd-workloop-resume` (codex opener lane).
