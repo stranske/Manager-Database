@@ -25,7 +25,7 @@ def estimate_cost_usd(model: str, tokens_in: int, tokens_out: int) -> float:
 def _ensure_api_usage_table(conn: Any) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 source TEXT,
                 endpoint TEXT,

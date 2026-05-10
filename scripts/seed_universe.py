@@ -15,6 +15,11 @@ from adapters.base import connect_db
 DEFAULT_ROLE = "Manager"
 
 
+def _sqlite_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = conn.execute(f"SELECT name FROM pragma_table_info('{table_name}')").fetchall()
+    return {str(row[0]).lower() for row in rows if row and row[0] is not None}
+
+
 def _normalize_cik(raw: Any) -> str:
     cik = "" if raw is None else str(raw).strip()
     if not cik:
@@ -45,7 +50,7 @@ def _ensure_universe_schema(conn: Any) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""
             CREATE TABLE IF NOT EXISTS managers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 role TEXT NOT NULL,
                 department TEXT,
@@ -56,7 +61,7 @@ def _ensure_universe_schema(conn: Any) -> None:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        columns = _sqlite_columns(conn, "managers")
         if "cik" not in columns:
             conn.execute("ALTER TABLE managers ADD COLUMN cik TEXT")
         if "jurisdiction" not in columns:
@@ -104,9 +109,7 @@ def _ensure_universe_schema(conn: Any) -> None:
 
 def _manager_columns(conn: Any) -> set[str]:
     if isinstance(conn, sqlite3.Connection):
-        return {
-            str(row[1]).lower() for row in conn.execute("PRAGMA table_info(managers)").fetchall()
-        }
+        return _sqlite_columns(conn, "managers")
 
     rows = conn.execute("""
         SELECT column_name
