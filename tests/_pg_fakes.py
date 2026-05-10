@@ -28,7 +28,7 @@ class StrictPostgresConn:
     def params(self) -> list[Any]:
         return [p for _sql, p in self.executed if p is not None]
 
-    def execute(self, sql: str, params: Any = None) -> None:
+    def execute(self, sql: str, params: Any = None) -> Any:
         normalized = " ".join(sql.split())
         for token in self.forbidden_tokens:
             if token in normalized.upper():

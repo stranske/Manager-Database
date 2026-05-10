@@ -63,7 +63,11 @@ def _parse_aliases(raw: Any) -> list[str]:
 
 def _manager_id_column(conn: Any) -> str:
     if isinstance(conn, sqlite3.Connection):
-        columns = {str(row[1]).lower() for row in conn.execute("PRAGMA table_info(managers)")}
+        columns = {
+            str(row[0]).lower()
+            for row in conn.execute("SELECT name FROM pragma_table_info('managers')")
+            if row and row[0] is not None
+        }
         if "id" in columns:
             return "id"
         if "manager_id" in columns:
