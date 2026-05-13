@@ -358,13 +358,26 @@ class HoldingsAnalysisChain:
         except Exception:
             sections.extend(["", "Changes:", "No prior-period changes available."])
 
+        conviction_where_parts: list[str] = []
+        conviction_params: list[Any] = []
+        if manager_ids:
+            in_sql = ", ".join([placeholder] * len(manager_ids))
+            conviction_where_parts.append(f"manager_id IN ({in_sql})")
+            conviction_params.extend(manager_ids)
+        if date_range is not None:
+            conviction_where_parts.append(f"computed_at BETWEEN {placeholder} AND {placeholder}")
+            conviction_params.extend([date_range[0], date_range[1]])
+        conviction_where_sql = (
+            " AND ".join(conviction_where_parts) if conviction_where_parts else "1=1"
+        )
+
         try:
             conviction_query = (
                 "SELECT * FROM conviction_scores "
-                f"WHERE {where_sql} "
+                f"WHERE {conviction_where_sql} "
                 "ORDER BY computed_at DESC, conviction_pct DESC LIMIT 50"
             )
-            conviction = self._execute_fetchall(conviction_query, tuple(where_params))
+            conviction = self._execute_fetchall(conviction_query, tuple(conviction_params))
             if conviction:
                 sections.extend(
                     ["", "Conviction Scores:", json.dumps(conviction[:20], default=str)]

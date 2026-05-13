@@ -131,7 +131,7 @@ def test_build_data_context_with_filters() -> None:
         "AND %s AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
     )
     conviction_query = (
-        "SELECT * FROM conviction_scores WHERE manager_id IN (%s, %s) AND report_date BETWEEN "
+        "SELECT * FROM conviction_scores WHERE manager_id IN (%s, %s) AND computed_at BETWEEN "
         "%s AND %s ORDER BY computed_at DESC, conviction_pct DESC LIMIT 50"
     )
     overlap_query = (
@@ -197,7 +197,7 @@ def test_build_data_context_falls_back_to_cusip_only_for_crowded_trades() -> Non
         "AND %s AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
     )
     conviction_query = (
-        "SELECT * FROM conviction_scores WHERE manager_id IN (%s, %s) AND report_date BETWEEN "
+        "SELECT * FROM conviction_scores WHERE manager_id IN (%s, %s) AND computed_at BETWEEN "
         "%s AND %s ORDER BY computed_at DESC, conviction_pct DESC LIMIT 50"
     )
     full_overlap_query = (
@@ -263,7 +263,7 @@ def test_build_data_context_falls_back_when_daily_diffs_has_no_cusip_column() ->
         "AND %s ORDER BY report_date DESC, value_curr DESC LIMIT 100"
     )
     conviction_query = (
-        "SELECT * FROM conviction_scores WHERE manager_id IN (%s, %s) AND report_date BETWEEN "
+        "SELECT * FROM conviction_scores WHERE manager_id IN (%s, %s) AND computed_at BETWEEN "
         "%s AND %s ORDER BY computed_at DESC, conviction_pct DESC LIMIT 50"
     )
     full_overlap_query = (
@@ -388,7 +388,7 @@ def test_build_data_context_falls_back_when_holdings_report_date_column_missing(
         "AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
     )
     conviction_query = (
-        "SELECT * FROM conviction_scores WHERE manager_id IN (%s) AND report_date BETWEEN %s "
+        "SELECT * FROM conviction_scores WHERE manager_id IN (%s) AND computed_at BETWEEN %s "
         "AND %s ORDER BY computed_at DESC, conviction_pct DESC LIMIT 50"
     )
     overlap_query = (
@@ -998,7 +998,7 @@ def test_holdings_analysis_tracing_context_includes_filter_inputs(
         "AND cusip IN (%s) ORDER BY report_date DESC, value_curr DESC LIMIT 100"
     )
     conviction_query = (
-        "SELECT * FROM conviction_scores WHERE manager_id IN (%s) AND report_date BETWEEN %s "
+        "SELECT * FROM conviction_scores WHERE manager_id IN (%s) AND computed_at BETWEEN %s "
         "AND %s ORDER BY computed_at DESC, conviction_pct DESC LIMIT 50"
     )
     overlap_query = (

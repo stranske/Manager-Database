@@ -179,6 +179,33 @@ def _seed_chain_fixtures(conn: Any) -> dict[str, int]:
         )
         cur.execute(
             """
+            INSERT INTO conviction_scores(
+                manager_id,
+                filing_id,
+                cusip,
+                name_of_issuer,
+                shares,
+                value_usd,
+                conviction_pct,
+                portfolio_weight,
+                computed_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                manager_id,
+                filing_id,
+                SEEDED_CUSIP,
+                "Apple Inc.",
+                1000,
+                150000.0,
+                0.8125,
+                1.0,
+                "2026-04-16T00:00:00Z",
+            ),
+        )
+        cur.execute(
+            """
             INSERT INTO news_items(manager_id, published_at, source, headline, url, body_snippet)
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
@@ -242,6 +269,13 @@ def test_holdings_analysis_postgres(pg_conn: PgFixture) -> None:
         model="test-model",
     )
     chain = HoldingsAnalysisChain(client_info=client, db_conn=pg_conn.conn)
+
+    context = chain._build_data_context(
+        manager_ids=[seed["manager_id"]],
+        date_range=(date(2026, 1, 1), date(2026, 12, 31)),
+    )
+    assert "Conviction Scores:" in context
+    assert "conviction_pct" in context
 
     result = chain.run(
         "Top positions",
