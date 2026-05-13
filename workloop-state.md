@@ -1,5 +1,41 @@
 # Workloop State
 
+## 2026-05-13T20:05Z - opener opened Postgres chain integration PR
+
+- Automation: `pd-workloop-resume` (codex opener lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: [#1032](https://github.com/stranske/Manager-Database/issues/1032) `Add Postgres-backed integration tests for RAG, holdings analysis, and NL-query chain execution` (labels `repo-review-approved`, `priority:normal`).
+- PR: [#1033](https://github.com/stranske/Manager-Database/pull/1033) `Issue #1032: Add Postgres chain integration coverage`.
+- Branch: `codex/issue-1032-postgres-chain-integration` from `origin/main` (`199ac21`).
+- Selection:
+  - ACTION A succeeded from the neutral Code workspace. Cross-lane sentinel `active.source_repo=stranske/Counter_Risk active.source_issue=591 active.source_pr=592 active.next_action=wait_for_keepalive` was treated as informational only.
+  - Required fleet discovery ran across `repo-review-approved`, `priority:high`, `priority:normal`, and `priority:low`. `trip-planner#1184` and `Counter_Risk#591` were already linked to PRs; `Workflows#2073` was skipped as a credential/auth alert.
+  - Raw author-owned opener PR searches for `claude` and `codex` returned no direct `gh search prs` hits, while cap-health identified one opener-owned PR by branch/routing: `Counter_Risk#592`, state `draining`, reason `keepalive summary reports an agent currently running`.
+  - `opener-repair-infra-stalls.py --json` repaired nothing and skipped `Counter_Risk#592` because it was already draining. Mandatory fresh cap-health remained healthy: `total_opener_owned=1`, `raw_cap_reached=false`, `normal_cap_reached=false`, `non_drainable_cap_blocker=false`.
+  - Approved queue item selected by normal-priority queue order after excluding already-materialized items. Duplicate checks found no existing Manager-Database issue or PR for this title.
+- Implementation:
+  - Added `tests/test_chain_postgres_integration.py` with `MGRDB_PG_TEST_URL`-gated real-Postgres tests for `RAGSearchChain._structured_search()`, `NLQueryChain.run()`, and `HoldingsAnalysisChain.run()`.
+  - The fixture resets `public`, applies `schema.sql` with a dollar-quote-aware splitter, seeds one manager, filing, holding, and news row, and asserts concrete chain results including the seeded RAG filing source.
+  - Added a repo-local `postgres-integration` CI job using `pgvector/pgvector:pg16`, `MGRDB_PG_TEST_URL=postgresql://postgres:postgres@localhost:5432/postgres`, and `pytest tests/test_chain_postgres_integration.py -v`.
+  - Updated `HoldingsAnalysisChain` to order `conviction_scores` by the schema-backed `computed_at` / `conviction_pct` columns and tolerate missing-column schema variants in the optional conviction section.
+  - Updated holdings-analysis tests to match the schema-backed conviction ordering.
+- Validation:
+  - `pytest tests/test_chain_postgres_integration.py -v` without `MGRDB_PG_TEST_URL` -> 3 skipped, no import-time breakage.
+  - `rg "MGRDB_PG_TEST_URL" tests/test_chain_postgres_integration.py | wc -l` -> 4.
+  - `pytest tests/test_chain_dialect_portability.py tests/test_holdings_analysis_chain.py tests/test_rag_search_chain.py tests/test_nl_query_chain.py tests/test_chain_postgres_integration.py -v --no-cov` -> 40 passed, 3 skipped.
+  - `ruff check chains/holdings_analysis.py tests/test_chain_postgres_integration.py tests/test_holdings_analysis_chain.py` -> passed.
+  - `black --target-version py312 --check chains/holdings_analysis.py tests/test_chain_postgres_integration.py tests/test_holdings_analysis_chain.py` -> passed.
+  - `git diff --check` -> passed.
+  - Live Docker/Postgres validation was attempted but local Docker daemon was unavailable (`Cannot connect to the Docker daemon`); CI job now provides the live pgvector Postgres path.
+- Local notes: the original Code workspace `Manager-Database` checkout had a pre-existing `.gitignore` modification and was not writable under this sandbox. Implementation was done in a fresh writable `/tmp/manager-db-issue-1032-codex` clone and pushed back to the selected repo.
+- Commit/push:
+  - Commit `a8c9b51` (`Issue #1032: add Postgres chain integration tests`) pushed to `codex/issue-1032-postgres-chain-integration`.
+- PR/routing:
+  - Opened ready-for-review PR [#1033](https://github.com/stranske/Manager-Database/pull/1033) with labels `agent:codex`, `agents:keepalive`, and `autofix`; verified `isDraft=false`.
+  - Relay emitted: `pr_opened active.source_pr=1033 active.next_action=wait_for_keepalive`.
+  - Post-open cap-health at `2026-05-13T19:57:03Z`: `total_opener_owned=1`, `raw_cap_reached=false`, `normal_cap_reached=false`, `non_drainable_cap_blocker=false`; PR #1033 state `draining`, reason `workflow run active after latest branch update: Gate`.
+- Next action: keepalive owns CI/check follow-up for PR #1033.
+
 ## 2026-05-09T22:12:00Z - opener lane selected issue #1007 activism dialect work
 
 - Automation: `pd-workloop-resume` (codex opener lane).

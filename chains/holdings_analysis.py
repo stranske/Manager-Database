@@ -187,6 +187,19 @@ class HoldingsAnalysisChain:
         rows = cursor.fetchall()
         return self._cursor_rows_to_dicts(cursor, rows)
 
+    def _rollback_after_recoverable_error(self) -> None:
+        # Postgres aborts the current transaction on the first failing statement and
+        # refuses further commands until rollback. The context-build queries below
+        # tolerate schema mismatches and fall back to alternative shapes, so we must
+        # clear the aborted transaction before the next query. SQLite tolerates this
+        # but rollback is a safe no-op on SELECT-only chain work.
+        rollback = getattr(self.db, "rollback", None)
+        if callable(rollback):
+            try:
+                rollback()
+            except Exception:
+                pass
+
     def _build_holdings_query(
         self,
         *,
@@ -278,6 +291,7 @@ class HoldingsAnalysisChain:
                 self._is_missing_table_error(exc, "filings") or self._is_missing_column_error(exc)
             ):
                 raise
+            self._rollback_after_recoverable_error()
 
         direct_query, direct_params = self._build_holdings_query(
             manager_ids=manager_ids,
@@ -290,6 +304,7 @@ class HoldingsAnalysisChain:
         except Exception as exc:
             if not self._is_missing_column_error(exc):
                 raise
+            self._rollback_after_recoverable_error()
 
         no_date_query, no_date_params = self._build_holdings_query_without_report_date(
             manager_ids=manager_ids,
@@ -352,26 +367,45 @@ class HoldingsAnalysisChain:
                     break
                 except Exception as exc:
                     if self._is_missing_column_error(exc):
+                        self._rollback_after_recoverable_error()
                         continue
                     raise
             sections.extend(["", "Changes:", format_delta_summary(diffs)])
         except Exception:
+            self._rollback_after_recoverable_error()
             sections.extend(["", "Changes:", "No prior-period changes available."])
+
+        conviction_where_parts: list[str] = []
+        conviction_params: list[Any] = []
+        if manager_ids:
+            in_sql = ", ".join([placeholder] * len(manager_ids))
+            conviction_where_parts.append(f"manager_id IN ({in_sql})")
+            conviction_params.extend(manager_ids)
+        if date_range is not None:
+            conviction_where_parts.append(f"computed_at BETWEEN {placeholder} AND {placeholder}")
+            conviction_params.extend([date_range[0], date_range[1]])
+        conviction_where_sql = (
+            " AND ".join(conviction_where_parts) if conviction_where_parts else "1=1"
+        )
 
         try:
             conviction_query = (
                 "SELECT * FROM conviction_scores "
-                f"WHERE {where_sql} "
-                "ORDER BY report_date DESC, conviction_score DESC LIMIT 50"
+                f"WHERE {conviction_where_sql} "
+                "ORDER BY computed_at DESC, conviction_pct DESC LIMIT 50"
             )
-            conviction = self._execute_fetchall(conviction_query, tuple(where_params))
+            conviction = self._execute_fetchall(conviction_query, tuple(conviction_params))
             if conviction:
                 sections.extend(
                     ["", "Conviction Scores:", json.dumps(conviction[:20], default=str)]
                 )
         except Exception as exc:
-            if not self._is_missing_table_error(exc, "conviction_scores"):
+            if not (
+                self._is_missing_table_error(exc, "conviction_scores")
+                or self._is_missing_column_error(exc)
+            ):
                 raise
+            self._rollback_after_recoverable_error()
 
         overlap_attempts: list[tuple[str, tuple[Any, ...]]] = []
 
@@ -418,6 +452,7 @@ class HoldingsAnalysisChain:
                     break
                 except Exception as exc:
                     if self._is_missing_column_error(exc):
+                        self._rollback_after_recoverable_error()
                         continue
                     raise
             if overlap:
@@ -425,7 +460,7 @@ class HoldingsAnalysisChain:
                     ["", "Cross-Manager Overlap:", json.dumps(overlap[:20], default=str)]
                 )
         except Exception:
-            pass
+            self._rollback_after_recoverable_error()
 
         return truncate_context("\n".join(sections), max_tokens=4000)
 
