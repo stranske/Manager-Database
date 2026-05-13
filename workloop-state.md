@@ -5,6 +5,7 @@
 - Automation: `pd-workloop-resume` (codex opener lane).
 - Source repo: `stranske/Manager-Database`.
 - Source issue: [#1032](https://github.com/stranske/Manager-Database/issues/1032) `Add Postgres-backed integration tests for RAG, holdings analysis, and NL-query chain execution` (labels `repo-review-approved`, `priority:normal`).
+- PR: [#1033](https://github.com/stranske/Manager-Database/pull/1033) `Issue #1032: Add Postgres chain integration coverage`.
 - Branch: `codex/issue-1032-postgres-chain-integration` from `origin/main` (`199ac21`).
 - Selection:
   - ACTION A succeeded from the neutral Code workspace. Cross-lane sentinel `active.source_repo=stranske/Counter_Risk active.source_issue=591 active.source_pr=592 active.next_action=wait_for_keepalive` was treated as informational only.
@@ -27,7 +28,13 @@
   - `git diff --check` -> passed.
   - Live Docker/Postgres validation was attempted but local Docker daemon was unavailable (`Cannot connect to the Docker daemon`); CI job now provides the live pgvector Postgres path.
 - Local notes: the original Code workspace `Manager-Database` checkout had a pre-existing `.gitignore` modification and was not writable under this sandbox. Implementation was done in a fresh writable `/tmp/manager-db-issue-1032-codex` clone and pushed back to the selected repo.
-- Next action: open a ready PR with `agent:codex`, `agents:keepalive`, and `autofix`; keepalive owns CI/check follow-up after PR creation.
+- Commit/push:
+  - Commit `a8c9b51` (`Issue #1032: add Postgres chain integration tests`) pushed to `codex/issue-1032-postgres-chain-integration`.
+- PR/routing:
+  - Opened ready-for-review PR [#1033](https://github.com/stranske/Manager-Database/pull/1033) with labels `agent:codex`, `agents:keepalive`, and `autofix`; verified `isDraft=false`.
+  - Relay emitted: `pr_opened active.source_pr=1033 active.next_action=wait_for_keepalive`.
+  - Post-open cap-health at `2026-05-13T19:57:03Z`: `total_opener_owned=1`, `raw_cap_reached=false`, `normal_cap_reached=false`, `non_drainable_cap_blocker=false`; PR #1033 state `draining`, reason `workflow run active after latest branch update: Gate`.
+- Next action: keepalive owns CI/check follow-up for PR #1033.
 
 ## 2026-05-09T22:12:00Z - opener lane selected issue #1007 activism dialect work
 
