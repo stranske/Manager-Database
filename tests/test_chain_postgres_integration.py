@@ -8,6 +8,7 @@ Set ``MGRDB_PG_TEST_URL`` to run these against a live Postgres database:
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Generator
 from datetime import date
@@ -257,13 +258,15 @@ def test_holdings_analysis_postgres(pg_conn: PgFixture) -> None:
     seed = pg_conn.seed
     client = ClientInfo(
         client=RunnableLambda(
-            lambda _payload: {
-                "thesis": "ok",
-                "top_positions": [],
-                "period_changes": [],
-                "cross_manager_overlap": None,
-                "concentration_metrics": {},
-            }
+            lambda _payload: json.dumps(
+                {
+                    "thesis": "ok",
+                    "top_positions": [],
+                    "period_changes": [],
+                    "cross_manager_overlap": None,
+                    "concentration_metrics": {},
+                }
+            )
         ),
         provider="test-provider",
         model="test-model",
