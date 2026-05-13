@@ -362,7 +362,7 @@ class HoldingsAnalysisChain:
             conviction_query = (
                 "SELECT * FROM conviction_scores "
                 f"WHERE {where_sql} "
-                "ORDER BY report_date DESC, conviction_score DESC LIMIT 50"
+                "ORDER BY computed_at DESC, conviction_pct DESC LIMIT 50"
             )
             conviction = self._execute_fetchall(conviction_query, tuple(where_params))
             if conviction:
@@ -370,7 +370,10 @@ class HoldingsAnalysisChain:
                     ["", "Conviction Scores:", json.dumps(conviction[:20], default=str)]
                 )
         except Exception as exc:
-            if not self._is_missing_table_error(exc, "conviction_scores"):
+            if not (
+                self._is_missing_table_error(exc, "conviction_scores")
+                or self._is_missing_column_error(exc)
+            ):
                 raise
 
         overlap_attempts: list[tuple[str, tuple[Any, ...]]] = []
