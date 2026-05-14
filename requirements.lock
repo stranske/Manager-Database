@@ -236,7 +236,7 @@ langsmith==0.7.30
     # via
     #   manager-database (pyproject.toml)
     #   langchain-core
-librt==0.9.0 ; platform_python_implementation != 'PyPy'
+librt==0.10.0 ; platform_python_implementation != 'PyPy'
     # via mypy
 lupa==2.6
     # via fakeredis
