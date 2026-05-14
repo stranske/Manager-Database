@@ -27,6 +27,8 @@ apprise==1.9.6
     # via prefect
 asgi-lifespan==2.1.0
     # via prefect
+ast-serialize==0.3.0
+    # via mypy
 asyncpg==0.31.0
     # via prefect
 attrs==25.4.0
@@ -92,7 +94,7 @@ colorama==0.4.6
     #   tqdm
 coolname==2.2.0
     # via prefect
-coverage==7.13.5
+coverage==7.14.0
     # via
     #   manager-database (pyproject.toml)
     #   pytest-cov
@@ -236,7 +238,7 @@ langsmith==0.7.30
     # via
     #   manager-database (pyproject.toml)
     #   langchain-core
-librt==0.10.0 ; platform_python_implementation != 'PyPy'
+librt==0.11.0 ; platform_python_implementation != 'PyPy'
     # via mypy
 lupa==2.6
     # via fakeredis
@@ -252,7 +254,7 @@ markupsafe==3.0.3
     #   mako
 mdurl==0.1.2
     # via markdown-it-py
-mypy==2.0.0
+mypy==2.1.0
     # via manager-database (pyproject.toml)
 mypy-extensions==1.1.0
     # via
@@ -476,7 +478,7 @@ ruamel-yaml==0.19.1
     # via prefect
 ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
     # via prefect
-ruff==0.15.12
+ruff==0.15.13
     # via manager-database (pyproject.toml)
 s3transfer==0.16.0
     # via boto3
