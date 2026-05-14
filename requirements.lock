@@ -92,7 +92,7 @@ colorama==0.4.6
     #   tqdm
 coolname==2.2.0
     # via prefect
-coverage==7.13.5
+coverage==7.14.0
     # via
     #   manager-database (pyproject.toml)
     #   pytest-cov
@@ -252,7 +252,7 @@ markupsafe==3.0.3
     #   mako
 mdurl==0.1.2
     # via markdown-it-py
-mypy==2.0.0
+mypy==2.1.0
     # via manager-database (pyproject.toml)
 mypy-extensions==1.1.0
     # via
@@ -476,7 +476,7 @@ ruamel-yaml==0.19.1
     # via prefect
 ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
     # via prefect
-ruff==0.15.12
+ruff==0.15.13
     # via manager-database (pyproject.toml)
 s3transfer==0.16.0
     # via boto3
