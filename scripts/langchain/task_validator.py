@@ -13,14 +13,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from pydantic import SecretStr
+try:
+    from scripts.langchain.trace_utils import TraceInfo, invoke_with_trace
+except ModuleNotFoundError:
+    from trace_utils import TraceInfo, invoke_with_trace
 
 # ---------------------------------------------------------------------------
 # Constants for heuristic detection
@@ -154,14 +156,21 @@ class ValidationResult:
     fates: list[TaskFate]
     audit_summary: str
     provider_used: str | None = None
+    langsmith_trace_id: str | None = None
+    langsmith_trace_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "tasks": self.tasks,
             "fates": [f.to_dict() for f in self.fates],
             "audit_summary": self.audit_summary,
             "provider_used": self.provider_used,
         }
+        if self.langsmith_trace_id:
+            payload["langsmith_trace_id"] = self.langsmith_trace_id
+        if self.langsmith_trace_url:
+            payload["langsmith_trace_url"] = self.langsmith_trace_url
+        return payload
 
 
 # ---------------------------------------------------------------------------
@@ -254,46 +263,16 @@ def triage_tasks(tasks: list[str]) -> dict[str, list[Any]]:
 
 
 def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
-    """Get LLM client, trying GitHub Models first, then OpenAI."""
+    """Get LLM client using slot order (OpenAI, Claude, GitHub Models)."""
     try:
-        from langchain_openai import ChatOpenAI
+        from tools.langchain_client import build_chat_client
     except ImportError:
         return None
 
-    github_token = os.environ.get("GITHUB_TOKEN")
-    openai_token = os.environ.get("OPENAI_API_KEY")
-
-    if not github_token and not openai_token:
+    resolved = build_chat_client(provider="openai" if force_openai else None)
+    if not resolved:
         return None
-
-    try:
-        from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
-    except ImportError:
-        DEFAULT_MODEL = "gpt-4o-mini"
-        GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com"
-
-    if github_token and not force_openai:
-        return (
-            ChatOpenAI(
-                model=DEFAULT_MODEL,
-                base_url=GITHUB_MODELS_BASE_URL,
-                api_key=SecretStr(github_token),
-                temperature=0.1,
-            ),
-            "github-models",
-        )
-
-    if openai_token:
-        return (
-            ChatOpenAI(
-                model=DEFAULT_MODEL,
-                api_key=SecretStr(openai_token),
-                temperature=0.1,
-            ),
-            "openai",
-        )
-
-    return None
+    return resolved.client, resolved.provider
 
 
 def _is_github_models_auth_error(exc: Exception) -> bool:
@@ -400,7 +379,7 @@ def _parse_refinement_response(response: str, flagged: list[dict[str, Any]]) -> 
 
 def refine_flagged_tasks(
     flagged: list[dict[str, Any]], context: str = ""
-) -> tuple[list[str], list[TaskFate], str | None]:
+) -> tuple[list[str], list[TaskFate], str | None, TraceInfo]:
     """
     Send flagged tasks to LLM for refinement decision.
 
@@ -409,10 +388,10 @@ def refine_flagged_tasks(
         context: Optional issue context for LLM
 
     Returns:
-        Tuple of (refined_tasks, fates, provider_used)
+        Tuple of (refined_tasks, fates, provider_used, trace_info)
     """
     if not flagged:
-        return [], [], None
+        return [], [], None, TraceInfo()
 
     # Format flagged items for prompt
     flagged_lines: list[str] = []
@@ -439,7 +418,7 @@ def refine_flagged_tasks(
             for item in flagged
         ]
         tasks = [f.result for f in fates if f.result]
-        return tasks, fates, None
+        return tasks, fates, None, TraceInfo()
 
     client, provider = client_info
 
@@ -458,24 +437,31 @@ def refine_flagged_tasks(
             for item in flagged
         ]
         tasks = [f.result for f in fates if f.result]
-        return tasks, fates, None
+        return tasks, fates, None, TraceInfo()
 
     # Build and invoke prompt
     prompt_template = _load_refinement_prompt()
     template = ChatPromptTemplate.from_template(prompt_template)
-    chain: Any = template | client  # type: ignore[operator]
+    chain = template | client
+    trace = TraceInfo()
 
     try:
-        response = chain.invoke({"flagged_items": flagged_text, "context": context or "None"})
+        response, trace = invoke_with_trace(
+            chain,
+            {"flagged_items": flagged_text, "context": context or "None"},
+            operation="task_validator",
+        )
     except Exception as e:
         # If GitHub Models fails, try OpenAI
         if provider == "github-models" and _is_github_models_auth_error(e):
             fallback_info = _get_llm_client(force_openai=True)
             if fallback_info:
                 client, provider = fallback_info
-                chain = template | client  # type: ignore[operator]
-                response = chain.invoke(
-                    {"flagged_items": flagged_text, "context": context or "None"}
+                chain = template | client
+                response, trace = invoke_with_trace(
+                    chain,
+                    {"flagged_items": flagged_text, "context": context or "None"},
+                    operation="task_validator",
                 )
             else:
                 raise
@@ -489,7 +475,7 @@ def refine_flagged_tasks(
     # Extract tasks (non-None results)
     tasks = [f.result for f in fates if f.result is not None]
 
-    return tasks, fates, provider
+    return tasks, fates, provider, trace
 
 
 # ---------------------------------------------------------------------------
@@ -619,7 +605,7 @@ def validate_tasks(
 
     # Pass 2: LLM refinement (if enabled)
     if use_llm:
-        refined, fates, provider = refine_flagged_tasks(flagged, context)
+        refined, fates, provider, trace = refine_flagged_tasks(flagged, context)
     else:
         # No LLM - keep all flagged items as unprocessed
         fates = [
@@ -634,6 +620,7 @@ def validate_tasks(
         ]
         refined = [f.result for f in fates if f.result]
         provider = None
+        trace = TraceInfo()
 
     # Merge and audit
     final_tasks, audit = merge_with_audit(clean, refined, fates, original_count)
@@ -643,6 +630,8 @@ def validate_tasks(
         fates=fates,
         audit_summary=audit,
         provider_used=provider,
+        langsmith_trace_id=trace.trace_id,
+        langsmith_trace_url=trace.trace_url,
     )
 
 
