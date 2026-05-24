@@ -34,6 +34,12 @@ from api.managers import router as managers_router
 from api.memory_profiler import start_memory_profiler, stop_memory_profiler
 from api.search import SearchEntityType, SearchResult, universal_search
 from api.signals import router as signals_router
+from llm.langsmith_fleet import (
+    ChatFleetContext,
+    TokenUsage,
+    record_chat_event,
+    record_feedback_event,
+)
 from llm.tracing import maybe_enable_langsmith_tracing
 
 app = FastAPI()
@@ -739,14 +745,14 @@ def _format_holdings_analysis_payload(result: Any) -> dict[str, Any]:
     return {"answer": "\n".join(lines), "sources": [], "sql": None, "trace_url": None}
 
 
-def _response_id_from_trace_url(trace_url: str | None) -> str:
+def _response_id_from_trace_url(trace_url: str | None) -> str | None:
     if trace_url:
         stripped = trace_url.rstrip("/")
         if "/" in stripped:
             candidate = stripped.rsplit("/", 1)[-1]
             if candidate:
                 return candidate
-    return str(uuid.uuid4())
+    return None
 
 
 def _placeholder(conn: Any) -> str:
@@ -795,13 +801,13 @@ def _store_feedback(feedback: FeedbackRequest) -> int:
         conn.close()
 
 
-def _attach_langsmith_feedback(feedback: FeedbackRequest) -> None:
+def _attach_langsmith_feedback(feedback: FeedbackRequest) -> bool:
     if not maybe_enable_langsmith_tracing():
-        return
+        return False
     try:
         from langsmith import Client as LangSmithClient
     except Exception:
-        return
+        return False
 
     try:
         LangSmithClient().create_feedback(
@@ -810,11 +816,13 @@ def _attach_langsmith_feedback(feedback: FeedbackRequest) -> None:
             score=feedback.rating,
             comment=feedback.comment,
         )
+        return True
     except Exception:
         logger.warning(
             "Failed to attach feedback to LangSmith",
             extra={"response_id": feedback.response_id},
         )
+        return False
 
 
 async def _run_chain(
@@ -883,10 +891,56 @@ def _resolve_chain_name(
     return "rag_search"
 
 
+def _record_chat_fleet_safe(
+    *,
+    request_id: str,
+    endpoint: str,
+    chain: str,
+    session_id: str | None,
+    provider: str | None,
+    model: str | None,
+    latency_ms: int,
+    http_status: int,
+    trace_url: str | None = None,
+    response_id: str | None = None,
+    error_category: str | None = None,
+    rate_limited: bool = False,
+) -> None:
+    """Emit one chat-turn fleet record, swallowing errors so API stays healthy."""
+    try:
+        run_id = response_id or _response_id_from_trace_url(trace_url) or request_id
+        record_chat_event(
+            context=ChatFleetContext(
+                run_id=run_id,
+                request_id=request_id,
+                endpoint=endpoint,
+                chain=chain,
+                session_id=session_id,
+                provider=provider,
+                model=model,
+                trace_url=trace_url,
+            ),
+            latency_ms=latency_ms,
+            http_status=http_status,
+            error_category=error_category,
+            rate_limited=rate_limited,
+            token_usage=TokenUsage(),
+            response_id=run_id,
+        )
+    except Exception:  # pragma: no cover - never let observability break the API
+        logger.debug("LangSmith fleet emission failed", exc_info=True)
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
     """Main chat endpoint with automatic or explicit chain routing."""
     started = time.perf_counter()
+    request_id = uuid.uuid4().hex
+    endpoint_path = raw_request.url.path if raw_request else "/api/chat"
+    session_id = _chat_session_id(raw_request)
+    chain_used = "unknown"
+    provider_name: str | None = None
+    model_name: str | None = None
     try:
         _enforce_chat_rate_limit(raw_request)
         client_info = _build_chat_client_info()
@@ -895,6 +949,8 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
                 status_code=503,
                 detail="No LLM provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
             )
+        provider_name = getattr(client_info, "provider", None)
+        model_name = getattr(client_info, "model", None)
 
         requested_chain = (request.chain or "auto").strip().lower()
         if requested_chain not in VALID_CHAIN_NAMES:
@@ -905,6 +961,19 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             chain_used, request.question, request.context, client_info
         )
         latency_ms = int((time.perf_counter() - started) * 1000)
+        response_id = _response_id_from_trace_url(trace_url) or str(uuid.uuid4())
+        _record_chat_fleet_safe(
+            request_id=request_id,
+            endpoint=endpoint_path,
+            chain=chain_used,
+            session_id=session_id,
+            provider=provider_name,
+            model=model_name,
+            latency_ms=latency_ms,
+            http_status=200,
+            trace_url=trace_url,
+            response_id=response_id,
+        )
         return ChatResponse(
             answer=answer,
             chain_used=chain_used,
@@ -912,7 +981,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             sql=sql,
             trace_url=trace_url,
             latency_ms=latency_ms,
-            response_id=_response_id_from_trace_url(trace_url),
+            response_id=response_id,
         )
     except PROMPT_INJECTION_ERROR as exc:  # type: ignore[misc]
         reasons = getattr(exc, "reasons", [str(exc)])
@@ -920,18 +989,65 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             reason_text = ", ".join(str(reason) for reason in reasons)
         else:
             reason_text = str(reasons)
+        _record_chat_fleet_safe(
+            request_id=request_id,
+            endpoint=endpoint_path,
+            chain=chain_used,
+            session_id=session_id,
+            provider=provider_name,
+            model=model_name,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            http_status=400,
+            error_category="prompt_injection",
+        )
         raise HTTPException(
             status_code=400,
             detail=f"Input rejected: {reason_text}",
         ) from exc
-    except HTTPException:
+    except HTTPException as exc:
+        _record_chat_fleet_safe(
+            request_id=request_id,
+            endpoint=endpoint_path,
+            chain=chain_used,
+            session_id=session_id,
+            provider=provider_name,
+            model=model_name,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            http_status=exc.status_code,
+            error_category=_error_category_from_http(exc.status_code),
+            rate_limited=exc.status_code == 429,
+        )
         raise
     except Exception as exc:
         logger.error("Chat error: %s", exc, exc_info=True)
+        _record_chat_fleet_safe(
+            request_id=request_id,
+            endpoint=endpoint_path,
+            chain=chain_used,
+            session_id=session_id,
+            provider=provider_name,
+            model=model_name,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            http_status=500,
+            error_category=type(exc).__name__.lower(),
+        )
         raise HTTPException(
             status_code=500,
             detail="Research assistant error. Check server logs.",
         ) from exc
+
+
+def _error_category_from_http(status_code: int) -> str | None:
+    """Map an HTTP status into a coarse fleet error category."""
+    if status_code == 429:
+        return "rate_limited"
+    if status_code == 503:
+        return "provider_unavailable"
+    if 400 <= status_code < 500:
+        return "client_error"
+    if status_code >= 500:
+        return "server_error"
+    return None
 
 
 @app.post("/api/chat/filing-summary", response_model=ChatResponse)
@@ -980,7 +1096,17 @@ async def submit_feedback(feedback: FeedbackRequest, raw_request: Request) -> di
         feedback_id = _store_feedback(feedback)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    _attach_langsmith_feedback(feedback)
+    forwarded = _attach_langsmith_feedback(feedback)
+    try:
+        record_feedback_event(
+            response_id=feedback.response_id,
+            feedback_id=feedback_id,
+            rating=feedback.rating,
+            session_id=_chat_session_id(raw_request),
+            forwarded_to_langsmith=forwarded,
+        )
+    except Exception:  # pragma: no cover - never let observability break feedback
+        logger.debug("LangSmith fleet feedback emission failed", exc_info=True)
     return {"ok": True, "feedback_id": feedback_id}
 
 

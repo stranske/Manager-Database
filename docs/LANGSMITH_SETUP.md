@@ -29,3 +29,4 @@ Operational notes:
 - Tracing is enabled automatically when `LANGSMITH_API_KEY` is present.
 - Weekly quality runs are defined in `etl/evaluation_flow.py`.
 - User feedback is stored locally via `/api/chat/feedback` and forwarded to LangSmith when possible.
+- Every chat-api call also emits one centralized `langsmith-fleet/v1` NDJSON record via `llm/langsmith_fleet.py`; see [`docs/runbooks/langsmith-fleet.md`](runbooks/langsmith-fleet.md) for the schema, artifact path, and operator playbook.
