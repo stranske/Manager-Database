@@ -76,9 +76,7 @@ def test_success_status_when_key_present(monkeypatch):
         context=_context(),
         latency_ms=42,
         http_status=200,
-        token_usage=fleet.TokenUsage(
-            input_tokens=10, output_tokens=20, total_tokens=30
-        ),
+        token_usage=fleet.TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
         cost_usd=0.0012,
         evaluation_score=0.91,
     )
@@ -267,3 +265,66 @@ def test_record_provides_repo_and_github_issue_anchors():
     )
     assert record["repo"] == "stranske/Manager-Database"
     assert record["github_issue"] == "stranske/Manager-Database#1048"
+
+
+def test_feedback_record_forwarded_false_is_fallback(monkeypatch):
+    monkeypatch.setenv(fleet.ENV_LANGSMITH_KEY, "ls-key")
+    record = fleet.build_feedback_fleet_record(
+        response_id="resp-x",
+        feedback_id=1,
+        rating=2,
+        forwarded_to_langsmith=False,
+    )
+    assert record["status"] == "fallback"
+    assert record["domain"]["forwarded_to_langsmith"] is False
+
+
+def test_append_fleet_records_returns_path_on_empty_input(tmp_path):
+    path = tmp_path / "fleet.ndjson"
+    result = fleet.append_fleet_records(path, [])
+    assert result == path
+    assert not path.exists()
+
+
+def test_append_fleet_records_raises_on_zero_retention(tmp_path):
+    path = tmp_path / "fleet.ndjson"
+    with pytest.raises(ValueError, match="retention_limit must be >= 1"):
+        fleet.append_fleet_records(path, [], retention_limit=0)
+
+
+def test_error_status_for_500_without_error_category(monkeypatch):
+    monkeypatch.setenv(fleet.ENV_LANGSMITH_KEY, "ls-key")
+    record = fleet.build_chat_fleet_record(
+        context=_context(),
+        latency_ms=1,
+        http_status=500,
+    )
+    assert record["status"] == "error"
+
+
+def test_record_includes_github_pr_when_set():
+    record = fleet.build_chat_fleet_record(
+        context=_context(github_pr="stranske/Manager-Database#42"),
+        latency_ms=5,
+        http_status=200,
+    )
+    assert record["github_pr"] == "stranske/Manager-Database#42"
+
+
+def test_record_includes_trace_id_when_set():
+    record = fleet.build_chat_fleet_record(
+        context=_context(trace_id="trace-xyz"),
+        latency_ms=5,
+        http_status=200,
+    )
+    assert record["trace_id"] == "trace-xyz"
+
+
+def test_record_includes_artifact_ref_when_passed():
+    record = fleet.build_chat_fleet_record(
+        context=_context(),
+        latency_ms=5,
+        http_status=200,
+        artifact_ref="gs://bucket/fleet.ndjson",
+    )
+    assert record["artifact_ref"] == "gs://bucket/fleet.ndjson"

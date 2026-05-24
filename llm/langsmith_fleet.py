@@ -126,9 +126,7 @@ def build_chat_fleet_record(
         "chain": context.chain,
         "workflow": workflow_tag,
         "request_id_hash": _hash_identifier(context.request_id),
-        "session_id_hash": (
-            _hash_identifier(context.session_id) if context.session_id else None
-        ),
+        "session_id_hash": (_hash_identifier(context.session_id) if context.session_id else None),
         "latency_ms": int(latency_ms),
         "http_status": int(http_status),
         "rate_limited": bool(rate_limited),
@@ -189,9 +187,7 @@ def build_feedback_fleet_record(
         "feedback_id": str(feedback_id),
         "rating": int(rating),
         "response_id": response_id,
-        "session_id_hash": (
-            _hash_identifier(session_id) if session_id else None
-        ),
+        "session_id_hash": (_hash_identifier(session_id) if session_id else None),
         "forwarded_to_langsmith": (
             None if forwarded_to_langsmith is None else bool(forwarded_to_langsmith)
         ),
