@@ -25,7 +25,7 @@ def _isolate_langsmith_env(monkeypatch):
 
 
 def _context(**overrides) -> fleet.ChatFleetContext:
-    base = {
+    base: dict[str, str | None] = {
         "run_id": "resp-1",
         "request_id": "req-abc",
         "endpoint": "/api/chat",
@@ -38,7 +38,7 @@ def _context(**overrides) -> fleet.ChatFleetContext:
         "recorded_at": "2026-05-24T05:00:00Z",
     }
     base.update(overrides)
-    return fleet.ChatFleetContext(**base)
+    return fleet.ChatFleetContext(**base)  # type: ignore[arg-type]
 
 
 def test_no_secret_status_when_key_missing():
