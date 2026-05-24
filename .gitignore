@@ -18,3 +18,7 @@ workloop-state.md
 # - Commit messages (change descriptions)
 autofix_report_enriched.json
 *.db
+.gitnexus
+
+# LangSmith fleet NDJSON artifacts (regenerated per run; uploaded by CI)
+artifacts/langsmith/
