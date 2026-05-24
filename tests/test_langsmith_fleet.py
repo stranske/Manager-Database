@@ -156,6 +156,17 @@ def test_feedback_record_no_secret_when_key_missing():
     assert record["domain"]["feedback_id"] == "f-9"
 
 
+def test_feedback_forwarded_false_stays_no_secret_when_key_missing():
+    record = fleet.build_feedback_fleet_record(
+        response_id="resp-7",
+        feedback_id="f-10",
+        rating=3,
+        forwarded_to_langsmith=False,
+    )
+    assert record["status"] == "no_secret"
+    assert record["domain"]["forwarded_to_langsmith"] is False
+
+
 def test_append_fleet_records_writes_ndjson(tmp_path):
     path = tmp_path / "out" / "langsmith-fleet.ndjson"
     rec1 = fleet.build_chat_fleet_record(
@@ -171,6 +182,7 @@ def test_append_fleet_records_writes_ndjson(tmp_path):
     fleet.append_fleet_records(path, [rec1])
     fleet.append_fleet_records(path, [rec2])
     lines = path.read_text().splitlines()
+    assert path.with_suffix(path.suffix + ".lock").exists()
     assert len(lines) == 2
     parsed = [json.loads(line) for line in lines]
     assert parsed[0]["run_id"] == "r1"

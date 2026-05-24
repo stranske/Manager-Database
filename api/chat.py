@@ -745,14 +745,14 @@ def _format_holdings_analysis_payload(result: Any) -> dict[str, Any]:
     return {"answer": "\n".join(lines), "sources": [], "sql": None, "trace_url": None}
 
 
-def _response_id_from_trace_url(trace_url: str | None) -> str:
+def _response_id_from_trace_url(trace_url: str | None) -> str | None:
     if trace_url:
         stripped = trace_url.rstrip("/")
         if "/" in stripped:
             candidate = stripped.rsplit("/", 1)[-1]
             if candidate:
                 return candidate
-    return str(uuid.uuid4())
+    return None
 
 
 def _placeholder(conn: Any) -> str:
@@ -961,7 +961,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             chain_used, request.question, request.context, client_info
         )
         latency_ms = int((time.perf_counter() - started) * 1000)
-        response_id = _response_id_from_trace_url(trace_url)
+        response_id = _response_id_from_trace_url(trace_url) or str(uuid.uuid4())
         _record_chat_fleet_safe(
             request_id=request_id,
             endpoint=endpoint_path,

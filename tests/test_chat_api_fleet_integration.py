@@ -179,6 +179,7 @@ def test_feedback_endpoint_emits_correlation_record(monkeypatch, fleet_artifact)
     assert record["domain"]["feedback_id"] == "99"
     assert record["domain"]["rating"] == 4
     assert record["domain"]["forwarded_to_langsmith"] is False
+    assert record["status"] == "no_secret"
 
 
 def test_observability_failure_does_not_break_chat_api(monkeypatch, fleet_artifact):
@@ -230,3 +231,4 @@ def test_chat_api_prompt_injection_emits_error_record(monkeypatch, fleet_artifac
     assert record["status"] == "error"
     assert record["domain"]["http_status"] == 400
     assert record["domain"]["error_state"] == "prompt_injection"
+    assert record["run_id"] == record["domain"]["response_id"]

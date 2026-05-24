@@ -164,12 +164,12 @@ def build_feedback_fleet_record(
     """Build a feedback-correlation fleet record joinable on ``response_id``."""
 
     tracing_enabled = ensure_langsmith_project_defaults()
-    if forwarded_to_langsmith is False:
-        status: Status = "fallback"
-    elif tracing_enabled:
-        status = "success"
+    if not tracing_enabled:
+        status: Status = "no_secret"
+    elif forwarded_to_langsmith is False:
+        status = "fallback"
     else:
-        status = "no_secret"
+        status = "success"
 
     context = ChatFleetContext(
         run_id=response_id,
@@ -232,26 +232,23 @@ def append_fleet_records(
     if not materialized:
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+", encoding="utf-8") as handle:
-        fcntl_module: ModuleType | None = None
-        with suppress(ImportError):
-            import fcntl as fcntl_module
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    fcntl_module: ModuleType | None = None
+    with suppress(ImportError):
+        import fcntl as fcntl_module
+    with lock_path.open("a", encoding="utf-8") as lock_handle:
         if fcntl_module is not None:
             with suppress(OSError):
-                fcntl_module.flock(handle.fileno(), fcntl_module.LOCK_EX)
-        for record in materialized:
-            handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
-        handle.flush()
-        handle.seek(0)
-        lines = handle.read().splitlines()
-        if len(lines) > retention_limit:
-            trimmed = lines[-retention_limit:]
-            temp_path = path.with_suffix(path.suffix + ".tmp")
-            temp_path.write_text("\n".join(trimmed) + "\n", encoding="utf-8")
-            temp_path.replace(path)
+                fcntl_module.flock(lock_handle.fileno(), fcntl_module.LOCK_EX)
+        existing = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+        appended = [
+            json.dumps(record, sort_keys=True, separators=(",", ":")) for record in materialized
+        ]
+        retained = (existing + appended)[-retention_limit:]
+        path.write_text("\n".join(retained) + "\n", encoding="utf-8")
         if fcntl_module is not None:
             with suppress(Exception):
-                fcntl_module.flock(handle.fileno(), fcntl_module.LOCK_UN)
+                fcntl_module.flock(lock_handle.fileno(), fcntl_module.LOCK_UN)
     return path
 
 

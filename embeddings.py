@@ -173,32 +173,35 @@ def store_document(
                 "ON documents (sha256) WHERE sha256 IS NOT NULL"
             )
         emb = json.dumps(embed_text(text))
-        insert_cols: list[str] = []
-        insert_values: list[Any] = []
+        sqlite_insert_cols: list[str] = []
+        sqlite_insert_values: list[Any] = []
         if "manager_id" in columns:
-            insert_cols.append("manager_id")
-            insert_values.append(manager_id)
+            sqlite_insert_cols.append("manager_id")
+            sqlite_insert_values.append(manager_id)
         if "kind" in columns:
-            insert_cols.append("kind")
-            insert_values.append(kind)
+            sqlite_insert_cols.append("kind")
+            sqlite_insert_values.append(kind)
         if "filename" in columns:
-            insert_cols.append("filename")
-            insert_values.append(filename)
+            sqlite_insert_cols.append("filename")
+            sqlite_insert_values.append(filename)
         if "sha256" in columns:
-            insert_cols.append("sha256")
-            insert_values.append(sha256)
-        insert_cols.append(text_col)
-        insert_values.append(text)
-        insert_cols.append("embedding")
-        insert_values.append(emb)
-        placeholders = ",".join("?" for _ in insert_cols)
+            sqlite_insert_cols.append("sha256")
+            sqlite_insert_values.append(sha256)
+        sqlite_insert_cols.append(text_col)
+        sqlite_insert_values.append(text)
+        sqlite_insert_cols.append("embedding")
+        sqlite_insert_values.append(emb)
+        placeholders = ",".join("?" for _ in sqlite_insert_cols)
         insert_statement = (
-            f"INSERT INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})"
+            f"INSERT INTO documents({', '.join(sqlite_insert_cols)}) VALUES ({placeholders})"
         )
         if "sha256" in columns:
             insert_or_ignore = "INSERT OR " + "IGNORE"
-            insert_statement = f"{insert_or_ignore} INTO documents({', '.join(insert_cols)}) VALUES ({placeholders})"
-        cur = conn.execute(insert_statement, insert_values)
+            insert_statement = (
+                f"{insert_or_ignore} INTO documents({', '.join(sqlite_insert_cols)}) "
+                f"VALUES ({placeholders})"
+            )
+        cur = conn.execute(insert_statement, sqlite_insert_values)
         if "sha256" in columns:
             existing = conn.execute(
                 f"SELECT {id_col} FROM documents WHERE sha256 = ?",
