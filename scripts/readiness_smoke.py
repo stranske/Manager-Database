@@ -178,6 +178,7 @@ def run(
     timeout_s: float,
     clean_stack: bool,
     compose_file: str,
+    skip_ui: bool = False,
 ) -> int:
     if clean_stack:
         bring_up_clean_stack(compose_file)
@@ -193,7 +194,8 @@ def run(
         check_health(client)
         check_managers(client)
         check_chat(client)
-    check_ui(ui_url, timeout_s)
+    if not skip_ui:
+        check_ui(ui_url, timeout_s)
     return 0
 
 
@@ -225,14 +227,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Probe an already-running stack and seed through the local Python environment.",
     )
+    parser.add_argument(
+        "--skip-ui",
+        action="store_true",
+        help="Skip the Streamlit UI probe (for headless CI that does not start the UI).",
+    )
     args = parser.parse_args(argv)
+    run_kwargs: dict[str, Any] = {
+        "clean_stack": not args.skip_stack_start,
+        "compose_file": args.compose_file,
+    }
+    # Forward --skip-ui only when set so run() stays callable with its default-off arg.
+    if args.skip_ui:
+        run_kwargs["skip_ui"] = True
     try:
         run(
             args.base_url,
             args.ui_url,
             args.timeout,
-            clean_stack=not args.skip_stack_start,
-            compose_file=args.compose_file,
+            **run_kwargs,
         )
     except ReadinessError as exc:
         print(f"readiness smoke FAILED: {exc}", file=sys.stderr)

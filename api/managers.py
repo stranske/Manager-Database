@@ -147,6 +147,11 @@ def _ensure_manager_table(conn) -> None:
     conn.execute("SELECT 1 FROM managers LIMIT 1")
 
 
+def _manager_id_column(conn) -> str:
+    """Return the manager primary-key column for the active database backend."""
+    return "id" if isinstance(conn, sqlite3.Connection) else "manager_id"
+
+
 def _json_array(raw: object) -> list[str]:
     if raw is None:
         return []
@@ -316,10 +321,11 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
         conn.commit()
         lastrowid = cursor.lastrowid
         return int(lastrowid) if lastrowid is not None else 0
+    id_column = _manager_id_column(conn)
     cursor = conn.execute(
         (
             "INSERT INTO managers(name, cik, lei, aliases, jurisdictions, tags, registry_ids) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb) RETURNING id"
+            f"VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb) RETURNING {id_column}"
         ),
         (
             payload.name,
@@ -370,8 +376,9 @@ def _update_manager(conn, manager_id: int, payload: ManagerUpdate) -> bool:
     set_clauses.append("updated_at = CURRENT_TIMESTAMP")
     params.append(manager_id)
 
+    id_column = _manager_id_column(conn)
     cursor = conn.execute(
-        f"UPDATE managers SET {', '.join(set_clauses)} WHERE id = {placeholder}",
+        f"UPDATE managers SET {', '.join(set_clauses)} WHERE {id_column} = {placeholder}",
         params,
     )
     if isinstance(conn, sqlite3.Connection):
@@ -382,7 +389,8 @@ def _update_manager(conn, manager_id: int, payload: ManagerUpdate) -> bool:
 def _delete_manager(conn, manager_id: int) -> bool:
     """Delete a manager by id and return whether a row was removed."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-    cursor = conn.execute(f"DELETE FROM managers WHERE id = {placeholder}", (manager_id,))
+    id_column = _manager_id_column(conn)
+    cursor = conn.execute(f"DELETE FROM managers WHERE {id_column} = {placeholder}", (manager_id,))
     if isinstance(conn, sqlite3.Connection):
         conn.commit()
     return cursor.rowcount > 0
@@ -440,10 +448,11 @@ def _fetch_managers(
         params.append(tag)
     where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     params.extend([limit, offset])
+    id_column = _manager_id_column(conn)
     cursor = conn.execute(
-        f"SELECT id, name, cik, lei, aliases, jurisdictions, tags, registry_ids, created_at, updated_at "
+        f"SELECT {id_column}, name, cik, lei, aliases, jurisdictions, tags, registry_ids, created_at, updated_at "
         f"FROM managers {where_clause} "
-        f"ORDER BY id LIMIT {placeholder} OFFSET {placeholder}",
+        f"ORDER BY {id_column} LIMIT {placeholder} OFFSET {placeholder}",
         params,
     )
     return cursor.fetchall()
@@ -453,10 +462,11 @@ def _fetch_managers(
 def _fetch_manager(conn, db_identity: str, manager_id: int) -> tuple[object, ...] | None:
     """Return a single manager row by id."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    id_column = _manager_id_column(conn)
     cursor = conn.execute(
         (
-            f"SELECT id, name, cik, lei, aliases, jurisdictions, tags, registry_ids, created_at, updated_at "
-            f"FROM managers WHERE id = {placeholder}"
+            f"SELECT {id_column}, name, cik, lei, aliases, jurisdictions, tags, registry_ids, created_at, updated_at "
+            f"FROM managers WHERE {id_column} = {placeholder}"
         ),
         (manager_id,),
     )

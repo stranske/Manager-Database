@@ -884,3 +884,68 @@ def test_manager_delete_returns_404_for_missing_id(tmp_path, monkeypatch):
     delete_resp = asyncio.run(_delete_manager(999))
     assert delete_resp.status_code == 404
     assert delete_resp.json()["detail"] == "Manager not found"
+
+
+class _Cursor:
+    def __init__(self, rows: list[tuple[Any, ...]] | None = None, rowcount: int = 1) -> None:
+        self._rows = rows or []
+        self.rowcount = rowcount
+
+    def fetchone(self) -> tuple[Any, ...] | None:
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        return self._rows
+
+
+class _PostgresLikeConn:
+    def __init__(self) -> None:
+        self.executed: list[tuple[str, Any]] = []
+        self.committed = False
+
+    def execute(self, sql: str, params: Any = None) -> _Cursor:
+        normalized = " ".join(sql.split())
+        self.executed.append((normalized, params))
+        return _Cursor([(123,)], rowcount=1)
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+def test_manager_postgres_queries_use_canonical_manager_id_column():
+    conn = _PostgresLikeConn()
+
+    managers_module._fetch_managers(conn, "postgres://test", 25, 0, None, None)
+    managers_module._fetch_manager(conn, "postgres://test", 123)
+    managers_module._delete_manager(conn, 123)
+
+    statements = [sql for sql, _params in conn.executed]
+    assert statements[0].startswith("SELECT manager_id, name")
+    assert "ORDER BY manager_id" in statements[0]
+    assert "WHERE manager_id = %s" in statements[1]
+    assert statements[2] == "DELETE FROM managers WHERE manager_id = %s"
+
+
+def test_manager_postgres_writes_return_and_filter_by_manager_id():
+    conn = _PostgresLikeConn()
+
+    created_id = managers_module._insert_manager(
+        conn,
+        managers_module.ManagerCreate(
+            name="Elliott Investment Management L.P.",
+            cik="0001791786",
+            jurisdictions=["us"],
+            tags=["activist"],
+        ),
+    )
+    updated = managers_module._update_manager(
+        conn,
+        123,
+        managers_module.ManagerUpdate(tags=["activist", "event-driven"]),
+    )
+
+    statements = [sql for sql, _params in conn.executed]
+    assert created_id == 123
+    assert updated is True
+    assert "RETURNING manager_id" in statements[0]
+    assert "WHERE manager_id = %s" in statements[1]

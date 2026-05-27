@@ -314,3 +314,41 @@ def test_run_waits_for_api_health_before_in_compose_seed(monkeypatch):
 
     assert readiness_smoke.run("http://test", "http://ui", 1.0, True, "compose.yml") == 0
     assert calls[:4] == ["clean:compose.yml", "health", "health", "seed:compose.yml:True"]
+
+
+def test_skip_ui_flag_bypasses_ui_probe(monkeypatch):
+    calls: list[str] = []
+    original_client = httpx.Client
+
+    monkeypatch.setattr(
+        readiness_smoke,
+        "seed_local_readiness_data",
+        lambda compose_file, *, in_compose=False: calls.append(f"seed:{compose_file}:{in_compose}"),
+    )
+
+    def fail_check_ui(ui_url: str, timeout_s: float) -> None:
+        raise AssertionError("check_ui must not run when --skip-ui is set")
+
+    monkeypatch.setattr(readiness_smoke, "check_ui", fail_check_ui)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health/detailed":
+            return _ok_health()
+        if request.url.path == "/managers":
+            return _ok_managers()
+        if request.url.path == "/chat":
+            return _ok_chat()
+        raise AssertionError(f"unexpected path {request.url.path!r}")
+
+    monkeypatch.setattr(
+        readiness_smoke.httpx,
+        "Client",
+        lambda *args, **kwargs: original_client(
+            transport=httpx.MockTransport(handler), base_url="http://test"
+        ),
+    )
+
+    assert (
+        readiness_smoke.main(["--skip-stack-start", "--skip-ui", "--base-url", "http://test"]) == 0
+    )
+    assert calls == ["seed:docker-compose.yml:False"]

@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Callable
+from pathlib import Path
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 READINESS_DOC_TEXT = "Readiness smoke deterministic fact: manager universe bootstrap is healthy."
 READINESS_DOC_FILENAME = "readiness-smoke-note.txt"

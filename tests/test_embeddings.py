@@ -5,7 +5,9 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from embeddings import (
+    PGVECTOR_DIMENSIONS,
     _is_postgres_connection,
+    _pgvector_embedding,
     _postgres_columns,
     _sqlite_columns,
     embed_text,
@@ -253,6 +255,25 @@ def test_embed_text_uses_model_when_available(monkeypatch):
     assert embed_text("hello") == [1.0, 2.0]
 
 
+def test_pgvector_embedding_pads_simple_mode_to_schema_width(monkeypatch):
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+
+    vec = _pgvector_embedding("aaab")
+
+    assert len(vec) == PGVECTOR_DIMENSIONS
+    assert sum(vec) == 1.0
+    assert vec[0] > vec[1]
+    assert all(value == 0.0 for value in vec[26:])
+
+
+def test_pgvector_embedding_truncates_oversized_model_vectors(monkeypatch):
+    monkeypatch.setattr("embeddings.embed_text", lambda _text: [1.0] * (PGVECTOR_DIMENSIONS + 1))
+
+    vec = _pgvector_embedding("hello")
+
+    assert len(vec) == PGVECTOR_DIMENSIONS
+
+
 def test_connection_dialect_detection_matches_adapter_branching(tmp_path):
     sqlite_conn = sqlite3.connect(tmp_path / "dev.db")
 
@@ -367,6 +388,7 @@ def test_store_and_search_pgvector(monkeypatch):
     ]
     assert conn.committed is True
     assert conn.closed is True
+    assert any("d.embedding <=> %s::vector AS dist" in sql for sql, _params in conn.executed)
 
 
 def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeypatch):
@@ -514,7 +536,12 @@ def test_search_documents_postgres_without_registered_vector_uses_percent_placeh
             "distance": 0.25,
         }
     ]
-    assert conn.executed[0][1] == ([0.1, 0.9], 99, 1)
+    qvec, manager_id, limit = conn.executed[0][1]
+    assert "d.embedding <=> %s::vector AS dist" in conn.executed[0][0]
+    assert qvec[:2] == [0.1, 0.9]
+    assert len(qvec) == PGVECTOR_DIMENSIONS
+    assert manager_id == 99
+    assert limit == 1
     assert conn.closed is True
 
 
