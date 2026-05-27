@@ -1,5 +1,24 @@
 # Workloop State
 
+## 2026-05-27T04:59Z - closer repaired PR #1076 mypy failure
+
+- Automation: `imi-merge-verify-closer` (codex closer lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: [#1075](https://github.com/stranske/Manager-Database/issues/1075).
+- PR: [#1076](https://github.com/stranske/Manager-Database/pull/1076) on `codex/issue-1075-filing-summary-postgres`.
+- Discovery:
+  - Fresh fleet sweep selected this as the only open in-scope issue-linked PR after confirming LMS #145/#106 still lacks a durable Provider Comparison Report.
+  - PR #1076 had zero review threads and green Postgres chain integration, but `Python CI / typecheck-mypy` failed on head `1edfa4a`.
+- Fix:
+  - Added an explicit `RunnableLambda[Any, str]` annotation to the new filing-summary Postgres test LLM fixture, resolving `tests/test_chain_postgres_integration.py:295: Need type annotation for "llm"`.
+- Validation:
+  - `uv run mypy tests/test_chain_postgres_integration.py` -> success.
+  - `uv run pytest tests/test_chain_postgres_integration.py::test_filing_summary_chain_postgres -v` -> 1 skipped cleanly without `MGRDB_PG_TEST_URL`.
+  - `uv run pytest tests/test_filing_summary_chain.py -v` -> 12 passed.
+  - `uv run ruff check tests/test_chain_postgres_integration.py && uv run ruff format --check tests/test_chain_postgres_integration.py` -> pass.
+  - `uv run mypy .` was also attempted and still reports pre-existing unrelated errors in `adapters/asic.py`, `etl/digest_flow.py`, and `etl/evaluation_flow.py`; the CI failure file now passes focused mypy.
+- Next action: push the fix commit to #1076, then recheck CI. Merge once required checks are green, apply `verify:compare`, and keep #1075 open until durable verifier PASS.
+
 ## 2026-05-27T04:20Z - opener opened FilingSummaryChain Postgres coverage PR
 
 - Automation: `pd-workloop-resume` (codex opener lane).

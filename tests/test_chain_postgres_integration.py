@@ -292,7 +292,7 @@ def test_holdings_analysis_postgres(pg_conn: PgFixture) -> None:
 
 def test_filing_summary_chain_postgres(pg_conn: PgFixture) -> None:
     seed = pg_conn.seed
-    llm = RunnableLambda(
+    llm: RunnableLambda[Any, str] = RunnableLambda(
         lambda _payload: json.dumps(
             {
                 "manager_name": SEEDED_MANAGER_NAME,
