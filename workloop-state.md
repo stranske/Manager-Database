@@ -1,5 +1,56 @@
 # Workloop State
 
+## 2026-05-27T04:59Z - closer repaired PR #1076 mypy failure
+
+- Automation: `imi-merge-verify-closer` (codex closer lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: [#1075](https://github.com/stranske/Manager-Database/issues/1075).
+- PR: [#1076](https://github.com/stranske/Manager-Database/pull/1076) on `codex/issue-1075-filing-summary-postgres`.
+- Discovery:
+  - Fresh fleet sweep selected this as the only open in-scope issue-linked PR after confirming LMS #145/#106 still lacks a durable Provider Comparison Report.
+  - PR #1076 had zero review threads and green Postgres chain integration, but `Python CI / typecheck-mypy` failed on head `1edfa4a`.
+- Fix:
+  - Added an explicit `RunnableLambda[Any, str]` annotation to the new filing-summary Postgres test LLM fixture, resolving `tests/test_chain_postgres_integration.py:295: Need type annotation for "llm"`.
+- Validation:
+  - `uv run mypy tests/test_chain_postgres_integration.py` -> success.
+  - `uv run pytest tests/test_chain_postgres_integration.py::test_filing_summary_chain_postgres -v` -> 1 skipped cleanly without `MGRDB_PG_TEST_URL`.
+  - `uv run pytest tests/test_filing_summary_chain.py -v` -> 12 passed.
+  - `uv run ruff check tests/test_chain_postgres_integration.py && uv run ruff format --check tests/test_chain_postgres_integration.py` -> pass.
+  - `uv run mypy .` was also attempted and still reports pre-existing unrelated errors in `adapters/asic.py`, `etl/digest_flow.py`, and `etl/evaluation_flow.py`; the CI failure file now passes focused mypy.
+- Next action: push the fix commit to #1076, then recheck CI. Merge once required checks are green, apply `verify:compare`, and keep #1075 open until durable verifier PASS.
+
+## 2026-05-27T04:20Z - opener opened FilingSummaryChain Postgres coverage PR
+
+- Automation: `pd-workloop-resume` (codex opener lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: [#1075](https://github.com/stranske/Manager-Database/issues/1075) `Add FilingSummaryChain to Postgres integration test suite in test_chain_postgres_integration.py` (`repo-review-approved`, `priority:normal`).
+- PR: [#1076](https://github.com/stranske/Manager-Database/pull/1076) `Issue #1075: Add FilingSummaryChain Postgres integration test`.
+- Branch: `codex/issue-1075-filing-summary-postgres` from `origin/main`.
+- Selection:
+  - ACTION A succeeded from the neutral Code workspace; no global pause, pending pause review, key PR pressure, or scoped blockers.
+  - Cap/discovery ran across supported repos. Initial cap-health was below cap with LMS #145 active/draining; opener-repair made no pre-selection repairs.
+  - The approved high-priority trip-planner queue item was already completed by trip-planner #1235 / merged PR #1236; duplicate materialized issue #1237 was closed with evidence.
+  - No matching Manager-Database issue or PR existed for the next approved normal-priority queue item, so issue #1075 was materialized and selected.
+- Implementation:
+  - Added `FilingSummary` / `FilingSummaryChain` to `tests/test_chain_postgres_integration.py`.
+  - Added `test_filing_summary_chain_postgres`, using the existing `pg_conn` seed rows and `FakeLLM`, then asserting the result is a `FilingSummary` for seeded manager `Elliott` with at least one position.
+- Validation:
+  - `pytest tests/test_chain_postgres_integration.py::test_filing_summary_chain_postgres -v` -> 1 skipped cleanly without `MGRDB_PG_TEST_URL`.
+  - `pytest tests/test_filing_summary_chain.py -v` -> 12 passed.
+  - `ruff check tests/test_chain_postgres_integration.py` -> passed.
+  - `ruff format --check tests/test_chain_postgres_integration.py` -> passed.
+  - `rg "FilingSummaryChain" tests/test_chain_postgres_integration.py` -> import and test body references.
+  - Live Postgres validation was not run locally because no `MGRDB_PG_TEST_URL` service was configured; CI owns the live `Postgres chain integration` job.
+- Post-open routing:
+  - PR #1076 opened non-draft with labels `agent:codex`, `agents:keepalive`, `autofix`, `repo-review-approved`, `priority:normal`; infra repair added `agent:retry` and dispatched Gate Followups.
+  - Fresh cap-health at `2026-05-27T04:20:29Z`: raw cap below 5, #1076 `draining` with active Gate evidence.
+- Related cap recovery:
+  - LMS #145 was recovered in the same opener round by rebasing its branch onto LMS #144/main and repointing the case work-products migration to the merged LLM-feedback/revision-requests head. Exact failing migration tests passed locally and branch was force-pushed with lease.
+- Relay:
+  - `issue_created active.source_repo=stranske/Manager-Database active.source_issue=1075`.
+  - `pr_opened active.source_pr=1076 active.next_action=wait_for_keepalive`.
+- Next action: keepalive owns CI/check follow-up for PR #1076.
+
 ## 2026-05-13T20:05Z - opener opened Postgres chain integration PR
 
 - Automation: `pd-workloop-resume` (codex opener lane).
