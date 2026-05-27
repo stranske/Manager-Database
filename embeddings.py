@@ -254,7 +254,7 @@ def search_documents(
         params.append(k)
         rows = conn.execute(
             (
-                "SELECT d.doc_id, d.text, d.kind, d.filename, m.name, d.embedding <=> %s AS dist "
+                "SELECT d.doc_id, d.text, d.kind, d.filename, m.name, d.embedding <=> %s::vector AS dist "
                 "FROM documents d LEFT JOIN managers m ON d.manager_id = m.manager_id "
                 f"{where_clause} "
                 "ORDER BY dist LIMIT %s"

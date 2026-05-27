@@ -388,6 +388,7 @@ def test_store_and_search_pgvector(monkeypatch):
     ]
     assert conn.committed is True
     assert conn.closed is True
+    assert any("d.embedding <=> %s::vector AS dist" in sql for sql, _params in conn.executed)
 
 
 def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeypatch):
@@ -536,6 +537,7 @@ def test_search_documents_postgres_without_registered_vector_uses_percent_placeh
         }
     ]
     qvec, manager_id, limit = conn.executed[0][1]
+    assert "d.embedding <=> %s::vector AS dist" in conn.executed[0][0]
     assert qvec[:2] == [0.1, 0.9]
     assert len(qvec) == PGVECTOR_DIMENSIONS
     assert manager_id == 99
