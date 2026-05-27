@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 from langchain_core.runnables import RunnableLambda
 
+from chains.filing_summary import FilingSummary, FilingSummaryChain
 from chains.holdings_analysis import HoldingsAnalysisChain
 from chains.nl_query import NLQueryChain
 from chains.rag_search import RAGSearchChain
@@ -287,6 +288,32 @@ def test_holdings_analysis_postgres(pg_conn: PgFixture) -> None:
     )
 
     assert result.thesis == "ok"
+
+
+def test_filing_summary_chain_postgres(pg_conn: PgFixture) -> None:
+    seed = pg_conn.seed
+    llm = FakeLLM(
+        json.dumps(
+            {
+                "manager_name": SEEDED_MANAGER_NAME,
+                "filing_date": "2026-04-15",
+                "total_positions": 1,
+                "total_aum_estimate": "$150.00K",
+                "key_positions": [{"cusip": SEEDED_CUSIP, "value_usd": 150000.0}],
+                "notable_changes": ["Seeded Apple holding present."],
+                "sector_concentration": [{"sector": "Unknown", "weight": 1.0}],
+                "risk_flags": [],
+            }
+        )
+    )
+    client_info = ClientInfo(client=llm, provider="test-provider", model="test-model")
+    chain = FilingSummaryChain(client_info=client_info, db_conn=pg_conn.conn)
+
+    result = chain.run(seed["filing_id"])
+
+    assert isinstance(result, FilingSummary)
+    assert result.manager_name == SEEDED_MANAGER_NAME
+    assert result.total_positions >= 1
 
 
 def _assert_to_regclass_reachable(conn: Any) -> None:
