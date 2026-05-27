@@ -292,8 +292,8 @@ def test_holdings_analysis_postgres(pg_conn: PgFixture) -> None:
 
 def test_filing_summary_chain_postgres(pg_conn: PgFixture) -> None:
     seed = pg_conn.seed
-    llm = FakeLLM(
-        json.dumps(
+    llm = RunnableLambda(
+        lambda _payload: json.dumps(
             {
                 "manager_name": SEEDED_MANAGER_NAME,
                 "filing_date": "2026-04-15",
