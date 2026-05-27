@@ -114,16 +114,23 @@ jobs:
             -e MINIO_ROOT_USER="$MINIO_ROOT_USER" \
             -e MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
             minio/minio:RELEASE.2025-05-24T17-08-30Z server /data --console-address ":9001"
+          minio_ready=0
           for _ in $(seq 1 30); do
             if curl -sf http://localhost:9000/minio/health/live >/dev/null; then
-              echo "MinIO ready"; break
+              echo "MinIO ready"; minio_ready=1; break
             fi
             sleep 2
           done
+          if [ "$minio_ready" -ne 1 ]; then
+            echo "MinIO did not become healthy within 60s" >&2
+            docker logs minio >&2 || true
+            exit 1
+          fi
       - name: Start API and run readiness smoke
         run: |
           uvicorn api.chat:app --host 0.0.0.0 --port 8000 &
           api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
           ready=0
           for _ in $(seq 1 30); do
             if curl -sf http://localhost:8000/health/detailed >/dev/null; then
@@ -133,11 +140,7 @@ jobs:
           done
           if [ "$ready" -ne 1 ]; then
             echo "API did not become healthy within 60s" >&2
-            kill "$api_pid" 2>/dev/null || true
             exit 1
           fi
           python scripts/seed_readiness_data.py
           python scripts/readiness_smoke.py --skip-stack-start --skip-ui --base-url http://localhost:8000
-          status=$?
-          kill "$api_pid" 2>/dev/null || true
-          exit "$status"

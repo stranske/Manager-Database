@@ -14,6 +14,7 @@ from typing import Any
 from adapters.base import connect_db
 
 MODEL: Any | None
+PGVECTOR_DIMENSIONS = 384
 
 try:  # heavy optional dependency
     from sentence_transformers import SentenceTransformer
@@ -46,6 +47,16 @@ def embed_text(text: str) -> list[float]:
         return _simple_embed(text)
     vec = MODEL.encode(text)
     return vec.tolist()
+
+
+def _pgvector_embedding(text: str) -> list[float]:
+    """Return an embedding that matches the Postgres documents vector width."""
+    vec = embed_text(text)
+    if len(vec) == PGVECTOR_DIMENSIONS:
+        return vec
+    if len(vec) > PGVECTOR_DIMENSIONS:
+        return vec[:PGVECTOR_DIMENSIONS]
+    return [*vec, *([0.0] * (PGVECTOR_DIMENSIONS - len(vec)))]
 
 
 def _is_postgres_connection(conn: Any) -> bool:
@@ -112,7 +123,8 @@ def store_document(
         columns = _postgres_columns(conn, "documents")
         id_col = "doc_id" if "doc_id" in columns else "id"
         text_col = "text" if "text" in columns else "content"
-        emb = Vector(embed_text(text)) if register_vector else embed_text(text)
+        emb_vec = _pgvector_embedding(text)
+        emb = Vector(emb_vec) if register_vector else emb_vec
         insert_cols: list[str] = []
         insert_values: list[Any] = []
         if "manager_id" in columns:
@@ -231,9 +243,9 @@ def search_documents(
     if is_pg:
         if register_vector:
             register_vector(conn)
-            qvec = Vector(embed_text(query))
+            qvec = Vector(_pgvector_embedding(query))
         else:
-            qvec = embed_text(query)
+            qvec = _pgvector_embedding(query)
         where_clause = ""
         params: list[Any] = [qvec]
         if manager_id is not None:
