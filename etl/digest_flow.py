@@ -20,6 +20,7 @@ from adapters.base import connect_db
 from alerts.channels import DeliveryResult, send_email_message_via_smtp
 from alerts.db import deserialize_json_object
 from etl.logging_setup import configure_logging, log_outcome
+from tools.run_contract import new_run_id, write_artifact_bundle
 
 configure_logging("digest_flow")
 logger = logging.getLogger(__name__)
@@ -415,8 +416,16 @@ async def digest_flow(
 
     rendered = render_digest_plain_text(digest)
     resolved_output = output_path or os.getenv("DIGEST_OUTPUT_PATH")
+    artifacts: list[dict[str, Any]] = []
     if resolved_output:
         Path(resolved_output).write_text(rendered, encoding="utf-8")
+    else:
+        artifacts = write_artifact_bundle(
+            new_run_id(),
+            "digest",
+            {"digest.txt": rendered},
+            inputs={"lookback_hours": resolved_lookback},
+        )
 
     delivery = await deliver_digest_email(digest, dry_run=resolved_dry_run)
     log_outcome(
@@ -446,6 +455,7 @@ async def digest_flow(
             "error_message": delivery.error_message,
         },
         "rendered": rendered,
+        "artifacts": artifacts,
     }
 
 

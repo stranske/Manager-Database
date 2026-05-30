@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import datetime as dt
+import io
 import logging
 import os
 import sqlite3
@@ -13,10 +15,12 @@ from prefect.schedules import Cron
 from adapters.base import connect_db
 from diff_holdings import diff_holdings
 from etl.logging_setup import configure_logging, log_outcome
-from tools.run_contract import RunResult
+from tools.run_contract import RunResult, new_run_id, write_artifact_bundle
 
 configure_logging("daily_diff_flow")
 logger = logging.getLogger(__name__)
+
+DAILY_DIFF_ARTIFACT_TOOL = "daily" "_diff"
 
 
 def _placeholder(conn: Any) -> str:
@@ -132,6 +136,31 @@ def _fetch_all_manager_ids(conn: Any) -> list[int]:
     return [r[0] for r in rows]
 
 
+def _daily_diff_csv(conn: Any, report_date: str) -> str:
+    """Return the current report date's persisted deltas as CSV."""
+    ph = _placeholder(conn)
+    rows = conn.execute(
+        "SELECT cusip, name_of_issuer, delta_type, shares_prev, shares_curr, "
+        "value_prev, value_curr FROM daily_diffs WHERE report_date = "
+        f"{ph} ORDER BY cusip, delta_type",
+        (report_date,),
+    ).fetchall()
+    headers = [
+        "cusip",
+        "name_of_issuer",
+        "delta_type",
+        "shares_prev",
+        "shares_curr",
+        "value_prev",
+        "value_curr",
+    ]
+    output = io.StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return output.getvalue()
+
+
 @task
 def compute_manager_diffs(manager_id: int, report_date: str, conn: Any) -> int:
     """Compute and store diffs for a single manager. Returns change count."""
@@ -152,6 +181,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
     start = time.perf_counter()
     conn = connect_db()
     report_date = date or str(dt.date.today() - dt.timedelta(days=1))
+    run_id = new_run_id()
 
     try:
         _ensure_daily_diffs_table(conn)
@@ -159,7 +189,14 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
 
         if not manager_ids:
             logger.warning("No managers found in database")
+            artifacts = write_artifact_bundle(
+                run_id,
+                DAILY_DIFF_ARTIFACT_TOOL,
+                {"deltas.csv": _daily_diff_csv(conn, report_date)},
+                inputs={"date": report_date},
+            )
             return RunResult(
+                run_id=run_id,
                 tool="daily_diff_flow",
                 inputs={"date": report_date},
                 outputs={
@@ -167,6 +204,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
                     "managers_skipped": 0,
                     "total_changes": 0,
                 },
+                artifacts=artifacts,
                 warnings=["No managers found in database"],
                 latency_ms=int((time.perf_counter() - start) * 1000),
                 status="success",
@@ -231,7 +269,15 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
             },
         )
 
+        artifacts = write_artifact_bundle(
+            run_id,
+            DAILY_DIFF_ARTIFACT_TOOL,
+            {"deltas.csv": _daily_diff_csv(conn, report_date)},
+            inputs={"date": report_date},
+        )
+
         return RunResult(
+            run_id=run_id,
             tool="daily_diff_flow",
             inputs={"date": report_date},
             outputs={
@@ -239,6 +285,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
                 "managers_skipped": managers_skipped,
                 "total_changes": total_changes,
             },
+            artifacts=artifacts,
             warnings=warnings,
             latency_ms=int((time.perf_counter() - start) * 1000),
             status="success",
