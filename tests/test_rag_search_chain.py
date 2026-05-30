@@ -169,6 +169,22 @@ def test_document_excerpt_carried(monkeypatch):
     conn.close()
 
 
+def test_evidence_model_json_and_legacy_fields_from_locator():
+    evidence = Evidence(
+        source_id="filing:11",
+        source_type="filing",
+        locator={"filing_id": "11", "url": "https://example.com/filings/11"},
+        excerpt="13F-HR filed 2026-03-01",
+        method="db_lookup",
+        confidence=0.85,
+    )
+
+    payload = evidence.model_dump()
+    assert payload["filing_id"] == 11
+    assert payload["url"] == "https://example.com/filings/11"
+    assert '"source_id":"filing:11"' in evidence.model_dump_json()
+
+
 def test_run_returns_low_confidence_without_context(monkeypatch):
     conn = _build_db()
     chain = RAGSearchChain(db_conn=conn)
