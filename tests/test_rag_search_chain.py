@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from chains.evidence import Evidence
 from chains.rag_search import RAGSearchChain
 from llm.injection import PromptInjectionError
 
@@ -114,6 +115,85 @@ def test_run_combines_vector_and_structured_context(monkeypatch):
     assert any(source.get("filing_id") == 11 for source in result["sources"])
     assert llm.prompts and "Structured data" in llm.prompts[0]
     conn.close()
+
+
+def test_sources_are_evidence_objects(monkeypatch):
+    conn = _build_db()
+    chain = RAGSearchChain(llm=FakeLLM("Evidence answer."), db_conn=conn)
+    monkeypatch.setattr(
+        "chains.rag_search.search_documents",
+        lambda query, k=5, manager_id=None: [
+            {
+                "doc_id": "doc-live-1",
+                "content": "Apple Inc remained a top holding for Elliott.",
+                "filename": "elliott-apple-note.md",
+                "kind": "memo",
+            }
+        ],
+    )
+
+    documents = chain._vector_search("What does Elliott hold?")
+    _document_context, document_sources = chain._document_context(documents)
+    _structured_context, structured_sources = chain._structured_search(
+        {"manager_ids": [1], "cusips": [], "keywords": [], "date_range": None}
+    )
+    result = chain.run("What does Elliott hold?")
+
+    direct_sources = document_sources + structured_sources
+    assert direct_sources
+    assert all(isinstance(source, Evidence) for source in direct_sources)
+    for source in result["sources"]:
+        assert source["source_id"]
+        assert source["excerpt"]
+        assert source["method"] in {"vector_search", "db_lookup"}
+        assert 0.0 <= source["confidence"] <= 1.0
+    conn.close()
+
+
+def test_document_excerpt_carried(monkeypatch):
+    conn = _build_db()
+    chain = RAGSearchChain(llm=FakeLLM("Evidence answer."), db_conn=conn)
+    document_text = "A" * 450
+    monkeypatch.setattr(
+        "chains.rag_search.search_documents",
+        lambda query, k=5, manager_id=None: [
+            {"doc_id": "doc-live-1", "content": document_text, "filename": "note.md"}
+        ],
+    )
+
+    result = chain.run("What does Elliott hold?")
+    document_source = next(
+        source for source in result["sources"] if source["source_type"] == "document"
+    )
+    assert document_source["excerpt"] == document_text[:400]
+    conn.close()
+
+
+def test_evidence_model_json_and_legacy_fields_from_locator():
+    evidence = Evidence(
+        source_id="filing:11",
+        source_type="filing",
+        locator={"filing_id": "11", "url": "https://example.com/filings/11"},
+        excerpt="13F-HR filed 2026-03-01",
+        method="db_lookup",
+        confidence=0.85,
+    )
+
+    payload = evidence.model_dump()
+    assert payload["filing_id"] == 11
+    assert payload["url"] == "https://example.com/filings/11"
+    assert '"source_id":"filing:11"' in evidence.model_dump_json()
+
+
+def test_evidence_confidence_defaults_to_zero_when_omitted():
+    evidence = Evidence(
+        source_id="doc:1",
+        source_type="document",
+        excerpt="excerpt",
+        method="vector",
+    )
+
+    assert evidence.confidence == 0.0
 
 
 def test_run_returns_low_confidence_without_context(monkeypatch):
