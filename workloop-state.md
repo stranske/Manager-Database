@@ -1,5 +1,25 @@
 # Workloop State
 
+## 2026-05-30T09:18Z - opener selected issue #1084 offline WASM demo
+
+- Automation: `pd-workloop-resume` (codex opener lane).
+- Source repo: `stranske/Manager-Database`.
+- Source issue: [#1084](https://github.com/stranske/Manager-Database/issues/1084) `Ship a zero-egress, zero-install browser build of the deterministic analyst UI via stlite (Pyodide)` (`repo-review-approved`, `priority:high`).
+- Branch: `codex/issue-1084-wasm-demo` from `origin/main` (`f32e484`).
+- Selection: ACTION A succeeded; cap-health after repair showed one opener-owned PR (`Counter_Risk#658`) active-moving with fresh Gate evidence, raw cap below 5, and no non-drainable opener blocker. `Counter_Risk#649` was already linked to #658; `Inv-Man-Intake#469/#470/#473/#475` are merged-awaiting-verifier/source closure; `Inv-Man-Intake#474` depends on #473's headless entry point verifier/disposition. This issue was the next oldest unlinked high-priority candidate outside that dependency cone.
+- Implementation:
+  - Added `scripts/build_wasm_demo.py` to build a synthetic `web/manager_demo.sqlite` asset, copy the minimal Python import surface into `web/`, and seed managers/readiness document/holdings/diffs/news rows.
+  - Added `web/index.html` pinned to `@stlite/browser@0.80.4` and `web/wasm_app.py`, exposing Dashboard, Daily Report, Search, and Upload while excluding Research.
+  - Added `UI_OFFLINE=1` guard to Dashboard alert count loading and made `embeddings.py` skip sentence-transformers import entirely when `USE_SIMPLE_EMBED=1`.
+  - Documented the offline browser demo in `README_bootstrap.md` and linked it from `README.md`.
+- Validation:
+  - `python -m pytest tests/test_wasm_demo_build.py tests/test_seed_readiness_data.py tests/test_dashboard.py::test_load_unacknowledged_alert_count_uses_alerts_endpoint -q` -> 6 passed.
+  - `ruff check scripts/build_wasm_demo.py tests/test_wasm_demo_build.py ui/dashboard.py embeddings.py web/wasm_app.py` -> passed.
+  - `ruff format --check scripts/build_wasm_demo.py tests/test_wasm_demo_build.py ui/dashboard.py embeddings.py web/wasm_app.py` -> passed.
+  - `python scripts/build_wasm_demo.py /tmp/manager-wasm-demo-check-2` -> built SQLite bundle successfully without Hugging Face cache/model access.
+  - Broader `python -m pytest tests/test_ui_navigation.py tests/test_upload.py tests/test_search.py -q` was attempted and failed only because local environment lacks `pdfplumber`; failures are confined to existing PDF upload tests.
+- Next action: commit/push branch, open ready-for-review PR with `agent:codex`, `agents:keepalive`, and `autofix`; keepalive owns CI and any browser screenshot follow-up.
+
 ## 2026-05-27T04:59Z - closer repaired PR #1076 mypy failure
 
 - Automation: `imi-merge-verify-closer` (codex closer lane).
