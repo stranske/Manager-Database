@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 
 import httpx
@@ -69,3 +70,42 @@ def test_wasm_demo_excludes_research_page(monkeypatch, tmp_path):
     assert len(_build_offline_pages()) == len(OFFLINE_PAGE_TITLES)
     assert OFFLINE_PAGE_TITLES == ["Dashboard", "Daily Report", "Search", "Upload"]
     assert "Research" not in " ".join(OFFLINE_PAGE_TITLES)
+
+
+def test_wasm_app_main_sets_offline_environment(monkeypatch, tmp_path):
+    db_path = build_wasm_demo(tmp_path / "web")
+    monkeypatch.chdir(db_path.parent)
+    monkeypatch.delenv("DB_PATH", raising=False)
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.delenv("UI_OFFLINE", raising=False)
+    monkeypatch.delenv("USE_SIMPLE_EMBED", raising=False)
+
+    from web import wasm_app
+
+    class FakeNavigation:
+        def __init__(self):
+            self.ran = False
+
+        def run(self):
+            self.ran = True
+
+    captured = {}
+
+    def fake_navigation(pages, *, position):
+        captured["pages"] = pages
+        captured["position"] = position
+        captured["navigation"] = FakeNavigation()
+        return captured["navigation"]
+
+    monkeypatch.setattr(wasm_app.st, "navigation", fake_navigation)
+    wasm_app.main()
+
+    assert captured["position"] == "sidebar"
+    assert len(captured["pages"]) == len(wasm_app.OFFLINE_PAGE_TITLES)
+    assert captured["navigation"].ran is True
+    assert os.environ["DB_PATH"].endswith("manager_demo.sqlite")
+    assert os.environ["UI_OFFLINE"] == "1"
+    assert os.environ["USE_SIMPLE_EMBED"] == "1"
+    assert "DB_URL" not in os.environ
+    for name in ("DB_PATH", "UI_OFFLINE", "USE_SIMPLE_EMBED"):
+        os.environ.pop(name, None)
