@@ -99,6 +99,59 @@ def test_diff_holdings_returns_structured_four_delta_types():
     ]
 
 
+@pytest.mark.golden
+def test_diff_holdings_golden():
+    """Golden gate: the exact delta list for a fixture exercising all four branches.
+
+    Two filings per manager produce one of each ``delta_type``
+    (INCREASE/EXIT/ADD/DECREASE). Asserting the exact list pins the
+    classification logic in ``diff_holdings`` — e.g. swapping INCREASE/DECREASE
+    in ``_compare_optional`` handling makes this test fail.
+    """
+    conn = _setup_canonical_db()
+    rows = diff_holdings(1, conn).deltas
+    conn.close()
+
+    assert rows == [
+        {
+            "cusip": "AAA",
+            "name_of_issuer": "CorpA",
+            "delta_type": "INCREASE",
+            "shares_prev": 100,
+            "shares_curr": 120,
+            "value_prev": 1000,
+            "value_curr": 1200,
+        },
+        {
+            "cusip": "BBB",
+            "name_of_issuer": "CorpB",
+            "delta_type": "EXIT",
+            "shares_prev": 30,
+            "shares_curr": None,
+            "value_prev": 300,
+            "value_curr": None,
+        },
+        {
+            "cusip": "CCC",
+            "name_of_issuer": "CorpC",
+            "delta_type": "ADD",
+            "shares_prev": None,
+            "shares_curr": 40,
+            "value_prev": None,
+            "value_curr": 400,
+        },
+        {
+            "cusip": "EEE",
+            "name_of_issuer": "CorpE",
+            "delta_type": "DECREASE",
+            "shares_prev": 10,
+            "shares_curr": 8,
+            "value_prev": 100,
+            "value_curr": 80,
+        },
+    ]
+
+
 def test_diff_holdings_accepts_cik_lookup():
     """CIK string should resolve to the same results as integer manager_id."""
     conn = _setup_canonical_db()
