@@ -17,7 +17,11 @@ share a single correlation vocabulary (see
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -26,6 +30,48 @@ from pydantic import BaseModel, Field
 def new_run_id() -> str:
     """Return a fresh run identifier (uuid4 hex), matching ``ChatFleetContext.run_id``."""
     return uuid.uuid4().hex
+
+
+def write_artifact_bundle(
+    run_id: str,
+    tool: str,
+    files: dict[str, bytes | str],
+    *,
+    inputs: dict[str, Any] | None = None,
+    root: str | Path = "artifacts",
+) -> list[dict[str, Any]]:
+    """Write named local artifacts plus a re-hashable manifest."""
+    bundle_dir = Path(root) / tool / run_id
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+
+    refs: list[dict[str, Any]] = []
+    for name, content in files.items():
+        if Path(name).name != name:
+            raise ValueError(f"artifact name must be a plain file name: {name!r}")
+        payload = content.encode("utf-8") if isinstance(content, str) else content
+        path = bundle_dir / name
+        path.write_bytes(payload)
+        refs.append(
+            {
+                "name": name,
+                "path": str(path),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "bytes": len(payload),
+            }
+        )
+
+    manifest = {
+        "run_id": run_id,
+        "tool": tool,
+        "inputs": inputs or {},
+        "created_at": datetime.now(UTC).isoformat(),
+        "files": refs,
+    }
+    (bundle_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return refs
 
 
 class RunCost(BaseModel):
