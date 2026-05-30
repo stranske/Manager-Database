@@ -72,6 +72,33 @@ def test_chat_disabled_zone_returns_notice_not_503(monkeypatch):
     assert "disabled" in body["answer"].lower()
 
 
+def test_chat_disabled_zone_still_uses_rate_limit(monkeypatch):
+    limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=1, window_seconds=60)
+    monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setenv("LLM_ZONE", "disabled")
+
+    first = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json_body={"question": "first"},
+            headers={"x-session-id": "zone-disabled-limit"},
+        )
+    )
+    second = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json_body={"question": "second"},
+            headers={"x-session-id": "zone-disabled-limit"},
+        )
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.json() == {"detail": "Rate limit exceeded"}
+
+
 def test_chat_without_zone_still_requires_provider(monkeypatch):
     # Default zone: behaviour is unchanged — no provider still yields 503.
     monkeypatch.delenv("LLM_ZONE", raising=False)
@@ -90,14 +117,42 @@ def test_chat_without_zone_still_requires_provider(monkeypatch):
 
 
 def test_deterministic_surface_unaffected_when_zone_disabled(monkeypatch):
-    # The deterministic OpenAPI surface (no LLM dependency) still serves while
-    # the chat boundary is closed.
+    # The deterministic API surfaces still serve while the chat boundary is closed.
     monkeypatch.setenv("LLM_ZONE", "disabled")
+    monkeypatch.setattr(chat_api_module, "_ping_db", lambda _timeout: None)
+    monkeypatch.setattr(chat_api_module, "_ping_minio", lambda _timeout: None)
 
     response = asyncio.run(_request("GET", "/openapi.json"))
 
     assert response.status_code == 200
     assert "/api/chat" in response.json()["paths"]
+
+    health_response = asyncio.run(_request("GET", "/health/detailed"))
+    assert health_response.status_code == 200
+    assert health_response.json()["healthy"] is True
+
+
+def test_manager_route_unaffected_when_zone_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("LLM_ZONE", "disabled")
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "managers.db"))
+
+    create_response = asyncio.run(
+        _request(
+            "POST",
+            "/managers",
+            json_body={
+                "name": "Elliott Investment Management L.P.",
+                "cik": "0001791786",
+                "jurisdictions": ["us"],
+                "tags": ["activist"],
+            },
+        )
+    )
+    list_response = asyncio.run(_request("GET", "/managers"))
+
+    assert create_response.status_code == 201
+    assert list_response.status_code == 200
+    assert list_response.json()["items"][0]["name"] == "Elliott Investment Management L.P."
 
 
 def test_chat_zone_disabled_helper_reads_env(monkeypatch):

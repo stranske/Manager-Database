@@ -968,6 +968,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
     provider_name: str | None = None
     model_name: str | None = None
     try:
+        _enforce_chat_rate_limit(raw_request)
         if _chat_zone_disabled():
             latency_ms = int((time.perf_counter() - started) * 1000)
             _record_chat_fleet_safe(
@@ -979,7 +980,6 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
                 model=None,
                 latency_ms=latency_ms,
                 http_status=200,
-                error_category="llm_zone_disabled",
             )
             return ChatResponse(
                 answer=LLM_ZONE_DISABLED_MESSAGE,
@@ -991,7 +991,6 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
                 response_id=request_id,
                 chat_disabled=True,
             )
-        _enforce_chat_rate_limit(raw_request)
         client_info = _build_chat_client_info()
         if not client_info:
             raise HTTPException(

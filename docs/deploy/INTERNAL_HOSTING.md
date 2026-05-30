@@ -54,7 +54,8 @@ address if it differs from the compose default.
 ### Enforce auth on the hosted instance
 
 `require_login()` (`ui/__init__.py`) gates the UI. For the hosted instance set
-real credentials (no dev-bypass warning):
+real credentials (no dev-bypass warning). `docker-compose.yml` passes these
+host environment variables into the `ui` container:
 
 ```bash
 export UI_USERNAME="<analyst-username>"
@@ -78,6 +79,9 @@ instead of a crash.
 ```bash
 export LLM_ZONE=disabled
 ```
+
+`docker-compose.yml` passes `LLM_ZONE` into the `api` container and defaults it
+to `disabled` when the host variable is not set.
 
 ### Option B — authorized, no-train endpoint
 
