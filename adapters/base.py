@@ -147,8 +147,8 @@ async def tracked_call(
     cost_usd:
         Optional per-call cost. A ``float`` is recorded directly; a callable is
         invoked with the logged response and must return a ``float`` (e.g. a
-        per-byte or per-token rate). When ``None`` (the default, i.e. no rate
-        configured for the source) the recorded cost is ``0.0``.
+        per-byte or per-token rate). When no rate is configured, or no response
+        was logged before the call failed, the recorded cost is ``0.0``.
 
     Usage::
 
@@ -171,7 +171,7 @@ async def tracked_call(
         status = getattr(resp, "status_code", 0)
         size = len(getattr(resp, "content", b""))
         if callable(cost_usd):
-            computed_cost = float(cost_usd(resp))
+            computed_cost = float(cost_usd(resp)) if resp is not None else 0.0
         elif cost_usd is not None:
             computed_cost = float(cost_usd)
         else:
