@@ -56,7 +56,7 @@ def _setup_canonical_db() -> sqlite3.Connection:
 def test_diff_holdings_returns_structured_four_delta_types():
     """All four delta types must appear with correct values."""
     conn = _setup_canonical_db()
-    rows = diff_holdings(1, conn)
+    rows = diff_holdings(1, conn).deltas
     conn.close()
 
     assert rows == [
@@ -102,8 +102,8 @@ def test_diff_holdings_returns_structured_four_delta_types():
 def test_diff_holdings_accepts_cik_lookup():
     """CIK string should resolve to the same results as integer manager_id."""
     conn = _setup_canonical_db()
-    by_cik = diff_holdings("0000000000", conn)
-    by_id = diff_holdings(1, conn)
+    by_cik = diff_holdings("0000000000", conn).deltas
+    by_id = diff_holdings(1, conn).deltas
     conn.close()
     assert by_cik == by_id
 
@@ -111,7 +111,7 @@ def test_diff_holdings_accepts_cik_lookup():
 def test_diff_holdings_accepts_numeric_string_manager_id():
     """A digit-only string should be treated as a manager_id."""
     conn = _setup_canonical_db()
-    rows = diff_holdings("1", conn)
+    rows = diff_holdings("1", conn).deltas
     conn.close()
     assert len(rows) == 4  # Same 4 delta types as above
 
@@ -223,7 +223,7 @@ def test_diff_holdings_uses_default_connect_db_when_conn_missing(monkeypatch):
         diff_holdings_module, "_fetch_latest_sets", lambda _manager_id, _conn: ({}, {})
     )
 
-    rows = diff_holdings_module.diff_holdings("0000000000")
+    rows = diff_holdings_module.diff_holdings("0000000000").deltas
 
     assert rows == []
     assert calls == [None, "closed"]

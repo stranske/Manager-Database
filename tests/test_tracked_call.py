@@ -39,6 +39,28 @@ async def test_tracked_call_defaults_when_no_response(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_tracked_call_callable_cost_preserves_error_without_response(tmp_path: Path):
+    db_path = tmp_path / "dev.db"
+
+    def cost_from_response(resp):
+        raise AssertionError(f"cost callable should not receive {resp!r}")
+
+    with pytest.raises(RuntimeError, match="request failed before response"):
+        async with tracked_call(
+            "empty",
+            "http://none",
+            db_path=str(db_path),
+            cost_usd=cost_from_response,
+        ):
+            raise RuntimeError("request failed before response")
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute("SELECT source, endpoint, status, bytes, cost_usd FROM api_usage").fetchone()
+    conn.close()
+    assert row == ("empty", "http://none", 0, 0, 0.0)
+
+
+@pytest.mark.asyncio
 async def test_tracked_call_postgres_uses_strict_backend_safe_sql(monkeypatch):
     dummy = StrictPostgresConn()
     monkeypatch.setattr(base, "connect_db", lambda _db_path=None: dummy)

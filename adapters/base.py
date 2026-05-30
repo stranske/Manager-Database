@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from importlib import import_module
 from types import ModuleType
@@ -124,7 +125,13 @@ def _ensure_postgres_usage_schema(conn: Any) -> None:
 
 
 @asynccontextmanager
-async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None):
+async def tracked_call(
+    source: str,
+    endpoint: str,
+    *,
+    db_path: str | None = None,
+    cost_usd: float | Callable[[Any], float] | None = None,
+):
     """Record API usage metrics in the ``api_usage`` table.
 
     Parameters
@@ -137,6 +144,11 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
         Optional path to a database. If ``DB_URL`` is set and points to
         a Postgres instance, that URL is used instead; otherwise defaults
         to ``DB_PATH`` or ``dev.db``.
+    cost_usd:
+        Optional per-call cost. A ``float`` is recorded directly; a callable is
+        invoked with the logged response and must return a ``float`` (e.g. a
+        per-byte or per-token rate). When no rate is configured, or no response
+        was logged before the call failed, the recorded cost is ``0.0``.
 
     Usage::
 
@@ -158,6 +170,12 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
         latency = int((time.perf_counter() - start) * 1000)
         status = getattr(resp, "status_code", 0)
         size = len(getattr(resp, "content", b""))
+        if callable(cost_usd):
+            computed_cost = float(cost_usd(resp)) if resp is not None else 0.0
+        elif cost_usd is not None:
+            computed_cost = float(cost_usd)
+        else:
+            computed_cost = 0.0
         conn = connect_db(db_path)
         if isinstance(conn, sqlite3.Connection):
             _ensure_sqlite_usage_schema(conn)
@@ -170,7 +188,7 @@ async def tracked_call(source: str, endpoint: str, *, db_path: str | None = None
             "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd)"
             f" VALUES ({values_clause})"
         )
-        conn.execute(sql, (source, endpoint, status, size, latency, 0.0))
+        conn.execute(sql, (source, endpoint, status, size, latency, computed_cost))
         conn.commit()
         conn.close()
 
