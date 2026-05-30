@@ -16,12 +16,15 @@ from adapters.base import connect_db
 MODEL: Any | None
 PGVECTOR_DIMENSIONS = 384
 
-try:  # heavy optional dependency
-    from sentence_transformers import SentenceTransformer
-
-    MODEL = SentenceTransformer("all-MiniLM-L6-v2")
-except Exception:  # pragma: no cover - optional
+if os.getenv("USE_SIMPLE_EMBED") == "1":
     MODEL = None
+else:
+    try:  # heavy optional dependency
+        from sentence_transformers import SentenceTransformer
+
+        MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+    except Exception:  # pragma: no cover - optional
+        MODEL = None
 
 try:  # optional PGVector integration
     from pgvector.psycopg import Vector, register_vector

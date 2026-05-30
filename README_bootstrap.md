@@ -28,6 +28,24 @@ This repo provides a minimal stack to begin experimenting with the Manager-Intel
    `docker compose up -d etl` if you also want to exercise the ingest path.
 4. Run `pytest -q` to verify the rest of the test suite.
 
+### Offline browser demo
+
+The deterministic analyst pages can also be bundled for a zero-install,
+zero-egress browser demo that uses only synthetic fixture data and excludes the
+Research/LLM boundary.
+
+```bash
+python scripts/build_wasm_demo.py
+python -m http.server 8000 -d web
+```
+
+Then open `http://localhost:8000/index.html`. The page loads stlite/Pyodide in
+the browser, sets `UI_OFFLINE=1`, leaves `DB_URL` unset, points `DB_PATH` at the
+bundled `manager_demo.sqlite`, and renders Dashboard, Daily Report, Search, and
+Upload against seeded synthetic rows. The Upload page uses `USE_SIMPLE_EMBED=1`
+so no model download is attempted. Do not use this bundle for proprietary data
+on a public host; rebuild it only from synthetic or explicitly redacted inputs.
+
 The `schema.sql` file defines an `api_usage` table used for cost telemetry. Apply it to the Postgres container once it is running:
 
 ```bash

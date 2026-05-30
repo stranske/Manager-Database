@@ -4,6 +4,10 @@ This repository contains the Manager-Database application.
 
 For setup and usage instructions, see `README_bootstrap.md`.
 
+The repo also includes a synthetic, offline stlite browser demo for the
+deterministic analyst pages. Build it with `python scripts/build_wasm_demo.py`
+and serve `web/index.html` locally; details are in `README_bootstrap.md`.
+
 ## API Documentation
 
 - [API Rate Limiting](docs/api_rate_limiting.md) - Rate limits, headers, and error handling

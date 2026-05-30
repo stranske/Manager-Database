@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Manager-Database Offline Demo</title>
+    <script type="module">
+      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.80.4/+esm";
+
+      const textFiles = [
+        "wasm_app.py",
+        "embeddings.py",
+        "ui/__init__.py",
+        "ui/dashboard.py",
+        "ui/daily_report.py",
+        "ui/search.py",
+        "ui/upload.py",
+        "api/__init__.py",
+        "api/activism.py",
+        "api/search.py",
+        "api/signals.py",
+        "adapters/__init__.py",
+        "adapters/base.py",
+        "utils/__init__.py",
+        "utils/extract.py"
+      ];
+
+      const files = {};
+      for (const path of textFiles) {
+        files[path] = await fetch(path).then((response) => response.text());
+      }
+      files["manager_demo.sqlite"] = {
+        url: "manager_demo.sqlite",
+        encoding: "binary"
+      };
+
+      await mount(
+        {
+          entrypoint: "wasm_app.py",
+          files,
+          requirements: ["streamlit", "pandas", "altair", "pydantic", "fastapi", "httpx"]
+        },
+        document.getElementById("root")
+      );
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

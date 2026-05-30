@@ -1,8 +1,15 @@
 [run]
-# Adapter coverage runs should include the full adapters package by default.
+# CI invokes pytest-cov with --cov=. when no src/ directory exists. Keep the
+# hard coverage gate focused on product/runtime modules rather than test,
+# workflow-helper, and generated browser-bundle surfaces.
 source =
-    adapters
+    .
 omit =
-    ui/*
+    .github/*
+    tests/*
+    scripts/*
+    tools/*
+    web/*
+    setup.py
     # Exclude workflow-only helper that is exercised in Workflows repo CI, not here.
     tools/coverage_trend.py

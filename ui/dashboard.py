@@ -33,6 +33,8 @@ def _api_base_url() -> str:
 @st.cache_data(show_spinner=False, ttl=60)
 def load_unacknowledged_alert_count() -> int:
     """Load unacknowledged alert count for the sidebar badge."""
+    if os.getenv("UI_OFFLINE") == "1":
+        return 0
     try:
         with httpx.Client(timeout=5.0) as client:
             response = client.get(f"{_api_base_url()}/api/alerts/unacknowledged/count")
