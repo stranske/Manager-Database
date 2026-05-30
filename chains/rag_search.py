@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from adapters.base import connect_db
+from chains.evidence import Evidence
 from embeddings import search_documents
 from llm.injection import guard_input
 from tools.llm_provider import (
@@ -40,7 +41,7 @@ class RAGSearchResult(BaseModel):
     """Structured output for the RAG search chain."""
 
     answer: str
-    sources: list[dict[str, Any]] = Field(default_factory=list)
+    sources: list[Evidence] = Field(default_factory=list)
     confidence: str = Field(default="low")
     trace_url: str | None = None
 
@@ -212,11 +213,11 @@ class RAGSearchChain:
             merged["date_range"] = explicit_date_range
         return merged
 
-    def _structured_search(self, entities: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    def _structured_search(self, entities: dict[str, Any]) -> tuple[str, list[Evidence]]:
         """Build compact structured context from holdings, filings, news, and activism tables."""
         conn, should_close = self._acquire_connection()
         context_sections: list[str] = []
-        sources: list[dict[str, Any]] = []
+        sources: list[Evidence] = []
         manager_ids = [int(manager_id) for manager_id in entities.get("manager_ids", [])]
         cusips = [str(cusip) for cusip in entities.get("cusips", [])]
         date_range = self._parse_date_range(entities.get("date_range"))
@@ -249,13 +250,20 @@ class RAGSearchChain:
                     lines = [f"Filing {row[0]}: {row[1]} filed {row[2]}" for row in filing_rows]
                     context_sections.append("Recent filings:\n" + "\n".join(lines))
                     for filing_id, filing_type, filed_date, url in filing_rows:
+                        description = f"{filing_type} filed {filed_date}"
                         sources.append(
-                            {
-                                "type": "filing",
-                                "filing_id": int(filing_id),
-                                "description": f"{filing_type} filed {filed_date}",
-                                "filing_url": url,
-                            }
+                            Evidence(
+                                source_id=f"filing:{filing_id}",
+                                source_type="filing",
+                                type="filing",
+                                locator={"filing_id": int(filing_id), "url": url},
+                                excerpt=description,
+                                method="db_lookup",
+                                confidence=0.85,
+                                description=description,
+                                filing_id=int(filing_id),
+                                filing_url=url,
+                            )
                         )
 
                 holding_params: list[Any] = list(manager_ids)
@@ -296,13 +304,21 @@ class RAGSearchChain:
                         lines = [f"{row[1]}: {row[0]}" for row in news_rows]
                         context_sections.append("Recent news:\n" + "\n".join(lines))
                         for headline, published_at, url in news_rows:
+                            headline_text = str(headline)
+                            description = f"Published {published_at}"
                             sources.append(
-                                {
-                                    "type": "news",
-                                    "news_reference": headline,
-                                    "description": f"Published {published_at}",
-                                    "url": url,
-                                }
+                                Evidence(
+                                    source_id=f"news:{headline_text}",
+                                    source_type="news",
+                                    type="news",
+                                    locator={"url": url},
+                                    excerpt=headline_text,
+                                    method="db_lookup",
+                                    confidence=0.8,
+                                    description=description,
+                                    news_reference=headline,
+                                    url=url,
+                                )
                             )
 
                 if self._table_exists(conn, "activism_filings"):
@@ -320,12 +336,19 @@ class RAGSearchChain:
                         lines = [f"{row[1]} on {row[0]} filed {row[2]}" for row in activism_rows]
                         context_sections.append("Activism filings:\n" + "\n".join(lines))
                         for subject_company, filing_type, filed_date, url in activism_rows:
+                            excerpt = f"{filing_type} for {subject_company} filed {filed_date}"
                             sources.append(
-                                {
-                                    "type": "activism_filing",
-                                    "description": f"{filing_type} for {subject_company} filed {filed_date}",
-                                    "filing_url": url,
-                                }
+                                Evidence(
+                                    source_id=f"activism:{subject_company}:{filed_date}",
+                                    source_type="activism_filing",
+                                    type="activism_filing",
+                                    locator={"filing_url": url},
+                                    excerpt=excerpt,
+                                    method="db_lookup",
+                                    confidence=0.8,
+                                    description=excerpt,
+                                    filing_url=url,
+                                )
                             )
 
             if cusips and self._table_exists(conn, "crowded_trades"):
@@ -354,31 +377,38 @@ class RAGSearchChain:
             if should_close:
                 conn.close()
 
-    def _document_context(
-        self, documents: list[dict[str, Any]]
-    ) -> tuple[str, list[dict[str, Any]]]:
+    def _document_context(self, documents: list[dict[str, Any]]) -> tuple[str, list[Evidence]]:
         lines: list[str] = []
-        sources: list[dict[str, Any]] = []
+        sources: list[Evidence] = []
         for document in documents:
             snippet = str(document.get("content", "")).strip().replace("\n", " ")[:400]
+            doc_id = str(document.get("doc_id") or "")
+            description = str(document.get("filename") or document.get("kind") or "document")
             lines.append(
                 f"doc {document.get('doc_id')}: {document.get('filename') or document.get('kind') or 'document'} | {snippet}"
             )
             sources.append(
-                {
-                    "type": "document",
-                    "document_id": document.get("doc_id"),
-                    "description": document.get("filename") or document.get("kind") or "document",
-                }
+                Evidence(
+                    source_id=doc_id,
+                    source_type="document",
+                    type="document",
+                    locator={"doc_id": doc_id},
+                    excerpt=snippet,
+                    method="vector_search",
+                    confidence=0.9,
+                    description=description,
+                    document_id=document.get("doc_id"),
+                )
             )
         return "\n".join(lines) if lines else "No relevant document excerpts found.", sources
 
-    def _confidence(
-        self, documents: list[dict[str, Any]], structured_sources: list[dict[str, Any]]
-    ) -> str:
-        if documents and structured_sources:
+    def _confidence(self, evidence: list[Evidence]) -> str:
+        if not evidence:
+            return "low"
+        best = max(item.confidence for item in evidence)
+        if best >= 0.85 and len(evidence) >= 2:
             return "high"
-        if documents or structured_sources:
+        if best >= 0.65:
             return "medium"
         return "low"
 
@@ -418,7 +448,7 @@ class RAGSearchChain:
         structured_context, structured_sources = self._structured_search(entities)
         document_context, document_sources = self._document_context(documents)
         all_sources = document_sources + structured_sources
-        confidence = self._confidence(documents, structured_sources)
+        confidence = self._confidence(all_sources)
 
         if not documents and not structured_sources:
             return RAGSearchResult(
