@@ -4,6 +4,7 @@ import datetime as dt
 import logging
 import os
 import sqlite3
+import time
 from typing import Any
 
 from prefect import flow, task
@@ -12,6 +13,7 @@ from prefect.schedules import Cron
 from adapters.base import connect_db
 from diff_holdings import diff_holdings
 from etl.logging_setup import configure_logging, log_outcome
+from tools.run_contract import RunResult
 
 configure_logging("daily_diff_flow")
 logger = logging.getLogger(__name__)
@@ -133,15 +135,21 @@ def _fetch_all_manager_ids(conn: Any) -> list[int]:
 @task
 def compute_manager_diffs(manager_id: int, report_date: str, conn: Any) -> int:
     """Compute and store diffs for a single manager. Returns change count."""
-    diffs = diff_holdings(manager_id, conn)
+    diffs = diff_holdings(manager_id, conn).deltas
     _delete_existing_diffs(conn, manager_id, report_date)
     _insert_diffs(conn, manager_id, report_date, diffs)
     return len(diffs)
 
 
 @flow
-def daily_diff_flow(date: str | None = None) -> None:
-    """Compute holdings diffs for all managers and store in daily_diffs."""
+def daily_diff_flow(date: str | None = None) -> RunResult:
+    """Compute holdings diffs for all managers and store in daily_diffs.
+
+    Returns a replayable :class:`RunResult` whose ``outputs`` summarizes the run
+    (``managers_processed``, ``managers_skipped``, ``total_changes``) and whose
+    ``warnings`` records any managers skipped for having fewer than two filings.
+    """
+    start = time.perf_counter()
     conn = connect_db()
     report_date = date or str(dt.date.today() - dt.timedelta(days=1))
 
@@ -151,7 +159,18 @@ def daily_diff_flow(date: str | None = None) -> None:
 
         if not manager_ids:
             logger.warning("No managers found in database")
-            return
+            return RunResult(
+                tool="daily_diff_flow",
+                inputs={"date": report_date},
+                outputs={
+                    "managers_processed": 0,
+                    "managers_skipped": 0,
+                    "total_changes": 0,
+                },
+                warnings=["No managers found in database"],
+                latency_ms=int((time.perf_counter() - start) * 1000),
+                status="success",
+            )
 
         # Postgres runs with autocommit=True, so an explicit transaction is
         # required to make the DELETE-then-INSERT cycle atomic per batch.
@@ -161,6 +180,7 @@ def daily_diff_flow(date: str | None = None) -> None:
         total_changes = 0
         managers_processed = 0
         managers_skipped = 0
+        warnings: list[str] = []
 
         for mid in manager_ids:
             try:
@@ -180,6 +200,7 @@ def daily_diff_flow(date: str | None = None) -> None:
             except SystemExit:
                 # diff_holdings raises SystemExit when < 2 filings exist.
                 managers_skipped += 1
+                warnings.append(f"manager {mid} skipped (< 2 filings)")
                 logger.debug(
                     "Skipped manager %d (< 2 filings)",
                     mid,
@@ -208,6 +229,19 @@ def daily_diff_flow(date: str | None = None) -> None:
                 "managers_skipped": managers_skipped,
                 "total_changes": total_changes,
             },
+        )
+
+        return RunResult(
+            tool="daily_diff_flow",
+            inputs={"date": report_date},
+            outputs={
+                "managers_processed": managers_processed,
+                "managers_skipped": managers_skipped,
+                "total_changes": total_changes,
+            },
+            warnings=warnings,
+            latency_ms=int((time.perf_counter() - start) * 1000),
+            status="success",
         )
     finally:
         conn.close()

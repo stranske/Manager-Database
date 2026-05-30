@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+import time
 from typing import Any
 
 from adapters.base import connect_db
+from tools.run_contract import RunResult
 
 
 def _placeholder(conn: Any) -> str:
@@ -86,7 +88,7 @@ def _compare_optional(curr: int | float | None, prev: int | float | None) -> int
     return 0
 
 
-def diff_holdings(manager_id: int | str, conn: Any = None) -> list[dict[str, Any]]:
+def diff_holdings(manager_id: int | str, conn: Any = None) -> RunResult:
     """Compute structured diffs between the two most-recent filings.
 
     Parameters
@@ -99,10 +101,13 @@ def diff_holdings(manager_id: int | str, conn: Any = None) -> list[dict[str, Any
 
     Returns
     -------
-    list of dicts, each with keys:
+    RunResult
+        A replayable envelope whose ``outputs`` (also exposed as ``.deltas``) is
+        the list of delta dicts, each with keys:
         cusip, name_of_issuer, delta_type, shares_prev, shares_curr,
-        value_prev, value_curr
+        value_prev, value_curr.  ``inputs`` echoes the resolved ``manager_id``.
     """
+    start = time.perf_counter()
     owns_connection = False
     if conn is None:
         conn = connect_db()
@@ -172,7 +177,14 @@ def diff_holdings(manager_id: int | str, conn: Any = None) -> list[dict[str, Any
             }
         )
 
-    return results
+    return RunResult(
+        tool="diff_holdings",
+        inputs={"manager_id": resolved},
+        outputs=results,
+        provenance={"manager_id": resolved},
+        latency_ms=int((time.perf_counter() - start) * 1000),
+        status="success",
+    )
 
 
 if __name__ == "__main__":
@@ -181,7 +193,7 @@ if __name__ == "__main__":
         sys.exit(1)
     # Always pass as string — _resolve_manager_id handles CIK lookup
     # and numeric fallback without losing leading zeros.
-    for row in diff_holdings(sys.argv[1]):
+    for row in diff_holdings(sys.argv[1]).deltas:
         print(
             f"{row['cusip']}: {row['delta_type']} "
             f"(shares {row['shares_prev']} -> {row['shares_curr']}, "

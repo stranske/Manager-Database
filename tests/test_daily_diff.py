@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from etl.daily_diff_flow import compute_manager_diffs, daily_diff_flow
+from tools.run_contract import RunResult
 
 
 class FixedDate(date):
@@ -264,7 +265,9 @@ def test_daily_diff_flow_refreshes_matview_on_postgres(monkeypatch):
     import etl.daily_diff_flow as ddf
 
     monkeypatch.setattr(ddf, "connect_db", lambda: FakePostgresConn())
-    monkeypatch.setattr(ddf, "diff_holdings", lambda mid, conn: [])
+    monkeypatch.setattr(
+        ddf, "diff_holdings", lambda mid, conn: RunResult(tool="diff_holdings", outputs=[])
+    )
 
     daily_diff_flow.fn(date="2024-01-01")
 
