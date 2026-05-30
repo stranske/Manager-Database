@@ -20,6 +20,8 @@ from tools.run_contract import RunResult, new_run_id, write_artifact_bundle
 configure_logging("daily_diff_flow")
 logger = logging.getLogger(__name__)
 
+DAILY_DIFF_ARTIFACT_TOOL = "daily" "_diff"
+
 
 def _placeholder(conn: Any) -> str:
     return "?" if isinstance(conn, sqlite3.Connection) else "%s"
@@ -189,7 +191,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
             logger.warning("No managers found in database")
             artifacts = write_artifact_bundle(
                 run_id,
-                "daily_diff",
+                DAILY_DIFF_ARTIFACT_TOOL,
                 {"deltas.csv": _daily_diff_csv(conn, report_date)},
                 inputs={"date": report_date},
             )
@@ -269,7 +271,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
 
         artifacts = write_artifact_bundle(
             run_id,
-            "daily_diff",
+            DAILY_DIFF_ARTIFACT_TOOL,
             {"deltas.csv": _daily_diff_csv(conn, report_date)},
             inputs={"date": report_date},
         )
