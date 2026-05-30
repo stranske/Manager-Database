@@ -1,5 +1,14 @@
 # Workloop State
 
+## 2026-05-30T09:12Z - opener quick-recovered PR #1095 format/mypy CI
+
+- PR: [#1095](https://github.com/stranske/Manager-Database/pull/1095), branch `codex/issue-1084-wasm-demo`, issue #1084.
+- Fresh cap-health after PR open classified #1095 as `needs-dispatch-evidence`; opener repair added `agent:retry` and Gate/Gate Followups became active. Follow-up cap-health classified #1095 as `draining`.
+- Direct CI evidence showed bounded branch-local failures from the first CI run: `Python CI / lint-format` wanted `scripts/build_wasm_demo.py` reformatted by Black, and `Python CI / typecheck-mypy` reported `web/wasm_app.py` found twice as `wasm_app` and `web.wasm_app`.
+- Fix: ran Black on `scripts/build_wasm_demo.py` and added `web/__init__.py` so mypy has a single package mapping for `web.wasm_app`.
+- Validation before push: `black --check --line-length 100 --exclude '(\\.venv|\\.workflows-lib|node_modules)' .` passed; `python -m mypy --config-file pyproject.toml --exclude .workflows-lib .` passed (164 files); `python -m pytest tests/test_wasm_demo_build.py -q` passed (4 tests); `ruff check scripts/__init__.py web/__init__.py scripts/build_wasm_demo.py tests/test_wasm_demo_build.py ui/dashboard.py embeddings.py web/wasm_app.py` passed.
+- Next action after push: wait for asynchronous CI/keepalive on #1095.
+
 ## 2026-05-30T09:18Z - opener selected issue #1084 offline WASM demo
 
 - Automation: `pd-workloop-resume` (codex opener lane).
