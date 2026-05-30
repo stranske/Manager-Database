@@ -161,6 +161,13 @@ class ChatResponse(BaseModel):
     trace_url: str | None = Field(None, description="Optional trace URL for observability")
     latency_ms: int = Field(0, description="End-to-end request latency in milliseconds")
     response_id: str = Field(..., description="Stable identifier used for feedback submission")
+    chat_disabled: bool = Field(
+        False,
+        description=(
+            "True when chat is disabled for the active LLM data zone "
+            "(LLM_ZONE=disabled); the UI renders a notice instead of an error"
+        ),
+    )
 
 
 class ChatRequest(BaseModel):
@@ -459,6 +466,25 @@ def _build_chat_client_info():
     from tools.langchain_client import build_chat_client
 
     return build_chat_client()
+
+
+# Closed-zone notice surfaced when the LLM boundary is disabled for this deployment.
+LLM_ZONE_DISABLED_MESSAGE = (
+    "Research chat is disabled in this internal data zone. "
+    "Contact an admin to enable an authorized, no-train LLM endpoint."
+)
+
+
+def _chat_zone_disabled() -> bool:
+    """Return True when ``LLM_ZONE`` selects the deterministic-only data zone.
+
+    When ``LLM_ZONE=disabled`` the chat boundary is closed: deterministic pages
+    keep running on real data inside the org perimeter while the Research path
+    returns a structured 200 notice instead of probing a provider or raising
+    503. This is the single LLM-boundary switch documented in
+    ``docs/deploy/INTERNAL_HOSTING.md``.
+    """
+    return os.getenv("LLM_ZONE", "").strip().lower() == "disabled"
 
 
 def _is_sqlite_connection(conn: Any) -> bool:
@@ -943,6 +969,28 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
     model_name: str | None = None
     try:
         _enforce_chat_rate_limit(raw_request)
+        if _chat_zone_disabled():
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            _record_chat_fleet_safe(
+                request_id=request_id,
+                endpoint=endpoint_path,
+                chain="disabled",
+                session_id=session_id,
+                provider=None,
+                model=None,
+                latency_ms=latency_ms,
+                http_status=200,
+            )
+            return ChatResponse(
+                answer=LLM_ZONE_DISABLED_MESSAGE,
+                chain_used="disabled",
+                sources=[],
+                sql=None,
+                trace_url=None,
+                latency_ms=latency_ms,
+                response_id=request_id,
+                chat_disabled=True,
+            )
         client_info = _build_chat_client_info()
         if not client_info:
             raise HTTPException(
@@ -982,6 +1030,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             trace_url=trace_url,
             latency_ms=latency_ms,
             response_id=response_id,
+            chat_disabled=False,
         )
     except PROMPT_INJECTION_ERROR as exc:  # type: ignore[misc]
         reasons = getattr(exc, "reasons", [str(exc)])

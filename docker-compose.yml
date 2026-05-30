@@ -55,6 +55,7 @@ services:
       - .:/app
     environment:
       <<: [*shared-db-env, *shared-minio-env]
+      LLM_ZONE: ${LLM_ZONE:-disabled}
     ports:
       - "8000:8000"
     depends_on:
@@ -81,6 +82,8 @@ services:
       - ./ui:/app
     environment:
       <<: [*shared-db-env, *shared-minio-env]
+      UI_USERNAME: ${UI_USERNAME:-}
+      UI_PASSWORD: ${UI_PASSWORD:-}
     ports:
       - "8501:8501"
     depends_on:

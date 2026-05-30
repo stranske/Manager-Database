@@ -251,6 +251,15 @@ def _run_chat_turn(prompt: str, chain_mode: str, context: dict[str, Any] | None)
                 _append_message("assistant", error_text)
                 return
 
+        if result.get("chat_disabled"):
+            notice = str(result.get("answer", "")).strip() or (
+                "Research chat is disabled in this internal zone — contact an "
+                "admin to enable an authorized endpoint."
+            )
+            st.warning(notice)
+            _append_message("assistant", notice, chain_used="disabled")
+            return
+
         answer = str(result.get("answer", ""))
         sources = result.get("sources") or []
         chain_used = str(result.get("chain_used", "unknown"))

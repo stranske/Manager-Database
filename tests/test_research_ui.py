@@ -63,6 +63,7 @@ class FakeStreamlit:
         self.captions: list[str] = []
         self.code_calls: list[tuple[str, str | None]] = []
         self.error_calls: list[str] = []
+        self.warning_calls: list[str] = []
         self.toast_calls: list[str] = []
 
     def set_page_config(self, **kwargs) -> None:
@@ -119,6 +120,9 @@ class FakeStreamlit:
     def error(self, text: str) -> None:
         self.error_calls.append(text)
 
+    def warning(self, text: str) -> None:
+        self.warning_calls.append(text)
+
     def toast(self, text: str) -> None:
         self.toast_calls.append(text)
 
@@ -171,6 +175,38 @@ def test_chat_input_triggers_api_call(monkeypatch):
     assert len(fake_st.session_state.messages) == 2
     assert fake_st.session_state.messages[0]["role"] == "user"
     assert fake_st.session_state.messages[1]["role"] == "assistant"
+
+
+def test_chat_disabled_response_renders_warning_without_error(monkeypatch):
+    research = _load_research_module()
+    fake_st = FakeStreamlit(chat_inputs=["Can I use Research?"])
+
+    def _fake_call(_question: str, _chain_mode: str, _context):
+        return {
+            "answer": "Research chat is disabled in this internal zone.",
+            "chain_used": "disabled",
+            "sources": [],
+            "sql": None,
+            "trace_url": None,
+            "latency_ms": 3,
+            "chat_disabled": True,
+        }
+
+    monkeypatch.setattr(research, "st", fake_st)
+    monkeypatch.setattr(research, "require_login", lambda: True)
+    monkeypatch.setattr(research, "_load_manager_list", lambda: [])
+    monkeypatch.setattr(research, "_call_chat_api", _fake_call)
+
+    research.main()
+
+    assert fake_st.warning_calls == ["Research chat is disabled in this internal zone."]
+    assert fake_st.error_calls == []
+    assert fake_st.session_state.messages[-1] == {
+        "role": "assistant",
+        "content": "Research chat is disabled in this internal zone.",
+        "chain_used": "disabled",
+        "sources": [],
+    }
 
 
 def test_sources_panel_displays_document_id_and_url(monkeypatch):
