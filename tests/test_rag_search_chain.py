@@ -185,6 +185,17 @@ def test_evidence_model_json_and_legacy_fields_from_locator():
     assert '"source_id":"filing:11"' in evidence.model_dump_json()
 
 
+def test_evidence_confidence_defaults_to_zero_when_omitted():
+    evidence = Evidence(
+        source_id="doc:1",
+        source_type="document",
+        excerpt="excerpt",
+        method="vector",
+    )
+
+    assert evidence.confidence == 0.0
+
+
 def test_run_returns_low_confidence_without_context(monkeypatch):
     conn = _build_db()
     chain = RAGSearchChain(db_conn=conn)

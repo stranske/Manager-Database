@@ -18,7 +18,7 @@ class Evidence(BaseModel):
     locator: dict[str, Any] = Field(default_factory=dict)
     excerpt: str
     method: str
-    confidence: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     description: str = ""
     type: str | None = None
     document_id: str | int | None = None
