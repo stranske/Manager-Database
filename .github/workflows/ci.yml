@@ -62,6 +62,24 @@ jobs:
       - name: Run Postgres chain integration tests
         run: pytest tests/test_chain_postgres_integration.py -v
 
+  golden:
+    name: Golden offline gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install test dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Run offline golden/threshold gate
+        # No service container and no provider secrets: the golden tests run the
+        # deterministic eval suite and diff_holdings goldens over in-memory
+        # SQLite fixtures, so zero external dependency must be required here.
+        run: pytest -m golden -v
+
   docker-smoke:
     name: Docker stack smoke
     runs-on: ubuntu-latest

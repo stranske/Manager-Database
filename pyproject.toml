@@ -68,6 +68,7 @@ pythonpath = ["."]
 markers = [
     "nightly: nightly regression tests",
     "integration: integration tests",
+    "golden: offline credential-free golden/threshold gate runs",
 ]
 
 [tool.black]

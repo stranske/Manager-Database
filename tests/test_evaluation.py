@@ -4,7 +4,10 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 import etl.evaluation_flow as evaluation_flow
+from etl.evaluation_flow import QUALITY_THRESHOLDS
 from llm.evaluation import ManagerDBEvaluator
 
 
@@ -203,6 +206,29 @@ def test_live_evaluation_suite_scores_live_chain_outputs(tmp_path):
     assert summary["metrics"]["rag_faithfulness"] == 1.0
     assert summary["metrics"]["source_attribution"] == 1.0
     assert summary["metrics"]["hallucination"] == 1.0
+    assert summary["failures"] == {}
+    conn.close()
+
+
+@pytest.mark.golden
+def test_live_eval_meets_thresholds(tmp_path):
+    """Golden gate: every live metric must meet its QUALITY_THRESHOLDS bound.
+
+    Runs the deterministic, credential-free live evaluation suite over the
+    in-memory seeded corpus and asserts each metric clears its threshold with
+    no recorded failures. This is the assertion the CI ``golden`` job depends
+    on: temporarily raising any bound in ``QUALITY_THRESHOLDS`` above what the
+    deterministic fixtures score makes this test fail.
+    """
+    conn = sqlite3.connect(tmp_path / "golden-eval.db")
+
+    summary = evaluation_flow.run_live_evaluation_suite.fn(db_conn=conn)
+
+    metrics = summary["metrics"]
+    # Every threshold key must be scored and clear its bound.
+    for key, bound in QUALITY_THRESHOLDS.items():
+        assert key in metrics, f"metric {key!r} missing from live summary"
+        assert metrics[key] >= bound, f"{key}={metrics[key]} below threshold {bound}"
     assert summary["failures"] == {}
     conn.close()
 
