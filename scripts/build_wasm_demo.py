@@ -35,8 +35,7 @@ TEXT_BUNDLE_FILES = [
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:
-    conn.executescript(
-        """
+    conn.executescript("""
         CREATE TABLE managers (
             manager_id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
@@ -131,8 +130,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             report_date TEXT,
             detected_at TEXT
         );
-        """
-    )
+        """)
 
 
 def _seed_sqlite(conn: sqlite3.Connection) -> None:
@@ -152,12 +150,10 @@ def _seed_sqlite(conn: sqlite3.Connection) -> None:
             ),
         )
 
-    conn.execute(
-        """
+    conn.execute("""
         INSERT INTO filings(filing_id, manager_id, type, filed_date, period_end, source, raw_key)
         VALUES (1, 1, '13F-HR', '2026-03-15', '2025-12-31', 'synthetic', 'seed/elliott/13f')
-        """
-    )
+        """)
     conn.executemany(
         """
         INSERT INTO holdings(
@@ -193,8 +189,7 @@ def _seed_sqlite(conn: sqlite3.Connection) -> None:
             (1, "2026-03-15", "222222222", "Example Cloud Systems", "ADD", 0, 840, 0, 2250000),
         ],
     )
-    conn.execute(
-        """
+    conn.execute("""
         INSERT INTO news_items(
             news_id, manager_id, headline, url, published_at, source, topics, confidence, body_snippet
         )
@@ -204,14 +199,11 @@ def _seed_sqlite(conn: sqlite3.Connection) -> None:
             '2026-03-15T10:00:00', 'synthetic-fixture', 'readiness,demo', 0.98,
             'Readiness smoke deterministic fact: manager universe bootstrap is healthy.'
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd)
         VALUES ('seed', 'offline-demo', 200, 0, 1, 0.0)
-        """
-    )
+        """)
 
 
 def build_wasm_demo(output_dir: Path = DEFAULT_OUTPUT_DIR) -> Path:
