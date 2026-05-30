@@ -109,7 +109,7 @@ def test_bundle_roundtrip(tmp_path: Path) -> None:
     refs = write_artifact_bundle(
         "run-1",
         "daily_diff",
-        {"deltas.csv": "cusip\nAAA\n", "notes.txt": b"local only\n"},
+        {"notes.txt": b"local only\n", "deltas.csv": "cusip\nAAA\n"},
         inputs={"date": "2024-05-01"},
         root=tmp_path / "artifacts",
     )
@@ -121,6 +121,7 @@ def test_bundle_roundtrip(tmp_path: Path) -> None:
     assert manifest["tool"] == "daily_diff"
     assert manifest["inputs"] == {"date": "2024-05-01"}
     assert manifest["files"] == refs
+    assert [item["name"] for item in manifest["files"]] == ["deltas.csv", "notes.txt"]
     for item in manifest["files"]:
         payload = Path(item["path"]).read_bytes()
         assert item["sha256"] == hashlib.sha256(payload).hexdigest()

@@ -45,7 +45,8 @@ def write_artifact_bundle(
     bundle_dir.mkdir(parents=True, exist_ok=True)
 
     refs: list[dict[str, Any]] = []
-    for name, content in files.items():
+    for name in sorted(files):
+        content = files[name]
         if Path(name).name != name:
             raise ValueError(f"artifact name must be a plain file name: {name!r}")
         payload = content.encode("utf-8") if isinstance(content, str) else content
