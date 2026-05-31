@@ -247,7 +247,7 @@ def build_live_evaluation_datasets(db_conn: sqlite3.Connection) -> dict[str, lis
     )
     nl_chain = NLQueryChain(llm=_DeterministicNLQueryLLM(), db_conn=db_conn)
     rag_chain = RAGSearchChain(llm=_DeterministicRAGLLM(), db_conn=db_conn)
-    rag_chain._vector_search = lambda _query, k=5, manager_id=None: [  # type: ignore[method-assign]
+    rag_chain._vector_search = lambda _query, k=5, manager_id=None: [  # type: ignore[assignment,method-assign]
         {
             "doc_id": "doc-live-1",
             "content": "Apple Inc (037833100) remained a top holding on 2026-03-01.",
@@ -255,7 +255,9 @@ def build_live_evaluation_datasets(db_conn: sqlite3.Connection) -> dict[str, lis
             "kind": "memo",
             "manager_id": manager_id,
         }
-    ][:k]
+    ][
+        :k
+    ]
 
     filing_summary = filing_chain.run(1).model_dump()
     nl_result = nl_chain.run("How many managers are in the database?")

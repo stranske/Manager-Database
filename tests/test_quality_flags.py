@@ -22,9 +22,11 @@ def test_conflicting_update_records_flag(tmp_path: Path) -> None:
     updated = managers_module._update_manager(
         conn,
         manager_id,
-        managers_module.ManagerUpdate(
-            lei="LEI-B",
-            registry_ids={"fca_frn": "998877"},
+        managers_module.ManagerUpdate.model_validate(
+            {
+                "lei": "LEI-B",
+                "registry_ids": {"fca_frn": "998877"},
+            }
         ),
     )
     row = managers_module._fetch_manager(conn, str(db_path), manager_id)

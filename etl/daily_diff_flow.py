@@ -170,7 +170,10 @@ def _daily_diff_data_quality(conn: Any, report_date: str) -> dict[str, Any]:
         (report_date,),
     ).fetchall()
     missing_fields: list[dict[str, Any]] = []
-    for manager_id, cusip, shares_prev, shares_curr, value_prev, value_curr in rows:
+    for row in rows:
+        if len(row) < 6:
+            continue
+        manager_id, cusip, shares_prev, shares_curr, value_prev, value_curr = row
         for field, value in (
             ("shares_prev", shares_prev),
             ("shares_curr", shares_curr),

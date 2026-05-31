@@ -32,7 +32,7 @@ def _csv_resource_url(payload: dict[str, Any]) -> str | None:
 
 async def list_new_filings(identifier: str, since: str):
     """Return ASIC register metadata records for the configured identifier."""
-    params = {"q": f"ASIC companies {identifier}", "rows": 5}
+    params: dict[str, str | int] = {"q": f"ASIC companies {identifier}", "rows": 5}
     async with httpx.AsyncClient() as client:
         async with tracked_call("au", BASE_URL) as log:
             response = await client.get(BASE_URL, params=params)
