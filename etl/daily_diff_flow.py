@@ -161,6 +161,38 @@ def _daily_diff_csv(conn: Any, report_date: str) -> str:
     return output.getvalue()
 
 
+def _daily_diff_data_quality(conn: Any, report_date: str) -> dict[str, Any]:
+    ph = _placeholder(conn)
+    rows = conn.execute(
+        "SELECT manager_id, cusip, shares_prev, shares_curr, value_prev, value_curr "
+        "FROM daily_diffs WHERE report_date = "
+        f"{ph} ORDER BY manager_id, cusip, delta_type",
+        (report_date,),
+    ).fetchall()
+    missing_fields: list[dict[str, Any]] = []
+    for manager_id, cusip, shares_prev, shares_curr, value_prev, value_curr in rows:
+        for field, value in (
+            ("shares_prev", shares_prev),
+            ("shares_curr", shares_curr),
+            ("value_prev", value_prev),
+            ("value_curr", value_curr),
+        ):
+            if value is None:
+                missing_fields.append(
+                    {
+                        "manager_id": manager_id,
+                        "cusip": cusip,
+                        "field": field,
+                    }
+                )
+    confidence = "low" if missing_fields else "high"
+    return {
+        "missing_fields": missing_fields,
+        "conflicts": [],
+        "confidence": confidence,
+    }
+
+
 @task
 def compute_manager_diffs(manager_id: int, report_date: str, conn: Any) -> int:
     """Compute and store diffs for a single manager. Returns change count."""
@@ -203,6 +235,11 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
                     "managers_processed": 0,
                     "managers_skipped": 0,
                     "total_changes": 0,
+                    "data_quality": {
+                        "missing_fields": [],
+                        "conflicts": [],
+                        "confidence": "unknown",
+                    },
                 },
                 artifacts=artifacts,
                 warnings=["No managers found in database"],
@@ -284,6 +321,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
                 "managers_processed": managers_processed,
                 "managers_skipped": managers_skipped,
                 "total_changes": total_changes,
+                "data_quality": _daily_diff_data_quality(conn, report_date),
             },
             artifacts=artifacts,
             warnings=warnings,

@@ -20,6 +20,7 @@ class ManagerResponse(BaseModel):
                     "jurisdictions": ["us"],
                     "tags": ["activist"],
                     "registry_ids": {"fca_frn": "122927"},
+                    "quality_flags": [],
                     "created_at": "2026-02-01T10:00:00Z",
                     "updated_at": "2026-02-01T10:00:00Z",
                 }
@@ -34,6 +35,10 @@ class ManagerResponse(BaseModel):
     jurisdictions: list[str] = Field(default_factory=list, description="Filing jurisdictions")
     tags: list[str] = Field(default_factory=list, description="Classification tags")
     registry_ids: dict[str, str] = Field(default_factory=dict, description="External registry IDs")
+    quality_flags: list[dict[str, object]] = Field(
+        default_factory=list,
+        description="Structured data-quality observations such as identifier conflicts",
+    )
     created_at: str | None = Field(None, description="Creation timestamp")
     updated_at: str | None = Field(None, description="Last update timestamp")
 
@@ -55,6 +60,7 @@ class ManagerListResponse(BaseModel):
                             "jurisdictions": ["us"],
                             "tags": ["activist"],
                             "registry_ids": {"fca_frn": "122927"},
+                            "quality_flags": [],
                             "created_at": "2026-02-01T10:00:00Z",
                             "updated_at": "2026-02-01T10:00:00Z",
                         }
@@ -117,6 +123,7 @@ class BulkImportResponse(BaseModel):
                                 "jurisdictions": ["us"],
                                 "tags": ["activist"],
                                 "registry_ids": {"fca_frn": "122927"},
+                                "quality_flags": [],
                                 "created_at": "2026-02-01T10:00:00Z",
                                 "updated_at": "2026-02-01T10:00:00Z",
                             },

@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import sqlite3
+from datetime import UTC, datetime
 from functools import wraps
 from typing import Annotated, Any, cast
 
@@ -140,11 +141,20 @@ def _ensure_manager_table(conn) -> None:
                 jurisdictions TEXT NOT NULL DEFAULT '[]',
                 tags TEXT NOT NULL DEFAULT '[]',
                 registry_ids TEXT NOT NULL DEFAULT '{}',
+                quality_flags TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )""")
+        columns = {
+            str(row[0]) for row in conn.execute(SQLITE_TABLE_INFO_SQL, ("managers",)).fetchall()
+        }
+        if "quality_flags" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN quality_flags TEXT NOT NULL DEFAULT '[]'")
         return
     conn.execute("SELECT 1 FROM managers LIMIT 1")
+    conn.execute(
+        "ALTER TABLE managers ADD COLUMN IF NOT EXISTS quality_flags jsonb DEFAULT '[]'::jsonb"
+    )
 
 
 def _manager_id_column(conn) -> str:
@@ -192,10 +202,31 @@ def _json_dict(raw: object) -> dict[str, str]:
     return {}
 
 
+def _json_object_list(raw: object) -> list[dict[str, object]]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, dict)]
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return []
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, dict)]
+    return []
+
+
 def _to_manager_response(row: tuple[object, ...]) -> ManagerResponse:
     manager_id_raw = row[0]
     if not isinstance(manager_id_raw, (int, str)):
         manager_id_raw = 0
+    quality_flags_raw = row[8] if len(row) > 10 else []
+    created_at_raw = row[9] if len(row) > 10 else row[8]
+    updated_at_raw = row[10] if len(row) > 10 else row[9]
     return ManagerResponse(
         manager_id=int(cast(int | str, manager_id_raw)),
         name=str(row[1]),
@@ -205,8 +236,9 @@ def _to_manager_response(row: tuple[object, ...]) -> ManagerResponse:
         jurisdictions=_json_array(row[5]),
         tags=_json_array(row[6]),
         registry_ids=_json_dict(row[7]),
-        created_at=str(row[8]) if row[8] is not None else None,
-        updated_at=str(row[9]) if row[9] is not None else None,
+        quality_flags=_json_object_list(quality_flags_raw),
+        created_at=str(created_at_raw) if created_at_raw is not None else None,
+        updated_at=str(updated_at_raw) if updated_at_raw is not None else None,
     )
 
 
@@ -243,6 +275,8 @@ def _ensure_universe_schema(conn: Any) -> None:
             conn.execute(
                 "UPDATE managers SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL"
             )
+        if "quality_flags" not in columns:
+            conn.execute("ALTER TABLE managers ADD COLUMN quality_flags TEXT NOT NULL DEFAULT '[]'")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
         conn.commit()
         return
@@ -255,6 +289,9 @@ def _ensure_universe_schema(conn: Any) -> None:
     )
     conn.execute(
         "ALTER TABLE managers ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()"
+    )
+    conn.execute(
+        "ALTER TABLE managers ADD COLUMN IF NOT EXISTS quality_flags jsonb DEFAULT '[]'::jsonb"
     )
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
 
@@ -352,6 +389,20 @@ def _update_manager(conn, manager_id: int, payload: ManagerUpdate) -> bool:
     set_clauses: list[str] = []
     params: list[object] = []
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    id_column = _manager_id_column(conn)
+    current_row = conn.execute(
+        f"SELECT cik, lei, registry_ids, quality_flags FROM managers WHERE {id_column} = {placeholder}",
+        (manager_id,),
+    ).fetchone()
+    if current_row is None:
+        return False
+    quality_flags = _json_object_list(current_row[3] if len(current_row) > 3 else [])
+    conflict_flags = _manager_conflict_flags(
+        current_cik=current_row[0] if len(current_row) > 0 else None,
+        current_lei=current_row[1] if len(current_row) > 1 else None,
+        current_registry_ids=_json_dict(current_row[2] if len(current_row) > 2 else {}),
+        updates=fields,
+    )
 
     for field, value in fields.items():
         if field in {"aliases", "jurisdictions", "tags"}:
@@ -373,10 +424,17 @@ def _update_manager(conn, manager_id: int, payload: ManagerUpdate) -> bool:
         set_clauses.append(f"{field} = {placeholder}")
         params.append(value)
 
+    if conflict_flags:
+        quality_flags.extend(conflict_flags)
+        if isinstance(conn, sqlite3.Connection):
+            set_clauses.append(f"quality_flags = {placeholder}")
+        else:
+            set_clauses.append(f"quality_flags = {placeholder}::jsonb")
+        params.append(json.dumps(quality_flags))
+
     set_clauses.append("updated_at = CURRENT_TIMESTAMP")
     params.append(manager_id)
 
-    id_column = _manager_id_column(conn)
     cursor = conn.execute(
         f"UPDATE managers SET {', '.join(set_clauses)} WHERE {id_column} = {placeholder}",
         params,
@@ -384,6 +442,50 @@ def _update_manager(conn, manager_id: int, payload: ManagerUpdate) -> bool:
     if isinstance(conn, sqlite3.Connection):
         conn.commit()
     return cursor.rowcount > 0
+
+
+def _manager_conflict_flags(
+    *,
+    current_cik: object,
+    current_lei: object,
+    current_registry_ids: dict[str, str],
+    updates: dict[str, object],
+) -> list[dict[str, object]]:
+    observed_at = datetime.now(UTC).isoformat()
+    flags: list[dict[str, object]] = []
+
+    for field, current in (("cik", current_cik), ("lei", current_lei)):
+        if field not in updates:
+            continue
+        new_value = updates[field]
+        old_text = "" if current is None else str(current).strip()
+        new_text = "" if new_value is None else str(new_value).strip()
+        if old_text and new_text and old_text != new_text:
+            flags.append(
+                {
+                    "field": field,
+                    "old": old_text,
+                    "new": new_text,
+                    "observed_at": observed_at,
+                }
+            )
+
+    registry_update = updates.get("registry_ids")
+    if isinstance(registry_update, dict):
+        for key, raw_new in registry_update.items():
+            registry_key = str(key)
+            old_value = current_registry_ids.get(registry_key, "")
+            new_value = "" if raw_new is None else str(raw_new).strip()
+            if old_value and new_value and old_value != new_value:
+                flags.append(
+                    {
+                        "field": f"registry_ids.{registry_key}",
+                        "old": old_value,
+                        "new": new_value,
+                        "observed_at": observed_at,
+                    }
+                )
+    return flags
 
 
 def _delete_manager(conn, manager_id: int) -> bool:
@@ -450,7 +552,7 @@ def _fetch_managers(
     params.extend([limit, offset])
     id_column = _manager_id_column(conn)
     cursor = conn.execute(
-        f"SELECT {id_column}, name, cik, lei, aliases, jurisdictions, tags, registry_ids, created_at, updated_at "
+        f"SELECT {id_column}, name, cik, lei, aliases, jurisdictions, tags, registry_ids, quality_flags, created_at, updated_at "
         f"FROM managers {where_clause} "
         f"ORDER BY {id_column} LIMIT {placeholder} OFFSET {placeholder}",
         params,
@@ -465,7 +567,7 @@ def _fetch_manager(conn, db_identity: str, manager_id: int) -> tuple[object, ...
     id_column = _manager_id_column(conn)
     cursor = conn.execute(
         (
-            f"SELECT {id_column}, name, cik, lei, aliases, jurisdictions, tags, registry_ids, created_at, updated_at "
+            f"SELECT {id_column}, name, cik, lei, aliases, jurisdictions, tags, registry_ids, quality_flags, created_at, updated_at "
             f"FROM managers WHERE {id_column} = {placeholder}"
         ),
         (manager_id,),
@@ -811,6 +913,7 @@ async def create_manager(
         jurisdictions=payload.jurisdictions,
         tags=payload.tags,
         registry_ids=payload.registry_ids,
+        quality_flags=[],
         created_at=None,
         updated_at=None,
     )
@@ -1048,6 +1151,7 @@ async def bulk_import_managers(
                             jurisdictions=payload.jurisdictions,
                             tags=payload.tags,
                             registry_ids=payload.registry_ids,
+                            quality_flags=[],
                             created_at=None,
                             updated_at=None,
                         ),
