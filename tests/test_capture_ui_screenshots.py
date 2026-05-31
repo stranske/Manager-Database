@@ -111,13 +111,14 @@ def test_wait_for_ui_retries_until_http_reachable(monkeypatch) -> None:
 
 
 def test_wait_for_ui_treats_http_4xx_as_reachable(monkeypatch) -> None:
+    from email.message import Message
     from urllib.error import HTTPError
 
     calls = {"count": 0}
 
     def fake_urlopen(url: str, timeout: float) -> object:
         calls["count"] += 1
-        raise HTTPError(url=url, code=404, msg="not found", hdrs=None, fp=None)
+        raise HTTPError(url=url, code=404, msg="not found", hdrs=Message(), fp=None)
 
     monkeypatch.setattr("scripts.capture_ui_screenshots.urlopen", fake_urlopen)
 
