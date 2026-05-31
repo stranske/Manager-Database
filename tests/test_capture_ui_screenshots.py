@@ -89,7 +89,9 @@ def test_wait_for_ui_retries_until_http_reachable(monkeypatch) -> None:
 
     monotonic_values = iter([0.0, 0.0, 0.05, 0.05])
     monkeypatch.setattr("scripts.capture_ui_screenshots.urlopen", fake_urlopen)
-    monkeypatch.setattr("scripts.capture_ui_screenshots.time.monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(
+        "scripts.capture_ui_screenshots.time.monotonic", lambda: next(monotonic_values)
+    )
     monkeypatch.setattr("scripts.capture_ui_screenshots.time.sleep", lambda seconds: None)
 
     wait_for_ui("http://ui.local", timeout_s=1.0, interval_s=0.1)

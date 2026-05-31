@@ -41,7 +41,9 @@ def expected_png_paths(output_dir: Path) -> list[Path]:
 def assert_non_empty_pngs(output_dir: Path) -> None:
     """Fail when any expected screenshot is missing or empty."""
     missing_or_empty = [
-        path for path in expected_png_paths(output_dir) if not path.exists() or path.stat().st_size == 0
+        path
+        for path in expected_png_paths(output_dir)
+        if not path.exists() or path.stat().st_size == 0
     ]
     if missing_or_empty:
         formatted = ", ".join(str(path) for path in missing_or_empty)
