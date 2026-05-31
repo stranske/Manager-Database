@@ -36,15 +36,19 @@ def test_conflicting_update_records_flag(tmp_path: Path) -> None:
     assert manager.lei == "LEI-B"
     assert manager.registry_ids == {"fca_frn": "998877"}
     assert {
+        "type": "identifier_conflict",
         "field": "lei",
         "old": "LEI-A",
         "new": "LEI-B",
     }.items() <= manager.quality_flags[0].items()
     assert {
+        "type": "identifier_conflict",
         "field": "registry_ids.fca_frn",
         "old": "122927",
         "new": "998877",
     }.items() <= manager.quality_flags[1].items()
+    assert manager.quality_flags[0]["previous_value"] == "LEI-A"
+    assert manager.quality_flags[0]["current_value"] == "LEI-B"
 
 
 def test_delta_missing_fields(tmp_path: Path, monkeypatch) -> None:

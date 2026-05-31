@@ -454,6 +454,17 @@ def _manager_conflict_flags(
     observed_at = datetime.now(UTC).isoformat()
     flags: list[dict[str, object]] = []
 
+    def _identifier_conflict_flag(field: str, old_value: str, new_value: str) -> dict[str, object]:
+        return {
+            "type": "identifier_conflict",
+            "field": field,
+            "old": old_value,
+            "new": new_value,
+            "previous_value": old_value,
+            "current_value": new_value,
+            "observed_at": observed_at,
+        }
+
     for field, current in (("cik", current_cik), ("lei", current_lei)):
         if field not in updates:
             continue
@@ -461,14 +472,7 @@ def _manager_conflict_flags(
         old_text = "" if current is None else str(current).strip()
         new_text = "" if new_value is None else str(new_value).strip()
         if old_text and new_text and old_text != new_text:
-            flags.append(
-                {
-                    "field": field,
-                    "old": old_text,
-                    "new": new_text,
-                    "observed_at": observed_at,
-                }
-            )
+            flags.append(_identifier_conflict_flag(field, old_text, new_text))
 
     registry_update = updates.get("registry_ids")
     if isinstance(registry_update, dict):
@@ -478,12 +482,11 @@ def _manager_conflict_flags(
             new_value = "" if raw_new is None else str(raw_new).strip()
             if old_value and new_value and old_value != new_value:
                 flags.append(
-                    {
-                        "field": f"registry_ids.{registry_key}",
-                        "old": old_value,
-                        "new": new_value,
-                        "observed_at": observed_at,
-                    }
+                    _identifier_conflict_flag(
+                        f"registry_ids.{registry_key}",
+                        old_value,
+                        new_value,
+                    )
                 )
     return flags
 
