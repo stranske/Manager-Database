@@ -99,6 +99,8 @@ class RunResult(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)
     outputs: Any = None
     artifacts: list[Any] = Field(default_factory=list)
+    data_zone: str | None = None
+    llm_boundary: str | None = None
     warnings: list[str] = Field(default_factory=list)
     cost: RunCost = Field(default_factory=RunCost)
     latency_ms: int | None = None

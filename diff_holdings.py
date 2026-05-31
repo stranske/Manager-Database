@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from adapters.base import connect_db
+from tools.registry import run_contract_fields
 from tools.run_contract import RunResult
 
 
@@ -181,6 +182,7 @@ def diff_holdings(manager_id: int | str, conn: Any = None) -> RunResult:
         tool="diff_holdings",
         inputs={"manager_id": resolved},
         outputs=results,
+        **run_contract_fields("diff_holdings"),
         provenance={"manager_id": resolved},
         latency_ms=int((time.perf_counter() - start) * 1000),
         status="success",

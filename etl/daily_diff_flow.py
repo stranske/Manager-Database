@@ -15,6 +15,7 @@ from prefect.schedules import Cron
 from adapters.base import connect_db
 from diff_holdings import diff_holdings
 from etl.logging_setup import configure_logging, log_outcome
+from tools.registry import run_contract_fields
 from tools.run_contract import RunResult, new_run_id, write_artifact_bundle
 
 configure_logging("daily_diff_flow")
@@ -205,6 +206,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
                     "total_changes": 0,
                 },
                 artifacts=artifacts,
+                **run_contract_fields("daily_diff_flow"),
                 warnings=["No managers found in database"],
                 latency_ms=int((time.perf_counter() - start) * 1000),
                 status="success",
@@ -286,6 +288,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
                 "total_changes": total_changes,
             },
             artifacts=artifacts,
+            **run_contract_fields("daily_diff_flow"),
             warnings=warnings,
             latency_ms=int((time.perf_counter() - start) * 1000),
             status="success",
