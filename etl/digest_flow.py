@@ -228,17 +228,20 @@ def render_digest_plain_text(digest: DigestDocument) -> str:
         return "\n".join(lines)
 
     lines.append(f"Filings ({len(digest.filings)})")
-    for item in digest.filings:
+    for filing in digest.filings:
         lines.append(
-            f"- {item.manager_name}: {item.filing_type} filed {item.filed_date} via {item.source}"
+            f"- {filing.manager_name}: {filing.filing_type} filed {filing.filed_date} via {filing.source}"
         )
     lines.extend(["", f"News ({len(digest.news)})"])
-    for item in digest.news:
-        lines.append(f"- {item.manager_name}: {item.headline} ({item.source}, {item.published_at})")
+    for news_item in digest.news:
+        lines.append(
+            f"- {news_item.manager_name}: {news_item.headline} "
+            f"({news_item.source}, {news_item.published_at})"
+        )
     lines.extend(["", f"Important alerts ({len(digest.alerts)})"])
-    for item in digest.alerts:
-        manager = f" [{item.manager_name}]" if item.manager_name else ""
-        lines.append(f"- {item.rule_name}{manager}: {item.summary} ({item.fired_at})")
+    for alert in digest.alerts:
+        manager = f" [{alert.manager_name}]" if alert.manager_name else ""
+        lines.append(f"- {alert.rule_name}{manager}: {alert.summary} ({alert.fired_at})")
     return "\n".join(lines)
 
 

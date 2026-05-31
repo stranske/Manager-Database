@@ -297,6 +297,7 @@ def test_manager_list_returns_new_manager_shape(tmp_path, monkeypatch):
         "jurisdictions",
         "tags",
         "registry_ids",
+        "quality_flags",
         "created_at",
         "updated_at",
     }
@@ -307,6 +308,7 @@ def test_manager_list_returns_new_manager_shape(tmp_path, monkeypatch):
     assert item["jurisdictions"] == ["us"]
     assert item["tags"] == ["activist"]
     assert item["registry_ids"] == {}
+    assert item["quality_flags"] == []
 
 
 def test_manager_list_filter_by_jurisdiction_returns_subset(tmp_path, monkeypatch):
