@@ -5,9 +5,10 @@ Runs the exact command the docker-compose ``ui`` service uses
 script, and the container all start the Streamlit multipage shell the same
 way. This is the lightweight internal/local launch path: it does **not**
 bring up Postgres/MinIO/uvicorn, so the UI renders against whatever API
-target ``API_BASE_URL``/``CHAT_API_URL`` point at (defaulting to
-``http://localhost:8000``). The UI cannot render live data without a
-reachable API on ``:8000``.
+targets ``API_BASE_URL`` and ``CHAT_API_URL`` point at. ``API_BASE_URL``
+defaults to ``http://localhost:8000``; ``CHAT_API_URL`` is a direct endpoint
+and defaults to ``http://localhost:8000/api/chat``. The UI cannot render live
+data without a reachable API on ``:8000``.
 
 Auth is bypassed automatically when ``UI_USERNAME``/``UI_PASSWORD`` are
 unset (see ``ui/__init__.py``), which is the intended local/internal mode;

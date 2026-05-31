@@ -98,16 +98,17 @@ Feel free to open issues or pull requests as you iterate.
    manager data.
 
    - **API target.** The UI is a thin HTTP client of the API on `:8000`; it
-     cannot render live data without a reachable API (`ui/alerts.py` reads
-     `API_BASE_URL`, `ui/research.py` reads `CHAT_API_URL`, both defaulting to
-     `http://localhost:8000`). The lightest internal path is to bring up just
-     the `api` + `db` compose services, then run `make app`:
+     cannot render live data without a reachable API. `ui/alerts.py` reads the
+     API root from `API_BASE_URL` (default `http://localhost:8000`), while
+     `ui/research.py` posts directly to `CHAT_API_URL` (default
+     `http://localhost:8000/api/chat`). The lightest internal path is to bring
+     up just the `api` + `db` compose services, then run `make app`:
      ```bash
      docker compose up -d db api
-     API_BASE_URL=http://localhost:8000 CHAT_API_URL=http://localhost:8000 make app
+     API_BASE_URL=http://localhost:8000 CHAT_API_URL=http://localhost:8000/api/chat make app
      ```
-     Point `API_BASE_URL`/`CHAT_API_URL` at any already-running API target for
-     UI-only mode.
+     Point `API_BASE_URL` at any already-running API root and `CHAT_API_URL` at
+     that API's chat endpoint for UI-only mode.
    - **Auth is bypassed locally.** When `UI_USERNAME`/`UI_PASSWORD` are unset,
      `ui/__init__.py` skips `streamlit_authenticator` (logging a dev-mode
      warning) and treats the session as authenticated. Leave both unset for
