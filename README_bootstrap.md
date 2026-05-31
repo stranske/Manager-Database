@@ -117,6 +117,11 @@ Feel free to open issues or pull requests as you iterate.
      `python scripts/readiness_smoke.py --launch-ui`) launches the UI via the
      same command and asserts it answers `200` on `:8501`, then tears it down —
      without bringing up the full stack.
+   - **Review CI screenshots.** Pull request CI publishes a `ui-screenshots`
+     artifact with PNG captures of the deterministic Dashboard, Daily Report,
+     Search, and Upload pages. The artifact is generated from synthetic SQLite
+     fixtures with `UI_OFFLINE=1`; it intentionally excludes the Research page
+     and never renders proprietary manager data.
 
 5. You can still run individual pages directly if needed:
    ```bash
