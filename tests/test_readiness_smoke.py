@@ -352,3 +352,99 @@ def test_skip_ui_flag_bypasses_ui_probe(monkeypatch):
         readiness_smoke.main(["--skip-stack-start", "--skip-ui", "--base-url", "http://test"]) == 0
     )
     assert calls == ["seed:docker-compose.yml:False"]
+
+
+class _FakeProc:
+    def __init__(self, events: list[object]) -> None:
+        self._events = events
+
+    def terminate(self) -> None:
+        self._events.append("terminate")
+
+    def wait(self, timeout: float | None = None) -> int:
+        self._events.append(f"wait:{timeout}")
+        return 0
+
+    def kill(self) -> None:  # pragma: no cover - only on terminate timeout
+        self._events.append("kill")
+
+
+def test_launch_and_probe_ui_spawns_make_app_command_and_tears_down(monkeypatch):
+    events: list[object] = []
+
+    def fake_popen(cmd, **kwargs):
+        events.append(("popen", tuple(cmd)))
+        return _FakeProc(events)
+
+    monkeypatch.setattr(readiness_smoke.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        readiness_smoke,
+        "check_ui",
+        lambda ui_url, timeout_s: events.append(f"ui:{ui_url}:{timeout_s}"),
+    )
+
+    assert readiness_smoke.launch_and_probe_ui("http://localhost:8501", 1.0) == 0
+
+    popen_calls = [e for e in events if isinstance(e, tuple) and e[0] == "popen"]
+    assert len(popen_calls) == 1
+    cmd = popen_calls[0][1]
+    # Exact `make app` / docker-compose `ui` CMD.
+    assert cmd == (
+        "streamlit",
+        "run",
+        "ui/app.py",
+        "--server.port=8501",
+        "--server.headless=true",
+    )
+    assert "ui:http://localhost:8501:1.0" in events
+    assert "terminate" in events
+
+
+def test_launch_and_probe_ui_terminates_when_probe_fails(monkeypatch):
+    events: list[object] = []
+
+    monkeypatch.setattr(
+        readiness_smoke.subprocess, "Popen", lambda cmd, **kwargs: _FakeProc(events)
+    )
+
+    def boom(ui_url: str, timeout_s: float) -> None:
+        raise readiness_smoke.ReadinessError("ui never came up")
+
+    monkeypatch.setattr(readiness_smoke, "check_ui", boom)
+
+    with pytest.raises(readiness_smoke.ReadinessError):
+        readiness_smoke.launch_and_probe_ui("http://localhost:8501", 1.0)
+    # Process is still torn down on failure.
+    assert "terminate" in events
+
+
+def test_main_launch_ui_routes_to_launch_path_and_skips_run(monkeypatch, capsys):
+    calls: list[str] = []
+    monkeypatch.setattr(
+        readiness_smoke,
+        "launch_and_probe_ui",
+        lambda ui_url, timeout_s: calls.append(f"launch:{ui_url}:{timeout_s}") or 0,
+    )
+
+    def fail_run(*args, **kwargs):
+        raise AssertionError("run() must not be called with --launch-ui")
+
+    monkeypatch.setattr(readiness_smoke, "run", fail_run)
+
+    assert readiness_smoke.main(["--launch-ui"]) == 0
+    assert calls == [
+        f"launch:{readiness_smoke.DEFAULT_UI_BASE}:{readiness_smoke.DEFAULT_TIMEOUT_S}"
+    ]
+    out = capsys.readouterr().out
+    assert "readiness smoke OK (ui launch path" in out
+
+
+def test_main_launch_ui_reports_failure(monkeypatch, capsys):
+    def boom(ui_url: str, timeout_s: float) -> int:
+        raise readiness_smoke.ReadinessError("ui never came up")
+
+    monkeypatch.setattr(readiness_smoke, "launch_and_probe_ui", boom)
+    assert readiness_smoke.main(["--launch-ui"]) == 1
+    err = capsys.readouterr().err
+    assert "FAILED" in err
+    assert "ui never came up" in err

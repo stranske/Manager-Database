@@ -32,6 +32,10 @@ dependencies = [
     "langsmith>=0.7.30,<1.0",
 ]
 
+[project.scripts]
+# Internal/local launch for the analyst UI shell (see ui/launch.py and `make app`).
+mgrdb-app = "ui.launch:main"
+
 [project.optional-dependencies]
 app = []
 dev = [

@@ -81,6 +81,42 @@ Feel free to open issues or pull requests as you iterate.
    streamlit run ui/app.py
    ```
 
+   ### Run the UI locally (no full Docker stack)
+
+   For internal/local browsing you don't need to hand-orchestrate Postgres +
+   MinIO + uvicorn. A single command launches the multipage analyst shell on
+   `:8501` (the exact command the docker-compose `ui` service uses):
+
+   ```bash
+   make app
+   # or, after `pip install -e .`:
+   mgrdb-app
+   ```
+
+   This stays inside the org perimeter — the UI runs as a local/internal
+   process; **do not** publish it to Streamlit Community Cloud with real
+   manager data.
+
+   - **API target.** The UI is a thin HTTP client of the API on `:8000`; it
+     cannot render live data without a reachable API (`ui/alerts.py` reads
+     `API_BASE_URL`, `ui/research.py` reads `CHAT_API_URL`, both defaulting to
+     `http://localhost:8000`). The lightest internal path is to bring up just
+     the `api` + `db` compose services, then run `make app`:
+     ```bash
+     docker compose up -d db api
+     API_BASE_URL=http://localhost:8000 CHAT_API_URL=http://localhost:8000 make app
+     ```
+     Point `API_BASE_URL`/`CHAT_API_URL` at any already-running API target for
+     UI-only mode.
+   - **Auth is bypassed locally.** When `UI_USERNAME`/`UI_PASSWORD` are unset,
+     `ui/__init__.py` skips `streamlit_authenticator` (logging a dev-mode
+     warning) and treats the session as authenticated. Leave both unset for
+     local/internal mode; keep them **set** in production.
+   - **Smoke-test the launch path.** `make app-smoke` (i.e.
+     `python scripts/readiness_smoke.py --launch-ui`) launches the UI via the
+     same command and asserts it answers `200` on `:8501`, then tears it down —
+     without bringing up the full stack.
+
 5. You can still run individual pages directly if needed:
    ```bash
    streamlit run ui/daily_report.py

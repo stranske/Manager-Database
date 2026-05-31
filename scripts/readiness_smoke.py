@@ -172,6 +172,30 @@ def check_ui(base_url: str, timeout_s: float) -> None:
     _retry_until_ready("Streamlit UI", timeout_s, _probe)
 
 
+def launch_and_probe_ui(ui_url: str, timeout_s: float) -> int:
+    """Launch the analyst UI via the `make app` path and assert it answers 200.
+
+    Spawns the exact Streamlit command used by `make app` / the `mgrdb-app`
+    console script (``ui.launch.ui_launch_command``), runs the existing
+    ``check_ui`` probe until the shell responds 200 on ``:8501``, then tears
+    the process down. This exercises the local launch path without bringing up
+    the full Docker stack (no Postgres/MinIO/uvicorn).
+    """
+    from ui.launch import ui_launch_command
+
+    proc = subprocess.Popen(ui_launch_command())
+    try:
+        check_ui(ui_url, timeout_s)
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+    return 0
+
+
 def run(
     base_url: str,
     ui_url: str,
@@ -232,7 +256,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Skip the Streamlit UI probe (for headless CI that does not start the UI).",
     )
+    parser.add_argument(
+        "--launch-ui",
+        action="store_true",
+        help=(
+            "Launch the analyst UI via the `make app` path and assert it answers "
+            "200 on :8501, then tear it down. Skips the full-stack/API probes."
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.launch_ui:
+        try:
+            launch_and_probe_ui(args.ui_url, args.timeout)
+        except ReadinessError as exc:
+            print(f"readiness smoke FAILED: {exc}", file=sys.stderr)
+            return 1
+        except httpx.HTTPError as exc:
+            print(f"readiness smoke FAILED (transport): {exc}", file=sys.stderr)
+            return 1
+        print(f"readiness smoke OK (ui launch path, ui={args.ui_url})")
+        return 0
     run_kwargs: dict[str, Any] = {
         "clean_stack": not args.skip_stack_start,
         "compose_file": args.compose_file,
