@@ -80,7 +80,15 @@ def capture_targets(page: Page, *, base_url: str, output_dir: Path, timeout_ms: 
     for target in SCREENSHOT_TARGETS:
         url = urljoin(base, target.route.lstrip("/"))
         page.goto(url, wait_until="networkidle", timeout=timeout_ms)
-        page.wait_for_selector(f"text={target.visible_text}", timeout=timeout_ms)
+        try:
+            page.wait_for_selector(f"text={target.visible_text}", timeout=timeout_ms)
+        except Exception as exc:
+            page.wait_for_selector('[data-testid="stApp"]', timeout=timeout_ms)
+            print(
+                f"Warning: {target.title} sentinel text {target.visible_text!r} "
+                f"was not visible before screenshot capture: {exc}",
+                file=sys.stderr,
+            )
         page.screenshot(path=str(output_dir / target.filename), full_page=True)
     assert_non_empty_pngs(output_dir)
 

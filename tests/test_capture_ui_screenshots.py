@@ -34,6 +34,13 @@ class FakePage:
         self.selectors.append(selector)
 
 
+class FallbackPage(FakePage):
+    def wait_for_selector(self, selector: str, *, timeout: int) -> None:
+        super().wait_for_selector(selector, timeout=timeout)
+        if selector.startswith("text="):
+            raise TimeoutError("sentinel did not render")
+
+
 def test_fixed_capture_targets_exclude_research() -> None:
     assert [target.title for target in SCREENSHOT_TARGETS] == [
         "Dashboard",
@@ -61,6 +68,20 @@ def test_capture_targets_visits_routes_and_requires_non_empty_pngs(tmp_path: Pat
         "text=Universal Search",
         "text=Upload Document",
     ]
+    assert sorted(path.name for path in page.paths) == [
+        "daily-report.png",
+        "dashboard.png",
+        "search.png",
+        "upload.png",
+    ]
+
+
+def test_capture_targets_falls_back_to_streamlit_shell(tmp_path: Path) -> None:
+    page = FallbackPage()
+
+    capture_targets(page, base_url="http://ui.local", output_dir=tmp_path, timeout_ms=123)
+
+    assert '[data-testid="stApp"]' in page.selectors
     assert sorted(path.name for path in page.paths) == [
         "daily-report.png",
         "dashboard.png",
