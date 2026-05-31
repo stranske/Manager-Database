@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
+from urllib.error import HTTPError
 from urllib.parse import urljoin
 from urllib.request import urlopen
 
@@ -15,15 +16,16 @@ from urllib.request import urlopen
 @dataclass(frozen=True)
 class ScreenshotTarget:
     title: str
+    visible_text: str
     route: str
     filename: str
 
 
 SCREENSHOT_TARGETS = [
-    ScreenshotTarget("Dashboard", "/", "dashboard.png"),
-    ScreenshotTarget("Daily Report", "/daily-report", "daily-report.png"),
-    ScreenshotTarget("Search", "/search", "search.png"),
-    ScreenshotTarget("Upload", "/upload", "upload.png"),
+    ScreenshotTarget("Dashboard", "Holdings Delta", "/", "dashboard.png"),
+    ScreenshotTarget("Daily Report", "Filings & Diffs", "/daily-report", "daily-report.png"),
+    ScreenshotTarget("Search", "Universal Search", "/search", "search.png"),
+    ScreenshotTarget("Upload", "Upload Document", "/upload", "upload.png"),
 ]
 
 
@@ -61,6 +63,10 @@ def wait_for_ui(base_url: str, *, timeout_s: float = 60.0, interval_s: float = 1
             with urlopen(base_url, timeout=interval_s) as response:
                 if 200 <= response.status < 500:
                     return
+        except HTTPError as exc:
+            if exc.code < 500:
+                return
+            last_error = exc
         except Exception as exc:
             last_error = exc
         time.sleep(interval_s)
@@ -74,7 +80,7 @@ def capture_targets(page: Page, *, base_url: str, output_dir: Path, timeout_ms: 
     for target in SCREENSHOT_TARGETS:
         url = urljoin(base, target.route.lstrip("/"))
         page.goto(url, wait_until="networkidle", timeout=timeout_ms)
-        page.wait_for_selector(f"text={target.title}", timeout=timeout_ms)
+        page.wait_for_selector(f"text={target.visible_text}", timeout=timeout_ms)
         page.screenshot(path=str(output_dir / target.filename), full_page=True)
     assert_non_empty_pngs(output_dir)
 

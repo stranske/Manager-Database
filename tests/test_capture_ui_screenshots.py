@@ -56,10 +56,10 @@ def test_capture_targets_visits_routes_and_requires_non_empty_pngs(tmp_path: Pat
         "http://ui.local/base/upload",
     ]
     assert page.selectors == [
-        "text=Dashboard",
-        "text=Daily Report",
-        "text=Search",
-        "text=Upload",
+        "text=Holdings Delta",
+        "text=Filings & Diffs",
+        "text=Universal Search",
+        "text=Upload Document",
     ]
     assert sorted(path.name for path in page.paths) == [
         "daily-report.png",
@@ -108,3 +108,19 @@ def test_wait_for_ui_retries_until_http_reachable(monkeypatch) -> None:
     wait_for_ui("http://ui.local", timeout_s=1.0, interval_s=0.1)
 
     assert calls["count"] == 2
+
+
+def test_wait_for_ui_treats_http_4xx_as_reachable(monkeypatch) -> None:
+    from urllib.error import HTTPError
+
+    calls = {"count": 0}
+
+    def fake_urlopen(url: str, timeout: float) -> object:
+        calls["count"] += 1
+        raise HTTPError(url=url, code=404, msg="not found", hdrs=None, fp=None)
+
+    monkeypatch.setattr("scripts.capture_ui_screenshots.urlopen", fake_urlopen)
+
+    wait_for_ui("http://ui.local/missing", timeout_s=1.0, interval_s=0.1)
+
+    assert calls["count"] == 1
