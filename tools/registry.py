@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
+DataZone = Literal["public_filings", "internal_notes"]
 LlmBoundary = Literal["none", "external_authorized"]
 
 
@@ -13,7 +14,7 @@ class ToolDescriptor(BaseModel):
     """Declare the data and external-LLM boundary for one tool or chain."""
 
     name: str
-    data_zone: str
+    data_zone: DataZone
     external_sources: list[str] = Field(default_factory=list)
     db_writes: list[str] = Field(default_factory=list)
     llm_boundary: LlmBoundary
@@ -63,7 +64,14 @@ def descriptor_for(name: str) -> ToolDescriptor:
     return TOOL_REGISTRY[name]
 
 
-def run_contract_fields(name: str) -> dict[str, str]:
+class RunContractFields(TypedDict):
+    """The descriptor fields spliced into a ``RunResult`` envelope."""
+
+    data_zone: str
+    llm_boundary: str
+
+
+def run_contract_fields(name: str) -> RunContractFields:
     """Return descriptor fields that belong in a ``RunResult`` envelope."""
     descriptor = descriptor_for(name)
     return {
