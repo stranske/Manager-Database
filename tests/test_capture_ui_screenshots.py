@@ -15,6 +15,7 @@ from scripts.capture_ui_screenshots import (
 class FakePage:
     def __init__(self) -> None:
         self.urls: list[str] = []
+        self.selectors: list[str] = []
         self.paths: list[Path] = []
 
     def goto(self, url: str, *, wait_until: str, timeout: int) -> None:
@@ -27,6 +28,10 @@ class FakePage:
         screenshot_path = Path(path)
         screenshot_path.write_bytes(b"png")
         self.paths.append(screenshot_path)
+
+    def wait_for_selector(self, selector: str, *, timeout: int) -> None:
+        assert timeout == 123
+        self.selectors.append(selector)
 
 
 def test_fixed_capture_targets_exclude_research() -> None:
@@ -49,6 +54,12 @@ def test_capture_targets_visits_routes_and_requires_non_empty_pngs(tmp_path: Pat
         "http://ui.local/base/daily-report",
         "http://ui.local/base/search",
         "http://ui.local/base/upload",
+    ]
+    assert page.selectors == [
+        "text=Dashboard",
+        "text=Daily Report",
+        "text=Search",
+        "text=Upload",
     ]
     assert sorted(path.name for path in page.paths) == [
         "daily-report.png",

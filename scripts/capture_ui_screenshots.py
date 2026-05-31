@@ -30,6 +30,8 @@ SCREENSHOT_TARGETS = [
 class Page(Protocol):
     def goto(self, url: str, *, wait_until: str, timeout: int) -> object: ...
 
+    def wait_for_selector(self, selector: str, *, timeout: int) -> object: ...
+
     def screenshot(self, *, path: str, full_page: bool) -> object: ...
 
 
@@ -72,6 +74,7 @@ def capture_targets(page: Page, *, base_url: str, output_dir: Path, timeout_ms: 
     for target in SCREENSHOT_TARGETS:
         url = urljoin(base, target.route.lstrip("/"))
         page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+        page.wait_for_selector(f"text={target.title}", timeout=timeout_ms)
         page.screenshot(path=str(output_dir / target.filename), full_page=True)
     assert_non_empty_pngs(output_dir)
 
