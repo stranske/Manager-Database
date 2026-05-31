@@ -26,7 +26,7 @@ def _db_asset_path() -> str:
 
 def _build_offline_pages() -> list[Any]:
     return [
-        st.Page(dashboard.main, title=OFFLINE_PAGE_TITLES[0], icon="📈", url_path=""),
+        st.Page(dashboard.main, title=OFFLINE_PAGE_TITLES[0], icon="📈", url_path="", default=True),
         st.Page(
             daily_report.main,
             title=OFFLINE_PAGE_TITLES[1],
