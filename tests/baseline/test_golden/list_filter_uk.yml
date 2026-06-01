@@ -1,0 +1,32 @@
+json:
+  items:
+  - aliases: []
+    cik: '0001647251'
+    jurisdictions:
+    - uk
+    lei: null
+    manager_id: 3
+    name: TCI Fund Management
+    quality_flags: []
+    registry_ids:
+      fca_frn: '190271'
+    tags:
+    - activist
+  - aliases:
+    - Pershing Square
+    cik: 0001336528
+    jurisdictions:
+    - us
+    - uk
+    lei: 5493006FHHFR8FMRY713
+    manager_id: 4
+    name: Pershing Square Capital Management
+    quality_flags: []
+    registry_ids: {}
+    tags:
+    - activist
+    - hedge-fund
+  limit: 25
+  offset: 0
+  total: 2
+status_code: 200

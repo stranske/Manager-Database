@@ -1,0 +1,12 @@
+json:
+  by_jurisdiction:
+    uk: 2
+    us: 7
+  by_tag:
+    activist: 3
+    hedge-fund: 6
+    quant: 3
+  total_managers: 8
+  with_cik: 7
+  with_lei: 5
+status_code: 200
