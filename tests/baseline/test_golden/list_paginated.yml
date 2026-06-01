@@ -1,0 +1,33 @@
+json:
+  items:
+  - aliases:
+    - Elliott Management
+    cik: 0001791786
+    jurisdictions:
+    - us
+    lei: 549300U3N12T57QLOU60
+    manager_id: 1
+    name: Elliott Investment Management L.P.
+    quality_flags: []
+    registry_ids:
+      fca_frn: '122927'
+    tags:
+    - activist
+    - hedge-fund
+  - aliases:
+    - Bridgewater
+    cik: 0001350694
+    jurisdictions:
+    - us
+    lei: 5493001Z7HC8XOLIRT54
+    manager_id: 2
+    name: Bridgewater Associates
+    quality_flags: []
+    registry_ids: {}
+    tags:
+    - hedge-fund
+    - quant
+  limit: 2
+  offset: 0
+  total: 5
+status_code: 200

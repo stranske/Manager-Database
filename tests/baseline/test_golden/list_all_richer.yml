@@ -1,0 +1,108 @@
+json:
+  items:
+  - aliases:
+    - Elliott Management
+    cik: 0001791786
+    jurisdictions:
+    - us
+    lei: 549300U3N12T57QLOU60
+    manager_id: 1
+    name: Elliott Investment Management L.P.
+    quality_flags: []
+    registry_ids:
+      fca_frn: '122927'
+    tags:
+    - activist
+    - hedge-fund
+  - aliases:
+    - Bridgewater
+    cik: 0001350694
+    jurisdictions:
+    - us
+    lei: 5493001Z7HC8XOLIRT54
+    manager_id: 2
+    name: Bridgewater Associates
+    quality_flags: []
+    registry_ids: {}
+    tags:
+    - hedge-fund
+    - quant
+  - aliases: []
+    cik: '0001647251'
+    jurisdictions:
+    - uk
+    lei: null
+    manager_id: 3
+    name: TCI Fund Management
+    quality_flags: []
+    registry_ids:
+      fca_frn: '190271'
+    tags:
+    - activist
+  - aliases:
+    - Pershing Square
+    cik: 0001336528
+    jurisdictions:
+    - us
+    - uk
+    lei: 5493006FHHFR8FMRY713
+    manager_id: 4
+    name: Pershing Square Capital Management
+    quality_flags: []
+    registry_ids: {}
+    tags:
+    - activist
+    - hedge-fund
+  - aliases:
+    - RenTech
+    - Renaissance
+    cik: null
+    jurisdictions:
+    - us
+    lei: null
+    manager_id: 5
+    name: Renaissance Technologies
+    quality_flags: []
+    registry_ids: {}
+    tags:
+    - quant
+    - hedge-fund
+  - aliases:
+    - Citadel
+    cik: '0001423053'
+    jurisdictions:
+    - us
+    lei: 549300V1ZTQHPDQEM927
+    manager_id: 6
+    name: Citadel Advisors
+    quality_flags: []
+    registry_ids: {}
+    tags:
+    - hedge-fund
+  - aliases:
+    - Two Sigma
+    cik: 0001179392
+    jurisdictions:
+    - us
+    lei: null
+    manager_id: 7
+    name: Two Sigma Investments
+    quality_flags: []
+    registry_ids: {}
+    tags:
+    - quant
+    - hedge-fund
+  - aliases: []
+    cik: 0001067983
+    jurisdictions:
+    - us
+    lei: 5493000C01ZX7D35SD85
+    manager_id: 8
+    name: Berkshire Hathaway
+    quality_flags: []
+    registry_ids: {}
+    tags: []
+  limit: 100
+  offset: 0
+  total: 8
+status_code: 200

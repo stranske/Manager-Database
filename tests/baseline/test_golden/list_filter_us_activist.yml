@@ -1,0 +1,34 @@
+json:
+  items:
+  - aliases:
+    - Elliott Management
+    cik: 0001791786
+    jurisdictions:
+    - us
+    lei: 549300U3N12T57QLOU60
+    manager_id: 1
+    name: Elliott Investment Management L.P.
+    quality_flags: []
+    registry_ids:
+      fca_frn: '122927'
+    tags:
+    - activist
+    - hedge-fund
+  - aliases:
+    - Pershing Square
+    cik: 0001336528
+    jurisdictions:
+    - us
+    - uk
+    lei: 5493006FHHFR8FMRY713
+    manager_id: 4
+    name: Pershing Square Capital Management
+    quality_flags: []
+    registry_ids: {}
+    tags:
+    - activist
+    - hedge-fund
+  limit: 25
+  offset: 0
+  total: 2
+status_code: 200

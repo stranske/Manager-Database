@@ -10,6 +10,11 @@ _OPERATORS = ("==", ">=", "<=", "~=", "!=", ">", "<", "===")
 
 def _split_spec(raw: str) -> str:
     entry = raw.strip().strip(",").strip('"')
+    # Direct references ("name @ git+https://...") declare the package name before
+    # the " @ "; there is no version operator to split on.
+    if " @ " in entry:
+        name, _ = entry.split(" @ ", 1)
+        return name.strip().split("[")[0]
     for operator in _OPERATORS:
         if operator in entry:
             name, _ = entry.split(operator, 1)
@@ -24,6 +29,12 @@ def _load_lock_versions(path: Path) -> dict[str, str]:
         if not stripped or stripped.startswith("#"):
             continue
         if stripped.startswith("--"):
+            continue
+        # Direct references in the lock ("name @ git+https://...") have no pinned
+        # "==" version; record them so the presence check still passes.
+        if " @ " in stripped:
+            name, _ = stripped.split(" @ ", 1)
+            versions[name.strip().lower()] = "<direct-reference>"
             continue
         if "==" not in stripped:
             continue
@@ -43,6 +54,18 @@ def test_all_pyproject_dependencies_are_in_lock() -> None:
     for group in project.get("optional-dependencies", {}).values():
         for entry in group:
             declared.add(_split_spec(entry).lower())
+
+    # Packages intentionally excluded from the lock via uv's no-emit-package
+    # (monorepo deps consumed from an unpinned @main git URL, e.g.
+    # app-baseline-kit) are not expected to be pinned in requirements.lock.
+    no_emit = {
+        _split_spec(name).lower()
+        for name in pyproject.get("tool", {})
+        .get("uv", {})
+        .get("pip", {})
+        .get("no-emit-package", [])
+    }
+    declared -= no_emit
 
     lock_versions = _load_lock_versions(Path("requirements.lock"))
 

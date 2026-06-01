@@ -1,0 +1,299 @@
+# Manager-Database scenario catalog -- api-snapshot modality.
+#
+# Surface: the FastAPI /managers HTTP endpoints (api/managers.py), driven through
+# a Starlette TestClient against a freshly seeded, deterministic sqlite DB.
+#
+# Unlike the deterministic-compute kits (Counter_Risk etc.), a "scenario" here is
+# an ENDPOINT + params run against a named SEED variant. Each scenario yields a
+# JSON payload (golden-snapshotted via baseline_kit.check_snapshot) and a flat
+# metrics dict (for invariants + directional checks).
+
+# ---------------------------------------------------------------------------
+# Seed variants. Each is a fixed, committed list of manager rows. ids are
+# explicit and contiguous so the autoincrement surface is deterministic. The
+# `base` variant deliberately mixes:
+#   * jurisdictions: us (3), uk (1), and one multi-jurisdiction (us+uk) record,
+#   * tags: activist / hedge-fund / quant overlaps so by_tag is non-trivial,
+#   * presence of cik (4 of 5) and lei (3 of 5) so with_cik/with_lei differ,
+#   * aliases of varying length.
+# `richer` = base + 3 additional us managers (strictly more rows), used by the
+# directional "more managers raises count / total" checks.
+# ---------------------------------------------------------------------------
+seeds:
+  base:
+    - id: 1
+      name: Elliott Investment Management L.P.
+      cik: "0001791786"
+      lei: "549300U3N12T57QLOU60"
+      aliases: ["Elliott Management"]
+      jurisdictions: ["us"]
+      tags: ["activist", "hedge-fund"]
+      registry_ids: {fca_frn: "122927"}
+    - id: 2
+      name: Bridgewater Associates
+      cik: "0001350694"
+      lei: "5493001Z7HC8XOLIRT54"
+      aliases: ["Bridgewater"]
+      jurisdictions: ["us"]
+      tags: ["hedge-fund", "quant"]
+      registry_ids: {}
+    - id: 3
+      name: TCI Fund Management
+      cik: "0001647251"
+      lei: null
+      aliases: []
+      jurisdictions: ["uk"]
+      tags: ["activist"]
+      registry_ids: {fca_frn: "190271"}
+    - id: 4
+      name: Pershing Square Capital Management
+      cik: "0001336528"
+      lei: "5493006FHHFR8FMRY713"
+      aliases: ["Pershing Square"]
+      jurisdictions: ["us", "uk"]
+      tags: ["activist", "hedge-fund"]
+      registry_ids: {}
+    - id: 5
+      name: Renaissance Technologies
+      cik: null
+      lei: null
+      aliases: ["RenTech", "Renaissance"]
+      jurisdictions: ["us"]
+      tags: ["quant", "hedge-fund"]
+      registry_ids: {}
+
+  richer:
+    # base + three additional us managers (count goes 5 -> 8).
+    - id: 1
+      name: Elliott Investment Management L.P.
+      cik: "0001791786"
+      lei: "549300U3N12T57QLOU60"
+      aliases: ["Elliott Management"]
+      jurisdictions: ["us"]
+      tags: ["activist", "hedge-fund"]
+      registry_ids: {fca_frn: "122927"}
+    - id: 2
+      name: Bridgewater Associates
+      cik: "0001350694"
+      lei: "5493001Z7HC8XOLIRT54"
+      aliases: ["Bridgewater"]
+      jurisdictions: ["us"]
+      tags: ["hedge-fund", "quant"]
+      registry_ids: {}
+    - id: 3
+      name: TCI Fund Management
+      cik: "0001647251"
+      lei: null
+      aliases: []
+      jurisdictions: ["uk"]
+      tags: ["activist"]
+      registry_ids: {fca_frn: "190271"}
+    - id: 4
+      name: Pershing Square Capital Management
+      cik: "0001336528"
+      lei: "5493006FHHFR8FMRY713"
+      aliases: ["Pershing Square"]
+      jurisdictions: ["us", "uk"]
+      tags: ["activist", "hedge-fund"]
+      registry_ids: {}
+    - id: 5
+      name: Renaissance Technologies
+      cik: null
+      lei: null
+      aliases: ["RenTech", "Renaissance"]
+      jurisdictions: ["us"]
+      tags: ["quant", "hedge-fund"]
+      registry_ids: {}
+    - id: 6
+      name: Citadel Advisors
+      cik: "0001423053"
+      lei: "549300V1ZTQHPDQEM927"
+      aliases: ["Citadel"]
+      jurisdictions: ["us"]
+      tags: ["hedge-fund"]
+      registry_ids: {}
+    - id: 7
+      name: Two Sigma Investments
+      cik: "0001179392"
+      lei: null
+      aliases: ["Two Sigma"]
+      jurisdictions: ["us"]
+      tags: ["quant", "hedge-fund"]
+      registry_ids: {}
+    - id: 8
+      name: Berkshire Hathaway
+      cik: "0001067983"
+      lei: "5493000C01ZX7D35SD85"
+      aliases: []
+      jurisdictions: ["us"]
+      tags: []
+      registry_ids: {}
+
+# ---------------------------------------------------------------------------
+# Scenarios. Each names an endpoint, a seed variant, and (for list/detail) the
+# request params/target. `expect.count`/`expect.total`/`expect.total_managers`
+# encode the hand-derived seeded expectation the invariants pin.
+# ---------------------------------------------------------------------------
+scenarios:
+  # --- GET /managers (list) ------------------------------------------------
+  - id: list_all_base
+    endpoint: list
+    seed: base
+    params: {}
+    expect: {count: 5, total: 5}
+
+  - id: list_filter_us
+    endpoint: list
+    seed: base
+    params: {jurisdiction: us}
+    # us: ids 1,2,4,5  (3 is uk-only) -> 4
+    expect: {count: 4, total: 4}
+
+  - id: list_filter_uk
+    endpoint: list
+    seed: base
+    params: {jurisdiction: uk}
+    # uk: ids 3,4 -> 2
+    expect: {count: 2, total: 2}
+
+  - id: list_filter_activist
+    endpoint: list
+    seed: base
+    params: {tag: activist}
+    # activist: ids 1,3,4 -> 3
+    expect: {count: 3, total: 3}
+
+  - id: list_filter_us_activist
+    endpoint: list
+    seed: base
+    params: {jurisdiction: us, tag: activist}
+    # us AND activist: ids 1,4 -> 2
+    expect: {count: 2, total: 2}
+
+  - id: list_paginated
+    endpoint: list
+    seed: base
+    params: {limit: 2, offset: 0}
+    # page of 2, but total still reflects all 5.
+    expect: {count: 2, total: 5}
+
+  - id: list_paginated_offset
+    endpoint: list
+    seed: base
+    params: {limit: 2, offset: 4}
+    # offset past the first 4 -> only id 5 remains on the page.
+    expect: {count: 1, total: 5}
+
+  - id: list_filter_no_match
+    endpoint: list
+    seed: base
+    params: {jurisdiction: jp}
+    # no jp managers -> empty page, total 0.
+    expect: {count: 0, total: 0}
+
+  - id: list_all_richer
+    endpoint: list
+    seed: richer
+    params: {limit: 100}
+    # richer seed has 8 managers (base + 3).
+    expect: {count: 8, total: 8}
+
+  # --- GET /managers/{id} (detail) ----------------------------------------
+  - id: detail_found
+    endpoint: detail
+    seed: base
+    manager_id: 4
+    expect: {found: 1}
+
+  - id: detail_missing
+    endpoint: detail
+    seed: base
+    manager_id: 9999
+    expect: {found: 0}
+
+  # --- GET /managers/stats -------------------------------------------------
+  - id: stats_base
+    endpoint: stats
+    seed: base
+    expect: {total_managers: 5}
+
+  - id: stats_richer
+    endpoint: stats
+    seed: richer
+    expect: {total_managers: 8}
+
+# ---------------------------------------------------------------------------
+# Directional ("metamorphic") checks: a metric of one scenario vs another.
+# direction is from baseline_kit.DIRECTIONS (left=scenario, right=control).
+# Each is grounded in the endpoint contract, not boilerplate.
+# ---------------------------------------------------------------------------
+directionals:
+  # A jurisdiction filter can only narrow (or equal) the unfiltered count.
+  - id: us_filter_narrows_count
+    scenario: list_filter_us
+    control: list_all_base
+    metric: count
+    direction: less_than
+    enforce: true
+  # A tag filter likewise narrows the count.
+  - id: activist_filter_narrows_count
+    scenario: list_filter_activist
+    control: list_all_base
+    metric: count
+    direction: less_than
+    enforce: true
+  # Combining two filters narrows at least as much as one filter alone.
+  - id: combined_filter_narrows_further
+    scenario: list_filter_us_activist
+    control: list_filter_activist
+    metric: count
+    direction: less_or_equal
+    enforce: true
+  # Pagination caps the returned page size below the full count...
+  - id: pagination_caps_page
+    scenario: list_paginated
+    control: list_all_base
+    metric: count
+    direction: less_than
+    enforce: true
+  # ...but does NOT change the reported total (total is filter-, not page-, sized).
+  - id: pagination_preserves_total
+    scenario: list_paginated
+    control: list_all_base
+    metric: total
+    direction: unchanged
+    enforce: true
+  # A richer seed (more managers) raises the unfiltered list count.
+  - id: richer_seed_raises_count
+    scenario: list_all_richer
+    control: list_all_base
+    metric: count
+    direction: greater_than
+    enforce: true
+  # ...and raises the stats total_managers.
+  - id: richer_seed_raises_total_managers
+    scenario: stats_richer
+    control: stats_base
+    metric: total_managers
+    direction: greater_than
+    enforce: true
+  # ...and can only raise (never lower) the with_cik count.
+  - id: richer_seed_raises_with_cik
+    scenario: stats_richer
+    control: stats_base
+    metric: with_cik
+    direction: greater_or_equal
+    enforce: true
+
+# ---------------------------------------------------------------------------
+# Coverage manifest: input-parameter space the kit must exercise. These are the
+# request knobs the /managers surface accepts; the manifest flags any priority
+# parameter no scenario touches.
+# ---------------------------------------------------------------------------
+priority_params:
+  - endpoint
+  - limit
+  - offset
+  - jurisdiction
+  - tag
+  - manager_id

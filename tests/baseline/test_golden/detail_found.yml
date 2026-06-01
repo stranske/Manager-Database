@@ -1,0 +1,16 @@
+json:
+  aliases:
+  - Pershing Square
+  cik: 0001336528
+  jurisdictions:
+  - us
+  - uk
+  lei: 5493006FHHFR8FMRY713
+  manager_id: 4
+  name: Pershing Square Capital Management
+  quality_flags: []
+  registry_ids: {}
+  tags:
+  - activist
+  - hedge-fund
+status_code: 200

@@ -56,11 +56,25 @@ dev = [
     "referencing",
     "PyYAML",
     "fakeredis",
+    # Shared app-behavior baseline harness (api-snapshot kit under tests/baseline).
+    # Pattern A: unpinned @main, excluded from requirements.lock via the
+    # [tool.uv.pip] no-emit-package below. See docs/baseline-kit-dependency.md.
+    "app-baseline-kit @ git+https://github.com/stranske/Workflows.git#subdirectory=packages/app-baseline-kit",
+    # Transitive dep of app-baseline-kit; declared explicitly so the lock-presence
+    # test (tests/test_dependency_version_alignment.py) is satisfied.
+    "pytest-regressions>=2.8",
 ]
 
 [build-system]
 requires = ["setuptools>=82.0.1"]
 build-backend = "setuptools.build_meta"
+
+# Do not freeze a commit SHA for the monorepo app-baseline-kit package in
+# requirements.lock. Pattern A: the unpinned @main pyproject URL and the lock
+# must never disagree, or uv aborts on a cold-cache resolve with "conflicting
+# URLs for package app-baseline-kit". See docs/baseline-kit-dependency.md.
+[tool.uv.pip]
+no-emit-package = ["app-baseline-kit"]
 
 # Explicit package discovery for flat layout with multiple top-level packages
 [tool.setuptools.packages.find]
