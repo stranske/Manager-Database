@@ -43,7 +43,7 @@ beartype==0.22.9
     #   py-key-value-shared
 beautifulsoup4==4.14.3
     # via manager-database (pyproject.toml)
-black==26.3.1
+black==26.5.1
     # via manager-database (pyproject.toml)
 blinker==1.9.0
     # via streamlit
@@ -489,7 +489,7 @@ ruamel-yaml==0.19.1
     # via prefect
 ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
     # via prefect
-ruff==0.15.13
+ruff==0.15.14
     # via manager-database (pyproject.toml)
 s3transfer==0.16.0
     # via boto3
