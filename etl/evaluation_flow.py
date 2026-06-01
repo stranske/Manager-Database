@@ -255,9 +255,7 @@ def build_live_evaluation_datasets(db_conn: sqlite3.Connection) -> dict[str, lis
             "kind": "memo",
             "manager_id": manager_id,
         }
-    ][
-        :k
-    ]
+    ][:k]
 
     filing_summary = filing_chain.run(1).model_dump()
     nl_result = nl_chain.run("How many managers are in the database?")
