@@ -19,4 +19,6 @@ jobs:
       - name: Start services
         run: docker compose up -d
       - name: Run nightly tests
-        run: pytest -m nightly -q
+        run: pytest -m nightly -q --ignore=tests/test_parser_snapshot_regression.py
+      - name: Run parser snapshot regression tests
+        run: pytest -m nightly tests/test_parser_snapshot_regression.py -q
