@@ -8,6 +8,7 @@ specific endpoint documents a different requirement.
 
 ## Rate limiting
 
-All API endpoints are subject to rate limiting to ensure fair usage and system
-stability. For detailed information about rate limits, handling 429 responses,
-and best practices, see [API Rate Limiting](api_rate_limiting.md).
+Rate limiting applies to the chat write paths documented in
+[API Rate Limiting](api_rate_limiting.md). Other endpoints are currently
+unlimited unless they explicitly delegate to the chat rate limiter in
+`api/chat.py`.
