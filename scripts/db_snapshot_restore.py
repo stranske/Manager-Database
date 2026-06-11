@@ -40,10 +40,14 @@ def mask_database_url(database_url: str) -> str:
         return database_url
 
     _, host = parsed.netloc.rsplit("@", 1)
-    return urlunsplit((parsed.scheme, f"***:***@{host}", parsed.path, parsed.query, parsed.fragment))
+    return urlunsplit(
+        (parsed.scheme, f"***:***@{host}", parsed.path, parsed.query, parsed.fragment)
+    )
 
 
-def snapshot_uri(bucket_uri: str, *, now: dt.datetime | None = None, prefix: str = DEFAULT_PREFIX) -> str:
+def snapshot_uri(
+    bucket_uri: str, *, now: dt.datetime | None = None, prefix: str = DEFAULT_PREFIX
+) -> str:
     timestamp = (now or _utc_now()).strftime("%Y%m%dT%H%M%SZ")
     return f"{bucket_uri.rstrip('/')}/{prefix}-{timestamp}.dump"
 
@@ -136,7 +140,9 @@ def _run_backup(database_url: str, bucket_uri: str, kms_key_id: str | None) -> N
 def _run_restore(database_url: str, snapshot: str) -> None:
     with tempfile.TemporaryDirectory(prefix="mgrdb-restore-") as tmpdir:
         snapshot_path = Path(tmpdir) / Path(snapshot).name
-        subprocess.run(["aws", "s3", "cp", snapshot, str(snapshot_path), "--only-show-errors"], check=True)
+        subprocess.run(
+            ["aws", "s3", "cp", snapshot, str(snapshot_path), "--only-show-errors"], check=True
+        )
         subprocess.run(
             [
                 "pg_restore",
@@ -163,14 +169,20 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     backup = subparsers.add_parser("backup", help="Create a Postgres snapshot and upload it to S3")
-    backup.add_argument("--dry-run", action="store_true", help="Print the backup plan without executing it")
+    backup.add_argument(
+        "--dry-run", action="store_true", help="Print the backup plan without executing it"
+    )
     backup.add_argument("--database-url-env", default="DB_SNAPSHOT_DATABASE_URL")
     backup.add_argument("--bucket-uri", default=os.getenv("DB_SNAPSHOT_S3_URI"))
     backup.add_argument("--retention-days", type=int, default=DEFAULT_RETENTION_DAYS)
     backup.add_argument("--kms-key-id", default=os.getenv("DB_SNAPSHOT_KMS_KEY_ID"))
 
-    restore = subparsers.add_parser("restore", help="Restore a Postgres database from an S3 snapshot")
-    restore.add_argument("--dry-run", action="store_true", help="Print the restore plan without executing it")
+    restore = subparsers.add_parser(
+        "restore", help="Restore a Postgres database from an S3 snapshot"
+    )
+    restore.add_argument(
+        "--dry-run", action="store_true", help="Print the restore plan without executing it"
+    )
     restore.add_argument("--database-url-env", default="DB_RESTORE_DATABASE_URL")
     restore.add_argument("--snapshot-uri", required=True)
 

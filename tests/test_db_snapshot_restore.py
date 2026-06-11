@@ -16,7 +16,9 @@ def test_backup_plan_masks_credentials_and_uses_encrypted_snapshot():
         now=dt.datetime(2026, 6, 11, 5, 15, tzinfo=dt.UTC),
     )
 
-    assert plan.snapshot_uri == "s3://manager-db-backups/prod/manager-database-20260611T051500Z.dump"
+    assert (
+        plan.snapshot_uri == "s3://manager-db-backups/prod/manager-database-20260611T051500Z.dump"
+    )
     assert plan.database_url == "postgresql://***:***@db.internal:5432/manager"
     assert plan.encrypted is True
     assert "--format=custom" in plan.commands[0]
