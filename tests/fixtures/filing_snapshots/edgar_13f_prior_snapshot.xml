@@ -1,0 +1,32 @@
+<edgarSubmission>
+  <formData>
+    <coverPage>
+      <reportCalendarOrQuarter>2024-03-31</reportCalendarOrQuarter>
+      <filingManager>
+        <name>Example Investment Manager LP</name>
+      </filingManager>
+    </coverPage>
+    <informationTable>
+      <infoTable>
+        <nameOfIssuer>Example Corp</nameOfIssuer>
+        <titleOfClass>COM</titleOfClass>
+        <cusip>123456789</cusip>
+        <value>1000</value>
+        <shrsOrPrnAmt>
+          <sshPrnamt>100</sshPrnamt>
+          <sshPrnamtType>SH</sshPrnamtType>
+        </shrsOrPrnAmt>
+      </infoTable>
+      <infoTable>
+        <nameOfIssuer>Sample Holdings Inc</nameOfIssuer>
+        <titleOfClass>COM</titleOfClass>
+        <cusip>987654321</cusip>
+        <value>2500</value>
+        <shrsOrPrnAmt>
+          <sshPrnamt>45</sshPrnamt>
+          <sshPrnamtType>SH</sshPrnamtType>
+        </shrsOrPrnAmt>
+      </infoTable>
+    </informationTable>
+  </formData>
+</edgarSubmission>
