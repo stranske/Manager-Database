@@ -1,4 +1,4 @@
-## 2026-06-11T00:18Z - opener (codex) issue #1142 -> PR pending
+## 2026-06-11T00:18Z - opener (codex) issue #1142 -> PR #1143
 
 - Repo: `stranske/Manager-Database`
 - Issue: `#1142` (`Add a scheduled EDGAR filing-ingestion deployment contract`)
@@ -11,4 +11,6 @@
   - `pytest tests/test_edgar_flow.py -q` passed (`12 passed, 1 skipped`).
   - `rg "edgar_deployment" etl/edgar_flow.py` found the deployment object.
   - `git diff --check` passed.
-- Next action: push branch, open ready-for-review PR, and hand off to keepalive.
+- PR: `#1143` (`Add EDGAR nightly deployment contract`), non-draft, closes `#1142`.
+- Routing: applied `agent:codex`, `agents:keepalive`, `autofix`, `repo-review-approved`, and `priority:normal`; after initial cancelled workflow evidence, added `agent:retry` and dispatched `agents-81-gate-followups.yml` with `force_retry=true` (`27314764280`). Cap-health then reported `#1143` as `draining` with active Gate evidence and `non_drainable_count=0`.
+- Next action: wait for keepalive/Gate to finish; closer should drain once checks and verifier state are ready.
