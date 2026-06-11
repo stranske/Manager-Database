@@ -194,14 +194,12 @@ def _fired_alert(pg_conn: PgAlertFixture) -> FiredAlert:
 def test_ensure_alert_tables_creates_postgres_tables(pg_conn: PgAlertFixture):
     ensure_alert_tables(pg_conn.conn)
 
-    rows = pg_conn.conn.execute(
-        """
+    rows = pg_conn.conn.execute("""
         SELECT table_name
           FROM information_schema.tables
          WHERE table_schema = 'public'
            AND table_name IN ('alert_rules', 'alert_history')
-        """
-    ).fetchall()
+        """).fetchall()
 
     assert {row[0] for row in rows} == {"alert_rules", "alert_history"}
 
