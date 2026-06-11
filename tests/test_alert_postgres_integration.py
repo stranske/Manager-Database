@@ -192,16 +192,26 @@ def _fired_alert(pg_conn: PgAlertFixture) -> FiredAlert:
 
 
 def test_ensure_alert_tables_creates_postgres_tables(pg_conn: PgAlertFixture):
-    ensure_alert_tables(pg_conn.conn)
+    with pg_conn.conn.cursor() as cur:
+        cur.execute("SAVEPOINT alert_table_contract")
+        cur.execute("DROP TABLE IF EXISTS alert_history")
+        cur.execute("DROP TABLE IF EXISTS alert_rules")
 
-    rows = pg_conn.conn.execute("""
-        SELECT table_name
-          FROM information_schema.tables
-         WHERE table_schema = 'public'
-           AND table_name IN ('alert_rules', 'alert_history')
-        """).fetchall()
+    try:
+        ensure_alert_tables(pg_conn.conn)
 
-    assert {row[0] for row in rows} == {"alert_rules", "alert_history"}
+        rows = pg_conn.conn.execute("""
+            SELECT table_name
+              FROM information_schema.tables
+             WHERE table_schema = 'public'
+               AND table_name IN ('alert_rules', 'alert_history')
+            """).fetchall()
+
+        assert {row[0] for row in rows} == {"alert_rules", "alert_history"}
+    finally:
+        with pg_conn.conn.cursor() as cur:
+            cur.execute("ROLLBACK TO SAVEPOINT alert_table_contract")
+            cur.execute("RELEASE SAVEPOINT alert_table_contract")
 
 
 def test_insert_pending_and_record_delivery_postgres(pg_conn: PgAlertFixture):
