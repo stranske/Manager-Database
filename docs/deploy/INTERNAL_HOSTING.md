@@ -123,3 +123,10 @@ With this setup, Postgres, MinIO, and the API stay **inside the org perimeter**.
 No proprietary data is sent to external SaaS or to an unauthorized LLM: chat is
 either disabled (`LLM_ZONE=disabled`) or bound only to an org-authorized,
 no-train endpoint.
+
+## Backup and restore
+
+Postgres deployments must also configure the nightly encrypted snapshot workflow
+described in `docs/runbooks/database-backup-restore.md`. Capture one successful
+snapshot workflow run and one restore dry-run before treating a hosted instance
+as recoverable.

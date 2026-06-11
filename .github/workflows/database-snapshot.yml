@@ -1,0 +1,31 @@
+name: Database Snapshot
+
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  postgres-snapshot:
+    runs-on: ubuntu-latest
+    env:
+      DB_SNAPSHOT_DATABASE_URL: ${{ secrets.DB_SNAPSHOT_DATABASE_URL }}
+      DB_SNAPSHOT_S3_URI: ${{ secrets.DB_SNAPSHOT_S3_URI }}
+      DB_SNAPSHOT_KMS_KEY_ID: ${{ secrets.DB_SNAPSHOT_KMS_KEY_ID }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install backup clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client awscli
+      - name: Validate backup contract without production credentials
+        env:
+          DB_SNAPSHOT_DATABASE_URL: postgresql://snapshot:snapshot@example.invalid:5432/manager
+          DB_SNAPSHOT_S3_URI: s3://manager-db-backups/dry-run
+        run: python scripts/db_snapshot_restore.py backup --dry-run
+      - name: Run encrypted Postgres snapshot
+        if: ${{ env.DB_SNAPSHOT_DATABASE_URL != '' && env.DB_SNAPSHOT_S3_URI != '' }}
+        run: python scripts/db_snapshot_restore.py backup

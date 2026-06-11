@@ -1,3 +1,17 @@
+## 2026-06-11T05:02Z - opener (codex) issue #1150
+
+- Repo: `stranske/Manager-Database`
+- Issue: `#1150` (`Add nightly database snapshot and restore-provisioning contract`)
+- Branch: `codex/issue-1150-db-snapshot-restore`
+- Worktree: `/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-db-1150-db-snapshot-restore`
+- State: implemented backup/restore script, scheduled workflow, runbook, internal hosting cross-link, and dry-run tests.
+- Validation:
+  - `python -m pytest tests/test_db_snapshot_restore.py -q` passed (5; existing FastAPI/LangSmith deprecation warnings only).
+  - Deliberate-break gate: temporarily removed the workflow `backup --dry-run` command and `test_database_snapshot_workflow_runs_dry_run_and_conditional_live_backup` failed on the missing dry-run assertion; restored the command.
+  - `python -m ruff check scripts/db_snapshot_restore.py tests/test_db_snapshot_restore.py` passed.
+  - `git diff --check` passed.
+  - `DB_SNAPSHOT_DATABASE_URL=postgresql://user:pw@db:5432/manager DB_SNAPSHOT_S3_URI=s3://manager-db-backups/prod python scripts/db_snapshot_restore.py backup --dry-run` printed a masked plan with encrypted S3 upload.
+
 ## 2026-06-11T03:14Z - opener (codex) issue #1147
 
 - Repo: `stranske/Manager-Database`
