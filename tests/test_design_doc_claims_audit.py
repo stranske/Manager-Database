@@ -24,6 +24,8 @@ def test_design_doc_claims_audit_covers_current_behavioral_claims() -> None:
 
     assert "implemented-and-verified" in content
     assert "unimplemented" in content
+    assert "contradicted" in content
+    assert "implemented-partial" not in content
     assert "#1150" in content
     assert "#1151" in content
 
@@ -33,4 +35,13 @@ def test_design_doc_claims_audit_records_known_resolved_drift() -> None:
 
     assert "Resolved by #1142" in content
     assert "Resolved by #1145" in content
-    assert "no longer" in content
+    assert (
+        "| `Manager-Intel-Platform.md:7` | Nightly ETL job hits official APIs,"
+        " downloads new filings, parses metadata, extracts tables, and stores"
+        " PDF/text. | unimplemented |"
+    ) in content
+    assert (
+        "| `docs/api_design_guidelines.md:11` | Original drift: the guideline"
+        " claimed all API endpoints were rate limited even though only chat"
+        " write paths used the limiter. | contradicted |"
+    ) in content
