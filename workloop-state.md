@@ -15,6 +15,18 @@
   - Attempted live local Postgres validation with Docker, but the Docker daemon socket `/Users/teacher/.orbstack/run/docker.sock` was unavailable; CI's Postgres service is expected to run these tests non-skipped.
   - PR #1148 verified non-draft with labels `agent:codex`, `agents:keepalive`, `autofix`, `agent:retry`, `repo-review-approved`, and `priority:normal`; cap-health reported it as `draining` with active Gate evidence.
 
+## 2026-06-11T04:08Z - opener (codex) issue #1149
+
+- Repo: `stranske/Manager-Database`
+- Issue: `#1149` (`Audit and remediate design-doc behavioral claims that are unimplemented or contradicted across the codebase`)
+- Branch: `codex/issue-1149-doc-claims-audit`
+- State: audit report and regression test implemented; PR not opened yet.
+- Changes: added `docs/reports/design-doc-behavioral-claims-audit.md` with classifications for current operator-facing behavioral claims; filed follow-up issues `#1150` and `#1151` for unimplemented database snapshot and parser snapshot-regression contracts; added `tests/test_design_doc_claims_audit.py` to keep the report anchored to current claim refs and follow-up links.
+- Validation:
+  - `python -m pytest tests/test_design_doc_claims_audit.py -q` passed (2).
+  - `rg "implemented-and-verified|unimplemented|contradicted" docs/reports/design-doc-behavioral-claims-audit.md` returned the summary and classified rows.
+  - `git diff --check` passed.
+
 ## 2026-06-11T01:16Z - opener (codex) issue #1145
 
 - Repo: `stranske/Manager-Database`
