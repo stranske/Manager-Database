@@ -60,7 +60,7 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -e ".[dev]"
       - name: Run Postgres chain integration tests
-        run: pytest tests/test_chain_postgres_integration.py -v
+        run: pytest tests/test_chain_postgres_integration.py tests/test_alert_postgres_integration.py -v
 
   golden:
     name: Golden offline gate
