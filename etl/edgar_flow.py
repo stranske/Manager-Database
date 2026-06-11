@@ -346,6 +346,13 @@ async def edgar_flow(cik_list: list[str] | None = None, since: str | None = None
     return all_rows
 
 
+edgar_deployment = edgar_flow.to_deployment(
+    name="edgar-nightly",
+    cron="0 4 * * *",
+    parameters={"cik_list": None, "since": None},
+)
+
+
 if __name__ == "__main__":
     import asyncio
 

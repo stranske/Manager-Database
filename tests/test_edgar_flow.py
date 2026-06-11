@@ -124,6 +124,16 @@ class StrictPostgresConnection:
         self.closed = True
 
 
+def test_edgar_deployment_has_daily_schedule():
+    assert flow.edgar_deployment.name == "edgar-nightly"
+    assert flow.edgar_deployment.flow_name == flow.edgar_flow.name
+    assert flow.edgar_deployment.entrypoint.endswith("etl/edgar_flow.py:edgar_flow")
+    assert flow.edgar_deployment.parameters == {"cik_list": None, "since": None}
+
+    schedule = flow.edgar_deployment.schedules[0].schedule
+    assert schedule.cron == "0 4 * * *"
+
+
 def _setup_relational_schema(db_path: Path, cik: str = "0", manager_id: int = 100) -> None:
     conn = sqlite3.connect(db_path)
     conn.execute("""CREATE TABLE IF NOT EXISTS managers (
