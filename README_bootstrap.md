@@ -66,7 +66,14 @@ Feel free to open issues or pull requests as you iterate.
    ```
    Parsed rows will be stored in `dev.db` and raw filings uploaded to the `filings` bucket in MinIO.
 
-3. Generate the local analyst digest without sending email:
+3. Serve the scheduled EDGAR deployment when operators want the nightly Prefect path:
+   ```bash
+   prefect deployment serve etl/edgar_flow.py:edgar_deployment
+   ```
+   Use the Python command above for a one-off manual run; use the Prefect deployment command
+   to activate the `edgar-nightly` schedule.
+
+4. Generate the local analyst digest without sending email:
    ```bash
    DIGEST_DRY_RUN=true DIGEST_OUTPUT_PATH=/tmp/manager-digest.txt python etl/digest_flow.py
    ```
