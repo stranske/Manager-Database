@@ -44,8 +44,10 @@ def test_build_chat_client_info_falls_back_when_llm_client_module_missing(monkey
         exc.name = "llm.client"
         raise exc
 
+    import tools.langchain_client as langchain_client
+
     monkeypatch.setattr(chat_api_module.importlib, "import_module", _missing_llm_client)
-    monkeypatch.setattr("tools.langchain_client.build_chat_client", lambda: marker)
+    monkeypatch.setattr(langchain_client, "build_chat_client", lambda: marker)
 
     assert chat_api_module._build_chat_client_info() is marker
 
