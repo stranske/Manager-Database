@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable, Mapping
+from time import monotonic
 from typing import Any
 from xml.etree import ElementTree as ET
 
@@ -21,6 +22,8 @@ DEFAULT_FORM_TYPES = ["13F-HR"]
 THIRTEEN_F_FORMS = {"13F-HR", "13F-HR/A", "13-F"}
 ACTIVISM_FORMS = {"SC 13D", "SC 13D/A", "SC 13G", "SC 13G/A"}
 logger = logging.getLogger(__name__)
+EDGAR_MIN_REQUEST_INTERVAL: float = float(os.getenv("EDGAR_MIN_REQUEST_INTERVAL", "0.11"))
+_last_edgar_request_at: float | None = None
 
 
 async def _request_with_retry(
@@ -32,6 +35,14 @@ async def _request_with_retry(
     max_retries: int = 3,
     params: dict[str, str] | None = None,
 ) -> httpx.Response:
+    global _last_edgar_request_at
+
+    if _last_edgar_request_at is not None and EDGAR_MIN_REQUEST_INTERVAL > 0:
+        elapsed = monotonic() - _last_edgar_request_at
+        if elapsed < EDGAR_MIN_REQUEST_INTERVAL:
+            await asyncio.sleep(EDGAR_MIN_REQUEST_INTERVAL - elapsed)
+    _last_edgar_request_at = monotonic()
+
     for attempt in range(1, max_retries + 1):
         try:
             async with tracked_call(source, url) as log:

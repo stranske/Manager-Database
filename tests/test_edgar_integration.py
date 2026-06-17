@@ -300,6 +300,47 @@ async def test_rate_limit_handling(monkeypatch, tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_outbound_request_rate_governor(monkeypatch):
+    sleep_calls: list[float] = []
+
+    async def record_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    class DummyClient:
+        async def get(self, url, headers=None, params=None):
+            return httpx.Response(200, request=httpx.Request("GET", url), json={})
+
+    monkeypatch.setattr(edgar, "_last_edgar_request_at", 0.0)
+    monkeypatch.setattr(edgar, "EDGAR_MIN_REQUEST_INTERVAL", 0.11)
+    monkeypatch.setattr(edgar, "monotonic", lambda: 0.05)
+    monkeypatch.setattr(edgar.asyncio, "sleep", record_sleep)
+
+    await edgar._request_with_retry(
+        DummyClient(),
+        "https://data.sec.gov/submissions/CIK0000000000.json",
+        {"User-Agent": "test"},
+        source="edgar",
+    )
+
+    assert sleep_calls
+    assert sleep_calls[0] >= 0.06
+
+    sleep_calls.clear()
+    monkeypatch.setattr(edgar, "_last_edgar_request_at", 0.0)
+    monkeypatch.setattr(edgar, "EDGAR_MIN_REQUEST_INTERVAL", 0.0)
+
+    await edgar._request_with_retry(
+        DummyClient(),
+        "https://data.sec.gov/submissions/CIK0000000000.json",
+        {"User-Agent": "test"},
+        source="edgar",
+    )
+
+    assert sleep_calls == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_malformed_data_handling(monkeypatch, tmp_path):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
