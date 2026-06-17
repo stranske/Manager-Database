@@ -16,7 +16,15 @@ from html import unescape
 from pathlib import Path
 from typing import Any, TypedDict
 
-from tools.ci_failure_triage import triage_ci_failure
+try:
+    from tools.ci_failure_triage import triage_ci_failure
+except ModuleNotFoundError as exc:
+    if exc.name != "tools":
+        raise
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tools.ci_failure_triage import triage_ci_failure
 
 
 @dataclass(frozen=True)
