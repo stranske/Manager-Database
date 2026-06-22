@@ -9,6 +9,7 @@ import httpx
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from api.chat import app
+from tests.route_helpers import route_paths
 
 
 async def _request(method: str, path: str, **kwargs):
@@ -24,7 +25,6 @@ async def _request(method: str, path: str, **kwargs):
 
 
 def test_alerts_router_is_registered():
-    route_paths = {route.path for route in app.routes}
     expected_paths = {
         "/api/alerts/rules",
         "/api/alerts/rules/{rule_id}",
@@ -33,7 +33,7 @@ def test_alerts_router_is_registered():
         "/api/alerts/history/{alert_id}/acknowledge",
         "/api/alerts/history/acknowledge-all",
     }
-    assert expected_paths.issubset(route_paths)
+    assert expected_paths.issubset(route_paths(app.routes))
 
     openapi = app.openapi()
     for path in expected_paths:

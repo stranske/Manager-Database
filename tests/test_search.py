@@ -13,6 +13,7 @@ from fastapi.encoders import jsonable_encoder
 
 import api.chat as chat_api_module
 from api.search import SearchResult, universal_search
+from tests.route_helpers import route_paths
 from ui.search import (
     _count_results_by_entity_type,
     _entity_badge_html,
@@ -368,8 +369,7 @@ def test_api_search_endpoint_returns_results(tmp_path: Path, monkeypatch):
 
 
 def test_api_search_route_is_registered():
-    paths = {route.path for route in chat_api_module.app.routes}
-    assert "/api/search" in paths
+    assert "/api/search" in route_paths(chat_api_module.app.routes)
 
 
 def test_api_search_endpoint_filters_entity_type(tmp_path: Path, monkeypatch):
