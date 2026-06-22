@@ -100,7 +100,7 @@ colorama==0.4.6
     #   typer
 coolname==5.0.0
     # via prefect
-coverage==7.14.1
+coverage==7.14.2
     # via
     #   manager-database (pyproject.toml)
     #   pytest-cov
