@@ -9,6 +9,7 @@ import httpx
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from api.chat import app
+from tests.route_helpers import route_paths
 
 
 async def _request(path: str, params: dict[str, Any] | None = None):
@@ -185,13 +186,12 @@ def test_signals_router_is_registered(tmp_path, monkeypatch):
     _seed_db(db_path)
     monkeypatch.setenv("DB_PATH", str(db_path))
 
-    route_paths = {route.path for route in app.routes}
     expected_paths = {
         "/api/signals/crowded",
         "/api/signals/contrarian",
         "/api/signals/conviction/{manager_id}",
     }
-    assert expected_paths.issubset(route_paths)
+    assert expected_paths.issubset(route_paths(app.routes))
 
     openapi = app.openapi()
     for path in expected_paths:
