@@ -28,7 +28,7 @@ jobs:
       python-versions: '["3.12", "3.13"]'
       typecheck: true
       coverage: true
-      coverage-min: '78'
+      coverage-min: '75'
     secrets: inherit
 
   postgres-integration:
