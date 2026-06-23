@@ -1,0 +1,62 @@
+version: 1
+issue: 1215
+base: main
+branch: codex/issue-1215
+tasks:
+  - id: task-01
+    title: Update `ui/__init__.py:28` to emit the dev-mode auth-bypass notice via
+      `logging` or a collapsed `st.sidebar` expander instead of `st.warning(...)`
+      in the main content.
+    status: doing
+    started_at: '2026-06-23T04:54:22Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: Add `tests/test_ui_auth_dev_mode.py` to invoke the auth helper with `UI_USERNAME`/`UI_PASSWORD`
+      unset and assert it does not call `st.warning` by patching or spying on `streamlit.warning`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Test the deliberate-break case by restoring the `st.warning(...)` call
+      and confirming `tests/test_ui_auth_dev_mode.py` fails, then revert the change.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: With `UI_USERNAME` and `UI_PASSWORD` unset, the auth helper does not call
+      `streamlit.warning` in the main UI.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: '`tests/test_ui_auth_dev_mode.py` exists and fails if the previous `st.warning(...)`
+      behavior is restored.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: The auth-bypass behavior remains unchanged when credentials are unset.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: "`ui/__init__.py:28` \u2014 emit this dev-mode notice via `logging` (e.g.\
+      \ `logger.info(...)`) or a collapsed `st.sidebar` expander instead of `st.warning(...)`\
+      \ in the main content. Dev/auth state should never render in the primary UI."
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
