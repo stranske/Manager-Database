@@ -1118,7 +1118,7 @@ def render_all_managers_summary(show_heading: bool = True) -> None:
             )
             col.altair_chart(spark_chart, use_container_width=True)
     else:
-        st.caption("No recent activity available.")
+        st.caption("No activity in the last 30 days — see Historical Filing Trend below.")
 
     stale_managers = summary["stale_managers"]
     st.markdown("Managers with QC Warnings")

@@ -250,11 +250,7 @@ def format_activism_event_type(event_type: object) -> str:
         "form_upgrade": "#f97316",
     }
     color = colors.get(event_name, "#475569")
-    return (
-        f"<span style='color:{color};font-weight:700;'>"
-        f"{html.escape(event_name or '-')}"
-        "</span>"
-    )
+    return f"<span style='color:{color};font-weight:700;'>{html.escape(event_name or '-')}</span>"
 
 
 def format_signal_badge(direction: object, consensus_direction: object) -> str:
@@ -267,10 +263,93 @@ def format_signal_badge(direction: object, consensus_direction: object) -> str:
     )
 
 
+def _is_missing_report_source_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "no such table" in message
+        or "no such column" in message
+        or "does not exist" in message
+        or "undefinedtable" in message
+    )
+
+
+@st.cache_data(show_spinner=False)
+def latest_report_date() -> dt.date | None:
+    conn = connect_db()
+    candidates: list[dt.date] = []
+    queries = [
+        "SELECT MAX(report_date) AS report_date FROM daily_diffs",
+        "SELECT MAX(filed_date) AS report_date FROM filings",
+        "SELECT MAX(filed_date) AS report_date FROM activism_filings",
+        "SELECT MAX(report_date) AS report_date FROM crowded_trades",
+    ]
+    try:
+        for query in queries:
+            try:
+                value = pd.read_sql_query(query, conn).iloc[0, 0]
+            except Exception as exc:
+                if not _is_missing_report_source_error(exc):
+                    raise
+                continue
+            parsed = pd.to_datetime(value, errors="coerce")
+            if pd.notna(parsed):
+                candidates.append(parsed.date())
+    finally:
+        conn.close()
+    return max(candidates) if candidates else None
+
+
+@st.cache_data(show_spinner=False)
+def nearest_report_date(selected_date: str) -> dt.date | None:
+    conn = connect_db()
+    rows: list[str] = []
+    queries = [
+        "SELECT DISTINCT report_date AS report_date FROM daily_diffs",
+        "SELECT DISTINCT filed_date AS report_date FROM filings",
+        "SELECT DISTINCT filed_date AS report_date FROM activism_filings",
+        "SELECT DISTINCT report_date AS report_date FROM crowded_trades",
+    ]
+    try:
+        for query in queries:
+            try:
+                df = pd.read_sql_query(query, conn)
+            except Exception as exc:
+                if not _is_missing_report_source_error(exc):
+                    raise
+                continue
+            rows.extend(str(value) for value in df["report_date"].dropna())
+    finally:
+        conn.close()
+
+    target = dt.date.fromisoformat(selected_date)
+    candidates = [
+        parsed.date()
+        for parsed in pd.to_datetime(pd.Series(rows), errors="coerce")
+        if pd.notna(parsed)
+    ]
+    if not candidates:
+        return None
+    return min(
+        candidates, key=lambda candidate: (abs((candidate - target).days), -candidate.toordinal())
+    )
+
+
+def empty_report_date_message(selected_date: str) -> str:
+    nearest = nearest_report_date(selected_date)
+    if nearest is None:
+        return "No data for this date."
+    return f"No data for this date — nearest report is {nearest.isoformat()}."
+
+
 def main():
     if not require_login():
         st.stop()
-    date = st.date_input("Date", dt.date.today() - dt.timedelta(days=1))
+    default_date = latest_report_date() or (dt.date.today() - dt.timedelta(days=1))
+    date = st.date_input("Date", default_date)
+    latest_date = latest_report_date()
+    if latest_date is not None and date != latest_date:
+        if st.button(f"Go to latest report date ({latest_date.isoformat()})"):
+            date = latest_date
     date_str = str(date)
     tab1, tab2, tab3 = st.tabs(["Filings & Diffs", "Crowded Trades", "News Pulse"])
     with tab1:
@@ -348,7 +427,7 @@ def main():
         st.markdown("### Activism Alerts")
         activism_events = load_activism_events(date_str)
         if activism_events.empty:
-            st.caption("No activism events detected for this report date.")
+            st.caption(empty_report_date_message(date_str))
         else:
             activism_events = activism_events.copy()
             activism_events["Event Type"] = activism_events["event_type"].apply(
@@ -383,7 +462,7 @@ def main():
     with tab2:
         crowded = load_crowded_trades(date_str)
         if crowded.empty:
-            st.info("No crowded trades detected for this report date.")
+            st.info(empty_report_date_message(date_str))
         else:
             crowded = crowded.copy()
             crowded["manager_names"] = crowded["manager_names"].apply(
