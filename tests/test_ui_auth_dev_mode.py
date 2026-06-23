@@ -27,7 +27,8 @@ def test_missing_ui_credentials_do_not_render_main_warning(monkeypatch, caplog) 
     monkeypatch.delenv("UI_USERNAME", raising=False)
     monkeypatch.delenv("UI_PASSWORD", raising=False)
     monkeypatch.setattr(ui, "st", fake_st)
-    caplog.set_level(logging.INFO, logger="ui")
+    logging.disable(logging.NOTSET)
+    caplog.set_level(logging.INFO, logger=ui.logger.name)
 
     assert ui.require_login() is True
     assert fake_st.session_state["auth"] is True
