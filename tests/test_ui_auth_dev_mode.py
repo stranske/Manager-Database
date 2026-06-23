@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-import logging
 import sys
 from pathlib import Path
 
@@ -21,16 +20,18 @@ def _load_ui_module():
     return importlib.reload(importlib.import_module("ui"))
 
 
-def test_missing_ui_credentials_do_not_render_main_warning(monkeypatch, caplog) -> None:
+def test_missing_ui_credentials_do_not_render_main_warning(monkeypatch) -> None:
     ui = _load_ui_module()
     fake_st = FakeStreamlit()
+    info_messages: list[str] = []
     monkeypatch.delenv("UI_USERNAME", raising=False)
     monkeypatch.delenv("UI_PASSWORD", raising=False)
     monkeypatch.setattr(ui, "st", fake_st)
-    logging.disable(logging.NOTSET)
-    caplog.set_level(logging.INFO, logger=ui.logger.name)
+    monkeypatch.setattr(ui.logger, "info", info_messages.append)
 
     assert ui.require_login() is True
     assert fake_st.session_state["auth"] is True
     assert fake_st.warning_messages == []
-    assert "UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode." in caplog.text
+    assert info_messages == [
+        "UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode."
+    ]
