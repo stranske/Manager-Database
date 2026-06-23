@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import builtins
+import importlib
 import os
 import sqlite3
+import sys
 
 import httpx
 
@@ -109,3 +112,23 @@ def test_wasm_app_main_sets_offline_environment(monkeypatch, tmp_path):
     assert "DB_URL" not in os.environ
     for name in ("DB_PATH", "UI_OFFLINE", "USE_SIMPLE_EMBED"):
         os.environ.pop(name, None)
+
+
+def test_signals_offline_fallback_sets_ui_offline(monkeypatch):
+    monkeypatch.delenv("UI_OFFLINE", raising=False)
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in {"fastapi", "pydantic"}:
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    sys.modules.pop("api.signals", None)
+    try:
+        signals = importlib.import_module("api.signals")
+
+        assert os.environ["UI_OFFLINE"] == "1"
+        assert signals.APIRouter.__name__ == "OfflineAPIRouter"
+    finally:
+        sys.modules.pop("api.signals", None)

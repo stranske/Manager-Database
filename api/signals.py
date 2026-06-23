@@ -12,7 +12,7 @@ try:
     from fastapi import APIRouter, Query
     from pydantic import BaseModel
 except ModuleNotFoundError:
-    os.environ.setdefault("UI_OFFLINE", "0")
+    os.environ.setdefault("UI_OFFLINE", "1")
     from api._compat import offline_api_imports
 
     APIRouter, BaseModel, _Field, Query = offline_api_imports()
