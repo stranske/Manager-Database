@@ -1,0 +1,169 @@
+version: 1
+issue: 1236
+base: main
+branch: codex/issue-1236
+tasks:
+  - id: task-01
+    title: 'Update `web/index.html` to reference local `design-system/tokens.css`
+      and `components.css`, served same-origin and included in the offline bundle,
+      after #1220 lands.'
+    status: done
+    started_at: '2026-06-23T17:05:28Z'
+    finished_at: '2026-06-23T17:05:43Z'
+    commit: 66e5a3932368dc0eeaddb5a24a6bdde4f67b0b42
+    notes: []
+  - id: task-02
+    title: 'Add link tags in web/index.html to reference design-system/tokens.css
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: 'components.css with relative paths (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: Verify that tokens.css
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: 'components.css are included in the offline bundle build output (verify:
+      confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: 'Confirm that the CSS files are served from the same origin as the application
+      (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: Add `class="ds theme-air"` at the app root in `web/index.html`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Implement optional `ds_streamlit.inject_theme()` usage in `wasm_app.py`
+      / `ui/` pages.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: 'Determine which specific files in wasm_app.py (verify: confirm completion
+      in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: 'ui/ directory should call ds_streamlit.inject_theme() (verify: confirm
+      completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Add ds_streamlit.inject_theme() calls to the identified server-side entry
+      points (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-12
+    title: 'Document the conditions under which inject_theme() should be called versus
+      skipped (verify: confirm completion in repo)'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-13
+    title: '`web/index.html` links local shared stylesheets, applies `.ds` and `theme-air`,
+      and references no external CSS.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-14
+    title: Removing a stylesheet link causes the named test gate to fail, and restoring
+      it makes the test pass.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-15
+    title: 'After #1220, the offline build boots and renders the shared theme with
+      zero external requests.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-16
+    title: '(after #1220) Reference `tokens.css` + `components.css` in `web/index.html`,
+      served same-origin and included in the offline bundle.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-17
+    title: Apply `class="ds theme-air"` at the app root.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-18
+    title: (optional) `inject_theme()` in the server-side `wasm_app.py` / `ui/` pages.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-19
+    title: 'Named test gate: assert `web/index.html` links the **local** shared stylesheets,
+      applies `.ds`/`theme-air`, and references **no external** CSS.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-20
+    title: '**Deliberate-break -> revert:** remove the stylesheet link -> test **FAILS**
+      -> revert -> passes.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-21
+    title: 'Live offline: the shared theme renders with zero external requests (after
+      #1220 makes the build bootable).'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
