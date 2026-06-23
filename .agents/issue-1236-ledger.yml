@@ -7,10 +7,10 @@ tasks:
     title: 'Update `web/index.html` to reference local `design-system/tokens.css`
       and `components.css`, served same-origin and included in the offline bundle,
       after #1220 lands.'
-    status: doing
+    status: done
     started_at: '2026-06-23T17:05:28Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-06-23T17:05:43Z'
+    commit: 66e5a3932368dc0eeaddb5a24a6bdde4f67b0b42
     notes: []
   - id: task-02
     title: 'Add link tags in web/index.html to reference design-system/tokens.css
