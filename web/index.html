@@ -40,11 +40,19 @@
           entrypoint: "wasm_app.py",
           files,
           requirements: [],
-          prebuiltPackageNames: ["pandas", "altair", "httpx"],
-          pyodideUrl: "./vendor/pyodide/v0.27.3/full/pyodide.mjs",
+          prebuiltPackageNames: ["pandas", "altair", "httpx", "sqlite3"],
+          // Absolute URL anchored to the page: stlite's worker resolves a bare
+          // relative pyodideUrl against its own nested build/assets/ script
+          // location, which 404s. Anchoring to window.location.href keeps the
+          // vendored Pyodide same-origin/local so the demo boots offline.
+          pyodideUrl: new URL("./vendor/pyodide/v0.27.3/full/pyodide.mjs", window.location.href).href,
+          // Absolute URLs anchored to the page: micropip runs inside the worker
+          // and resolves a bare relative wheel URL as a file:// path
+          // ("Cannot download from a non-remote location"), so the vendored
+          // wheels must be passed as same-origin http(s) URLs.
           wheelUrls: {
-            stliteLib: "./vendor/stlite/browser-0.80.4/build/wheels/stlite_lib-0.1.0-py3-none-any.whl",
-            streamlit: "./vendor/stlite/browser-0.80.4/build/wheels/streamlit-1.41.0-cp312-none-any.whl"
+            stliteLib: new URL("./vendor/stlite/browser-0.80.4/build/wheels/stlite_lib-0.1.0-py3-none-any.whl", window.location.href).href,
+            streamlit: new URL("./vendor/stlite/browser-0.80.4/build/wheels/streamlit-1.41.0-cp312-none-any.whl", window.location.href).href
           },
           env: {
             UI_OFFLINE: "1",
