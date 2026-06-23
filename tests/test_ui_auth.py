@@ -120,9 +120,7 @@ def test_require_login_skips_auth_when_credentials_missing(monkeypatch):
 
     assert ui.require_login() is True
     assert fake_st.session_state["auth"] is True
-    assert fake_st.warning_messages == [
-        "UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode."
-    ]
+    assert fake_st.warning_messages == []
 
 
 def test_require_login_skips_auth_when_password_blank(monkeypatch):
@@ -134,6 +132,4 @@ def test_require_login_skips_auth_when_password_blank(monkeypatch):
 
     assert ui.require_login() is True
     assert fake_st.session_state["auth"] is True
-    assert fake_st.warning_messages == [
-        "UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode."
-    ]
+    assert fake_st.warning_messages == []

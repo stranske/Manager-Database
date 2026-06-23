@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 import streamlit as st
@@ -10,6 +11,8 @@ try:
     import streamlit_authenticator as stauth
 except ImportError:  # pragma: no cover - optional UI dependency
     stauth = None
+
+logger = logging.getLogger(__name__)
 
 
 def _get_env_credential(key: str) -> str | None:
@@ -25,7 +28,7 @@ def require_login() -> bool:
     username = _get_env_credential("UI_USERNAME")
     password = _get_env_credential("UI_PASSWORD")
     if not username or not password:
-        st.warning("UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode.")
+        logger.info("UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode.")
         st.session_state["auth"] = True
         return True
     if stauth is None:
