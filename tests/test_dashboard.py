@@ -937,6 +937,54 @@ def test_render_qc_flags_requires_manager_selection(monkeypatch):
     assert fake_st.info_calls == ["Select a manager to view data quality flags."]
 
 
+def test_all_managers_summary_empty_recent_activity_points_to_history(monkeypatch):
+    class FakeSummaryColumn:
+        def metric(self, *_args, **_kwargs):
+            return None
+
+    class FakeSummaryStreamlit:
+        def __init__(self):
+            self.markdowns = []
+            self.captions = []
+
+        def columns(self, count):
+            return [FakeSummaryColumn() for _ in range(count)]
+
+        def markdown(self, value):
+            self.markdowns.append(value)
+
+        def caption(self, value):
+            self.captions.append(value)
+
+        def dataframe(self, *_args, **_kwargs):
+            return None
+
+    fake_st = FakeSummaryStreamlit()
+    monkeypatch.setattr(dashboard, "st", fake_st)
+    monkeypatch.setattr(
+        dashboard, "render_active_campaigns_widget", lambda show_heading=False: None
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "load_all_managers_summary",
+        lambda: {
+            "total_managers": 1,
+            "total_filings": 1,
+            "total_holdings": 1,
+            "total_news_items": 0,
+            "recent_activity": pd.DataFrame(),
+            "stale_managers": pd.DataFrame(),
+        },
+    )
+
+    render_all_managers_summary(show_heading=False)
+
+    assert "Recent Activity (30 days)" in fake_st.markdowns
+    assert (
+        "No activity in the last 30 days — see Historical Filing Trend below." in fake_st.captions
+    )
+
+
 class LayoutColumn:
     def __enter__(self):
         return self
