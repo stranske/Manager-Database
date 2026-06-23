@@ -5,7 +5,12 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+try:
+    from pydantic import BaseModel, Field
+except ModuleNotFoundError:
+    from api._compat import offline_api_imports
+
+    _APIRouter, BaseModel, Field, _Query = offline_api_imports()
 
 SearchEntityType = Literal["filing", "holding", "news", "document", "manager"]
 

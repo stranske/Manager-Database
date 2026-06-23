@@ -24,6 +24,7 @@ TEXT_BUNDLE_FILES = [
     Path("ui/search.py"),
     Path("ui/upload.py"),
     Path("api/__init__.py"),
+    Path("api/_compat.py"),
     Path("api/activism.py"),
     Path("api/search.py"),
     Path("api/signals.py"),

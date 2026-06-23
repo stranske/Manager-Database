@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Manager-Database Offline Demo</title>
     <script type="module">
-      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.80.4/+esm";
+      import { mount } from "./vendor/stlite/browser-0.80.4/build/stlite.js";
 
       const textFiles = [
         "wasm_app.py",
@@ -16,6 +16,7 @@
         "ui/search.py",
         "ui/upload.py",
         "api/__init__.py",
+        "api/_compat.py",
         "api/activism.py",
         "api/search.py",
         "api/signals.py",
@@ -38,7 +39,17 @@
         {
           entrypoint: "wasm_app.py",
           files,
-          requirements: ["streamlit", "pandas", "altair", "pydantic", "fastapi", "httpx"]
+          requirements: [],
+          prebuiltPackageNames: ["pandas", "altair", "httpx"],
+          pyodideUrl: "./vendor/pyodide/v0.27.3/full/pyodide.mjs",
+          wheelUrls: {
+            stliteLib: "./vendor/stlite/browser-0.80.4/build/wheels/stlite_lib-0.1.0-py3-none-any.whl",
+            streamlit: "./vendor/stlite/browser-0.80.4/build/wheels/streamlit-1.41.0-cp312-none-any.whl"
+          },
+          env: {
+            UI_OFFLINE: "1",
+            USE_SIMPLE_EMBED: "1"
+          }
         },
         document.getElementById("root")
       );
