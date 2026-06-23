@@ -6,8 +6,13 @@ import sqlite3
 from datetime import date, datetime
 from typing import Any
 
-from fastapi import APIRouter, Query
-from pydantic import BaseModel, Field
+try:
+    from fastapi import APIRouter, Query
+    from pydantic import BaseModel, Field
+except ModuleNotFoundError:
+    from api._compat import offline_api_imports
+
+    APIRouter, BaseModel, Field, Query = offline_api_imports()
 
 from adapters.base import connect_db
 

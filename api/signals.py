@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import date, datetime
 from typing import Any
 
-from fastapi import APIRouter, Query
-from pydantic import BaseModel
+try:
+    from fastapi import APIRouter, Query
+    from pydantic import BaseModel
+except ModuleNotFoundError:
+    os.environ.setdefault("UI_OFFLINE", "1")
+    from api._compat import offline_api_imports
+
+    APIRouter, BaseModel, _Field, Query = offline_api_imports()
 
 from adapters.base import connect_db
 
