@@ -7,10 +7,10 @@ tasks:
     title: Update `ui/__init__.py:28` to emit the dev-mode auth-bypass notice via
       `logging` or a collapsed `st.sidebar` expander instead of `st.warning(...)`
       in the main content.
-    status: doing
+    status: done
     started_at: '2026-06-23T04:54:22Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-06-23T04:54:31Z'
+    commit: d5e528f35b81ba59e419f5a6436665f6e5eba6bc
     notes: []
   - id: task-02
     title: Add `tests/test_ui_auth_dev_mode.py` to invoke the auth helper with `UI_USERNAME`/`UI_PASSWORD`
