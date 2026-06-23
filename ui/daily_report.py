@@ -263,6 +263,16 @@ def format_signal_badge(direction: object, consensus_direction: object) -> str:
     )
 
 
+def _is_missing_report_source_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "no such table" in message
+        or "no such column" in message
+        or "does not exist" in message
+        or "undefinedtable" in message
+    )
+
+
 @st.cache_data(show_spinner=False)
 def latest_report_date() -> dt.date | None:
     conn = connect_db()
@@ -277,7 +287,9 @@ def latest_report_date() -> dt.date | None:
         for query in queries:
             try:
                 value = pd.read_sql_query(query, conn).iloc[0, 0]
-            except Exception:
+            except Exception as exc:
+                if not _is_missing_report_source_error(exc):
+                    raise
                 continue
             parsed = pd.to_datetime(value, errors="coerce")
             if pd.notna(parsed):
@@ -301,7 +313,9 @@ def nearest_report_date(selected_date: str) -> dt.date | None:
         for query in queries:
             try:
                 df = pd.read_sql_query(query, conn)
-            except Exception:
+            except Exception as exc:
+                if not _is_missing_report_source_error(exc):
+                    raise
                 continue
             rows.extend(str(value) for value in df["report_date"].dropna())
     finally:
@@ -324,7 +338,7 @@ def empty_report_date_message(selected_date: str) -> str:
     nearest = nearest_report_date(selected_date)
     if nearest is None:
         return "No data for this date."
-    return f"No data for this date — latest report is {nearest.isoformat()}."
+    return f"No data for this date — nearest report is {nearest.isoformat()}."
 
 
 def main():
