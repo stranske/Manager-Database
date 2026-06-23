@@ -92,8 +92,10 @@ def _transitive_closure(packages: dict[str, dict[str, object]], seed: set[str]) 
 
 def _download(url: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    request = urllib.request.Request(url, headers={"User-Agent": "md-stlite-fetch-offline-runtime/1.0"})
-    with urllib.request.urlopen(request) as response:
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "md-stlite-fetch-offline-runtime/1.0"}
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
         destination.write_bytes(response.read())
 
 
@@ -112,7 +114,13 @@ def fetch_offline_runtime(*, vendor_dir: Path = VENDOR_DIR) -> tuple[list[str], 
     for package_name in sorted(needed):
         meta = packages[package_name]
         file_name = str(meta["file_name"])
-        destination = vendor_dir / file_name
+        file_path = Path(file_name)
+        if file_path.is_absolute() or ".." in file_path.parts or file_path.name != file_name:
+            raise SystemExit(f"invalid package file_name in lock file: {file_name!r}")
+        destination = (vendor_dir / file_path).resolve()
+        vendor_root = vendor_dir.resolve()
+        if vendor_root not in destination.parents:
+            raise SystemExit(f"refusing to write outside vendor dir: {file_name!r}")
         if destination.exists() and destination.stat().st_size > 0:
             skipped.append(file_name)
             continue

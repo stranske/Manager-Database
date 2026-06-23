@@ -12,7 +12,7 @@ STLITE_WHEELS = WEB_DIR / "vendor" / "stlite" / "browser-0.80.4" / "build" / "wh
 
 EXTERNAL_URL = re.compile(r"https?://", re.IGNORECASE)
 MODULE_IMPORT_URL = re.compile(
-    r"""import\s+(?:[^'"]+\s+from\s+)?["'](?P<url>https?://[^"']+)["']""",
+    r"""(?:import\s+(?:[^'"]+\s+from\s+)?|import\s*\()\s*["'](?P<url>https?://[^"']+)["']\)?""",
     re.IGNORECASE,
 )
 PYODIDE_URL = re.compile(
@@ -83,8 +83,7 @@ def test_wasm_index_has_no_external_cdn_or_runtime_urls() -> None:
 
     external_imports = [match.group("url") for match in MODULE_IMPORT_URL.finditer(html)]
     assert external_imports == [], (
-        "web/index.html must not import modules from external http(s) URLs: "
-        f"{external_imports}"
+        f"web/index.html must not import modules from external http(s) URLs: {external_imports}"
     )
 
     external_tags = [
