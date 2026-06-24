@@ -7,10 +7,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = REPO_ROOT / "web"
 INDEX_HTML = WEB_DIR / "index.html"
+DESIGN_SYSTEM_DIR = WEB_DIR / "design-system"
 PYODIDE_VENDOR = WEB_DIR / "vendor" / "pyodide" / "v0.27.3" / "full"
 STLITE_WHEELS = WEB_DIR / "vendor" / "stlite" / "browser-0.80.4" / "build" / "wheels"
 
-EXTERNAL_URL = re.compile(r"https?://", re.IGNORECASE)
+EXTERNAL_URL = re.compile(r"^(?:https?:)?//", re.IGNORECASE)
 MODULE_IMPORT_URL = re.compile(
     r"""(?:import\s+(?:[^'"]+\s+from\s+)?|import\s*\()\s*["'](?P<url>https?://[^"']+)["']\)?""",
     re.IGNORECASE,
@@ -94,6 +95,30 @@ def test_wasm_index_has_no_external_cdn_or_runtime_urls() -> None:
     assert external_tags == [], (
         "web/index.html must not load scripts or stylesheets from external http(s) URLs: "
         f"{external_tags}"
+    )
+
+
+def test_wasm_index_links_local_design_system_styles() -> None:
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    refs = _runtime_references()
+    stylesheet_refs = [value for location, value in refs if location == "link[href]"]
+
+    assert "./design-system/tokens.css" in stylesheet_refs
+    assert "./design-system/components.css" in stylesheet_refs
+    body_match = re.search(
+        r"<body\b[^>]*\bclass=['\"]([^'\"]+)['\"]",
+        html,
+        re.IGNORECASE,
+    )
+    assert body_match is not None
+    body_classes = set(body_match.group(1).split())
+    assert {"ds", "theme-air"}.issubset(body_classes)
+    assert all(not EXTERNAL_URL.search(ref) for ref in stylesheet_refs)
+
+    _assert_non_empty_file(DESIGN_SYSTEM_DIR / "tokens.css", label="design-system tokens")
+    _assert_non_empty_file(
+        DESIGN_SYSTEM_DIR / "components.css",
+        label="design-system components",
     )
 
 
