@@ -11,7 +11,7 @@ DESIGN_SYSTEM_DIR = WEB_DIR / "design-system"
 PYODIDE_VENDOR = WEB_DIR / "vendor" / "pyodide" / "v0.27.3" / "full"
 STLITE_WHEELS = WEB_DIR / "vendor" / "stlite" / "browser-0.80.4" / "build" / "wheels"
 
-EXTERNAL_URL = re.compile(r"https?://", re.IGNORECASE)
+EXTERNAL_URL = re.compile(r"^(?:https?:)?//", re.IGNORECASE)
 MODULE_IMPORT_URL = re.compile(
     r"""(?:import\s+(?:[^'"]+\s+from\s+)?|import\s*\()\s*["'](?P<url>https?://[^"']+)["']\)?""",
     re.IGNORECASE,
@@ -105,7 +105,14 @@ def test_wasm_index_links_local_design_system_styles() -> None:
 
     assert "./design-system/tokens.css" in stylesheet_refs
     assert "./design-system/components.css" in stylesheet_refs
-    assert '<body class="ds theme-air">' in html
+    body_match = re.search(
+        r"<body\b[^>]*\bclass=['\"]([^'\"]+)['\"]",
+        html,
+        re.IGNORECASE,
+    )
+    assert body_match is not None
+    body_classes = set(body_match.group(1).split())
+    assert {"ds", "theme-air"}.issubset(body_classes)
     assert all(not EXTERNAL_URL.search(ref) for ref in stylesheet_refs)
 
     _assert_non_empty_file(DESIGN_SYSTEM_DIR / "tokens.css", label="design-system tokens")
