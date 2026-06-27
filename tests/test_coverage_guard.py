@@ -173,16 +173,25 @@ def test_build_update_comment_includes_status_table_and_optional_fields() -> Non
         top_files=top_files,
     )
 
-    assert "## Coverage guard update" in comment
-    assert "Date: 2026-06-27" in comment
-    assert "Status: Below baseline" in comment
-    assert "Current coverage: 78.50%" in comment
-    assert "Baseline coverage: 80.00%" in comment
-    assert "Delta vs baseline: -1.50 pts" in comment
-    assert "Recovery progress: 1/3 days above baseline" in comment
-    assert "Run: https://example.com/run/1" in comment
-    assert "| File | Coverage | Covered | Missing | Total |" in comment
-    assert "| `src/a.py` | 50.00% | 5 | 5 | 10 |" in comment
+    assert comment.splitlines() == [
+        "## Coverage guard update",
+        "",
+        "Date: 2026-06-27",
+        "Status: Below baseline",
+        "Current coverage: 78.50%",
+        "Baseline coverage: 80.00%",
+        "Delta vs baseline: -1.50 pts",
+        "Warning threshold: 1.00 pts",
+        "Recovery window: 3 days",
+        "Recovery progress: 1/3 days above baseline",
+        "Run: https://example.com/run/1",
+        "",
+        "### Top changed files",
+        "",
+        "| File | Coverage | Covered | Missing | Total |",
+        "| --- | ---: | ---: | ---: | ---: |",
+        "| `src/a.py` | 50.00% | 5 | 5 | 10 |",
+    ]
 
 
 def test_build_update_comment_handles_above_baseline_and_missing_top_files() -> None:
@@ -199,10 +208,21 @@ def test_build_update_comment_handles_above_baseline_and_missing_top_files() -> 
         top_files=[],
     )
 
-    assert "Status: At or above baseline" in comment
-    assert "Recovery progress:" not in comment
-    assert "Run:" not in comment
-    assert "Top changed files unavailable." in comment
+    assert comment.splitlines() == [
+        "## Coverage guard update",
+        "",
+        "Date: 2026-01-02",
+        "Status: At or above baseline",
+        "Current coverage: 81.00%",
+        "Baseline coverage: 80.00%",
+        "Delta vs baseline: +1.00 pts",
+        "Warning threshold: 1.00 pts",
+        "Recovery window: 3 days",
+        "",
+        "### Top changed files",
+        "",
+        "Top changed files unavailable.",
+    ]
 
 
 def test_build_recovered_comment_formats_expected_text() -> None:
