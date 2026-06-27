@@ -8,8 +8,16 @@ omit =
     .github/*
     tests/*
     scripts/*
-    tools/*
+    tools/__init__.py
+    tools/ci_failure_triage.py
+    tools/coverage_guard.py
+    tools/coverage_trend.py
+    tools/embedding_provider.py
+    tools/langchain_client.py
+    tools/llm_provider.py
+    tools/llm_registry.py
+    tools/post_ci_summary.py
+    tools/registry.py
+    tools/run_contract.py
     web/*
     setup.py
-    # Exclude workflow-only helper that is exercised in Workflows repo CI, not here.
-    tools/coverage_trend.py
