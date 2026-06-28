@@ -150,7 +150,22 @@ def test_blocked_slot_env_model_falls_back_to_slot_model(monkeypatch, tmp_path):
     assert captured == ["gpt-5.4"]
 
 
-def test_invalid_slot_config_shape_falls_back_to_defaults(monkeypatch, tmp_path):
+def test_invalid_slot_config_slots_shape_falls_back_to_defaults(monkeypatch, tmp_path):
+    config_path = tmp_path / "llm_slots.json"
+    config_path.write_text(json.dumps({"slots": {"name": "slot1"}}))
+    monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
+    monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("MANAGER_DB_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(llm_client, "create_llm", lambda config: _FakeClient())
+
+    client_info = llm_client.build_chat_client()
+
+    assert client_info is not None
+    assert client_info.provider == "openai"
+    assert client_info.model == "gpt-5.4"
+
+
+def test_invalid_slot_config_entry_falls_back_to_defaults(monkeypatch, tmp_path):
     config_path = tmp_path / "llm_slots.json"
     config_path.write_text(json.dumps({"slots": [None]}))
     monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
