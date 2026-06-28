@@ -80,6 +80,22 @@ def test_extract_line_rate_reads_valid_cobertura_xml(tmp_path: Path) -> None:
             False,
         ),
         (
+            98.75,
+            99.0,
+            1.0,
+            False,
+            {
+                "current": 98.75,
+                "baseline": 99.0,
+                "delta": -0.25,
+                "drop": 0.25,
+                "threshold": 1.0,
+                "status": "ok",
+                "fail_on_drop": False,
+            },
+            False,
+        ),
+        (
             99.87654,
             99.12345,
             1.0,
