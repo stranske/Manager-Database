@@ -78,14 +78,14 @@ def _glob_one(directory: Path, pattern: str) -> Path:
 def test_wasm_index_has_no_external_cdn_or_runtime_urls() -> None:
     html = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "cdn.jsdelivr.net" not in html, (
-        "web/index.html must not reference cdn.jsdelivr.net for offline boot"
-    )
+    assert (
+        "cdn.jsdelivr.net" not in html
+    ), "web/index.html must not reference cdn.jsdelivr.net for offline boot"
 
     external_imports = [match.group("url") for match in MODULE_IMPORT_URL.finditer(html)]
-    assert external_imports == [], (
-        f"web/index.html must not import modules from external http(s) URLs: {external_imports}"
-    )
+    assert (
+        external_imports == []
+    ), f"web/index.html must not import modules from external http(s) URLs: {external_imports}"
 
     external_tags = [
         f"{location}={value}"
@@ -128,24 +128,24 @@ def test_wasm_index_points_at_local_vendor_runtime() -> None:
     pyodide_match = PYODIDE_URL.search(html)
     assert pyodide_match is not None, "web/index.html must set pyodideUrl via new URL(...)"
     pyodide_path = pyodide_match.group("url")
-    assert pyodide_path.startswith("./vendor/"), (
-        f"pyodideUrl must point at a local ./vendor path, got {pyodide_path!r}"
-    )
-    assert pyodide_path.endswith("pyodide.mjs"), (
-        f"pyodideUrl must target pyodide.mjs, got {pyodide_path!r}"
-    )
+    assert pyodide_path.startswith(
+        "./vendor/"
+    ), f"pyodideUrl must point at a local ./vendor path, got {pyodide_path!r}"
+    assert pyodide_path.endswith(
+        "pyodide.mjs"
+    ), f"pyodideUrl must target pyodide.mjs, got {pyodide_path!r}"
 
     wheel_paths = [match.group("url") for match in WHEEL_URL.finditer(html)]
-    assert len(wheel_paths) == 2, (
-        "web/index.html must declare local wheelUrls for stliteLib and streamlit"
-    )
+    assert (
+        len(wheel_paths) == 2
+    ), "web/index.html must declare local wheelUrls for stliteLib and streamlit"
     for wheel_path in wheel_paths:
-        assert wheel_path.startswith("./vendor/"), (
-            f"wheelUrls must point at local ./vendor paths, got {wheel_path!r}"
-        )
-        assert wheel_path.endswith(".whl"), (
-            f"wheelUrls must target vendored .whl files, got {wheel_path!r}"
-        )
+        assert wheel_path.startswith(
+            "./vendor/"
+        ), f"wheelUrls must point at local ./vendor paths, got {wheel_path!r}"
+        assert wheel_path.endswith(
+            ".whl"
+        ), f"wheelUrls must target vendored .whl files, got {wheel_path!r}"
 
 
 def test_vendored_pyodide_core_runtime_exists() -> None:

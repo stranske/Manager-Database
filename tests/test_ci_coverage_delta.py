@@ -9,7 +9,6 @@ import pytest
 
 from scripts import ci_coverage_delta
 
-
 _ENV_KEYS = (
     "COVERAGE_XML_PATH",
     "OUTPUT_PATH",
