@@ -16,6 +16,11 @@ from scripts.seed_readiness_data import READINESS_DOC_FILENAME, READINESS_DOC_TE
 
 DEFAULT_OUTPUT_DIR = Path("web")
 DEFAULT_DB_NAME = "manager_demo.sqlite"
+STATIC_ROUTE_PATHS = ("daily-report", "search", "upload")
+STATIC_SHELL_FILES = (
+    Path("web/index.html"),
+    Path("web/wasm_app.py"),
+)
 TEXT_BUNDLE_FILES = [
     Path("embeddings.py"),
     Path("ui/__init__.py"),
@@ -33,6 +38,32 @@ TEXT_BUNDLE_FILES = [
     Path("utils/__init__.py"),
     Path("utils/extract.py"),
 ]
+
+
+def _copy_static_shell(output_dir: Path) -> None:
+    """Copy the static shell when building into a separate output directory."""
+    for source in STATIC_SHELL_FILES:
+        target = output_dir / source.name
+        if source.resolve() == target.resolve():
+            continue
+        shutil.copy2(source, target)
+
+
+def _route_shell_html(index_html: str) -> str:
+    if "<base " in index_html:
+        return index_html
+    return index_html.replace("<head>", '<head>\n    <base href="../" />', 1)
+
+
+def _write_static_route_entrypoints(output_dir: Path) -> None:
+    index_path = output_dir / "index.html"
+    if not index_path.exists():
+        return
+    route_html = _route_shell_html(index_path.read_text(encoding="utf-8"))
+    for route_path in STATIC_ROUTE_PATHS:
+        route_index = output_dir / route_path / "index.html"
+        route_index.parent.mkdir(parents=True, exist_ok=True)
+        route_index.write_text(route_html, encoding="utf-8")
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:
@@ -251,6 +282,8 @@ def build_wasm_demo(output_dir: Path = DEFAULT_OUTPUT_DIR) -> Path:
         target = output_dir / source
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
+    _copy_static_shell(output_dir)
+    _write_static_route_entrypoints(output_dir)
     return db_path
 
 
