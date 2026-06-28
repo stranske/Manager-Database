@@ -237,6 +237,9 @@ def test_python_files_returns_sorted_unique_python_files(tmp_path: Path) -> None
     (scan_dir / "__pycache__" / "cached.py").write_text("")
     (scan_dir / "tests").mkdir()
     (scan_dir / "tests" / "test_module.py").write_text("")
+    (scan_dir / ".venv").mkdir()
+    (scan_dir / ".venv" / "vendored.py").write_text("")
+    (scan_dir / "check_dialect_portability.py").write_text("")
 
     files = _python_files([tmp_path, scan_dir])
     paths = [f.relative_to(tmp_path).as_posix() for f in files]
@@ -248,6 +251,8 @@ def test_python_files_returns_sorted_unique_python_files(tmp_path: Path) -> None
     assert "scan_dir/module4.py" in paths
     assert "__pycache__/cached.py" not in paths
     assert "tests/test_module.py" not in paths
+    assert "scan_dir/.venv/vendored.py" not in paths
+    assert "scan_dir/check_dialect_portability.py" not in paths
     # Should be sorted and unique
     assert paths == sorted(paths)
     assert len(paths) == len(set(paths))
@@ -271,6 +276,13 @@ def test_imports_connect_db_detects_function_def() -> None:
 
 def test_imports_connect_db_detects_direct_call() -> None:
     source = """conn = connect_db()
+"""
+    assert _imports_connect_db(source) is True
+
+
+def test_imports_connect_db_detects_direct_call_when_source_is_malformed() -> None:
+    source = """def broken(
+    conn = connect_db()
 """
     assert _imports_connect_db(source) is True
 
