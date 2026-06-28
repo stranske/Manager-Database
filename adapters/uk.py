@@ -12,6 +12,7 @@ Parsed fields:
 
 from __future__ import annotations
 
+import os
 import re
 import zlib
 from datetime import datetime
@@ -21,15 +22,30 @@ import httpx
 from .base import tracked_call
 
 BASE_URL = "https://api.company-information.service.gov.uk"
+API_KEY_ENV = "COMPANIES_HOUSE_API_KEY"
+
+
+class CompaniesHouseConfigError(RuntimeError):
+    """Raised when live Companies House requests lack required credentials."""
+
+
+def _companies_house_auth() -> tuple[str, str]:
+    api_key = os.getenv(API_KEY_ENV, "").strip()
+    if not api_key:
+        raise CompaniesHouseConfigError(
+            f"{API_KEY_ENV} must be set for Companies House API requests"
+        )
+    return (api_key, "")
 
 
 async def list_new_filings(company_number: str, since: str):
     """List filing history items since a date (YYYY-MM-DD)."""
     url = f"{BASE_URL}/company/{company_number}/filing-history"
     params = {"category": "annual-return", "since": since}
+    auth = _companies_house_auth()
     async with httpx.AsyncClient() as client:
         async with tracked_call("uk", url) as log:
-            r = await client.get(url, params=params)
+            r = await client.get(url, params=params, auth=auth)
             log(r)
         r.raise_for_status()
         data = r.json()
@@ -48,9 +64,10 @@ async def list_new_filings(company_number: str, since: str):
 async def download(filing: dict[str, str]):
     """Download the filing document."""
     url = f"{BASE_URL}/filing-history/{filing['transaction_id']}/document?format=pdf"
+    auth = _companies_house_auth()
     async with httpx.AsyncClient() as client:
         async with tracked_call("uk", url) as log:
-            r = await client.get(url)
+            r = await client.get(url, auth=auth)
             log(r)
         r.raise_for_status()
         return r.content

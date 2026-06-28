@@ -180,6 +180,7 @@ async def test_list_new_filings_filters_and_maps(monkeypatch):
             {"transaction_id": "t2", "date": "2023-12-31T09:00:00Z"},
         ]
     }
+    calls = []
 
     @asynccontextmanager
     async def dummy_tracked_call(*args, **kwargs):
@@ -196,8 +197,10 @@ async def test_list_new_filings_filters_and_maps(monkeypatch):
             return False
 
         async def get(self, *args, **kwargs):
+            calls.append((args, kwargs))
             return httpx.Response(200, request=httpx.Request("GET", "x"), json=payload)
 
+    monkeypatch.setenv("COMPANIES_HOUSE_API_KEY", "test-key")
     monkeypatch.setattr(uk.httpx, "AsyncClient", DummyClient)
     monkeypatch.setattr(uk, "tracked_call", dummy_tracked_call)
 
@@ -210,11 +213,34 @@ async def test_list_new_filings_filters_and_maps(monkeypatch):
             "date": "2024-01-02",
         }
     ]
+    assert calls == [
+        (
+            (f"{uk.BASE_URL}/company/12345678/filing-history",),
+            {
+                "params": {"category": "annual-return", "since": "2024-01-01"},
+                "auth": ("test-key", ""),
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_new_filings_requires_companies_house_api_key(monkeypatch):
+    class DummyClient:
+        async def __aenter__(self):
+            raise AssertionError("network client should not be opened without credentials")
+
+    monkeypatch.delenv("COMPANIES_HOUSE_API_KEY", raising=False)
+    monkeypatch.setattr(uk.httpx, "AsyncClient", DummyClient)
+
+    with pytest.raises(uk.CompaniesHouseConfigError, match="COMPANIES_HOUSE_API_KEY"):
+        await uk.list_new_filings("12345678", "2024-01-01")
 
 
 @pytest.mark.asyncio
 async def test_download_returns_pdf_bytes(monkeypatch):
     pdf_bytes = b"%PDF-1.4\n%fake\n%%EOF"
+    calls = []
 
     @asynccontextmanager
     async def dummy_tracked_call(*args, **kwargs):
@@ -231,14 +257,22 @@ async def test_download_returns_pdf_bytes(monkeypatch):
             return False
 
         async def get(self, *args, **kwargs):
+            calls.append((args, kwargs))
             return httpx.Response(200, request=httpx.Request("GET", "x"), content=pdf_bytes)
 
+    monkeypatch.setenv("COMPANIES_HOUSE_API_KEY", "test-key")
     monkeypatch.setattr(uk.httpx, "AsyncClient", DummyClient)
     monkeypatch.setattr(uk, "tracked_call", dummy_tracked_call)
 
     result = await uk.download({"transaction_id": "t1"})
 
     assert result == pdf_bytes
+    assert calls == [
+        (
+            (f"{uk.BASE_URL}/filing-history/t1/document?format=pdf",),
+            {"auth": ("test-key", "")},
+        )
+    ]
 
 
 def test_unescape_pdf_string_and_date_helpers_cover_branches():
