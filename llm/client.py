@@ -94,8 +94,20 @@ def _load_slot_config() -> list[SlotDefinition]:
         return _default_slots()
 
     registry = load_model_registry()
+    if not isinstance(payload, dict):
+        logger.warning("Invalid LLM slot config %s; expected object", path)
+        return _default_slots()
+
+    raw_slots = payload.get("slots", [])
+    if not isinstance(raw_slots, list):
+        logger.warning("Invalid LLM slot config %s; expected slots list", path)
+        return _default_slots()
+
     slots: list[SlotDefinition] = []
-    for index, entry in enumerate(payload.get("slots", []), start=1):
+    for index, entry in enumerate(raw_slots, start=1):
+        if not isinstance(entry, dict):
+            logger.warning("Ignoring invalid LLM slot entry in %s; expected object", path)
+            continue
         provider = _normalize_provider(str(entry.get("provider", "")))
         model = str(entry.get("model", "")).strip()
         tier = str(entry.get("quality_tier") or entry.get("tier") or "").strip()
@@ -120,7 +132,13 @@ def _apply_slot_env_overrides(slots: list[SlotDefinition]) -> list[SlotDefinitio
         )
         model_override = os.environ.get(f"{ENV_SLOT_PREFIX}{index}_MODEL")
         provider = provider_override or slot.provider
-        model = (model_override or slot.model).strip()
+        model = slot.model.strip()
+        if model_override is not None:
+            candidate_model = model_override.strip()
+            if candidate_model:
+                model = candidate_model
+            else:
+                logger.warning("Ignoring blank LLM slot model override for %s", slot.name)
         if is_model_blocked(provider, model, registry=registry):
             logger.warning("Skipping blocked LLM slot override: %s/%s", provider, model)
             override_requested = provider_override is not None or model_override is not None

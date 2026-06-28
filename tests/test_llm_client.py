@@ -115,3 +115,82 @@ def test_blocked_slot_model_is_not_selected(monkeypatch, tmp_path):
     assert client_info.provider == "openai"
     assert client_info.model == "gpt-5.4"
     assert captured == ["gpt-5.4"]
+
+
+def test_blocked_slot_env_model_falls_back_to_slot_model(monkeypatch, tmp_path):
+    config_path = tmp_path / "llm_slots.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "slots": [
+                    {"name": "approved", "provider": "openai", "model": "gpt-5.4"},
+                ]
+            }
+        )
+    )
+    monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
+    monkeypatch.setenv("LANGCHAIN_SLOT1_MODEL", "gpt-4o-mini")
+    monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("MANAGER_DB_ANTHROPIC_API_KEY", raising=False)
+    captured = []
+
+    def _fake_create_llm(config):
+        captured.append(config.model_name)
+        if config.model_name == "gpt-4o-mini":
+            raise AssertionError("blocked override reached create_llm")
+        return _FakeClient()
+
+    monkeypatch.setattr(llm_client, "create_llm", _fake_create_llm)
+
+    client_info = llm_client.build_chat_client()
+
+    assert client_info is not None
+    assert client_info.provider == "openai"
+    assert client_info.model == "gpt-5.4"
+    assert captured == ["gpt-5.4"]
+
+
+def test_invalid_slot_config_shape_falls_back_to_defaults(monkeypatch, tmp_path):
+    config_path = tmp_path / "llm_slots.json"
+    config_path.write_text(json.dumps({"slots": [None]}))
+    monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
+    monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("MANAGER_DB_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(llm_client, "create_llm", lambda config: _FakeClient())
+
+    client_info = llm_client.build_chat_client()
+
+    assert client_info is not None
+    assert client_info.provider == "openai"
+    assert client_info.model == "gpt-5.4"
+
+
+def test_blank_slot_env_model_falls_back_to_slot_model(monkeypatch, tmp_path):
+    config_path = tmp_path / "llm_slots.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "slots": [
+                    {"name": "approved", "provider": "openai", "model": "gpt-5.4"},
+                ]
+            }
+        )
+    )
+    monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
+    monkeypatch.setenv("LANGCHAIN_SLOT1_MODEL", "   ")
+    monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("MANAGER_DB_ANTHROPIC_API_KEY", raising=False)
+    captured = []
+
+    def _fake_create_llm(config):
+        captured.append(config.model_name)
+        return _FakeClient()
+
+    monkeypatch.setattr(llm_client, "create_llm", _fake_create_llm)
+
+    client_info = llm_client.build_chat_client()
+
+    assert client_info is not None
+    assert client_info.provider == "openai"
+    assert client_info.model == "gpt-5.4"
+    assert captured == ["gpt-5.4"]
