@@ -39,9 +39,9 @@ def offline_query(default: Any = None, *args: Any, **kwargs: Any) -> Any:
     return default
 
 
-def offline_api_imports() -> tuple[
-    type[OfflineAPIRouter], type[OfflineBaseModel], Callable[..., Any], Callable[..., Any]
-]:
+def offline_api_imports() -> (
+    tuple[type[OfflineAPIRouter], type[OfflineBaseModel], Callable[..., Any], Callable[..., Any]]
+):
     if os.getenv("UI_OFFLINE") != "1":
         raise ModuleNotFoundError("FastAPI/Pydantic fallbacks are only available with UI_OFFLINE=1")
     return OfflineAPIRouter, OfflineBaseModel, offline_field, offline_query
