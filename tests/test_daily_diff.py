@@ -254,22 +254,24 @@ def test_daily_diff_flow_records_large_delta_alerts(tmp_path, monkeypatch):
     daily_diff_flow.fn(date="2024-05-01")
 
     conn = sqlite3.connect(db_path)
-    row = conn.execute("""SELECT ah.event_type, ah.payload_json, ah.delivered_channels
+    rows = conn.execute("""SELECT ah.event_type, ah.payload_json, ah.delivered_channels
            FROM alert_history ah
            JOIN alert_rules ar ON ar.rule_id = ah.rule_id
-           WHERE ar.name = 'Large buy'""").fetchone()
+           WHERE ar.name = 'Large buy'""").fetchall()
     conn.close()
 
-    assert row == (
-        "large_delta",
+    assert rows == [
         (
-            '{"cusip":"CCC","delta_type":"buy","manager_id":1,'
-            '"name_of_issuer":"CorpC","raw_delta_type":"ADD",'
-            '"report_date":"2024-05-01","shares_curr":40,"shares_prev":null,'
-            '"value_curr":400.0,"value_prev":null,"value_usd":400.0}'
-        ),
-        '["streamlit"]',
-    )
+            "large_delta",
+            (
+                '{"cusip":"CCC","delta_type":"buy","manager_id":1,'
+                '"name_of_issuer":"CorpC","raw_delta_type":"ADD",'
+                '"report_date":"2024-05-01","shares_curr":40,"shares_prev":null,'
+                '"value_curr":400.0,"value_prev":null,"value_usd":400.0}'
+            ),
+            '["streamlit"]',
+        )
+    ]
 
 
 def test_daily_diff_flow_defaults_to_yesterday(tmp_path, monkeypatch):
