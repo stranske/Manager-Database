@@ -239,7 +239,7 @@ def test_python_files_returns_sorted_unique_python_files(tmp_path: Path) -> None
     (scan_dir / "tests" / "test_module.py").write_text("")
 
     files = _python_files([tmp_path, scan_dir])
-    paths = [f.as_posix() for f in files]
+    paths = [f.relative_to(tmp_path).as_posix() for f in files]
 
     # Should include all .py files except those in tests/ or __pycache__
     assert "module1.py" in paths
