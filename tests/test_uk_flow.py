@@ -48,10 +48,16 @@ class _MockCompaniesHouseClient:
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
-    async def get(self, url: str, params: dict[str, str] | None = None):
+    async def get(
+        self,
+        url: str,
+        params: dict[str, str] | None = None,
+        auth: tuple[str, str] | None = None,
+    ):
         request = httpx.Request("GET", url, params=params)
         if url.endswith("/filing-history"):
             assert params == {"category": "annual-return", "since": "2024-01-01"}
+            assert auth == ("test-key", "")
             return httpx.Response(
                 200,
                 request=request,
@@ -65,6 +71,7 @@ class _MockCompaniesHouseClient:
                 },
             )
         if "document?format=pdf" in url:
+            assert auth == ("test-key", "")
             pdf = (
                 b"%PDF-1.4\n"
                 b"(Confirmation Statement CS01)\n"
@@ -168,6 +175,7 @@ async def test_uk_flow_mocks_companies_house_api_and_inserts_filing(tmp_path, mo
     monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: uk_adapter)
     monkeypatch.setattr(uk_adapter.httpx, "AsyncClient", _MockCompaniesHouseClient)
     monkeypatch.setattr(uk_adapter, "tracked_call", dummy_tracked_call)
+    monkeypatch.setenv("COMPANIES_HOUSE_API_KEY", "test-key")
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
     monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
 
