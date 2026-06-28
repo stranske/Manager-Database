@@ -24,3 +24,12 @@ autofix_report_enriched.json
 artifacts/langsmith/
 artifacts/daily_diff/
 artifacts/digest/
+web/adapters/
+web/api/
+web/daily-report/
+web/embeddings.py
+web/manager_demo.sqlite
+web/search/
+web/ui/
+web/upload/
+web/utils/

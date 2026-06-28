@@ -39,12 +39,15 @@ python scripts/build_wasm_demo.py
 python -m http.server 8000 -d web
 ```
 
-Then open `http://localhost:8000/index.html`. The page loads stlite/Pyodide in
-the browser, sets `UI_OFFLINE=1`, leaves `DB_URL` unset, points `DB_PATH` at the
-bundled `manager_demo.sqlite`, and renders Dashboard, Daily Report, Search, and
-Upload against seeded synthetic rows. The Upload page uses `USE_SIMPLE_EMBED=1`
-so no model download is attempted. Do not use this bundle for proprietary data
-on a public host; rebuild it only from synthetic or explicitly redacted inputs.
+Then open `http://localhost:8000/index.html` for Dashboard. The build also
+generates static-server-safe entrypoints for the other pages:
+`http://localhost:8000/daily-report/`, `http://localhost:8000/search/`, and
+`http://localhost:8000/upload/`. The page loads stlite/Pyodide in the browser,
+sets `UI_OFFLINE=1`, leaves `DB_URL` unset, points `DB_PATH` at the bundled
+`manager_demo.sqlite`, and renders Dashboard, Daily Report, Search, and Upload
+against seeded synthetic rows. The Upload page uses `USE_SIMPLE_EMBED=1` so no
+model download is attempted. Do not use this bundle for proprietary data on a
+public host; rebuild it only from synthetic or explicitly redacted inputs.
 
 The `schema.sql` file defines an `api_usage` table used for cost telemetry. Apply it to the Postgres container once it is running:
 
