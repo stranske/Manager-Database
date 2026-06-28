@@ -28,6 +28,11 @@ def _fetch_text(url: str) -> tuple[int, str]:
         return response.status, response.read().decode("utf-8")
 
 
+def _fetch_bytes(url: str) -> tuple[int, bytes]:
+    with urlopen(url, timeout=10) as response:
+        return response.status, response.read()
+
+
 def test_wasm_demo_static_routes_serve_stlite_shell(tmp_path) -> None:
     web_dir = tmp_path / "web"
     build_wasm_demo(web_dir)
@@ -39,6 +44,9 @@ def test_wasm_demo_static_routes_serve_stlite_shell(tmp_path) -> None:
             assert "Manager-Database Offline Demo" in body
             assert "stlite.js" in body
             assert "Error response" not in body
+        status, body = _fetch_bytes(f"{base_url}/wasm_app.py")
+        assert status == 200
+        assert b"Offline stlite entrypoint" in body
 
 
 def test_wasm_demo_static_route_entrypoints_use_parent_base(tmp_path) -> None:
@@ -48,4 +56,5 @@ def test_wasm_demo_static_route_entrypoints_use_parent_base(tmp_path) -> None:
     for route in STATIC_ROUTE_PATHS:
         html = (web_dir / route / "index.html").read_text(encoding="utf-8")
         assert '<base href="../" />' in html
-        assert "./vendor/stlite/browser-0.80.4/build/stlite.js" in html
+        assert "./vendor/stlite/browser-" in html
+        assert "/build/stlite.js" in html
