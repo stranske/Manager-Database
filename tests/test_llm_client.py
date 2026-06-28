@@ -18,7 +18,7 @@ def test_build_chat_client_returns_openai_when_key_available(monkeypatch):
 
     assert client_info is not None
     assert client_info.provider == "openai"
-    assert client_info.model == "gpt-4o-mini"
+    assert client_info.model == "gpt-5.4"
 
 
 def test_build_chat_client_falls_back_to_anthropic(monkeypatch):
@@ -30,7 +30,7 @@ def test_build_chat_client_falls_back_to_anthropic(monkeypatch):
 
     assert client_info is not None
     assert client_info.provider == "anthropic"
-    assert client_info.model == "claude-sonnet-4-20250514"
+    assert client_info.model == "claude-sonnet-4-6"
 
 
 def test_build_chat_client_returns_none_when_no_keys(monkeypatch):
@@ -82,3 +82,36 @@ def test_slot_config_loading_from_json_file(monkeypatch, tmp_path):
     assert client_info is not None
     assert client_info.provider == "anthropic"
     assert client_info.model == "claude-test"
+
+
+def test_blocked_slot_model_is_not_selected(monkeypatch, tmp_path):
+    config_path = tmp_path / "llm_slots.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "slots": [
+                    {"name": "blocked", "provider": "openai", "model": "gpt-4o-mini"},
+                    {"name": "approved", "provider": "openai", "model": "gpt-5.4"},
+                ]
+            }
+        )
+    )
+    monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
+    monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("MANAGER_DB_ANTHROPIC_API_KEY", raising=False)
+    captured = []
+
+    def _fake_create_llm(config):
+        captured.append(config.model_name)
+        if config.model_name == "gpt-4o-mini":
+            raise AssertionError("blocked model reached create_llm")
+        return _FakeClient()
+
+    monkeypatch.setattr(llm_client, "create_llm", _fake_create_llm)
+
+    client_info = llm_client.build_chat_client()
+
+    assert client_info is not None
+    assert client_info.provider == "openai"
+    assert client_info.model == "gpt-5.4"
+    assert captured == ["gpt-5.4"]

@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from llm.provider import LLMProviderConfig, create_llm
+from tools import llm_registry as _llm_registry
+from tools.llm_registry import is_model_blocked, load_model_registry, select_model_for_tier
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +23,8 @@ ENV_SLOT_PREFIX = "LANGCHAIN_SLOT"
 
 DEFAULT_TIMEOUT = 60
 DEFAULT_MAX_RETRIES = 2
-DEFAULT_SLOT_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "llm_slots.json"
-LEGACY_SLOT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "llm_slots.json"
+DEFAULT_SLOT_CONFIG_PATH = _llm_registry.DEFAULT_SLOT_CONFIG_PATH
+DEFAULT_MODEL_REGISTRY_CONFIG_PATH = _llm_registry.DEFAULT_MODEL_REGISTRY_CONFIG_PATH
 
 _PROVIDER_ALIASES = {
     "openai": "openai",
@@ -70,8 +72,8 @@ def _normalize_provider(value: str | None) -> str | None:
 
 def _default_slots() -> list[SlotDefinition]:
     return [
-        SlotDefinition(name="slot1", provider="openai", model="gpt-4o-mini"),
-        SlotDefinition(name="slot2", provider="anthropic", model="claude-sonnet-4-20250514"),
+        SlotDefinition(name="slot1", provider="openai", model="gpt-5.4"),
+        SlotDefinition(name="slot2", provider="anthropic", model="claude-sonnet-4-6"),
     ]
 
 
@@ -79,9 +81,7 @@ def _slot_config_path() -> Path:
     configured = os.environ.get(ENV_SLOT_CONFIG)
     if configured:
         return Path(configured)
-    if DEFAULT_SLOT_CONFIG_PATH.is_file():
-        return DEFAULT_SLOT_CONFIG_PATH
-    return LEGACY_SLOT_CONFIG_PATH
+    return DEFAULT_SLOT_CONFIG_PATH
 
 
 def _load_slot_config() -> list[SlotDefinition]:
@@ -93,11 +93,18 @@ def _load_slot_config() -> list[SlotDefinition]:
     except (OSError, json.JSONDecodeError):
         return _default_slots()
 
+    registry = load_model_registry()
     slots: list[SlotDefinition] = []
     for index, entry in enumerate(payload.get("slots", []), start=1):
         provider = _normalize_provider(str(entry.get("provider", "")))
         model = str(entry.get("model", "")).strip()
+        tier = str(entry.get("quality_tier") or entry.get("tier") or "").strip()
+        if provider and not model and tier:
+            model = select_model_for_tier(provider=provider, tier=tier, registry=registry) or ""
         if not provider or not model:
+            continue
+        if is_model_blocked(provider, model, registry=registry):
+            logger.warning("Skipping blocked LLM model in slot config: %s/%s", provider, model)
             continue
         name = str(entry.get("name") or f"slot{index}").strip() or f"slot{index}"
         slots.append(SlotDefinition(name=name, provider=provider, model=model))
@@ -105,17 +112,28 @@ def _load_slot_config() -> list[SlotDefinition]:
 
 
 def _apply_slot_env_overrides(slots: list[SlotDefinition]) -> list[SlotDefinition]:
+    registry = load_model_registry()
     updated: list[SlotDefinition] = []
     for index, slot in enumerate(slots, start=1):
         provider_override = _normalize_provider(
             os.environ.get(f"{ENV_SLOT_PREFIX}{index}_PROVIDER")
         )
         model_override = os.environ.get(f"{ENV_SLOT_PREFIX}{index}_MODEL")
+        provider = provider_override or slot.provider
+        model = (model_override or slot.model).strip()
+        if is_model_blocked(provider, model, registry=registry):
+            logger.warning("Skipping blocked LLM slot override: %s/%s", provider, model)
+            override_requested = provider_override is not None or model_override is not None
+            if override_requested and not is_model_blocked(
+                slot.provider, slot.model, registry=registry
+            ):
+                updated.append(slot)
+            continue
         updated.append(
             SlotDefinition(
                 name=slot.name,
-                provider=provider_override or slot.provider,
-                model=(model_override or slot.model).strip(),
+                provider=provider,
+                model=model,
             )
         )
     return updated
@@ -207,13 +225,25 @@ def build_chat_client(
         selected_model = (model or os.environ.get(ENV_MODEL) or "").strip()
         if not selected_model:
             selected_model = _default_slots()[0].model
+        if is_model_blocked(selected_provider, selected_model):
+            logger.warning("Refusing blocked LLM model: %s/%s", selected_provider, selected_model)
+            return None
         return _build_for(selected_provider, selected_model, selected_timeout, selected_retries)
 
     slots = _resolve_slots()
+    registry = load_model_registry()
     for index, slot in enumerate(slots, start=1):
         slot_model = slot.model
         if index == 1 and (model or os.environ.get(ENV_MODEL)):
             slot_model = (model or os.environ.get(ENV_MODEL) or slot.model).strip()
+            if is_model_blocked(slot.provider, slot_model, registry=registry):
+                logger.warning(
+                    "Skipping blocked LLM model override: %s/%s", slot.provider, slot_model
+                )
+                slot_model = slot.model
+        if is_model_blocked(slot.provider, slot_model, registry=registry):
+            logger.warning("Skipping blocked LLM model: %s/%s", slot.provider, slot_model)
+            continue
         client_info = _build_for(slot.provider, slot_model, selected_timeout, selected_retries)
         if client_info is not None:
             return client_info
