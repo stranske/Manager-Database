@@ -13,6 +13,8 @@ from prefect import flow, task
 from prefect.schedules import Cron
 
 from adapters.base import connect_db
+from alerts.integration import evaluate_and_record_alerts
+from alerts.models import AlertEvent
 from diff_holdings import diff_holdings
 from etl.logging_setup import configure_logging, log_outcome
 from tools.registry import run_contract_fields
@@ -197,6 +199,76 @@ def _daily_diff_data_quality(conn: Any, report_date: str) -> dict[str, Any]:
     }
 
 
+def _fetch_inserted_diffs(conn: Any, manager_id: int, report_date: str) -> list[dict[str, Any]]:
+    ph = _placeholder(conn)
+    rows = conn.execute(
+        "SELECT manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr "
+        "FROM daily_diffs WHERE manager_id = "
+        f"{ph} AND report_date = {ph} ORDER BY cusip, delta_type",
+        (manager_id, report_date),
+    ).fetchall()
+    return [
+        {
+            "manager_id": row[0],
+            "report_date": row[1],
+            "cusip": row[2],
+            "name_of_issuer": row[3],
+            "delta_type": row[4],
+            "shares_prev": row[5],
+            "shares_curr": row[6],
+            "value_prev": row[7],
+            "value_curr": row[8],
+        }
+        for row in rows
+    ]
+
+
+def _large_delta_event_from_diff(row: dict[str, Any]) -> AlertEvent:
+    raw_delta_type = str(row["delta_type"]).upper()
+    normalized_delta_type = {
+        "ADD": "buy",
+        "INCREASE": "buy",
+        "EXIT": "sell",
+        "DECREASE": "sell",
+    }.get(raw_delta_type, raw_delta_type.lower())
+    value_prev = row.get("value_prev")
+    value_curr = row.get("value_curr")
+    value_usd = None
+    if value_prev is not None and value_curr is not None:
+        value_usd = abs(float(value_curr) - float(value_prev))
+    elif value_curr is not None:
+        value_usd = abs(float(value_curr))
+    elif value_prev is not None:
+        value_usd = abs(float(value_prev))
+
+    payload = {
+        "manager_id": row["manager_id"],
+        "report_date": row["report_date"],
+        "cusip": row["cusip"],
+        "name_of_issuer": row.get("name_of_issuer"),
+        "delta_type": normalized_delta_type,
+        "raw_delta_type": raw_delta_type,
+        "shares_prev": row.get("shares_prev"),
+        "shares_curr": row.get("shares_curr"),
+        "value_prev": value_prev,
+        "value_curr": value_curr,
+        "value_usd": value_usd,
+    }
+    return AlertEvent(
+        event_type="large_delta",
+        manager_id=int(row["manager_id"]),
+        payload=payload,
+    )
+
+
+def _record_large_delta_alerts(conn: Any, manager_id: int, report_date: str) -> list[int]:
+    alert_ids: list[int] = []
+    for row in _fetch_inserted_diffs(conn, manager_id, report_date):
+        alert_ids.extend(evaluate_and_record_alerts(conn, _large_delta_event_from_diff(row)))
+    return alert_ids
+
+
 @task
 def compute_manager_diffs(manager_id: int, report_date: str, conn: Any) -> int:
     """Compute and store diffs for a single manager. Returns change count."""
@@ -265,6 +337,8 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
         for mid in manager_ids:
             try:
                 count = compute_manager_diffs.fn(mid, report_date, conn)
+                if count:
+                    _record_large_delta_alerts(conn, mid, report_date)
                 total_changes += count
                 managers_processed += 1
                 log_outcome(

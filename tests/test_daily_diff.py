@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from alerts.db import ensure_alert_tables
 from etl.daily_diff_flow import compute_manager_diffs, daily_diff_flow
 from tools.run_contract import RunResult
 
@@ -224,6 +225,52 @@ def test_daily_diff_flow_processes_multiple_managers(tmp_path, monkeypatch):
         (1, "2024-05-01", "CCC", "ADD"),
         (1, "2024-05-01", "EEE", "DECREASE"),
         (2, "2024-05-01", "YYY", "ADD"),
+    ]
+
+
+def test_daily_diff_flow_records_large_delta_alerts(tmp_path, monkeypatch):
+    db_path = _setup_db(tmp_path)
+    conn = sqlite3.connect(db_path)
+    ensure_alert_tables(conn)
+    conn.execute(
+        """INSERT INTO alert_rules(
+            name, event_type, condition_json, channels, enabled, manager_id
+        ) VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            "Large buy",
+            "large_delta",
+            '{"delta_type":"buy","value_usd_gt":350}',
+            '["streamlit"]',
+            1,
+            1,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.delenv("DB_URL", raising=False)
+
+    daily_diff_flow.fn(date="2024-05-01")
+
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute("""SELECT ah.event_type, ah.payload_json, ah.delivered_channels
+           FROM alert_history ah
+           JOIN alert_rules ar ON ar.rule_id = ah.rule_id
+           WHERE ar.name = 'Large buy'""").fetchall()
+    conn.close()
+
+    assert rows == [
+        (
+            "large_delta",
+            (
+                '{"cusip":"CCC","delta_type":"buy","manager_id":1,'
+                '"name_of_issuer":"CorpC","raw_delta_type":"ADD",'
+                '"report_date":"2024-05-01","shares_curr":40,"shares_prev":null,'
+                '"value_curr":400.0,"value_prev":null,"value_usd":400.0}'
+            ),
+            '["streamlit"]',
+        )
     ]
 
 
