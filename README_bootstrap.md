@@ -76,6 +76,10 @@ Feel free to open issues or pull requests as you iterate.
    Use the Python command above for a one-off manual run; use the Prefect deployment command
    to activate the `edgar-nightly` schedule.
 
+   The UK Companies House adapter uses HTTP Basic auth for live filing-history
+   and document requests. Set `COMPANIES_HOUSE_API_KEY` to the Companies House
+   API key before running `etl/uk_flow.py` or the `uk-nightly` deployment.
+
 4. Generate the local analyst digest without sending email:
    ```bash
    DIGEST_DRY_RUN=true DIGEST_OUTPUT_PATH=/tmp/manager-digest.txt python etl/digest_flow.py
