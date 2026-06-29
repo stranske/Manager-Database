@@ -188,6 +188,14 @@ def test_universal_search_returns_ranked_multi_entity_results():
 
 
 def test_score_result_clamps_non_finite_rank_and_distance():
+    baseline = _score_result(
+        "news",
+        "elliott",
+        "Elliott files 13D",
+        "activist position",
+        fts_rank=None,
+        vector_distance=None,
+    )
     score = _score_result(
         "news",
         "elliott",
@@ -197,7 +205,7 @@ def test_score_result_clamps_non_finite_rank_and_distance():
         vector_distance=float("inf"),
     )
 
-    assert 0.0 <= score <= 1.0
+    assert score == baseline
 
 
 def test_universal_search_filters_results_by_entity_type():

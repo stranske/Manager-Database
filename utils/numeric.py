@@ -19,7 +19,10 @@ def parse_finite_float(
             return None
         raise ValueError("numeric value is required")
 
-    parsed = float(value)
+    try:
+        parsed = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"numeric value overflow: {value!r}") from exc
     if not math.isfinite(parsed):
         raise ValueError(f"non-finite numeric value: {value!r}")
     if min_value is not None and parsed < min_value:

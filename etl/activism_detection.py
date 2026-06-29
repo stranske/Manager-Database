@@ -104,15 +104,12 @@ def _parse_thresholds() -> tuple[float, ...]:
         stripped = part.strip()
         if not stripped:
             continue
-        try:
-            parsed = parse_finite_float(stripped, min_value=0.0, max_value=100.0, allow_none=False)
-            assert parsed is not None
-            values.append(round(parsed, 4))
-        except (TypeError, ValueError):
-            continue
+        parsed = parse_finite_float(stripped, min_value=0.0, max_value=100.0, allow_none=False)
+        assert parsed is not None
+        values.append(round(parsed, 4))
     valid_values = {value for value in values if value > 0}
     if not valid_values:
-        return OWNERSHIP_THRESHOLDS
+        raise ValueError("ACTIVISM_THRESHOLDS must contain at least one positive threshold")
     return tuple(sorted(valid_values))
 
 

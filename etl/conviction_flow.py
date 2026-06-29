@@ -139,9 +139,7 @@ def compute_conviction_scores(filing_id: int, conn: Any) -> int:
         logger.info("No holdings found for filing", extra={"filing_id": filing_id})
         return 0
 
-    holding_values = [
-        parse_finite_float(row[3] or 0.0, min_value=0.0, allow_none=False) for row in rows
-    ]
+    holding_values = [parse_finite_float(row[3], min_value=0.0, allow_none=False) for row in rows]
     total_value = sum(holding_values)
 
     upsert_sql = (
