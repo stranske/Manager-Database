@@ -16,19 +16,26 @@ from adapters.base import connect_db, get_adapter
 from alerts.integration import build_new_filing_event, fire_alerts_for_event
 from etl.logging_setup import configure_logging, log_outcome
 
-try:
-    from embeddings import store_document
-except ModuleNotFoundError:
 
-    def store_document(
-        text: str,
-        db_path: str | None = None,
-        manager_id: int | None = None,
-        kind: str = "note",
-        filename: str | None = None,
-    ) -> int:
+def store_document(
+    text: str,
+    db_path: str | None = None,
+    manager_id: int | None = None,
+    kind: str = "note",
+    filename: str | None = None,
+) -> int:
+    try:
+        from embeddings import store_document as _store_document
+    except Exception:
         _ = (text, db_path, manager_id, kind, filename)
         return 0
+    return _store_document(
+        text,
+        db_path=db_path,
+        manager_id=manager_id,
+        kind=kind,
+        filename=filename,
+    )
 
 
 RAW_DIR = ingest_module.RAW_DIR
@@ -255,6 +262,71 @@ def _insert_holding_legacy(
     )
 
 
+def _delete_holdings_for_filing(conn: Any, filing_id: int) -> None:
+    if filing_id <= 0 or "filing_id" not in _columns(conn, "holdings"):
+        return
+    marker = _placeholder(conn)
+    conn.execute(f"DELETE FROM holdings WHERE filing_id = {marker}", (filing_id,))
+
+
+def _run_in_transaction(conn: Any, work: Any) -> Any:
+    transaction = getattr(conn, "transaction", None)
+    if callable(transaction):
+        with transaction():
+            return work()
+    return work()
+
+
+def _replace_holdings_for_filing(
+    conn: Any,
+    *,
+    filing_id: int,
+    rows: list[dict[str, Any]],
+    manager_id: int | None,
+    cik: str,
+    accession: str,
+    filed_date: str | None,
+) -> None:
+    def _work() -> None:
+        _delete_holdings_for_filing(conn, filing_id)
+        for row in rows:
+            _insert_holding_legacy(
+                conn,
+                filing_id,
+                row,
+                manager_id=manager_id,
+                cik=cik,
+                accession=accession,
+                filed_date=filed_date,
+            )
+
+    _run_in_transaction(conn, _work)
+
+
+def _latest_filed_date_for_cik(cik: str) -> str | None:
+    conn = connect_db(DB_PATH)
+    try:
+        filing_columns = _columns(conn, "filings")
+        if "filed_date" not in filing_columns or "manager_id" not in filing_columns:
+            return None
+        manager_id = _manager_id_for_cik(conn, cik)
+        if manager_id is None:
+            return None
+        marker = _placeholder(conn)
+        where = f"manager_id = {marker}"
+        params: list[Any] = [manager_id]
+        if "source" in filing_columns:
+            where += f" AND source = {marker}"
+            params.append("edgar")
+        row = conn.execute(
+            f"SELECT MAX(filed_date) FROM filings WHERE {where}",
+            tuple(params),
+        ).fetchone()
+        return str(row[0]) if row and row[0] is not None else None
+    finally:
+        conn.close()
+
+
 @task
 async def fetch_and_store(cik: str, since: str):
     filings = await ADAPTER.list_new_filings(cik, since)
@@ -297,16 +369,15 @@ async def fetch_and_store(cik: str, since: str):
             filed_date=filing.get("filed"),
             raw_key=raw_key,
         )
-        for row in parsed_rows:
-            _insert_holding_legacy(
-                conn,
-                filing_id,
-                row,
-                manager_id=manager_id,
-                cik=cik,
-                accession=accession,
-                filed_date=filing.get("filed"),
-            )
+        _replace_holdings_for_filing(
+            conn,
+            filing_id=filing_id,
+            rows=parsed_rows,
+            manager_id=manager_id,
+            cik=cik,
+            accession=accession,
+            filed_date=filing.get("filed"),
+        )
         conn.commit()
         await fire_alerts_for_event(
             conn,
@@ -331,11 +402,16 @@ async def edgar_flow(cik_list: list[str] | None = None, since: str | None = None
     ingest_module.DB_PATH = DB_PATH
     ingest_module.logger = cast(Any, _EdgarLogProxy(logger))
     ingest_callable = getattr(ingest_module.ingest_flow, "fn", ingest_module.ingest_flow)
+
+    async def _fetch_with_watermark(cik: str, fallback_since: str) -> list[dict[str, Any]]:
+        resolved_since = since or _latest_filed_date_for_cik(cik) or fallback_since
+        return await fetch_and_store(cik, resolved_since)
+
     all_rows = await ingest_callable(
         jurisdiction="us",
         identifiers=cik_list,
         since=since,
-        fetcher=fetch_and_store,
+        fetcher=_fetch_with_watermark,
     )
     log_outcome(
         logger,

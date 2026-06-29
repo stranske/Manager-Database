@@ -2,6 +2,7 @@ import hashlib
 import json
 import sqlite3
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -93,7 +94,13 @@ class StrictPostgresConnection:
         self.filings = []
         self.holdings = []
         self.commits = 0
+        self.transactions = 0
         self.closed = False
+
+    @contextmanager
+    def transaction(self):
+        self.transactions += 1
+        yield
 
     def execute(self, sql, params=()):
         forbidden = ["PRAGMA", "AUTOINCREMENT", "INSERT OR IGNORE"]
@@ -114,6 +121,9 @@ class StrictPostgresConnection:
             return StrictPostgresCursor([(9001,)])
         if "INSERT INTO holdings" in sql:
             self.holdings.append(tuple(params))
+            return StrictPostgresCursor([])
+        if "DELETE FROM holdings" in sql:
+            self.holdings = [holding for holding in self.holdings if holding[0] != params[0]]
             return StrictPostgresCursor([])
         return StrictPostgresCursor([])
 
@@ -395,6 +405,7 @@ async def test_fetch_and_store_uses_postgres_safe_persistence(monkeypatch):
         (9001, "BBB", "CorpB", 2, 2),
     ]
     assert conn.commits == 1
+    assert conn.transactions == 1
     assert conn.closed is True
     assert len(events) == 1
     assert events[0].event_type == "new_filing"
@@ -415,6 +426,52 @@ def test_upsert_filing_legacy_handles_minimal_raw_key_schema(tmp_path):
     assert filing_id == 0
     assert duplicate_id == 0
     assert rows == [("raw.xml",)]
+
+
+def test_latest_filed_date_for_cik_reads_existing_watermark(monkeypatch, tmp_path):
+    db_path = tmp_path / "dev.db"
+    _setup_relational_schema(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.executemany(
+        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key) VALUES (?,?,?,?,?)",
+        [
+            (100, "13F-HR", "2024-01-01", "edgar", "raw/1.xml"),
+            (100, "13F-HR", "2024-05-01", "edgar", "raw/2.xml"),
+            (100, "ADV", "2024-08-01", "manual", "raw/manual.xml"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+
+    assert flow._latest_filed_date_for_cik("0") == "2024-05-01"
+
+
+def test_replace_holdings_for_filing_uses_postgres_transaction():
+    conn = StrictPostgresConnection()
+    conn.holdings = [(9001, "OLD", "Old Corp", 9, 9)]
+
+    flow._replace_holdings_for_filing(
+        conn,
+        filing_id=9001,
+        rows=[
+            {"nameOfIssuer": "CorpA", "cusip": "AAA", "value": 1, "sshPrnamt": 1},
+            {"nameOfIssuer": "CorpB", "cusip": "BBB", "value": 2, "sshPrnamt": 2},
+        ],
+        manager_id=321,
+        cik="0",
+        accession="1",
+        filed_date="2024-05-01",
+    )
+
+    assert conn.transactions == 1
+    assert ("DELETE FROM holdings WHERE filing_id = %s", (9001,)) in list(
+        zip(conn.sql, conn.params, strict=True)
+    )
+    assert conn.holdings == [
+        (9001, "AAA", "CorpA", 1, 1),
+        (9001, "BBB", "CorpB", 2, 2),
+    ]
 
 
 @pytest.mark.asyncio
@@ -462,10 +519,7 @@ async def test_fetch_and_store_idempotent_rerun(monkeypatch, tmp_path):
 
     # Must have exactly 1 filing (not 2) after two runs with the same data
     assert filing_count == 1
-    # Holdings: first run inserts 1; second run resolves the existing filing_id
-    # via the ON CONFLICT fallback lookup and inserts holdings again.
-    # This is expected — holdings dedup is not in scope for this fix.
-    assert holding_count == 2
+    assert holding_count == 1
 
 
 @pytest.mark.asyncio
@@ -488,6 +542,43 @@ async def test_edgar_flow_skips_userwarning_and_writes_json(monkeypatch, tmp_pat
     parsed_path = tmp_path / "parsed.json"
     assert parsed_path.exists()
     assert json.loads(parsed_path.read_text()) == rows
+
+
+@pytest.mark.asyncio
+async def test_edgar_flow_uses_latest_stored_filed_date_when_since_missing(monkeypatch, tmp_path):
+    db_path = tmp_path / "dev.db"
+    _setup_relational_schema(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key) VALUES (?,?,?,?,?)",
+        (100, "13F-HR", "2024-05-01", "edgar", "raw/latest.xml"),
+    )
+    conn.commit()
+    conn.close()
+
+    captured = {"since": None}
+
+    async def fake_ingest_flow(*, jurisdiction, identifiers, since, fetcher):
+        assert jurisdiction == "us"
+        assert identifiers == ["0"]
+        assert since is None
+        rows = await fetcher("0", "1970-01-01")
+        return rows
+
+    async def fake_fetch_and_store(cik, since):
+        assert cik == "0"
+        captured["since"] = since
+        return [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
+
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow.ingest_module, "ingest_flow", fake_ingest_flow)
+    monkeypatch.setattr(flow, "fetch_and_store", fake_fetch_and_store)
+    monkeypatch.setattr(flow, "RAW_DIR", tmp_path)
+
+    rows = await flow.edgar_flow.fn(cik_list=["0"], since=None)
+
+    assert captured["since"] == "2024-05-01"
+    assert rows == [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
 
 
 @pytest.mark.asyncio
