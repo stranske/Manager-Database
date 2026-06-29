@@ -7,6 +7,7 @@ import sqlite3
 import sys
 
 import httpx
+import streamlit as st
 
 from scripts.build_wasm_demo import build_wasm_demo
 from scripts.seed_managers import SEED_MANAGERS
@@ -36,6 +37,7 @@ def test_deterministic_pages_render_offline(monkeypatch, tmp_path):
     monkeypatch.delenv("MINIO_ENDPOINT", raising=False)
     monkeypatch.setenv("UI_OFFLINE", "1")
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    st.cache_data.clear()
 
     from ui import daily_report, dashboard, search, upload
 
