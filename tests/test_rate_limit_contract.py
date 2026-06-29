@@ -131,6 +131,90 @@ def test_chat_write_limiter_is_session_keyed_and_returns_bare_429(
     _assert_no_rate_limit_headers(second)
 
 
+def test_chat_limiter_rejects_rotating_client_session_headers(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
+    monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
+
+    responses = [
+        asyncio.run(
+            _request(
+                "POST",
+                "/api/chat",
+                json={"question": f"request {index}"},
+                headers={"x-session-id": f"rotating-{index}"},
+            )
+        )
+        for index in range(11)
+    ]
+
+    assert [response.status_code for response in responses[:10]] == [503] * 10
+    assert responses[10].status_code == 429
+    assert responses[10].json() == {"detail": "Rate limit exceeded"}
+    _assert_no_rate_limit_headers(responses[10])
+
+
+def test_chat_limiter_rejects_rotating_client_session_cookies(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
+    monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
+
+    responses = [
+        asyncio.run(
+            _request(
+                "POST",
+                "/api/chat",
+                json={"question": f"request {index}"},
+                headers={"Cookie": f"session_id=rotating-{index}"},
+            )
+        )
+        for index in range(11)
+    ]
+
+    assert [response.status_code for response in responses[:10]] == [503] * 10
+    assert responses[10].status_code == 429
+    assert responses[10].json() == {"detail": "Rate limit exceeded"}
+    _assert_no_rate_limit_headers(responses[10])
+
+
+def test_chat_rate_limit_env_overrides_are_used(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("CHAT_RATE_LIMIT_PER_MINUTE", "2")
+    monkeypatch.setenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "3.5")
+
+    limiter = chat_api_module._build_chat_rate_limiter()
+
+    assert limiter._max_requests == 2
+    assert limiter._window_seconds == 3.5
+
+
+@pytest.mark.parametrize("limit_value", ["0", "-1", "nan", "inf", "1.5"])
+def test_chat_rate_limit_per_minute_rejects_invalid_values(
+    monkeypatch: pytest.MonkeyPatch,
+    limit_value: str,
+):
+    monkeypatch.setenv("CHAT_RATE_LIMIT_PER_MINUTE", limit_value)
+
+    limiter = chat_api_module._build_chat_rate_limiter()
+
+    assert limiter._max_requests == 10
+
+
+@pytest.mark.parametrize("window_value", ["nan", "inf", "-inf"])
+def test_chat_rate_limit_window_rejects_non_finite_values(
+    monkeypatch: pytest.MonkeyPatch,
+    window_value: str,
+):
+    monkeypatch.setenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", window_value)
+
+    limiter = chat_api_module._build_chat_rate_limiter()
+
+    assert limiter._window_seconds == 60.0
+
+
 def test_feedback_limiter_shares_documented_bare_429_shape(monkeypatch: pytest.MonkeyPatch):
     limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=1, window_seconds=60)
     monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
