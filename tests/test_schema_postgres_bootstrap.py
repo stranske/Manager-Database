@@ -239,7 +239,19 @@ def _reset_schema(conn, schema_name: str) -> None:
 
 
 def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
+    def normalize_sql(value: str | None, schema_name: str) -> str:
+        if value is None:
+            return ""
+        return (
+            value.replace(f'"{schema_name}".', "")
+            .replace(f"{schema_name}.", "")
+            .replace("public.", "")
+        )
+
     with conn.cursor() as cur:
+        cur.execute("SELECT current_schema()")
+        schema_name = cur.fetchone()[0]
+
         cur.execute(
             """
             SELECT tablename
@@ -253,29 +265,80 @@ def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
 
         cur.execute(
             """
-            SELECT table_name, column_name, is_nullable
-              FROM information_schema.columns
-             WHERE table_schema = current_schema()
-               AND table_name <> ALL(%s)
-             ORDER BY table_name, ordinal_position
+            SELECT
+                c.relname AS table_name,
+                a.attname AS column_name,
+                a.attnum::text AS ordinal_position,
+                format_type(a.atttypid, a.atttypmod) AS column_type,
+                CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,
+                pg_get_expr(d.adbin, d.adrelid) AS column_default
+            FROM pg_attribute a
+            JOIN pg_class c ON c.oid = a.attrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+            WHERE n.nspname = current_schema()
+              AND c.relkind IN ('r', 'p')
+              AND c.relname <> ALL(%s)
+              AND a.attnum > 0
+              AND NOT a.attisdropped
+            ORDER BY c.relname, a.attnum
             """,
             (list(IGNORED_PARITY_TABLES),),
         )
-        columns = {(row[0], row[1], row[2]) for row in cur.fetchall()}
+        columns = {
+            (row[0], row[1], row[2], row[3], row[4], normalize_sql(row[5], schema_name))
+            for row in cur.fetchall()
+        }
 
         cur.execute(
             """
-            SELECT tablename, indexname
-              FROM pg_indexes
-             WHERE schemaname = current_schema()
-               AND tablename <> ALL(%s)
-             ORDER BY tablename, indexname
+            SELECT
+                tablename,
+                indexname,
+                indexdef
+            FROM pg_indexes
+            WHERE schemaname = current_schema()
+              AND tablename <> ALL(%s)
+            ORDER BY tablename, indexname
             """,
             (list(IGNORED_PARITY_TABLES),),
         )
-        indexes = {(row[0], row[1]) for row in cur.fetchall()}
+        indexes = {(row[0], row[1], normalize_sql(row[2], schema_name)) for row in cur.fetchall()}
 
-    return {"tables": tables, "columns": columns, "indexes": indexes}
+        cur.execute(
+            """
+            SELECT
+                c.relname AS table_name,
+                con.contype,
+                pg_get_constraintdef(con.oid, true) AS definition
+            FROM pg_constraint con
+            JOIN pg_class c ON c.oid = con.conrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = current_schema()
+              AND c.relname <> ALL(%s)
+            ORDER BY c.relname, con.contype, pg_get_constraintdef(con.oid, true)
+            """,
+            (list(IGNORED_PARITY_TABLES),),
+        )
+        constraints = {
+            (row[0], row[1], normalize_sql(row[2], schema_name)) for row in cur.fetchall()
+        }
+
+        cur.execute("""
+            SELECT matviewname, definition
+              FROM pg_matviews
+             WHERE schemaname = current_schema()
+             ORDER BY matviewname
+            """)
+        matviews = {(row[0], normalize_sql(row[1], schema_name)) for row in cur.fetchall()}
+
+    return {
+        "tables": tables,
+        "columns": columns,
+        "indexes": indexes,
+        "constraints": constraints,
+        "materialized_views": matviews,
+    }
 
 
 def _assert_snapshots_match(
@@ -283,7 +346,7 @@ def _assert_snapshots_match(
     alembic_snapshot: dict[str, set[tuple[str, ...]]],
 ) -> None:
     messages: list[str] = []
-    for key in ("tables", "columns", "indexes"):
+    for key in ("tables", "columns", "indexes", "constraints", "materialized_views"):
         only_schema = schema_sql_snapshot[key] - alembic_snapshot[key]
         only_alembic = alembic_snapshot[key] - schema_sql_snapshot[key]
         if only_schema:
