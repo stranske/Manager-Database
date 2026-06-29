@@ -13,8 +13,9 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
-from .base import tracked_call
 from utils.numeric import parse_finite_float
+
+from .base import tracked_call
 
 USER_AGENT = os.getenv("EDGAR_UA", "manager-intel/0.1")
 BASE_URL = "https://data.sec.gov"
