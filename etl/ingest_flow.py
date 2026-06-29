@@ -388,6 +388,41 @@ def _delete_holdings_rows(conn: Any, *, filing_id: int) -> None:
     conn.execute(f"DELETE FROM holdings WHERE filing_id = {marker}", (filing_id,))
 
 
+def _run_in_transaction(conn: Any, work: Any) -> Any:
+    transaction = getattr(conn, "transaction", None)
+    if callable(transaction):
+        with transaction():
+            return work()
+    return work()
+
+
+def _replace_holdings_rows(
+    conn: Any,
+    *,
+    filing_id: int,
+    manager_id: int,
+    identifier: str,
+    external_id: str,
+    filed_date: str | None,
+    parsed_rows: list[dict[str, Any]],
+    jurisdiction: str,
+) -> int:
+    def _work() -> int:
+        _delete_holdings_rows(conn, filing_id=filing_id)
+        return _insert_holdings_rows(
+            conn,
+            filing_id=filing_id,
+            manager_id=manager_id,
+            identifier=identifier,
+            external_id=external_id,
+            filed_date=filed_date,
+            parsed_rows=parsed_rows,
+            jurisdiction=jurisdiction,
+        )
+
+    return int(_run_in_transaction(conn, _work))
+
+
 @task
 async def fetch_and_store(
     identifier: str,
@@ -445,8 +480,7 @@ async def fetch_and_store(
         # UK filings are metadata-driven (e.g., CS01/AR01) and should be
         # stored as parsed payload on the filings row, not expanded holdings.
         if jurisdiction != "uk" and _looks_like_holdings_rows(parsed_rows):
-            _delete_holdings_rows(conn, filing_id=filing_id)
-            row_count += _insert_holdings_rows(
+            row_count += _replace_holdings_rows(
                 conn,
                 filing_id=filing_id,
                 manager_id=manager_id,

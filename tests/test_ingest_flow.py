@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from contextlib import contextmanager
 
 import pytest
 
@@ -85,6 +86,21 @@ class _MetadataOnlyAdapter:
                 "raw_bytes": len(raw),
             }
         ]
+
+
+class _TransactionalConn:
+    def __init__(self):
+        self.transactions = 0
+        self.sql = []
+
+    @contextmanager
+    def transaction(self):
+        self.transactions += 1
+        yield
+
+    def execute(self, sql, params=()):
+        self.sql.append((sql, tuple(params)))
+        return []
 
 
 @pytest.mark.asyncio
@@ -250,6 +266,32 @@ def test_adapter_registry_covers_documented_jurisdictions():
         "au": "asic",
     }
     assert set(ingest_flow._IDENTIFIER_ENV) == {"us", "uk", "ca", "sg", "au"}
+
+
+def test_replace_holdings_rows_uses_postgres_transaction(monkeypatch):
+    conn = _TransactionalConn()
+
+    monkeypatch.setattr(ingest_flow, "_table_columns", lambda _conn, _table: {"filing_id"})
+    monkeypatch.setattr(
+        ingest_flow,
+        "_insert_holdings_rows",
+        lambda *args, **kwargs: 2,
+    )
+
+    inserted = ingest_flow._replace_holdings_rows(
+        conn,
+        filing_id=42,
+        manager_id=7,
+        identifier="0000000001",
+        external_id="0001-24-000001",
+        filed_date="2024-01-05",
+        parsed_rows=[{"cusip": "123456789"}],
+        jurisdiction="us",
+    )
+
+    assert inserted == 2
+    assert conn.transactions == 1
+    assert conn.sql == [("DELETE FROM holdings WHERE filing_id = %s", (42,))]
 
 
 @pytest.mark.parametrize(

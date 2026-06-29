@@ -269,6 +269,40 @@ def _delete_holdings_for_filing(conn: Any, filing_id: int) -> None:
     conn.execute(f"DELETE FROM holdings WHERE filing_id = {marker}", (filing_id,))
 
 
+def _run_in_transaction(conn: Any, work: Any) -> Any:
+    transaction = getattr(conn, "transaction", None)
+    if callable(transaction):
+        with transaction():
+            return work()
+    return work()
+
+
+def _replace_holdings_for_filing(
+    conn: Any,
+    *,
+    filing_id: int,
+    rows: list[dict[str, Any]],
+    manager_id: int | None,
+    cik: str,
+    accession: str,
+    filed_date: str | None,
+) -> None:
+    def _work() -> None:
+        _delete_holdings_for_filing(conn, filing_id)
+        for row in rows:
+            _insert_holding_legacy(
+                conn,
+                filing_id,
+                row,
+                manager_id=manager_id,
+                cik=cik,
+                accession=accession,
+                filed_date=filed_date,
+            )
+
+    _run_in_transaction(conn, _work)
+
+
 def _latest_filed_date_for_cik(cik: str) -> str | None:
     conn = connect_db(DB_PATH)
     try:
@@ -279,9 +313,14 @@ def _latest_filed_date_for_cik(cik: str) -> str | None:
         if manager_id is None:
             return None
         marker = _placeholder(conn)
+        where = f"manager_id = {marker}"
+        params: list[Any] = [manager_id]
+        if "source" in filing_columns:
+            where += f" AND source = {marker}"
+            params.append("edgar")
         row = conn.execute(
-            f"SELECT MAX(filed_date) FROM filings WHERE manager_id = {marker}",
-            (manager_id,),
+            f"SELECT MAX(filed_date) FROM filings WHERE {where}",
+            tuple(params),
         ).fetchone()
         return str(row[0]) if row and row[0] is not None else None
     finally:
@@ -330,17 +369,15 @@ async def fetch_and_store(cik: str, since: str):
             filed_date=filing.get("filed"),
             raw_key=raw_key,
         )
-        _delete_holdings_for_filing(conn, filing_id)
-        for row in parsed_rows:
-            _insert_holding_legacy(
-                conn,
-                filing_id,
-                row,
-                manager_id=manager_id,
-                cik=cik,
-                accession=accession,
-                filed_date=filing.get("filed"),
-            )
+        _replace_holdings_for_filing(
+            conn,
+            filing_id=filing_id,
+            rows=parsed_rows,
+            manager_id=manager_id,
+            cik=cik,
+            accession=accession,
+            filed_date=filing.get("filed"),
+        )
         conn.commit()
         await fire_alerts_for_event(
             conn,

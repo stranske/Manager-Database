@@ -2,6 +2,7 @@ import hashlib
 import json
 import sqlite3
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -93,7 +94,13 @@ class StrictPostgresConnection:
         self.filings = []
         self.holdings = []
         self.commits = 0
+        self.transactions = 0
         self.closed = False
+
+    @contextmanager
+    def transaction(self):
+        self.transactions += 1
+        yield
 
     def execute(self, sql, params=()):
         forbidden = ["PRAGMA", "AUTOINCREMENT", "INSERT OR IGNORE"]
@@ -398,6 +405,7 @@ async def test_fetch_and_store_uses_postgres_safe_persistence(monkeypatch):
         (9001, "BBB", "CorpB", 2, 2),
     ]
     assert conn.commits == 1
+    assert conn.transactions == 1
     assert conn.closed is True
     assert len(events) == 1
     assert events[0].event_type == "new_filing"
@@ -429,6 +437,7 @@ def test_latest_filed_date_for_cik_reads_existing_watermark(monkeypatch, tmp_pat
         [
             (100, "13F-HR", "2024-01-01", "edgar", "raw/1.xml"),
             (100, "13F-HR", "2024-05-01", "edgar", "raw/2.xml"),
+            (100, "ADV", "2024-08-01", "manual", "raw/manual.xml"),
         ],
     )
     conn.commit()
@@ -436,6 +445,30 @@ def test_latest_filed_date_for_cik_reads_existing_watermark(monkeypatch, tmp_pat
     monkeypatch.setattr(flow, "DB_PATH", str(db_path))
 
     assert flow._latest_filed_date_for_cik("0") == "2024-05-01"
+
+
+def test_replace_holdings_for_filing_uses_postgres_transaction():
+    conn = StrictPostgresConnection()
+
+    flow._replace_holdings_for_filing(
+        conn,
+        filing_id=9001,
+        rows=[
+            {"nameOfIssuer": "CorpA", "cusip": "AAA", "value": 1, "sshPrnamt": 1},
+            {"nameOfIssuer": "CorpB", "cusip": "BBB", "value": 2, "sshPrnamt": 2},
+        ],
+        manager_id=321,
+        cik="0",
+        accession="1",
+        filed_date="2024-05-01",
+    )
+
+    assert conn.transactions == 1
+    assert any("DELETE FROM holdings" in sql for sql in conn.sql)
+    assert conn.holdings == [
+        (9001, "AAA", "CorpA", 1, 1),
+        (9001, "BBB", "CorpB", 2, 2),
+    ]
 
 
 @pytest.mark.asyncio
