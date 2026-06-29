@@ -364,8 +364,39 @@ DIRECT_CHAIN_PATHS = {
 }
 SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
-_CHAT_RATE_LIMIT_PER_MINUTE = 10
-_CHAT_RATE_LIMIT_WINDOW_SECONDS = 60.0
+
+def _read_positive_int_env(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
+        return default
+    if value <= 0:
+        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
+        return default
+    return value
+
+
+def _read_positive_float_env(name: str, default: float) -> float:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
+        return default
+    if value <= 0:
+        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
+        return default
+    return value
+
+
+_CHAT_RATE_LIMIT_PER_MINUTE = _read_positive_int_env("CHAT_RATE_LIMIT_PER_MINUTE", 10)
+_CHAT_RATE_LIMIT_WINDOW_SECONDS = _read_positive_float_env("CHAT_RATE_LIMIT_WINDOW_SECONDS", 60.0)
 
 
 class InMemoryChatRateLimiter:
@@ -396,25 +427,25 @@ class InMemoryChatRateLimiter:
             self._requests.clear()
 
 
-CHAT_RATE_LIMITER = InMemoryChatRateLimiter(
-    max_requests=_CHAT_RATE_LIMIT_PER_MINUTE,
-    window_seconds=_CHAT_RATE_LIMIT_WINDOW_SECONDS,
-)
+def _build_chat_rate_limiter() -> InMemoryChatRateLimiter:
+    return InMemoryChatRateLimiter(
+        max_requests=_read_positive_int_env("CHAT_RATE_LIMIT_PER_MINUTE", 10),
+        window_seconds=_read_positive_float_env("CHAT_RATE_LIMIT_WINDOW_SECONDS", 60.0),
+    )
+
+
+CHAT_RATE_LIMITER = _build_chat_rate_limiter()
 
 
 def _chat_session_id(request: Request | None) -> str:
-    """Derive a stable session key from headers/cookies or client host."""
+    """Derive a stable quota key without trusting client-chosen headers."""
     if request is None:
         return "unknown"
-    header_value = request.headers.get("x-session-id")
-    if header_value:
-        return f"header:{header_value}"
+    client_host = request.client.host if request.client and request.client.host else "unknown"
     cookie_value = request.cookies.get("session_id")
     if cookie_value:
-        return f"cookie:{cookie_value}"
-    if request.client and request.client.host:
-        return f"client:{request.client.host}"
-    return "unknown"
+        return f"client:{client_host}:cookie:{cookie_value}"
+    return f"client:{client_host}"
 
 
 def _enforce_chat_rate_limit(request: Request | None) -> None:
