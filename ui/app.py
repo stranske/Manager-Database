@@ -12,7 +12,7 @@ from ui import daily_report, dashboard, research, search, upload
 def _build_pages() -> list[Any]:
     """Define sidebar navigation and URL paths for all UI pages."""
     return [
-        st.Page(dashboard.main, title="Dashboard", icon="📈", url_path=""),
+        st.Page(dashboard.main, title="Dashboard", icon="📈", url_path="", default=True),
         st.Page(daily_report.main, title="Daily Report", icon="🗞️", url_path="daily-report"),
         st.Page(search.main, title="Search", icon="🔎", url_path="search"),
         st.Page(upload.main, title="Upload", icon="📝", url_path="upload"),
