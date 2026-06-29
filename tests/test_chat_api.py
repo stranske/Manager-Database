@@ -125,6 +125,71 @@ def test_chat_api_returns_500_for_unexpected_chain_errors(monkeypatch):
     assert response.json()["detail"] == "Research assistant error. Check server logs."
 
 
+def test_chat_api_surfaces_rag_import_failure_in_production(monkeypatch):
+    class FakeConn:
+        def close(self) -> None:
+            return None
+
+    def _import_module(name: str):
+        if name == "chains.rag_search":
+            raise RuntimeError("boom")
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.delenv("CHAT_CHAIN_FALLBACK_MODE", raising=False)
+    monkeypatch.delenv("LLM_ZONE", raising=False)
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", _import_module)
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda *args, **kwargs: FakeConn())
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+
+    response = asyncio.run(_request("POST", "/api/chat", json={"question": "Find recent activism"}))
+
+    assert response.status_code == 503
+    assert "rag_search" in response.json()["detail"]
+
+
+def test_chat_api_explicit_offline_fallback_keeps_stub_available(monkeypatch):
+    class FakeConn:
+        def close(self) -> None:
+            return None
+
+    def _import_module(name: str):
+        if name == "chains.rag_search":
+            raise RuntimeError("boom")
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.setenv("CHAT_CHAIN_FALLBACK_MODE", "offline")
+    monkeypatch.delenv("LLM_ZONE", raising=False)
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", _import_module)
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda *args, **kwargs: FakeConn())
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+
+    response = asyncio.run(_request("POST", "/api/chat", json={"question": "Find recent activism"}))
+
+    assert response.status_code == 200
+    assert response.json()["chain_used"] == "rag_search"
+    assert response.json()["answer"] == "Search results for: Find recent activism"
+
+
+def test_chain_health_reports_import_failures(monkeypatch):
+    def _import_module(name: str):
+        if name == "chains.rag_search":
+            raise RuntimeError("boom")
+        return SimpleNamespace(
+            FilingSummaryChain=object,
+            HoldingsAnalysisChain=object,
+            NLQueryChain=object,
+        )
+
+    monkeypatch.delenv("CHAT_CHAIN_FALLBACK_MODE", raising=False)
+    monkeypatch.delenv("LLM_ZONE", raising=False)
+    monkeypatch.setattr(chat_api_module.importlib, "import_module", _import_module)
+
+    payload, reason = chat_api_module._chat_chain_health_payload()
+
+    assert payload == {"healthy": False, "available": False, "fallback_enabled": False}
+    assert reason == "rag_search: boom"
+
+
 def test_direct_endpoint_returns_500_for_unexpected_chain_errors(monkeypatch):
     async def _raise_runtime(*_args, **_kwargs):
         raise RuntimeError("direct chain blew up")
