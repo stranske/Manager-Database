@@ -109,6 +109,27 @@ def test_compute_conviction_scores_edge_cases(tmp_path, holdings, expected_pct, 
     assert row[1] == pytest.approx(expected_weight, rel=1e-6)
 
 
+def test_compute_conviction_scores_rejects_non_finite_values(tmp_path):
+    db_path = tmp_path / "nonfinite.db"
+    conn = sqlite3.connect(db_path)
+    _create_base_tables(conn)
+    conviction_flow._ensure_conviction_scores_table(conn)
+
+    _seed_manager_and_filing(conn, manager_id=4, filing_id=40, filed_date="2025-12-31")
+    conn.executemany(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) VALUES (?, ?, ?, ?, ?)",
+        [
+            (40, "GOOD01", "Good Corp", 10, 100.0),
+            (40, "BAD001", "Bad Corp", 10, "nan"),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="non-finite numeric value"):
+        conviction_flow.compute_conviction_scores.fn(40, conn)
+
+    assert conn.execute("SELECT COUNT(*) FROM conviction_scores").fetchone() == (0,)
+
+
 def test_compute_conviction_scores_upsert_is_idempotent(tmp_path):
     db_path = tmp_path / "upsert.db"
     conn = sqlite3.connect(db_path)

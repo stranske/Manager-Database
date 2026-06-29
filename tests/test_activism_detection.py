@@ -104,6 +104,24 @@ def test_detect_events_initial_stake(tmp_path):
         conn.close()
 
 
+def test_detect_events_ignores_non_finite_ownership(tmp_path):
+    conn = _setup_db(tmp_path / "activism.db")
+    try:
+        filing = _insert_filing(
+            conn,
+            filing_type="SC 13D",
+            filed_date="2024-05-01",
+            ownership_pct=float("inf"),
+        )
+
+        events = detect_events(conn, filing)
+
+        assert "threshold_crossing" not in _event_types(events)
+        assert all(event.ownership_pct is None for event in events)
+    finally:
+        conn.close()
+
+
 def test_detect_events_stake_increase(tmp_path):
     conn = _setup_db(tmp_path / "activism.db")
     try:

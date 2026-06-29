@@ -16,6 +16,7 @@ from adapters.base import connect_db
 from alerts.integration import fire_alerts_for_event_sync
 from alerts.models import AlertEvent
 from etl.logging_setup import configure_logging
+from utils.numeric import parse_finite_float
 
 configure_logging("conviction_flow")
 logger = logging.getLogger(__name__)
@@ -138,7 +139,10 @@ def compute_conviction_scores(filing_id: int, conn: Any) -> int:
         logger.info("No holdings found for filing", extra={"filing_id": filing_id})
         return 0
 
-    total_value = sum(float(row[3] or 0.0) for row in rows)
+    holding_values = [
+        parse_finite_float(row[3] or 0.0, min_value=0.0, allow_none=False) for row in rows
+    ]
+    total_value = sum(holding_values)
 
     upsert_sql = (
         "INSERT INTO conviction_scores "
@@ -155,8 +159,9 @@ def compute_conviction_scores(filing_id: int, conn: Any) -> int:
         "computed_at = CURRENT_TIMESTAMP"
     )
 
-    for cusip, issuer, shares, value_usd in rows:
-        numeric_value = float(value_usd or 0.0)
+    for (cusip, issuer, shares, _value_usd), numeric_value in zip(
+        rows, holding_values, strict=True
+    ):
         if total_value > 0:
             portfolio_weight = numeric_value / total_value
             conviction_pct = portfolio_weight * 100.0

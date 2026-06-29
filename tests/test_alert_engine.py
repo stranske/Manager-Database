@@ -65,6 +65,30 @@ def test_alert_engine_matches_value_threshold_and_delta_type(tmp_path):
         conn.close()
 
 
+def test_alert_engine_ignores_non_finite_numeric_rule_values(tmp_path):
+    conn = _setup_db(tmp_path / "alerts.db")
+    try:
+        _insert_rule(
+            conn,
+            name="NaN Threshold",
+            event_type="large_delta",
+            condition_json='{"value_usd_gt":"nan"}',
+        )
+
+        engine = AlertEngine(conn)
+        fired = engine.evaluate(
+            AlertEvent(
+                event_type="large_delta",
+                manager_id=1,
+                payload={"value_usd": 1.0},
+            )
+        )
+
+        assert fired == []
+    finally:
+        conn.close()
+
+
 def test_alert_engine_manager_filter_and_disabled_rules(tmp_path):
     conn = _setup_db(tmp_path / "alerts.db")
     try:
