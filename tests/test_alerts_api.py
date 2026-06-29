@@ -178,6 +178,41 @@ def test_alert_rule_crud_and_soft_delete(tmp_path, monkeypatch):
     assert post_delete.json()["enabled"] is False
 
 
+def test_alert_rule_create_rejects_non_finite_numeric_condition(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    payload = _create_rule_payload()
+    payload["condition_json"] = {"value_usd_gt": "nan"}
+
+    response = asyncio.run(_request("POST", "/api/alerts/rules", json=payload))
+
+    assert response.status_code == 400
+    assert "Invalid numeric alert condition" in response.text
+
+
+def test_alert_rule_update_rejects_out_of_range_numeric_condition(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    create_response = asyncio.run(
+        _request("POST", "/api/alerts/rules", json=_create_rule_payload())
+    )
+    assert create_response.status_code == 201
+    rule_id = create_response.json()["rule_id"]
+
+    response = asyncio.run(
+        _request(
+            "PUT",
+            f"/api/alerts/rules/{rule_id}",
+            json={"condition_json": {"min_ownership_pct": 101}},
+        )
+    )
+
+    assert response.status_code == 400
+    assert "Invalid numeric alert condition" in response.text
+
+
 def test_alert_rule_soft_delete_preserves_history(tmp_path, monkeypatch):
     db_path = tmp_path / "alerts.db"
     monkeypatch.setenv("DB_PATH", str(db_path))

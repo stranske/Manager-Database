@@ -28,11 +28,15 @@ logger = logging.getLogger(__name__)
 
 def _parse_edgar_min_request_interval(raw: str | None) -> float:
     try:
+        # Keep the upper bound conservative enough to catch poisoned config while allowing
+        # deliberately slow SEC pacing in local/operator environments.
         parsed = parse_finite_float(raw or "0.11", min_value=0.0, max_value=10.0, allow_none=False)
     except (TypeError, ValueError):
         logger.warning("Invalid EDGAR_MIN_REQUEST_INTERVAL; using default", extra={"value": raw})
         return 0.11
-    assert parsed is not None
+    if parsed is None:  # Defensive only; allow_none=False should already reject this.
+        logger.warning("Missing EDGAR_MIN_REQUEST_INTERVAL; using default", extra={"value": raw})
+        return 0.11
     return parsed
 
 
