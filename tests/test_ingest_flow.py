@@ -123,6 +123,43 @@ async def test_fetch_and_store_us_uses_manager_cik_and_inserts_holdings(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_fetch_and_store_us_replaces_existing_holdings_for_same_filing(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (id INTEGER PRIMARY KEY AUTOINCREMENT, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute("INSERT INTO managers(cik, registry_ids) VALUES (?, ?)", ("0000000001", "{}"))
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: _USAdapter())
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+
+    await ingest_flow.fetch_and_store.fn(
+        "0000000001",
+        "2024-01-01",
+        jurisdiction="us",
+        db_path=str(db_path),
+    )
+    await ingest_flow.fetch_and_store.fn(
+        "0000000001",
+        "2024-01-01",
+        jurisdiction="us",
+        db_path=str(db_path),
+    )
+
+    conn = sqlite3.connect(db_path)
+    holdings_count = conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0]
+    holding = conn.execute("SELECT accession, cusip, value, sshPrnamt FROM holdings").fetchone()
+    conn.close()
+
+    assert holdings_count == 1
+    assert holding == ("0001-24-000001", "123456789", 1000, 50)
+
+
+@pytest.mark.asyncio
 async def test_fetch_and_store_uk_uses_registry_id_and_stores_payload(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     conn = sqlite3.connect(db_path)
@@ -327,7 +364,7 @@ async def test_edgar_flow_is_us_wrapper(monkeypatch):
     assert captured["jurisdiction"] == "us"
     assert captured["identifiers"] == ["0001"]
     assert captured["since"] == "2024-01-01"
-    assert captured["fetcher"] is edgar_flow.fetch_and_store
+    assert captured["fetcher"] is not edgar_flow.fetch_and_store
 
 
 @pytest.mark.asyncio

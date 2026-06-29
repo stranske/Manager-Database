@@ -16,19 +16,26 @@ from prefect import flow, task
 from adapters.base import connect_db, get_adapter
 from etl.logging_setup import configure_logging, log_outcome
 
-try:
-    from embeddings import store_document
-except ModuleNotFoundError:
 
-    def store_document(
-        text: str,
-        db_path: str | None = None,
-        manager_id: int | None = None,
-        kind: str = "note",
-        filename: str | None = None,
-    ) -> int:
+def store_document(
+    text: str,
+    db_path: str | None = None,
+    manager_id: int | None = None,
+    kind: str = "note",
+    filename: str | None = None,
+) -> int:
+    try:
+        from embeddings import store_document as _store_document
+    except Exception:
         _ = (text, db_path, manager_id, kind, filename)
         return 0
+    return _store_document(
+        text,
+        db_path=db_path,
+        manager_id=manager_id,
+        kind=kind,
+        filename=filename,
+    )
 
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "./data/raw"))
@@ -254,24 +261,33 @@ def _insert_filing(
     if _is_sqlite(conn):
         if has_external_id:
             sql = (
-                "INSERT OR REPLACE INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
-                "VALUES (?, ?, ?, ?, ?, ?)"
+                "INSERT INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(source, external_id) DO UPDATE SET "
+                "manager_id = excluded.manager_id, "
+                "filed_date = excluded.filed_date, "
+                "type = excluded.type, "
+                "parsed_payload = excluded.parsed_payload "
+                f"RETURNING {id_column}"
             )
-            cursor = conn.execute(
+            row = conn.execute(
                 sql,
                 (manager_id, source, external_id, filed_date, filing_type, payload),
-            )
-            return int(cursor.lastrowid or 0)
+            ).fetchone()
+            return int(row[0]) if row and row[0] is not None else 0
         sql = (
-            "INSERT OR REPLACE INTO filings(manager_id, source, type, filed_date, raw_key, parsed_payload) "
-            "VALUES (?, ?, ?, ?, ?, ?)"
-        )
-        conn.execute(
-            sql,
-            (manager_id, source, filing_type, filed_date, raw_key, payload),
+            "INSERT INTO filings(manager_id, source, type, filed_date, raw_key, parsed_payload) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(raw_key) DO UPDATE SET "
+            "manager_id = excluded.manager_id, "
+            "filed_date = excluded.filed_date, "
+            "type = excluded.type, "
+            "parsed_payload = excluded.parsed_payload "
+            f"RETURNING {id_column}"
         )
         row = conn.execute(
-            f"SELECT {id_column} FROM filings WHERE raw_key = ?", (raw_key,)
+            sql,
+            (manager_id, source, filing_type, filed_date, raw_key, payload),
         ).fetchone()
         return int(row[0]) if row and row[0] is not None else 0
     if has_external_id:
@@ -364,6 +380,14 @@ def _insert_holdings_rows(
     return inserted
 
 
+def _delete_holdings_rows(conn: Any, *, filing_id: int) -> None:
+    holdings_columns = _table_columns(conn, "holdings")
+    if "filing_id" not in holdings_columns:
+        return
+    marker = _placeholder(conn)
+    conn.execute(f"DELETE FROM holdings WHERE filing_id = {marker}", (filing_id,))
+
+
 @task
 async def fetch_and_store(
     identifier: str,
@@ -421,6 +445,7 @@ async def fetch_and_store(
         # UK filings are metadata-driven (e.g., CS01/AR01) and should be
         # stored as parsed payload on the filings row, not expanded holdings.
         if jurisdiction != "uk" and _looks_like_holdings_rows(parsed_rows):
+            _delete_holdings_rows(conn, filing_id=filing_id)
             row_count += _insert_holdings_rows(
                 conn,
                 filing_id=filing_id,
