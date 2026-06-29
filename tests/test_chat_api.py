@@ -141,7 +141,13 @@ def test_chat_api_surfaces_rag_import_failure_in_production(monkeypatch):
     monkeypatch.setattr(chat_api_module, "connect_db", lambda *args, **kwargs: FakeConn())
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
 
-    response = asyncio.run(_request("POST", "/api/chat", json={"question": "Find recent activism"}))
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json={"chain": "rag_search", "question": "Find recent activism"},
+        )
+    )
 
     assert response.status_code == 503
     assert "rag_search" in response.json()["detail"]
@@ -163,7 +169,13 @@ def test_chat_api_explicit_offline_fallback_keeps_stub_available(monkeypatch):
     monkeypatch.setattr(chat_api_module, "connect_db", lambda *args, **kwargs: FakeConn())
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
 
-    response = asyncio.run(_request("POST", "/api/chat", json={"question": "Find recent activism"}))
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json={"chain": "rag_search", "question": "Find recent activism"},
+        )
+    )
 
     assert response.status_code == 200
     assert response.json()["chain_used"] == "rag_search"
@@ -188,6 +200,16 @@ def test_chain_health_reports_import_failures(monkeypatch):
 
     assert payload == {"healthy": False, "available": False, "fallback_enabled": False}
     assert reason == "rag_search: boom"
+
+
+def test_chain_health_zone_disabled_preserves_fallback_state(monkeypatch):
+    monkeypatch.setenv("LLM_ZONE", "disabled")
+    monkeypatch.delenv("CHAT_CHAIN_FALLBACK_MODE", raising=False)
+
+    payload, reason = chat_api_module._chat_chain_health_payload()
+
+    assert payload == {"healthy": True, "available": True, "fallback_enabled": False}
+    assert reason is None
 
 
 def test_direct_endpoint_returns_500_for_unexpected_chain_errors(monkeypatch):

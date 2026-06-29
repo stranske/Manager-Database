@@ -1257,7 +1257,10 @@ def _health_summary_timeout_seconds() -> float:
 
 def _chat_chain_health_payload() -> tuple[dict[str, int | bool], str | None]:
     """Report whether production chat chains are importable."""
-    if _chat_zone_disabled() or _chat_chain_fallback_enabled():
+    fallback_enabled = _chat_chain_fallback_enabled()
+    if _chat_zone_disabled():
+        return {"healthy": True, "available": True, "fallback_enabled": fallback_enabled}, None
+    if fallback_enabled:
         return {"healthy": True, "available": True, "fallback_enabled": True}, None
 
     for chain_name, (module_path, class_name) in DIRECT_CHAIN_PATHS.items():
