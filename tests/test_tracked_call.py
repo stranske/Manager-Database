@@ -79,3 +79,30 @@ async def test_tracked_call_postgres_uses_strict_backend_safe_sql(monkeypatch):
     assert any("CREATE MATERIALIZED VIEW monthly_usage AS" in call[0] for call in dummy.executed)
     assert dummy.committed is True
     assert dummy.closed is True
+
+
+@pytest.mark.asyncio
+async def test_tracked_call_metrics_execute_failure_preserves_response_and_closes(monkeypatch):
+    class FailingMetricsConn:
+        def __init__(self):
+            self.closed = False
+
+        def execute(self, *_args, **_kwargs):
+            raise RuntimeError("metrics insert failed")
+
+        def commit(self):
+            raise AssertionError("commit should not run after execute fails")
+
+        def close(self):
+            self.closed = True
+
+    conn = FailingMetricsConn()
+    monkeypatch.setattr(base, "connect_db", lambda _db_path=None: conn)
+    monkeypatch.setattr(base, "_ensure_postgres_usage_schema", lambda _conn: None)
+
+    response = DummyResp(status_code=202, content=b"accepted")
+
+    async with tracked_call("pg", "http://pg") as log:
+        log(response)
+
+    assert conn.closed is True

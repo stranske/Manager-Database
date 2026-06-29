@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 import time
@@ -17,6 +18,8 @@ except ImportError:  # pragma: no cover - optional dependency
     psycopg: ModuleType | None = None
 else:  # pragma: no cover - imported above when available
     psycopg = _psycopg
+
+logger = logging.getLogger(__name__)
 
 
 class AdapterProtocol(Protocol):
@@ -176,21 +179,38 @@ async def tracked_call(
             computed_cost = float(cost_usd)
         else:
             computed_cost = 0.0
-        conn = connect_db(db_path)
-        if isinstance(conn, sqlite3.Connection):
-            _ensure_sqlite_usage_schema(conn)
-            placeholder = "?"
-        else:  # Postgres
-            _ensure_postgres_usage_schema(conn)
-            placeholder = "%s"
-        values_clause = ",".join([placeholder] * 6)
-        sql = (
-            "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd)"
-            f" VALUES ({values_clause})"
-        )
-        conn.execute(sql, (source, endpoint, status, size, latency, computed_cost))
-        conn.commit()
-        conn.close()
+        conn: Any | None = None
+        try:
+            conn = connect_db(db_path)
+            if isinstance(conn, sqlite3.Connection):
+                _ensure_sqlite_usage_schema(conn)
+                placeholder = "?"
+            else:  # Postgres
+                _ensure_postgres_usage_schema(conn)
+                placeholder = "%s"
+            values_clause = ",".join([placeholder] * 6)
+            sql = (
+                "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd)"
+                f" VALUES ({values_clause})"
+            )
+            conn.execute(sql, (source, endpoint, status, size, latency, computed_cost))
+            conn.commit()
+        except Exception:
+            logger.warning(
+                "Failed to record API usage metrics",
+                extra={"source": source, "endpoint": endpoint},
+                exc_info=True,
+            )
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    logger.warning(
+                        "Failed to close API usage metrics connection",
+                        extra={"source": source, "endpoint": endpoint},
+                        exc_info=True,
+                    )
 
 
 ADAPTERS: dict[str, AdapterProtocol] = {}
