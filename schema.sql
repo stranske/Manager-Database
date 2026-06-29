@@ -248,7 +248,7 @@ CREATE TABLE IF NOT EXISTS chat_feedback (
     response_id text NOT NULL,
     rating int NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment text,
-    created_at timestamptz DEFAULT now()
+    created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_feedback_response_id

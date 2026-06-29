@@ -147,6 +147,11 @@ def upgrade() -> None:
     op.create_index(
         "idx_news_items_manager_published_at", "news_items", ["manager_id", "published_at"]
     )
+    if pg:
+        op.execute(
+            "CREATE INDEX IF NOT EXISTS idx_news_items_topics_gin "
+            "ON news_items USING GIN (topics)"
+        )
 
     # ── documents ─────────────────────────────────────────────
     op.create_table(

@@ -19,8 +19,12 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
+from alembic.config import Config
+
+from alembic import command
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_SQL = ROOT / "schema.sql"
@@ -51,7 +55,8 @@ EXPECTED_TABLES = {
     "activism_events",
 }
 EXPECTED_MATVIEWS = {"monthly_usage", "mv_daily_report"}
-EXPECTED_INDEXES = {"mv_daily_report_idx"}
+EXPECTED_INDEXES = {"idx_news_items_topics_gin", "mv_daily_report_idx"}
+IGNORED_PARITY_TABLES = {"alembic_version"}
 
 
 def test_split_sql_statements_handles_dollar_quotes():
@@ -213,6 +218,144 @@ def _apply_schema_sql(conn) -> None:
     conn.commit()
 
 
+def _alembic_config(db_url: str) -> Config:
+    config = Config(str(ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(ROOT / "alembic"))
+    config.set_main_option("sqlalchemy.url", db_url)
+    return config
+
+
+def _url_with_search_path(db_url: str, schema_name: str) -> str:
+    separator = "&" if "?" in db_url else "?"
+    return f"{db_url}{separator}options={quote(f'-csearch_path={schema_name}', safe='')}"
+
+
+def _reset_schema(conn, schema_name: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE')
+        cur.execute(f'CREATE SCHEMA "{schema_name}"')
+        cur.execute(f'SET search_path TO "{schema_name}"')
+    conn.commit()
+
+
+def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
+    def normalize_sql(value: str | None, schema_name: str) -> str:
+        if value is None:
+            return ""
+        return (
+            value.replace(f'"{schema_name}".', "")
+            .replace(f"{schema_name}.", "")
+            .replace("public.", "")
+        )
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT current_schema()")
+        schema_name = cur.fetchone()[0]
+
+        cur.execute(
+            """
+            SELECT tablename
+              FROM pg_tables
+             WHERE schemaname = current_schema()
+               AND tablename <> ALL(%s)
+            """,
+            (list(IGNORED_PARITY_TABLES),),
+        )
+        tables = {(row[0],) for row in cur.fetchall()}
+
+        cur.execute(
+            """
+            SELECT
+                c.relname AS table_name,
+                a.attname AS column_name,
+                a.attnum::text AS ordinal_position,
+                format_type(a.atttypid, a.atttypmod) AS column_type,
+                CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,
+                pg_get_expr(d.adbin, d.adrelid) AS column_default
+            FROM pg_attribute a
+            JOIN pg_class c ON c.oid = a.attrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+            WHERE n.nspname = current_schema()
+              AND c.relkind IN ('r', 'p')
+              AND c.relname <> ALL(%s)
+              AND a.attnum > 0
+              AND NOT a.attisdropped
+            ORDER BY c.relname, a.attnum
+            """,
+            (list(IGNORED_PARITY_TABLES),),
+        )
+        columns = {
+            (row[0], row[1], row[2], row[3], row[4], normalize_sql(row[5], schema_name))
+            for row in cur.fetchall()
+        }
+
+        cur.execute(
+            """
+            SELECT
+                tablename,
+                indexname,
+                indexdef
+            FROM pg_indexes
+            WHERE schemaname = current_schema()
+              AND tablename <> ALL(%s)
+            ORDER BY tablename, indexname
+            """,
+            (list(IGNORED_PARITY_TABLES),),
+        )
+        indexes = {(row[0], row[1], normalize_sql(row[2], schema_name)) for row in cur.fetchall()}
+
+        cur.execute(
+            """
+            SELECT
+                c.relname AS table_name,
+                con.contype,
+                pg_get_constraintdef(con.oid, true) AS definition
+            FROM pg_constraint con
+            JOIN pg_class c ON c.oid = con.conrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = current_schema()
+              AND c.relname <> ALL(%s)
+            ORDER BY c.relname, con.contype, pg_get_constraintdef(con.oid, true)
+            """,
+            (list(IGNORED_PARITY_TABLES),),
+        )
+        constraints = {
+            (row[0], row[1], normalize_sql(row[2], schema_name)) for row in cur.fetchall()
+        }
+
+        cur.execute("""
+            SELECT matviewname, definition
+              FROM pg_matviews
+             WHERE schemaname = current_schema()
+             ORDER BY matviewname
+            """)
+        matviews = {(row[0], normalize_sql(row[1], schema_name)) for row in cur.fetchall()}
+
+    return {
+        "tables": tables,
+        "columns": columns,
+        "indexes": indexes,
+        "constraints": constraints,
+        "materialized_views": matviews,
+    }
+
+
+def _assert_snapshots_match(
+    schema_sql_snapshot: dict[str, set[tuple[str, ...]]],
+    alembic_snapshot: dict[str, set[tuple[str, ...]]],
+) -> None:
+    messages: list[str] = []
+    for key in ("tables", "columns", "indexes", "constraints", "materialized_views"):
+        only_schema = schema_sql_snapshot[key] - alembic_snapshot[key]
+        only_alembic = alembic_snapshot[key] - schema_sql_snapshot[key]
+        if only_schema:
+            messages.append(f"{key} only in schema.sql bootstrap: {sorted(only_schema)}")
+        if only_alembic:
+            messages.append(f"{key} only in Alembic bootstrap: {sorted(only_alembic)}")
+    assert not messages, "\n".join(messages)
+
+
 def test_schema_sql_bootstraps_clean_postgres(pg_url, psycopg_module):
     """schema.sql must apply end-to-end and create all API/ETL-critical tables and matviews."""
     with psycopg_module.connect(pg_url, autocommit=False) as conn:
@@ -235,6 +378,28 @@ def test_schema_sql_bootstraps_clean_postgres(pg_url, psycopg_module):
             f"schema.sql did not create expected matviews: {missing_matviews!r}\n"
             f"matviews present: {sorted(matviews)}"
         )
+
+
+def test_schema_sql_and_alembic_postgres_parity(pg_url, psycopg_module, monkeypatch):
+    """schema.sql and Alembic must produce the same Postgres structural contract."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    schema_sql_schema = "mgr_schema_sql_parity"
+    alembic_schema = "mgr_alembic_parity"
+
+    with psycopg_module.connect(pg_url, autocommit=False) as conn:
+        _reset_schema(conn, schema_sql_schema)
+        _apply_schema_sql(conn)
+        schema_sql_snapshot = _catalog_snapshot(conn)
+
+        _reset_schema(conn, alembic_schema)
+
+    command.upgrade(_alembic_config(_url_with_search_path(pg_url, alembic_schema)), "head")
+
+    with psycopg_module.connect(pg_url, autocommit=False) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f'SET search_path TO "{alembic_schema}"')
+        alembic_snapshot = _catalog_snapshot(conn)
+        _assert_snapshots_match(schema_sql_snapshot, alembic_snapshot)
 
 
 def test_schema_sql_creates_matviews_before_their_indexes(pg_url, psycopg_module):
