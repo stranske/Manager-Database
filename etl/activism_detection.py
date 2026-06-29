@@ -12,6 +12,7 @@ from typing import Any
 from alerts.db import ensure_alert_tables as _ensure_alert_tables
 from alerts.integration import fire_alerts_for_event_sync as _dispatch_alerts_for_event_sync
 from alerts.models import AlertEvent
+from utils.numeric import finite_float_or_none, parse_finite_float
 
 OWNERSHIP_THRESHOLDS = (5.0, 10.0, 15.0, 20.0, 25.0, 33.3, 50.0)
 ALERT_EVENT_TYPE = "activism_event"
@@ -85,9 +86,8 @@ def _deserialize_json_array(raw: Any) -> list[str]:
 
 
 def _to_float(value: Any) -> float | None:
-    if value is None or value == "":
-        return None
-    return round(float(value), 4)
+    parsed = finite_float_or_none(value, min_value=0.0, max_value=100.0)
+    return round(parsed, 4) if parsed is not None else None
 
 
 def _to_int(value: Any) -> int:
@@ -104,13 +104,13 @@ def _parse_thresholds() -> tuple[float, ...]:
         stripped = part.strip()
         if not stripped:
             continue
-        try:
-            values.append(round(float(stripped), 4))
-        except ValueError:
-            continue
-    if not values:
-        return OWNERSHIP_THRESHOLDS
-    return tuple(sorted({value for value in values if value > 0}))
+        parsed = parse_finite_float(stripped, min_value=0.0, max_value=100.0, allow_none=False)
+        assert parsed is not None
+        values.append(round(parsed, 4))
+    valid_values = {value for value in values if value > 0}
+    if not valid_values:
+        raise ValueError("ACTIVISM_THRESHOLDS must contain at least one positive threshold")
+    return tuple(sorted(valid_values))
 
 
 def _normalize_form_type(form_type: str | None) -> str:
@@ -429,12 +429,14 @@ def _condition_matches(condition_json: Mapping[str, Any], payload: Mapping[str, 
     for key, expected in condition_json.items():
         if key == "min_ownership_pct":
             ownership_pct = _to_float(payload.get("ownership_pct"))
-            if ownership_pct is None or ownership_pct < float(expected):
+            expected_pct = _to_float(expected)
+            if ownership_pct is None or expected_pct is None or ownership_pct < expected_pct:
                 return False
             continue
         if key == "min_delta_pct":
-            delta_pct = _to_float(payload.get("delta_pct"))
-            if delta_pct is None or abs(delta_pct) < float(expected):
+            delta_pct = finite_float_or_none(payload.get("delta_pct"))
+            expected_delta = finite_float_or_none(expected, min_value=0.0, max_value=100.0)
+            if delta_pct is None or expected_delta is None or abs(delta_pct) < expected_delta:
                 return False
             continue
         if key == "threshold_crossed":

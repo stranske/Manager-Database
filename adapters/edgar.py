@@ -13,6 +13,8 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
+from utils.numeric import parse_finite_float
+
 from .base import tracked_call
 
 USER_AGENT = os.getenv("EDGAR_UA", "manager-intel/0.1")
@@ -22,7 +24,21 @@ DEFAULT_FORM_TYPES = ["13F-HR"]
 THIRTEEN_F_FORMS = {"13F-HR", "13F-HR/A", "13-F"}
 ACTIVISM_FORMS = {"SC 13D", "SC 13D/A", "SC 13G", "SC 13G/A"}
 logger = logging.getLogger(__name__)
-EDGAR_MIN_REQUEST_INTERVAL: float = float(os.getenv("EDGAR_MIN_REQUEST_INTERVAL", "0.11"))
+
+
+def _parse_edgar_min_request_interval(raw: str | None) -> float:
+    try:
+        parsed = parse_finite_float(raw or "0.11", min_value=0.0, max_value=10.0, allow_none=False)
+    except (TypeError, ValueError):
+        logger.warning("Invalid EDGAR_MIN_REQUEST_INTERVAL; using default", extra={"value": raw})
+        return 0.11
+    assert parsed is not None
+    return parsed
+
+
+EDGAR_MIN_REQUEST_INTERVAL: float = _parse_edgar_min_request_interval(
+    os.getenv("EDGAR_MIN_REQUEST_INTERVAL")
+)
 _last_edgar_request_at: float | None = None
 
 
@@ -335,7 +351,12 @@ def _parse_float(value: str | None) -> float | None:
         return None
     cleaned = value.replace("%", "").replace(",", " ").strip()
     match = re.search(r"\d+(?:\.\d+)?", cleaned)
-    return float(match.group(0)) if match else None
+    if not match:
+        return None
+    try:
+        return parse_finite_float(match.group(0), min_value=0.0, max_value=100.0)
+    except ValueError:
+        return None
 
 
 def _extract_group_members(item_two_text: str) -> list[str]:

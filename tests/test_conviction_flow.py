@@ -109,6 +109,75 @@ def test_compute_conviction_scores_edge_cases(tmp_path, holdings, expected_pct, 
     assert row[1] == pytest.approx(expected_weight, rel=1e-6)
 
 
+def test_compute_conviction_scores_rejects_non_finite_values(tmp_path):
+    db_path = tmp_path / "nonfinite.db"
+    conn = sqlite3.connect(db_path)
+    _create_base_tables(conn)
+    conviction_flow._ensure_conviction_scores_table(conn)
+
+    _seed_manager_and_filing(conn, manager_id=4, filing_id=40, filed_date="2025-12-31")
+    conn.executemany(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) VALUES (?, ?, ?, ?, ?)",
+        [
+            (40, "GOOD01", "Good Corp", 10, 100.0),
+            (40, "BAD001", "Bad Corp", 10, "nan"),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="non-finite numeric value"):
+        conviction_flow.compute_conviction_scores.fn(40, conn)
+
+    assert conn.execute("SELECT COUNT(*) FROM conviction_scores").fetchone() == (0,)
+
+
+def test_compute_conviction_scores_rejects_missing_values(tmp_path):
+    db_path = tmp_path / "missing.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        _create_base_tables(conn)
+        conviction_flow._ensure_conviction_scores_table(conn)
+
+        _seed_manager_and_filing(conn, manager_id=4, filing_id=41, filed_date="2025-12-31")
+        conn.executemany(
+            "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) VALUES (?, ?, ?, ?, ?)",
+            [
+                (41, "GOOD01", "Good Corp", 10, 100.0),
+                (41, "MISS01", "Missing Corp", 10, None),
+            ],
+        )
+
+        with pytest.raises(ValueError, match="numeric value is required"):
+            conviction_flow.compute_conviction_scores.fn(41, conn)
+
+        assert conn.execute("SELECT COUNT(*) FROM conviction_scores").fetchone() == (0,)
+    finally:
+        conn.close()
+
+
+def test_compute_conviction_scores_rejects_overflowed_total_value(tmp_path):
+    db_path = tmp_path / "overflow.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        _create_base_tables(conn)
+        conviction_flow._ensure_conviction_scores_table(conn)
+
+        _seed_manager_and_filing(conn, manager_id=4, filing_id=42, filed_date="2025-12-31")
+        conn.executemany(
+            "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) VALUES (?, ?, ?, ?, ?)",
+            [
+                (42, "BIG001", "Big Corp", 10, 1e308),
+                (42, "BIG002", "Bigger Corp", 10, 1e308),
+            ],
+        )
+
+        with pytest.raises(ValueError, match="total holding value must be finite"):
+            conviction_flow.compute_conviction_scores.fn(42, conn)
+
+        assert conn.execute("SELECT COUNT(*) FROM conviction_scores").fetchone() == (0,)
+    finally:
+        conn.close()
+
+
 def test_compute_conviction_scores_upsert_is_idempotent(tmp_path):
     db_path = tmp_path / "upsert.db"
     conn = sqlite3.connect(db_path)

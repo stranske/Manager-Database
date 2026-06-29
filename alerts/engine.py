@@ -7,12 +7,11 @@ from typing import Any
 
 from alerts.db import deserialize_json_object, ensure_alert_tables, placeholder, rule_from_row
 from alerts.models import AlertEvent, AlertRule, FiredAlert
+from utils.numeric import finite_float_or_none
 
 
 def _as_float(value: Any) -> float | None:
-    if value in (None, ""):
-        return None
-    return float(value)
+    return finite_float_or_none(value)
 
 
 def _as_int(value: Any) -> int | None:
@@ -66,7 +65,8 @@ class AlertEngine:
         for key, expected in condition.items():
             if key == "value_usd_gt":
                 value = _as_float(payload.get("value_usd"))
-                if value is None or value <= float(expected):
+                threshold = _as_float(expected)
+                if value is None or threshold is None or value <= threshold:
                     return False
                 continue
             if key == "delta_type":
@@ -88,22 +88,34 @@ class AlertEngine:
                     return False
                 continue
             if key == "time_window_hours":
-                if _event_age_hours(event) > float(expected):
+                hours = _as_float(expected)
+                if hours is None or _event_age_hours(event) > hours:
                     return False
                 continue
             if key == "min_ownership_pct":
-                ownership = _as_float(payload.get("ownership_pct"))
-                if ownership is None or ownership < float(expected):
+                ownership = finite_float_or_none(
+                    payload.get("ownership_pct"), min_value=0.0, max_value=100.0
+                )
+                threshold = finite_float_or_none(expected, min_value=0.0, max_value=100.0)
+                if ownership is None or threshold is None or ownership < threshold:
                     return False
                 continue
             if key == "min_delta_pct":
                 delta = _as_float(payload.get("delta_pct"))
-                if delta is None or abs(delta) < float(expected):
+                threshold = finite_float_or_none(expected, min_value=0.0, max_value=100.0)
+                if delta is None or threshold is None or abs(delta) < threshold:
                     return False
                 continue
             if key == "threshold_crossed":
-                threshold = _as_float(payload.get("threshold_crossed"))
-                if threshold != _as_float(expected):
+                threshold = finite_float_or_none(
+                    payload.get("threshold_crossed"), min_value=0.0, max_value=100.0
+                )
+                expected_threshold = finite_float_or_none(expected, min_value=0.0, max_value=100.0)
+                if (
+                    threshold is None
+                    or expected_threshold is None
+                    or threshold != expected_threshold
+                ):
                     return False
                 continue
 

@@ -12,7 +12,7 @@ import httpx
 from fastapi.encoders import jsonable_encoder
 
 import api.chat as chat_api_module
-from api.search import SearchResult, universal_search
+from api.search import SearchResult, _score_result, universal_search
 from tests.route_helpers import route_paths
 from ui.search import (
     _count_results_by_entity_type,
@@ -185,6 +185,27 @@ def test_universal_search_returns_ranked_multi_entity_results():
     entity_types = {item.entity_type for item in results}
     assert {"manager", "filing", "news", "document", "holding"}.issubset(entity_types)
     assert results == sorted(results, key=lambda item: item.relevance, reverse=True)
+
+
+def test_score_result_clamps_non_finite_rank_and_distance():
+    baseline = _score_result(
+        "news",
+        "elliott",
+        "Elliott files 13D",
+        "activist position",
+        fts_rank=None,
+        vector_distance=None,
+    )
+    score = _score_result(
+        "news",
+        "elliott",
+        "Elliott files 13D",
+        "activist position",
+        fts_rank=float("nan"),
+        vector_distance=float("inf"),
+    )
+
+    assert score == baseline
 
 
 def test_universal_search_filters_results_by_entity_type():

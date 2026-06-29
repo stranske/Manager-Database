@@ -104,6 +104,46 @@ def test_detect_events_initial_stake(tmp_path):
         conn.close()
 
 
+def test_detect_events_ignores_non_finite_ownership(tmp_path):
+    conn = _setup_db(tmp_path / "activism.db")
+    try:
+        filing = _insert_filing(
+            conn,
+            filing_type="SC 13D",
+            filed_date="2024-05-01",
+            ownership_pct=float("inf"),
+        )
+
+        events = detect_events(conn, filing)
+
+        assert "initial_stake" in _event_types(events)
+        assert "threshold_crossing" not in _event_types(events)
+        assert all(event.ownership_pct is None for event in events)
+    finally:
+        conn.close()
+
+
+def test_detect_events_rejects_invalid_threshold_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("ACTIVISM_THRESHOLDS", "5,inf,25")
+    conn = _setup_db(tmp_path / "activism.db")
+    try:
+        filing = _insert_filing(
+            conn,
+            filing_type="SC 13D",
+            filed_date="2024-05-01",
+            ownership_pct=6.0,
+        )
+
+        try:
+            detect_events(conn, filing)
+        except ValueError as exc:
+            assert "non-finite numeric value" in str(exc)
+        else:
+            raise AssertionError("invalid ACTIVISM_THRESHOLDS should fail fast")
+    finally:
+        conn.close()
+
+
 def test_detect_events_stake_increase(tmp_path):
     conn = _setup_db(tmp_path / "activism.db")
     try:

@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Literal
 
+from utils.numeric import finite_float_or_none
+
 try:
     from pydantic import BaseModel, Field
 except ModuleNotFoundError:
@@ -69,18 +71,18 @@ def _table_exists(conn: Any, table_name: str) -> bool:
 
 
 def _normalize_rank(rank: float | int | None) -> float:
-    if rank is None:
+    rank_value = finite_float_or_none(rank, min_value=0.0)
+    if rank_value is None:
         return 0.0
-    rank_value = float(rank)
-    if rank_value <= 0.0:
+    if rank_value == 0.0:
         return 0.0
     return min(rank_value / (rank_value + 1.0), 1.0)
 
 
 def _vector_relevance(distance: float | int | None) -> float:
-    if distance is None:
+    dist = finite_float_or_none(distance, min_value=0.0)
+    if dist is None:
         return 0.0
-    dist = max(float(distance), 0.0)
     if dist > 1.0:
         dist = 1.0
     return 1.0 - dist
