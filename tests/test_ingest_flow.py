@@ -269,6 +269,28 @@ async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(mon
 
 
 @pytest.mark.asyncio
+async def test_fetch_and_store_rolls_back_and_closes_when_transaction_setup_fails(monkeypatch):
+    conn = _PostgresAutocommitConn()
+
+    def fail_transactional_writes(_conn):
+        raise RuntimeError("autocommit unavailable")
+
+    monkeypatch.setattr(ingest_flow, "connect_db", lambda _db_path: conn)
+    monkeypatch.setattr(ingest_flow, "_enable_transactional_writes", fail_transactional_writes)
+
+    with pytest.raises(RuntimeError, match="autocommit unavailable"):
+        await ingest_flow.fetch_and_store.fn(
+            "0000000001",
+            "2024-01-01",
+            jurisdiction="us",
+            adapter=_USAdapter(),
+        )
+
+    assert conn.rollbacks == 1
+    assert conn.closed is True
+
+
+@pytest.mark.asyncio
 async def test_fetch_and_store_us_replaces_existing_holdings_for_same_filing(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     conn = sqlite3.connect(db_path)

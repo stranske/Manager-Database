@@ -471,8 +471,9 @@ async def fetch_and_store(
     adapter = adapter or get_adapter(_ADAPTER_MAP.get(jurisdiction, "edgar"))
     filings = await adapter.list_new_filings(identifier, since)
     conn = connect_db(db_path or DB_PATH)
-    original_autocommit = _enable_transactional_writes(conn)
+    original_autocommit: bool | None = None
     try:
+        original_autocommit = _enable_transactional_writes(conn)
         _ensure_filing_tables(conn)
 
         results: list[dict[str, Any]] = []
