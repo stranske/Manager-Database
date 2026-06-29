@@ -449,6 +449,7 @@ def test_latest_filed_date_for_cik_reads_existing_watermark(monkeypatch, tmp_pat
 
 def test_replace_holdings_for_filing_uses_postgres_transaction():
     conn = StrictPostgresConnection()
+    conn.holdings = [(9001, "OLD", "Old Corp", 9, 9)]
 
     flow._replace_holdings_for_filing(
         conn,
@@ -464,7 +465,9 @@ def test_replace_holdings_for_filing_uses_postgres_transaction():
     )
 
     assert conn.transactions == 1
-    assert any("DELETE FROM holdings" in sql for sql in conn.sql)
+    assert ("DELETE FROM holdings WHERE filing_id = %s", (9001,)) in list(
+        zip(conn.sql, conn.params, strict=True)
+    )
     assert conn.holdings == [
         (9001, "AAA", "CorpA", 1, 1),
         (9001, "BBB", "CorpB", 2, 2),
