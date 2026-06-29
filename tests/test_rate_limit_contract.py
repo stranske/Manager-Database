@@ -191,6 +191,18 @@ def test_chat_rate_limit_env_overrides_are_used(monkeypatch: pytest.MonkeyPatch)
     assert limiter._window_seconds == 3.5
 
 
+@pytest.mark.parametrize("limit_value", ["0", "-1", "nan", "inf", "1.5"])
+def test_chat_rate_limit_per_minute_rejects_invalid_values(
+    monkeypatch: pytest.MonkeyPatch,
+    limit_value: str,
+):
+    monkeypatch.setenv("CHAT_RATE_LIMIT_PER_MINUTE", limit_value)
+
+    limiter = chat_api_module._build_chat_rate_limiter()
+
+    assert limiter._max_requests == 10
+
+
 @pytest.mark.parametrize("window_value", ["nan", "inf", "-inf"])
 def test_chat_rate_limit_window_rejects_non_finite_values(
     monkeypatch: pytest.MonkeyPatch,
