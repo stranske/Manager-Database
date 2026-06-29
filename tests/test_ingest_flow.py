@@ -114,6 +114,28 @@ class _TransactionalConn:
         return []
 
 
+class _PostgresAutocommitConn:
+    def __init__(self):
+        self.autocommit = True
+        self.commits = 0
+        self.rollbacks = 0
+        self.closed = False
+        self.sql = []
+
+    def execute(self, sql, params=()):
+        self.sql.append((sql, tuple(params)))
+        return []
+
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
+    def close(self):
+        self.closed = True
+
+
 class _TrackingSqliteConn(sqlite3.Connection):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -197,6 +219,53 @@ async def test_fetch_and_store_rolls_back_and_closes_when_parse_fails(tmp_path, 
         probe.commit()
     finally:
         probe.close()
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(monkeypatch):
+    conn = _PostgresAutocommitConn()
+    states = []
+
+    def record_ensure_tables(db_conn):
+        states.append(("ensure", db_conn.autocommit))
+
+    def record_lookup(db_conn, _jurisdiction, _identifier):
+        states.append(("lookup", db_conn.autocommit))
+        return 1
+
+    def record_insert_filing(db_conn, **_kwargs):
+        states.append(("filing", db_conn.autocommit))
+        return 10
+
+    def record_replace_holdings(db_conn, **_kwargs):
+        states.append(("holdings", db_conn.autocommit))
+        return 1
+
+    monkeypatch.setattr(ingest_flow, "connect_db", lambda _db_path: conn)
+    monkeypatch.setattr(ingest_flow, "_ensure_filing_tables", record_ensure_tables)
+    monkeypatch.setattr(ingest_flow, "_lookup_manager_id", record_lookup)
+    monkeypatch.setattr(ingest_flow, "_insert_filing", record_insert_filing)
+    monkeypatch.setattr(ingest_flow, "_replace_holdings_rows", record_replace_holdings)
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+
+    rows = await ingest_flow.fetch_and_store.fn(
+        "0000000001",
+        "2024-01-01",
+        jurisdiction="us",
+        adapter=_USAdapter(),
+    )
+
+    assert rows and rows[0]["cusip"] == "123456789"
+    assert states == [
+        ("ensure", False),
+        ("lookup", False),
+        ("filing", False),
+        ("holdings", False),
+    ]
+    assert conn.commits == 1
+    assert conn.rollbacks == 0
+    assert conn.autocommit is True
+    assert conn.closed is True
 
 
 @pytest.mark.asyncio

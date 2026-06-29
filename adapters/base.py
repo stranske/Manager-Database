@@ -173,14 +173,14 @@ async def tracked_call(
         latency = int((time.perf_counter() - start) * 1000)
         status = getattr(resp, "status_code", 0)
         size = len(getattr(resp, "content", b""))
-        if callable(cost_usd):
-            computed_cost = float(cost_usd(resp)) if resp is not None else 0.0
-        elif cost_usd is not None:
-            computed_cost = float(cost_usd)
-        else:
-            computed_cost = 0.0
         conn: Any | None = None
         try:
+            if callable(cost_usd):
+                computed_cost = float(cost_usd(resp)) if resp is not None else 0.0
+            elif cost_usd is not None:
+                computed_cost = float(cost_usd)
+            else:
+                computed_cost = 0.0
             conn = connect_db(db_path)
             if isinstance(conn, sqlite3.Connection):
                 _ensure_sqlite_usage_schema(conn)

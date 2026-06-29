@@ -106,3 +106,32 @@ async def test_tracked_call_metrics_execute_failure_preserves_response_and_close
         log(response)
 
     assert conn.closed is True
+
+
+@pytest.mark.asyncio
+async def test_tracked_call_cost_callback_failure_is_non_fatal(monkeypatch):
+    class MetricsConn:
+        def __init__(self):
+            self.closed = False
+            self.executed = []
+
+        def execute(self, sql, params=()):
+            self.executed.append((sql, params))
+
+        def commit(self):
+            raise AssertionError("commit should not run after cost callback fails")
+
+        def close(self):
+            self.closed = True
+
+    conn = MetricsConn()
+    monkeypatch.setattr(base, "connect_db", lambda _db_path=None: conn)
+
+    def cost_from_response(_resp):
+        raise RuntimeError("cost calculation failed")
+
+    async with tracked_call("pg", "http://pg", cost_usd=cost_from_response) as log:
+        log(DummyResp())
+
+    assert conn.executed == []
+    assert conn.closed is False

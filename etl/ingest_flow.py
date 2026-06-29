@@ -405,6 +405,24 @@ def _rollback_quietly(conn: Any) -> None:
             logger.warning("Failed to roll back ingest transaction", exc_info=True)
 
 
+def _enable_transactional_writes(conn: Any) -> bool | None:
+    if isinstance(conn, sqlite3.Connection) or not hasattr(conn, "autocommit"):
+        return None
+    original = bool(conn.autocommit)
+    if original:
+        conn.autocommit = False
+    return original
+
+
+def _restore_autocommit_quietly(conn: Any, original: bool | None) -> None:
+    if original is None:
+        return
+    try:
+        conn.autocommit = original
+    except Exception:
+        logger.warning("Failed to restore ingest database autocommit", exc_info=True)
+
+
 def _close_quietly(conn: Any) -> None:
     close = getattr(conn, "close", None)
     if callable(close):
@@ -453,6 +471,7 @@ async def fetch_and_store(
     adapter = adapter or get_adapter(_ADAPTER_MAP.get(jurisdiction, "edgar"))
     filings = await adapter.list_new_filings(identifier, since)
     conn = connect_db(db_path or DB_PATH)
+    original_autocommit = _enable_transactional_writes(conn)
     try:
         _ensure_filing_tables(conn)
 
@@ -509,10 +528,10 @@ async def fetch_and_store(
                     parsed_rows=parsed_rows,
                     jurisdiction=jurisdiction,
                 )
-            conn.commit()
             if should_keep_results:
                 results.extend(parsed_rows)
 
+        conn.commit()
         logger.info(
             "Stored filings",
             extra={"identifier": identifier, "jurisdiction": jurisdiction, "rows": row_count},
@@ -522,6 +541,7 @@ async def fetch_and_store(
         _rollback_quietly(conn)
         raise
     finally:
+        _restore_autocommit_quietly(conn, original_autocommit)
         _close_quietly(conn)
 
 
