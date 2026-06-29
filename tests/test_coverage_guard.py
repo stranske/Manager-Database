@@ -290,7 +290,12 @@ def test_recovery_window_satisfied_fails_when_recent_sample_below_baseline() -> 
     ]
     trend_data = {"current": 85.0, "run_id": "run-3"}
 
-    assert _recovery_window_satisfied(trend_data, baseline=80.0, recovery_window=3, history_records=history_records) is False
+    assert (
+        _recovery_window_satisfied(
+            trend_data, baseline=80.0, recovery_window=3, history_records=history_records
+        )
+        is False
+    )
 
 
 def test_recovery_window_satisfied_passes_for_consecutive_above_baseline_samples() -> None:
@@ -300,7 +305,12 @@ def test_recovery_window_satisfied_passes_for_consecutive_above_baseline_samples
     ]
     trend_data = {"current": 83.0, "run_id": "run-3"}
 
-    assert _recovery_window_satisfied(trend_data, baseline=80.0, recovery_window=3, history_records=history_records) is True
+    assert (
+        _recovery_window_satisfied(
+            trend_data, baseline=80.0, recovery_window=3, history_records=history_records
+        )
+        is True
+    )
 
 
 @pytest.mark.parametrize(
@@ -318,5 +328,7 @@ def test_recovery_window_satisfied_passes_for_consecutive_above_baseline_samples
         ({"current": float("nan")}, None),
     ],
 )
-def test_coverage_value_for_recovery_uses_supported_keys(record: dict, expected: float | None) -> None:
+def test_coverage_value_for_recovery_uses_supported_keys(
+    record: dict, expected: float | None
+) -> None:
     assert _coverage_value_for_recovery(record) == expected
