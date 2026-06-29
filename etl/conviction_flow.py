@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import math
 import os
 import sqlite3
 from typing import Any, TypedDict
@@ -141,6 +142,8 @@ def compute_conviction_scores(filing_id: int, conn: Any) -> int:
 
     holding_values = [parse_finite_float(row[3], min_value=0.0, allow_none=False) for row in rows]
     total_value = sum(holding_values)
+    if not math.isfinite(total_value):
+        raise ValueError("total holding value must be finite")
 
     upsert_sql = (
         "INSERT INTO conviction_scores "
