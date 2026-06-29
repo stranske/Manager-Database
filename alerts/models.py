@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from utils.numeric import parse_finite_float
+
 ALERT_EVENT_TYPES = (
     "new_filing",
     "large_delta",
@@ -21,6 +23,13 @@ ALERT_CHANNELS = ("email", "slack", "streamlit")
 _CHANNEL_ALIASES = {
     "in_app": "streamlit",
     "webhook": "slack",
+}
+_NUMERIC_CONDITION_BOUNDS: dict[str, tuple[float | None, float | None]] = {
+    "value_usd_gt": (0.0, None),
+    "time_window_hours": (0.0, None),
+    "min_ownership_pct": (0.0, 100.0),
+    "min_delta_pct": (0.0, 100.0),
+    "threshold_crossed": (0.0, 100.0),
 }
 
 
@@ -45,6 +54,26 @@ def normalize_channels(channels: list[str]) -> list[str]:
     if not normalized:
         raise ValueError("At least one delivery channel is required.")
     return normalized
+
+
+def validate_condition_json(condition: dict[str, Any]) -> dict[str, Any]:
+    """Reject invalid numeric alert-rule definitions before persistence."""
+    for key, bounds in _NUMERIC_CONDITION_BOUNDS.items():
+        if key not in condition:
+            continue
+        min_value, max_value = bounds
+        try:
+            parse_finite_float(
+                condition[key],
+                min_value=min_value,
+                max_value=max_value,
+                allow_none=False,
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid numeric alert condition for {key}: {condition[key]!r}"
+            ) from exc
+    return condition
 
 
 class AlertRuleBase(BaseModel):
@@ -79,6 +108,11 @@ class AlertRuleBase(BaseModel):
 class AlertRuleCreate(AlertRuleBase):
     """Payload for creating an alert rule."""
 
+    @field_validator("condition_json")
+    @classmethod
+    def _validate_condition_json(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return validate_condition_json(value)
+
 
 class AlertRuleUpdate(BaseModel):
     """Patch payload for an existing alert rule."""
@@ -106,6 +140,13 @@ class AlertRuleUpdate(BaseModel):
         if value is None:
             return value
         return normalize_channels(value)
+
+    @field_validator("condition_json")
+    @classmethod
+    def _validate_condition_json(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return value
+        return validate_condition_json(value)
 
 
 class AlertRule(AlertRuleBase):

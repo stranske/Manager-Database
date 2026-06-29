@@ -339,6 +339,13 @@ async def test_outbound_request_rate_governor(monkeypatch):
     assert sleep_calls == []
 
 
+def test_edgar_min_request_interval_rejects_non_finite_config(caplog):
+    caplog.set_level("WARNING")
+
+    assert edgar._parse_edgar_min_request_interval("inf") == 0.11
+    assert "Invalid EDGAR_MIN_REQUEST_INTERVAL" in caplog.text
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_malformed_data_handling(monkeypatch, tmp_path):
