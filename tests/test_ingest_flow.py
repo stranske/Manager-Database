@@ -175,6 +175,90 @@ async def test_fetch_and_store_us_replaces_existing_holdings_for_same_filing(tmp
     assert holding == ("0001-24-000001", "123456789", 1000, 50)
 
 
+def test_sqlite_filing_upsert_preserves_identity_and_replaces_children(tmp_path):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    ingest_flow._ensure_filing_tables(conn)
+
+    first_id = ingest_flow._insert_filing(
+        conn,
+        manager_id=1,
+        source="us",
+        external_id="0001-24-000001",
+        filed_date="2024-01-05",
+        filing_type="13F-HR",
+        parsed_rows=[
+            {"nameOfIssuer": "Example Corp", "cusip": "123456789", "value": 1000, "sshPrnamt": 50}
+        ],
+    )
+    conn.execute(
+        """
+        INSERT INTO holdings(filing_id, manager_id, cik, accession, filed, nameOfIssuer, cusip, value, sshPrnamt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            first_id,
+            1,
+            "0000000001",
+            "0001-24-000001",
+            "2024-01-05",
+            "Example Corp",
+            "123456789",
+            1000,
+            50,
+        ),
+    )
+    conn.commit()
+
+    second_id = ingest_flow._insert_filing(
+        conn,
+        manager_id=1,
+        source="us",
+        external_id="0001-24-000001",
+        filed_date="2024-01-06",
+        filing_type="13F-HR/A",
+        parsed_rows=[
+            {
+                "nameOfIssuer": "Replacement Corp",
+                "cusip": "987654321",
+                "value": 2000,
+                "sshPrnamt": 75,
+            }
+        ],
+    )
+    replaced = ingest_flow._replace_holdings_rows(
+        conn,
+        filing_id=second_id,
+        manager_id=1,
+        identifier="0000000001",
+        external_id="0001-24-000001",
+        filed_date="2024-01-06",
+        parsed_rows=[
+            {
+                "nameOfIssuer": "Replacement Corp",
+                "cusip": "987654321",
+                "value": 2000,
+                "sshPrnamt": 75,
+            }
+        ],
+        jurisdiction="us",
+    )
+
+    filing = conn.execute(
+        "SELECT id, source, external_id, filed_date, type FROM filings WHERE source = ? AND external_id = ?",
+        ("us", "0001-24-000001"),
+    ).fetchone()
+    holdings = conn.execute(
+        "SELECT filing_id, accession, cusip, value, sshPrnamt FROM holdings"
+    ).fetchall()
+    conn.close()
+
+    assert first_id == second_id
+    assert filing == (first_id, "us", "0001-24-000001", "2024-01-06", "13F-HR/A")
+    assert replaced == 1
+    assert holdings == [(first_id, "0001-24-000001", "987654321", 2000, 75)]
+
+
 @pytest.mark.asyncio
 async def test_fetch_and_store_uk_uses_registry_id_and_stores_payload(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
