@@ -98,7 +98,8 @@ def test_sample_universe_json_contains_confirmed_managers_and_seeds(tmp_path):
 
 
 def test_sample_universe_direct_dry_run_without_pythonpath(tmp_path):
-    env = {**os.environ, "DB_PATH": str(tmp_path / "seed-smoke.db")}
+    db_path = tmp_path / "seed-smoke.db"
+    env = {**os.environ, "DB_PATH": str(db_path)}
     env.pop("PYTHONPATH", None)
 
     result = subprocess.run(
@@ -117,3 +118,9 @@ def test_sample_universe_direct_dry_run_without_pythonpath(tmp_path):
     )
 
     assert "Dry run complete. No rows written." in result.stdout
+    conn = sqlite3.connect(db_path)
+    try:
+        count = conn.execute("SELECT COUNT(*) FROM managers").fetchone()[0]
+    finally:
+        conn.close()
+    assert count == 0
