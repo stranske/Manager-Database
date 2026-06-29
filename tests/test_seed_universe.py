@@ -14,6 +14,7 @@ def _run_seed(
 ) -> subprocess.CompletedProcess[str]:
     db_path = tmp_path / "seed.db"
     env = {**os.environ, "DB_PATH": str(db_path)}
+    env.pop("PYTHONPATH", None)
     return subprocess.run(
         [sys.executable, str(SCRIPT_PATH), "--file", str(input_path), *extra_args],
         check=True,
@@ -94,3 +95,32 @@ def test_sample_universe_json_contains_confirmed_managers_and_seeds(tmp_path):
     result = _run_seed(tmp_path, sample_path)
     assert "Created: 10" in result.stdout
     assert "Updated: 0" in result.stdout
+
+
+def test_sample_universe_direct_dry_run_without_pythonpath(tmp_path):
+    db_path = tmp_path / "seed-smoke.db"
+    env = {**os.environ, "DB_PATH": str(db_path)}
+    env.pop("PYTHONPATH", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT_PATH),
+            "--file",
+            str(REPO_ROOT / "scripts" / "sample_universe.json"),
+            "--dry-run",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        env=env,
+    )
+
+    assert "Dry run complete. No rows written." in result.stdout
+    conn = sqlite3.connect(db_path)
+    try:
+        count = conn.execute("SELECT COUNT(*) FROM managers").fetchone()[0]
+    finally:
+        conn.close()
+    assert count == 0

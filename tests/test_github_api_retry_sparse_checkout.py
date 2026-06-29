@@ -30,7 +30,10 @@ def _sparse_checkout_paths(block: str) -> list[str]:
 
 
 def _iter_sparse_checkout_blocks(workflow_text: str) -> list[list[str]]:
-    return [_sparse_checkout_paths(match.group(1)) for match in SPARSE_CHECKOUT_BLOCK.finditer(workflow_text)]
+    return [
+        _sparse_checkout_paths(match.group(1))
+        for match in SPARSE_CHECKOUT_BLOCK.finditer(workflow_text)
+    ]
 
 
 def test_sparse_checkouts_include_error_classifier_with_retry_helper() -> None:
@@ -44,8 +47,7 @@ def test_sparse_checkouts_include_error_classifier_with_retry_helper() -> None:
 
     assert not offenders, (
         "github-api-with-retry.js requires ./error_classifier at module load; "
-        "add error_classifier.js to sparse-checkout:\n"
-        + "\n".join(offenders)
+        "add error_classifier.js to sparse-checkout:\n" + "\n".join(offenders)
     )
 
 
@@ -74,7 +76,9 @@ def test_github_api_retry_imports_with_minimal_sparse_checkout(tmp_path: Path) -
 
 
 def test_record_autofix_metrics_job_sparse_checkout_paths() -> None:
-    workflow = yaml.safe_load((WORKFLOWS_DIR / "agents-81-gate-followups.yml").read_text(encoding="utf-8"))
+    workflow = yaml.safe_load(
+        (WORKFLOWS_DIR / "agents-81-gate-followups.yml").read_text(encoding="utf-8")
+    )
     checkout_step = workflow["jobs"]["metrics"]["steps"][0]
     paths = _sparse_checkout_paths(checkout_step["with"]["sparse-checkout"])
 
