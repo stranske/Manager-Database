@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import json
 import logging
+import math
 import os
 import sqlite3
 import time
@@ -374,7 +375,7 @@ def _read_positive_int_env(name: str, default: int) -> int:
     except ValueError:
         logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
         return default
-    if value <= 0:
+    if value <= 0 or not math.isfinite(value):
         logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
         return default
     return value
@@ -389,7 +390,7 @@ def _read_positive_float_env(name: str, default: float) -> float:
     except ValueError:
         logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
         return default
-    if value <= 0:
+    if value <= 0 or not math.isfinite(value):
         logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
         return default
     return value
@@ -442,9 +443,6 @@ def _chat_session_id(request: Request | None) -> str:
     if request is None:
         return "unknown"
     client_host = request.client.host if request.client and request.client.host else "unknown"
-    cookie_value = request.cookies.get("session_id")
-    if cookie_value:
-        return f"client:{client_host}:cookie:{cookie_value}"
     return f"client:{client_host}"
 
 
