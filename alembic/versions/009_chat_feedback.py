@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            nullable=True,
+            nullable=False,
             server_default=text("CURRENT_TIMESTAMP"),
         ),
         sa.CheckConstraint("rating BETWEEN 1 AND 5", name="ck_chat_feedback_rating_range"),

@@ -294,6 +294,7 @@ def test_alert_tables_schema_contract(monkeypatch, tmp_path):
         }
         assert chat_feedback["response_id"]["notnull"] is True
         assert chat_feedback["rating"]["notnull"] is True
+        assert chat_feedback["created_at"]["notnull"] is True
         assert chat_feedback["created_at"]["default"] in ("CURRENT_TIMESTAMP", "current_timestamp")
 
 
