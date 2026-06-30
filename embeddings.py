@@ -83,6 +83,23 @@ def _postgres_columns(conn: Any, table: str) -> set[str]:
     return {str(row[0]) for row in rows}
 
 
+def _postgres_documents_contract(columns: set[str]) -> tuple[str, str]:
+    id_col = "doc_id" if "doc_id" in columns else "id" if "id" in columns else ""
+    text_col = "text" if "text" in columns else "content" if "content" in columns else ""
+    required = {"embedding", "sha256"}
+    missing = sorted(required - columns)
+    if not id_col:
+        missing.append("doc_id or id")
+    if not text_col:
+        missing.append("text or content")
+    if missing:
+        raise RuntimeError(
+            "Postgres documents schema is not migrated; missing required columns: "
+            + ", ".join(missing)
+        )
+    return id_col, text_col
+
+
 def store_document(
     text: str,
     db_path: str | None = None,
@@ -108,24 +125,12 @@ def store_document(
     if is_pg:
         if register_vector:
             register_vector(conn)
-        conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        conn.execute("""CREATE TABLE IF NOT EXISTS documents (
-                doc_id bigserial PRIMARY KEY,
-                manager_id bigint REFERENCES managers(manager_id),
-                kind text NOT NULL DEFAULT 'note',
-                filename text,
-                sha256 text,
-                text text,
-                embedding vector(384),
-                created_at timestamptz DEFAULT now()
-            )""")
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_sha256_unique "
-            "ON documents (sha256) WHERE sha256 IS NOT NULL"
-        )
         columns = _postgres_columns(conn, "documents")
-        id_col = "doc_id" if "doc_id" in columns else "id"
-        text_col = "text" if "text" in columns else "content"
+        try:
+            id_col, text_col = _postgres_documents_contract(columns)
+        except RuntimeError:
+            conn.close()
+            raise
         emb_vec = _pgvector_embedding(text)
         emb = Vector(emb_vec) if register_vector else emb_vec
         insert_cols: list[str] = []
@@ -152,7 +157,7 @@ def store_document(
                 f"INSERT INTO documents({', '.join(insert_cols)}) "
                 f"VALUES ({placeholders}) "
                 "ON CONFLICT (sha256) WHERE sha256 IS NOT NULL DO NOTHING "
-                "RETURNING doc_id"
+                f"RETURNING {id_col}"
             ),
             tuple(insert_values),
         )
