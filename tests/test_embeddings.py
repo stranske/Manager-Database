@@ -2,6 +2,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from embeddings import (
@@ -392,6 +394,8 @@ def test_store_and_search_pgvector(monkeypatch):
 
 
 def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeypatch):
+    ddl_prefixes = ("CREATE EXTENSION", "CREATE TABLE", "CREATE UNIQUE INDEX")
+
     class Connection:
         def __init__(self):
             self.info = object()
@@ -399,6 +403,7 @@ def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeyp
 
         def execute(self, sql, params=None):
             _assert_postgres_safe(sql)
+            assert not sql.strip().upper().startswith(ddl_prefixes)
             self.executed.append((sql, params))
             if "information_schema.columns" in sql:
                 return type(
@@ -434,11 +439,41 @@ def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeyp
     assert store_document("dialect branch", "ignored.db") == 9
 
     executed_sql = "\n".join(sql for sql, _params in conn.executed)
-    assert "doc_id bigserial PRIMARY KEY" in executed_sql
+    assert "information_schema.columns" in executed_sql
+    assert "doc_id bigserial PRIMARY KEY" not in executed_sql
+    assert "CREATE EXTENSION" not in executed_sql
+    assert "CREATE UNIQUE INDEX" not in executed_sql
     assert "ON CONFLICT (sha256) WHERE sha256 IS NOT NULL DO NOTHING" in executed_sql
     assert "AUTOINCREMENT" not in executed_sql
     assert "PRAGMA table_info" not in executed_sql
     assert "INSERT OR IGNORE" not in executed_sql
+
+
+def test_store_document_postgres_requires_migrated_documents_schema(monkeypatch):
+    class Connection:
+        def __init__(self):
+            self.info = object()
+            self.closed = False
+
+        def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
+            if "information_schema.columns" in sql:
+                return type("Result", (), {"fetchall": lambda self: [("doc_id",), ("text",)]})()
+            return type("Result", (), {"fetchall": lambda self: []})()
+
+        def commit(self):
+            raise AssertionError("commit should not run when schema validation fails")
+
+        def close(self):
+            self.closed = True
+
+    conn = Connection()
+    monkeypatch.setattr("embeddings.connect_db", lambda _path=None: conn)
+    monkeypatch.setattr("embeddings.register_vector", None)
+
+    with pytest.raises(RuntimeError, match="Postgres documents schema is not migrated"):
+        store_document("dialect branch", "ignored.db")
+    assert conn.closed is True
 
 
 def test_store_document_pgvector_conflict_returns_existing(monkeypatch):
