@@ -88,6 +88,17 @@ class _MetadataOnlyAdapter:
         ]
 
 
+class _ParseFailureAdapter:
+    async def list_new_filings(self, _identifier, _since):
+        return [{"accession": "0001-24-000002", "filed": "2024-01-06"}]
+
+    async def download(self, _filing):
+        return "<xml>payload</xml>"
+
+    async def parse(self, _raw):
+        raise RuntimeError("parse failed")
+
+
 class _TransactionalConn:
     def __init__(self):
         self.transactions = 0
@@ -101,6 +112,43 @@ class _TransactionalConn:
     def execute(self, sql, params=()):
         self.sql.append((sql, tuple(params)))
         return []
+
+
+class _PostgresAutocommitConn:
+    def __init__(self):
+        self.autocommit = True
+        self.commits = 0
+        self.rollbacks = 0
+        self.closed = False
+        self.sql = []
+
+    def execute(self, sql, params=()):
+        self.sql.append((sql, tuple(params)))
+        return []
+
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
+    def close(self):
+        self.closed = True
+
+
+class _TrackingSqliteConn(sqlite3.Connection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.rollback_called = False
+        self.close_called = False
+
+    def rollback(self):
+        self.rollback_called = True
+        return super().rollback()
+
+    def close(self):
+        self.close_called = True
+        return super().close()
 
 
 @pytest.mark.asyncio
@@ -136,6 +184,110 @@ async def test_fetch_and_store_us_uses_manager_cik_and_inserts_holdings(tmp_path
 
     assert filing == (1, "us", "0001-24-000001", "13F-HR")
     assert holding == (1, "0000000001", "0001-24-000001", "123456789", 1000, 50)
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_rolls_back_and_closes_when_parse_fails(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (id INTEGER PRIMARY KEY AUTOINCREMENT, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute("INSERT INTO managers(cik, registry_ids) VALUES (?, ?)", ("0000000001", "{}"))
+    conn.commit()
+    conn.close()
+
+    tracked_conn = sqlite3.connect(db_path, factory=_TrackingSqliteConn)
+    monkeypatch.setattr(ingest_flow, "connect_db", lambda _db_path: tracked_conn)
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+
+    with pytest.raises(RuntimeError, match="parse failed"):
+        await ingest_flow.fetch_and_store.fn(
+            "0000000001",
+            "2024-01-01",
+            jurisdiction="us",
+            adapter=_ParseFailureAdapter(),
+            db_path=str(db_path),
+        )
+
+    assert tracked_conn.rollback_called is True
+    assert tracked_conn.close_called is True
+
+    probe = sqlite3.connect(db_path)
+    try:
+        probe.execute("CREATE TABLE post_failure_probe (id INTEGER PRIMARY KEY)")
+        probe.commit()
+    finally:
+        probe.close()
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(monkeypatch):
+    conn = _PostgresAutocommitConn()
+    states = []
+
+    def record_ensure_tables(db_conn):
+        states.append(("ensure", db_conn.autocommit))
+
+    def record_lookup(db_conn, _jurisdiction, _identifier):
+        states.append(("lookup", db_conn.autocommit))
+        return 1
+
+    def record_insert_filing(db_conn, **_kwargs):
+        states.append(("filing", db_conn.autocommit))
+        return 10
+
+    def record_replace_holdings(db_conn, **_kwargs):
+        states.append(("holdings", db_conn.autocommit))
+        return 1
+
+    monkeypatch.setattr(ingest_flow, "connect_db", lambda _db_path: conn)
+    monkeypatch.setattr(ingest_flow, "_ensure_filing_tables", record_ensure_tables)
+    monkeypatch.setattr(ingest_flow, "_lookup_manager_id", record_lookup)
+    monkeypatch.setattr(ingest_flow, "_insert_filing", record_insert_filing)
+    monkeypatch.setattr(ingest_flow, "_replace_holdings_rows", record_replace_holdings)
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+
+    rows = await ingest_flow.fetch_and_store.fn(
+        "0000000001",
+        "2024-01-01",
+        jurisdiction="us",
+        adapter=_USAdapter(),
+    )
+
+    assert rows and rows[0]["cusip"] == "123456789"
+    assert states == [
+        ("ensure", False),
+        ("lookup", False),
+        ("filing", False),
+        ("holdings", False),
+    ]
+    assert conn.commits == 1
+    assert conn.rollbacks == 0
+    assert conn.autocommit is True
+    assert conn.closed is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_rolls_back_and_closes_when_transaction_setup_fails(monkeypatch):
+    conn = _PostgresAutocommitConn()
+
+    def fail_transactional_writes(_conn):
+        raise RuntimeError("autocommit unavailable")
+
+    monkeypatch.setattr(ingest_flow, "connect_db", lambda _db_path: conn)
+    monkeypatch.setattr(ingest_flow, "_enable_transactional_writes", fail_transactional_writes)
+
+    with pytest.raises(RuntimeError, match="autocommit unavailable"):
+        await ingest_flow.fetch_and_store.fn(
+            "0000000001",
+            "2024-01-01",
+            jurisdiction="us",
+            adapter=_USAdapter(),
+        )
+
+    assert conn.rollbacks == 1
+    assert conn.closed is True
 
 
 @pytest.mark.asyncio

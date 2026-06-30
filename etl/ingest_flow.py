@@ -396,6 +396,42 @@ def _run_in_transaction(conn: Any, work: Any) -> Any:
     return work()
 
 
+def _rollback_quietly(conn: Any) -> None:
+    rollback = getattr(conn, "rollback", None)
+    if callable(rollback):
+        try:
+            rollback()
+        except Exception:
+            logger.warning("Failed to roll back ingest transaction", exc_info=True)
+
+
+def _enable_transactional_writes(conn: Any) -> bool | None:
+    if isinstance(conn, sqlite3.Connection) or not hasattr(conn, "autocommit"):
+        return None
+    original = bool(conn.autocommit)
+    if original:
+        conn.autocommit = False
+    return original
+
+
+def _restore_autocommit_quietly(conn: Any, original: bool | None) -> None:
+    if original is None:
+        return
+    try:
+        conn.autocommit = original
+    except Exception:
+        logger.warning("Failed to restore ingest database autocommit", exc_info=True)
+
+
+def _close_quietly(conn: Any) -> None:
+    close = getattr(conn, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:
+            logger.warning("Failed to close ingest database connection", exc_info=True)
+
+
 def _replace_holdings_rows(
     conn: Any,
     *,
@@ -435,71 +471,79 @@ async def fetch_and_store(
     adapter = adapter or get_adapter(_ADAPTER_MAP.get(jurisdiction, "edgar"))
     filings = await adapter.list_new_filings(identifier, since)
     conn = connect_db(db_path or DB_PATH)
-    _ensure_filing_tables(conn)
+    original_autocommit: bool | None = None
+    try:
+        original_autocommit = _enable_transactional_writes(conn)
+        _ensure_filing_tables(conn)
 
-    results: list[dict[str, Any]] = []
-    row_count = 0
-    max_results = int(os.getenv("MAX_RESULTS_IN_MEMORY", "100000"))
+        results: list[dict[str, Any]] = []
+        row_count = 0
+        max_results = int(os.getenv("MAX_RESULTS_IN_MEMORY", "100000"))
 
-    for filing in filings:
-        raw = await adapter.download(filing)
-        external_id = _filing_external_id(filing, jurisdiction)
-        ext = "xml" if isinstance(raw, str) else "pdf"
-        S3.put_object(
-            Bucket=BUCKET,
-            Key=f"raw/{external_id}.{ext}",
-            Body=raw,
-            ServerSideEncryption="AES256",
-        )
-        parsed_rows = await adapter.parse(raw)
-        if isinstance(raw, str):
-            store_document(raw)
-
-        manager_id = _lookup_manager_id(conn, jurisdiction, identifier)
-        if manager_id is None:
-            logger.warning(
-                "Manager not found; skipping filing",
-                extra={
-                    "jurisdiction": jurisdiction,
-                    "identifier": identifier,
-                    "external_id": external_id,
-                },
+        for filing in filings:
+            raw = await adapter.download(filing)
+            external_id = _filing_external_id(filing, jurisdiction)
+            ext = "xml" if isinstance(raw, str) else "pdf"
+            S3.put_object(
+                Bucket=BUCKET,
+                Key=f"raw/{external_id}.{ext}",
+                Body=raw,
+                ServerSideEncryption="AES256",
             )
-            continue
-        filing_id = _insert_filing(
-            conn,
-            manager_id=manager_id,
-            source=jurisdiction,
-            external_id=external_id,
-            filed_date=_filing_date(filing, jurisdiction),
-            filing_type=_filing_type(parsed_rows, filing, jurisdiction),
-            parsed_rows=parsed_rows,
-        )
+            parsed_rows = await adapter.parse(raw)
+            if isinstance(raw, str):
+                store_document(raw)
 
-        should_keep_results = row_count < max_results
-        # UK filings are metadata-driven (e.g., CS01/AR01) and should be
-        # stored as parsed payload on the filings row, not expanded holdings.
-        if jurisdiction != "uk" and _looks_like_holdings_rows(parsed_rows):
-            row_count += _replace_holdings_rows(
+            manager_id = _lookup_manager_id(conn, jurisdiction, identifier)
+            if manager_id is None:
+                logger.warning(
+                    "Manager not found; skipping filing",
+                    extra={
+                        "jurisdiction": jurisdiction,
+                        "identifier": identifier,
+                        "external_id": external_id,
+                    },
+                )
+                continue
+            filing_id = _insert_filing(
                 conn,
-                filing_id=filing_id,
                 manager_id=manager_id,
-                identifier=identifier,
+                source=jurisdiction,
                 external_id=external_id,
                 filed_date=_filing_date(filing, jurisdiction),
+                filing_type=_filing_type(parsed_rows, filing, jurisdiction),
                 parsed_rows=parsed_rows,
-                jurisdiction=jurisdiction,
             )
-        conn.commit()
-        if should_keep_results:
-            results.extend(parsed_rows)
 
-    logger.info(
-        "Stored filings",
-        extra={"identifier": identifier, "jurisdiction": jurisdiction, "rows": row_count},
-    )
-    conn.close()
-    return results
+            should_keep_results = row_count < max_results
+            # UK filings are metadata-driven (e.g., CS01/AR01) and should be
+            # stored as parsed payload on the filings row, not expanded holdings.
+            if jurisdiction != "uk" and _looks_like_holdings_rows(parsed_rows):
+                row_count += _replace_holdings_rows(
+                    conn,
+                    filing_id=filing_id,
+                    manager_id=manager_id,
+                    identifier=identifier,
+                    external_id=external_id,
+                    filed_date=_filing_date(filing, jurisdiction),
+                    parsed_rows=parsed_rows,
+                    jurisdiction=jurisdiction,
+                )
+            if should_keep_results:
+                results.extend(parsed_rows)
+
+        conn.commit()
+        logger.info(
+            "Stored filings",
+            extra={"identifier": identifier, "jurisdiction": jurisdiction, "rows": row_count},
+        )
+        return results
+    except Exception:
+        _rollback_quietly(conn)
+        raise
+    finally:
+        _restore_autocommit_quietly(conn, original_autocommit)
+        _close_quietly(conn)
 
 
 def _default_identifiers(jurisdiction: str) -> list[str]:
