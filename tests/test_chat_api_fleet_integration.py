@@ -20,8 +20,10 @@ from llm import langsmith_fleet as fleet
 @pytest.fixture(autouse=True)
 def _reset_chat_rate_limiter():
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
     yield
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
 
 
 @pytest.fixture()

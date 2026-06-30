@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import importlib
 import json
 import logging
@@ -398,6 +400,7 @@ def _read_positive_float_env(name: str, default: float) -> float:
 
 _CHAT_RATE_LIMIT_PER_MINUTE = _read_positive_int_env("CHAT_RATE_LIMIT_PER_MINUTE", 10)
 _CHAT_RATE_LIMIT_WINDOW_SECONDS = _read_positive_float_env("CHAT_RATE_LIMIT_WINDOW_SECONDS", 60.0)
+_CHAT_SESSION_COOKIE_NAME = os.getenv("CHAT_SESSION_COOKIE_NAME", "session_id")
 
 
 class InMemoryChatRateLimiter:
@@ -436,6 +439,28 @@ def _build_chat_rate_limiter() -> InMemoryChatRateLimiter:
 
 
 CHAT_RATE_LIMITER = _build_chat_rate_limiter()
+CHAT_IP_RATE_LIMITER = _build_chat_rate_limiter()
+
+
+def _sign_chat_session_id(session_id: str, secret: str) -> str:
+    signature = hmac.new(secret.encode("utf-8"), session_id.encode("utf-8"), hashlib.sha256)
+    return f"{session_id}.{signature.hexdigest()}"
+
+
+def _verified_chat_session_cookie(raw_value: str | None) -> str | None:
+    secret = os.getenv("CHAT_SESSION_COOKIE_SECRET")
+    if not raw_value or not secret:
+        return None
+    try:
+        session_id, provided_signature = raw_value.rsplit(".", 1)
+    except ValueError:
+        return None
+    if not session_id or not provided_signature:
+        return None
+    expected = _sign_chat_session_id(session_id, secret).rsplit(".", 1)[1]
+    if not hmac.compare_digest(provided_signature, expected):
+        return None
+    return session_id
 
 
 def _chat_session_id(request: Request | None) -> str:
@@ -443,11 +468,24 @@ def _chat_session_id(request: Request | None) -> str:
     if request is None:
         return "unknown"
     client_host = request.client.host if request.client and request.client.host else "unknown"
+    session_id = _verified_chat_session_cookie(request.cookies.get(_CHAT_SESSION_COOKIE_NAME))
+    if session_id:
+        return f"client:{client_host}:session:{session_id}"
+    return f"client:{client_host}"
+
+
+def _chat_client_id(request: Request | None) -> str:
+    if request is None:
+        return "client:unknown"
+    client_host = request.client.host if request.client and request.client.host else "unknown"
     return f"client:{client_host}"
 
 
 def _enforce_chat_rate_limit(request: Request | None) -> None:
     """Raise 429 when request count exceeds session budget."""
+    client_id = _chat_client_id(request)
+    if not CHAT_IP_RATE_LIMITER.check_and_record(client_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
     session_id = _chat_session_id(request)
     if not CHAT_RATE_LIMITER.check_and_record(session_id):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")

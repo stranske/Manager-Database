@@ -67,8 +67,10 @@ def test_build_chat_client_info_surfaces_llm_client_builder_errors(monkeypatch):
 @pytest.fixture(autouse=True)
 def _reset_chat_rate_limiter():
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
     yield
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
 
 
 async def _request(method: str, path: str, *, json: dict | None = None, params: dict | None = None):
