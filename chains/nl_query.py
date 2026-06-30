@@ -19,7 +19,7 @@ from tools.llm_provider import (
 )
 
 NL_QUERY_SYSTEM_PROMPT = """You are a SQL query generator for a financial manager database.
-Given a natural language question, generate a PostgreSQL SELECT query.
+Given a natural language question, generate a {dialect_name} SELECT query.
 
 IMPORTANT RULES:
 1. Generate ONLY SELECT queries — never INSERT, UPDATE, DELETE, DROP, ALTER, or TRUNCATE.
@@ -37,6 +37,12 @@ _COMMENT_BLOCK_RE = re.compile(r"/\*.*?\*/", re.S)
 _COMMENT_LINE_RE = re.compile(r"--.*?$", re.M)
 _TABLE_REF_RE = re.compile(r'\b(?:from|join)\s+"?([a-zA-Z_][\w]*)"?', re.I)
 _LIMIT_RE = re.compile(r"\blimit\s+\d+\b", re.I)
+_SQLITE_UNSUPPORTED_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bilike\b", re.I), "ILIKE is PostgreSQL-only; use LIKE for SQLite"),
+    (re.compile(r"\bdate_trunc\s*\(", re.I), "date_trunc() is PostgreSQL-only"),
+    (re.compile(r"::\s*[a-zA-Z_][\w]*", re.I), "PostgreSQL cast syntax is not valid SQLite"),
+    (re.compile(r"\bto_(?:char|date|timestamp)\s*\(", re.I), "to_* date functions are PostgreSQL-only"),
+)
 _DANGEROUS_KEYWORDS = {
     "insert",
     "update",
@@ -140,6 +146,25 @@ class NLQueryChain:
             return False, f"Unknown tables referenced: {', '.join(unknown_tables)}"
         return True, None
 
+    def _connection_dialect(self, conn: Any | None = None) -> str:
+        if isinstance(conn if conn is not None else self.db, sqlite3.Connection):
+            return "sqlite"
+        return "postgresql"
+
+    def _dialect_prompt_label(self) -> str:
+        if self._connection_dialect() == "sqlite":
+            return "SQLite-compatible"
+        return "PostgreSQL-compatible"
+
+    def _validate_sql_for_connection(self, sql: str, conn: Any) -> tuple[bool, str | None]:
+        """Reject dialect-specific SQL before it reaches the active connection."""
+        if self._connection_dialect(conn) != "sqlite":
+            return True, None
+        for pattern, message in _SQLITE_UNSUPPORTED_PATTERNS:
+            if pattern.search(sql):
+                return False, message
+        return True, None
+
     def _acquire_connection(self):
         if self.db is not None:
             return self.db, False
@@ -149,7 +174,10 @@ class NLQueryChain:
         """Execute a validated SQL query and return rows as dictionaries."""
         conn, should_close = self._acquire_connection()
         try:
-            if not isinstance(conn, sqlite3.Connection):
+            is_valid_dialect, dialect_error = self._validate_sql_for_connection(sql, conn)
+            if not is_valid_dialect:
+                raise ValueError(dialect_error or "SQL dialect is incompatible with active database")
+            if self._connection_dialect(conn) != "sqlite":
                 conn.execute("SET statement_timeout TO 10000")
             cursor = conn.execute(sql)
             description = cursor.description or []
@@ -202,7 +230,10 @@ class NLQueryChain:
 
     def _prompt_text(self, question: str, context: dict[str, Any] | None = None) -> str:
         return (
-            NL_QUERY_SYSTEM_PROMPT.format(schema_ddl=self._schema_ddl)
+            NL_QUERY_SYSTEM_PROMPT.format(
+                dialect_name=self._dialect_prompt_label(),
+                schema_ddl=self._schema_ddl,
+            )
             + "\n"
             + self._context_prompt(context)
             + f"Question: {question}\n"

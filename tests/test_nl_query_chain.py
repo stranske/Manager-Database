@@ -25,6 +25,16 @@ class FakeLLM:
         return FakeResponse(self._response_text)
 
 
+class TrackingConnection(sqlite3.Connection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.executed_sql: list[str] = []
+
+    def execute(self, sql: str, parameters=(), /):
+        self.executed_sql.append(sql)
+        return super().execute(sql, parameters)
+
+
 @pytest.fixture()
 def sqlite_conn() -> Generator[sqlite3.Connection, None, None]:
     conn = sqlite3.connect(":memory:")
@@ -68,6 +78,21 @@ def test_run_executes_query_and_formats_small_results(sqlite_conn: sqlite3.Conne
     assert result["sql"].endswith("LIMIT 100")
     assert "Returned 1 row(s)." in result["answer"]
     assert llm.prompts and "Database schema:" in llm.prompts[0]
+    assert "SQLite-compatible SELECT query" in llm.prompts[0]
+
+
+def test_sqlite_chain_rejects_postgres_only_sql():
+    conn = sqlite3.connect(":memory:", factory=TrackingConnection)
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT)")
+    conn.execute("INSERT INTO managers(manager_id, name, cik) VALUES (1, 'Elliott', '0001791786')")
+    llm = FakeLLM("{\"sql\": \"SELECT manager_id FROM managers WHERE name ILIKE '%elliott%'\"}")
+    chain = NLQueryChain(llm=llm, db_conn=conn)
+
+    with pytest.raises(ValueError, match="ILIKE is PostgreSQL-only"):
+        chain.run("Find Elliott")
+
+    assert not any("ILIKE" in statement for statement in conn.executed_sql)
+    conn.close()
 
 
 def test_format_results_summarizes_large_result_sets(sqlite_conn: sqlite3.Connection):
