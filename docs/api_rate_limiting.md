@@ -20,11 +20,14 @@ the defaults with:
 
 - `CHAT_RATE_LIMIT_PER_MINUTE`
 - `CHAT_RATE_LIMIT_WINDOW_SECONDS`
+- `CHAT_SESSION_COOKIE_SECRET`
 
-The quota key is resolved from the client host plus a server-side `session_id`
-cookie when one is present. Client-supplied `X-Session-Id` headers are ignored
-for quota identity so anonymous callers cannot rotate that header to bypass the
-per-client budget.
+The quota key is resolved from the client host plus a signed server-issued
+`session_id` cookie when `CHAT_SESSION_COOKIE_SECRET` is configured and the
+cookie signature is valid. Client-supplied `X-Session-Id` headers and unsigned
+or invalid `session_id` cookies are ignored for quota identity so anonymous
+callers cannot rotate client-controlled values to bypass the per-client budget.
+Every chat write request also records against a coarser client-host budget.
 
 When no session key is available, the fallback key is `unknown`.
 
@@ -32,12 +35,12 @@ When no session key is available, the fallback key is `unknown`.
 
 | Endpoint | Method | Limit | Key | Response headers |
 |----------|--------|-------|-----|------------------|
-| `/api/chat` | POST | configurable, default 10 requests per 60 seconds | client host + optional `session_id` cookie | none |
-| `/api/chat/filing-summary` | POST | configurable, default 10 requests per 60 seconds | client host + optional `session_id` cookie | none |
-| `/api/chat/holdings-analysis` | POST | configurable, default 10 requests per 60 seconds | client host + optional `session_id` cookie | none |
-| `/api/chat/query` | POST | configurable, default 10 requests per 60 seconds | client host + optional `session_id` cookie | none |
-| `/api/chat/search` | POST | configurable, default 10 requests per 60 seconds | client host + optional `session_id` cookie | none |
-| `/api/chat/feedback` | POST | configurable, default 10 requests per 60 seconds | client host + optional `session_id` cookie | none |
+| `/api/chat` | POST | configurable, default 10 requests per 60 seconds | client host + optional signed `session_id` cookie, plus client host | none |
+| `/api/chat/filing-summary` | POST | configurable, default 10 requests per 60 seconds | client host + optional signed `session_id` cookie, plus client host | none |
+| `/api/chat/holdings-analysis` | POST | configurable, default 10 requests per 60 seconds | client host + optional signed `session_id` cookie, plus client host | none |
+| `/api/chat/query` | POST | configurable, default 10 requests per 60 seconds | client host + optional signed `session_id` cookie, plus client host | none |
+| `/api/chat/search` | POST | configurable, default 10 requests per 60 seconds | client host + optional signed `session_id` cookie, plus client host | none |
+| `/api/chat/feedback` | POST | configurable, default 10 requests per 60 seconds | client host + optional signed `session_id` cookie, plus client host | none |
 | `/chat` | GET | unlimited | n/a | none |
 | `/managers` | GET, POST | unlimited | n/a | none |
 | `/api/managers/bulk` | POST | unlimited | n/a | none |

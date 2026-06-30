@@ -56,8 +56,10 @@ def _assert_no_rate_limit_headers(response: httpx.Response) -> None:
 @pytest.fixture(autouse=True)
 def _clear_chat_rate_limiter():
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
     yield
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
 
 
 @pytest.mark.parametrize(
@@ -105,7 +107,9 @@ def test_chat_write_limiter_is_session_keyed_and_returns_bare_429(
     monkeypatch: pytest.MonkeyPatch,
 ):
     limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=1, window_seconds=60)
+    ip_limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
     monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setattr(chat_api_module, "CHAT_IP_RATE_LIMITER", ip_limiter)
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
 
     first = asyncio.run(
@@ -131,11 +135,47 @@ def test_chat_write_limiter_is_session_keyed_and_returns_bare_429(
     _assert_no_rate_limit_headers(second)
 
 
+def test_chat_limiter_accepts_signed_server_session_cookies(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=1, window_seconds=60)
+    ip_limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
+    monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setattr(chat_api_module, "CHAT_IP_RATE_LIMITER", ip_limiter)
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
+    monkeypatch.setenv("CHAT_SESSION_COOKIE_SECRET", "test-secret")
+
+    first_cookie = chat_api_module._sign_chat_session_id("server-session-a", "test-secret")
+    second_cookie = chat_api_module._sign_chat_session_id("server-session-b", "test-secret")
+
+    first = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json={"question": "first"},
+            headers={"Cookie": f"session_id={first_cookie}"},
+        )
+    )
+    second = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json={"question": "second"},
+            headers={"Cookie": f"session_id={second_cookie}"},
+        )
+    )
+
+    assert first.status_code == 503
+    assert second.status_code == 503
+
+
 def test_chat_limiter_rejects_rotating_client_session_headers(
     monkeypatch: pytest.MonkeyPatch,
 ):
     limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
+    ip_limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
     monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setattr(chat_api_module, "CHAT_IP_RATE_LIMITER", ip_limiter)
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
 
     responses = [
@@ -160,7 +200,9 @@ def test_chat_limiter_rejects_rotating_client_session_cookies(
     monkeypatch: pytest.MonkeyPatch,
 ):
     limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
+    ip_limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
     monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setattr(chat_api_module, "CHAT_IP_RATE_LIMITER", ip_limiter)
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
 
     responses = [
@@ -217,7 +259,9 @@ def test_chat_rate_limit_window_rejects_non_finite_values(
 
 def test_feedback_limiter_shares_documented_bare_429_shape(monkeypatch: pytest.MonkeyPatch):
     limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=1, window_seconds=60)
+    ip_limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
     monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setattr(chat_api_module, "CHAT_IP_RATE_LIMITER", ip_limiter)
 
     first = asyncio.run(
         _request(
