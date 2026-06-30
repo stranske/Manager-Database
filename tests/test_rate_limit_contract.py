@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -21,6 +23,11 @@ RATE_LIMIT_HEADERS = {
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _signed_session_cookie(session_id: str, secret: str) -> str:
+    signature = hmac.new(secret.encode("utf-8"), session_id.encode("utf-8"), hashlib.sha256)
+    return f"{session_id}.{signature.hexdigest()}"
 
 
 async def _request(
@@ -145,8 +152,8 @@ def test_chat_limiter_accepts_signed_server_session_cookies(
     monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
     monkeypatch.setenv("CHAT_SESSION_COOKIE_SECRET", "test-secret")
 
-    first_cookie = chat_api_module._sign_chat_session_id("server-session-a", "test-secret")
-    second_cookie = chat_api_module._sign_chat_session_id("server-session-b", "test-secret")
+    first_cookie = _signed_session_cookie("server-session-a", "test-secret")
+    second_cookie = _signed_session_cookie("server-session-b", "test-secret")
 
     first = asyncio.run(
         _request(

@@ -24,8 +24,10 @@ import api.chat as chat_api_module
 @pytest.fixture(autouse=True)
 def _reset_chat_rate_limiter():
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
     yield
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
 
 
 async def _request(

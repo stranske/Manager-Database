@@ -29,7 +29,9 @@ or invalid `session_id` cookies are ignored for quota identity so anonymous
 callers cannot rotate client-controlled values to bypass the per-client budget.
 Every chat write request also records against a coarser client-host budget.
 
-When no session key is available, the fallback key is `unknown`.
+When no signed session cookie is available, the fallback key is derived from the
+client host as `client:{host}`. The key is `client:unknown` only when the
+request or client host cannot be determined.
 
 ## Current Endpoint Scope
 

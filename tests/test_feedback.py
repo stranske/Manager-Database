@@ -38,6 +38,10 @@ def feedback_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 @pytest.fixture(autouse=True)
 def clear_rate_limiter() -> None:
     chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
+    yield
+    chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
 
 
 def test_feedback_endpoint_stores_rating(feedback_db: Path):
