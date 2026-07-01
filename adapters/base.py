@@ -55,8 +55,8 @@ def connect_db(
     if url:
         if not url.startswith("postgres"):
             raise RuntimeError(
-                "Unsupported DB_URL scheme; unset DB_URL for SQLite or use a postgres:///"
-                "postgresql:// URL."
+                "Unsupported DB_URL scheme; unset DB_URL for SQLite or use a "
+                "postgres:// or postgresql:// URL."
             )
         if psycopg is None:
             raise RuntimeError(

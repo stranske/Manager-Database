@@ -101,9 +101,13 @@ def test_connect_db_rejects_unsupported_db_url_scheme(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(env_path))
     monkeypatch.setenv("DB_URL", "mysql://user@localhost/db")
 
-    with pytest.raises(RuntimeError, match="Unsupported DB_URL scheme"):
+    with pytest.raises(RuntimeError) as exc_info:
         connect_db()
 
+    assert str(exc_info.value) == (
+        "Unsupported DB_URL scheme; unset DB_URL for SQLite or use a "
+        "postgres:// or postgresql:// URL."
+    )
     assert not env_path.exists()
 
 
