@@ -13,7 +13,16 @@ from typing import Any, cast
 import boto3
 from prefect import flow, task
 
-from adapters.base import connect_db, get_adapter, get_placeholder, get_table_columns, is_sqlite
+from adapters.base import (
+    connect_db,
+    get_adapter,
+    get_placeholder,
+    get_table_columns,
+    is_sqlite,
+)
+from adapters.base import (
+    manager_id_column as shared_manager_id_column,
+)
 from etl.logging_setup import configure_logging, log_outcome
 
 
@@ -76,12 +85,7 @@ _table_columns = get_table_columns
 
 
 def _manager_id_column(conn: Any) -> str | None:
-    columns = _table_columns(conn, "managers")
-    if "manager_id" in columns:
-        return "manager_id"
-    if "id" in columns:
-        return "id"
-    return None
+    return shared_manager_id_column(conn)
 
 
 def _ensure_filing_tables(conn: Any) -> None:

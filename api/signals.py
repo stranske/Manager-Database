@@ -16,7 +16,14 @@ except ModuleNotFoundError:
 
     APIRouter, BaseModel, _Field, Query = offline_api_imports()
 
-from adapters.base import connect_db, get_placeholder, get_table_columns, table_exists
+from adapters.base import (
+    connect_db,
+    get_placeholder,
+    table_exists,
+)
+from adapters.base import (
+    manager_id_column as shared_manager_id_column,
+)
 
 router = APIRouter()
 
@@ -130,15 +137,7 @@ def _parse_manager_ids(value: Any) -> list[int]:
 
 
 def _manager_id_column(conn: Any) -> str | None:
-    if not table_exists(conn, "managers"):
-        return None
-    manager_id_column = "manager_id"
-    columns = get_table_columns(conn, "managers")
-    if "manager_id" not in columns and "id" in columns:
-        manager_id_column = "id"
-    elif "manager_id" not in columns:
-        return None
-    return manager_id_column
+    return shared_manager_id_column(conn, require_table=True)
 
 
 def _manager_name_lookup(conn: Any) -> dict[int, str]:

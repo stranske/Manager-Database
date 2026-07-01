@@ -40,6 +40,8 @@ _BASE_RELEVANCE = {
 
 _VALID_ENTITY_TYPES: set[str] = {"filing", "holding", "news", "document", "manager"}
 
+_get_columns = get_table_columns
+
 
 def _normalize_rank(rank: float | int | None) -> float:
     rank_value = finite_float_or_none(rank, min_value=0.0)

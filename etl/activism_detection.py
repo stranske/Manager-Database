@@ -8,7 +8,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from adapters.base import get_placeholder, is_sqlite
+from adapters.base import get_placeholder, is_postgres, is_sqlite
 from alerts.db import ensure_alert_tables as _ensure_alert_tables
 from alerts.integration import fire_alerts_for_event_sync as _dispatch_alerts_for_event_sync
 from alerts.models import AlertEvent
@@ -39,10 +39,6 @@ class ActivismEvent:
     previous_pct: float | None
     delta_pct: float | None
     threshold_crossed: float | None = None
-
-
-def _is_postgres(conn: Any) -> bool:
-    return not is_sqlite(conn) and hasattr(conn, "execute")
 
 
 def _serialize_json(value: Any) -> str:
@@ -180,7 +176,7 @@ def ensure_activism_events_table(conn: Any) -> None:
         )
         return
 
-    if _is_postgres(conn):
+    if is_postgres(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_events (
             event_id BIGSERIAL PRIMARY KEY,
             manager_id BIGINT NOT NULL REFERENCES managers(manager_id),

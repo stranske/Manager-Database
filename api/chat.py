@@ -28,7 +28,7 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
 from pydantic import BaseModel, ConfigDict, Field
 
-from adapters.base import connect_db, get_placeholder, get_table_columns, is_sqlite
+from adapters.base import connect_db, get_placeholder, is_sqlite, manager_id_column, table_exists
 from api.activism import router as activism_router
 from api.alerts import router as alerts_router
 from api.data import router as data_router
@@ -569,8 +569,7 @@ def _chat_zone_disabled() -> bool:
 
 
 def _manager_id_column(conn: Any) -> str:
-    columns = get_table_columns(conn, "managers")
-    return "manager_id" if "manager_id" in columns else "id"
+    return manager_id_column(conn, require_table=True) or "id"
 
 
 def _normalize_manager_ids(value: Any) -> list[int]:
@@ -867,11 +866,6 @@ def _response_id_from_trace_url(trace_url: str | None) -> str | None:
     return None
 
 
-def _postgres_table_exists(conn: Any, table_name: str) -> bool:
-    row = conn.execute("SELECT to_regclass(%s)", (f"public.{table_name}",)).fetchone()
-    return bool(row and row[0])
-
-
 def _ensure_chat_feedback_table(conn: Any) -> None:
     if is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS chat_feedback (
@@ -883,7 +877,7 @@ def _ensure_chat_feedback_table(conn: Any) -> None:
             )""")
         return
 
-    if not _postgres_table_exists(conn, "chat_feedback"):
+    if not table_exists(conn, "chat_feedback"):
         raise RuntimeError("chat_feedback table missing; run migrations before accepting feedback")
 
 

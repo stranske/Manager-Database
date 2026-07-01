@@ -11,7 +11,7 @@ from typing import Any
 from prefect import flow, task
 from prefect.schedules import Cron
 
-from adapters.base import connect_db, get_placeholder, is_sqlite
+from adapters.base import connect_db, get_placeholder, is_postgres, is_sqlite
 from alerts.integration import evaluate_and_record_alerts
 from alerts.models import AlertEvent
 from diff_holdings import diff_holdings
@@ -25,10 +25,6 @@ logger = logging.getLogger(__name__)
 DAILY_DIFF_ARTIFACT_TOOL = "daily" "_diff"
 
 _placeholder = get_placeholder
-
-
-def _is_postgres(conn: Any) -> bool:
-    return not is_sqlite(conn)
 
 
 def _ensure_daily_diffs_table(conn: Any) -> None:
@@ -114,7 +110,7 @@ def _insert_diffs(
 
 def _refresh_matview(conn: Any) -> None:
     """Refresh the mv_daily_report materialized view (Postgres only)."""
-    if _is_postgres(conn):
+    if is_postgres(conn):
         try:
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_report_idx "
@@ -323,7 +319,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
 
         # Postgres runs with autocommit=True, so an explicit transaction is
         # required to make the DELETE-then-INSERT cycle atomic per batch.
-        if _is_postgres(conn):
+        if is_postgres(conn):
             conn.execute("BEGIN")
 
         total_changes = 0

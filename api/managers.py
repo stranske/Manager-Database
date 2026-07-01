@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from adapters.base import connect_db
+from adapters.base import manager_id_column as shared_manager_id_column
 from api.cache import cache_query, invalidate_cache_prefix
 from api.models import (
     BulkImportFailure,
@@ -160,7 +161,9 @@ def _ensure_manager_table(conn) -> None:
 
 def _manager_id_column(conn) -> str:
     """Return the manager primary-key column for the active database backend."""
-    return "id" if isinstance(conn, sqlite3.Connection) else "manager_id"
+    return shared_manager_id_column(conn) or (
+        "id" if isinstance(conn, sqlite3.Connection) else "manager_id"
+    )
 
 
 def _json_array(raw: object) -> list[str]:

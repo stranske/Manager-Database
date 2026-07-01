@@ -98,6 +98,11 @@ def is_sqlite(conn: Any) -> bool:
     return isinstance(conn, sqlite3.Connection)
 
 
+def is_postgres(conn: Any) -> bool:
+    """Return whether a DB connection is Postgres-backed."""
+    return not is_sqlite(conn) and hasattr(conn, "execute")
+
+
 def get_placeholder(conn: Any) -> str:
     """Return the parameter placeholder for the active DB connection."""
     return "?" if is_sqlite(conn) else "%s"
@@ -117,16 +122,31 @@ def table_exists(conn: Any, table_name: str) -> bool:
 
 def get_table_columns(conn: Any, table_name: str) -> set[str]:
     """Return table column names for SQLite or Postgres."""
-    if is_sqlite(conn):
-        escaped_table = table_name.replace("'", "''")
-        rows = conn.execute(f"SELECT name FROM pragma_table_info('{escaped_table}')").fetchall()
+    try:
+        if is_sqlite(conn):
+            escaped_table = table_name.replace("'", "''")
+            rows = conn.execute(f"SELECT name FROM pragma_table_info('{escaped_table}')").fetchall()
+            return {str(row[0]) for row in rows}
+        rows = conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = %s",
+            (table_name,),
+        ).fetchall()
         return {str(row[0]) for row in rows}
-    rows = conn.execute(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_schema = current_schema() AND table_name = %s",
-        (table_name,),
-    ).fetchall()
-    return {str(row[0]) for row in rows}
+    except Exception:
+        return set()
+
+
+def manager_id_column(conn: Any, *, require_table: bool = False) -> str | None:
+    """Return the manager primary-key column used by the active schema."""
+    if require_table and not table_exists(conn, "managers"):
+        return None
+    columns = get_table_columns(conn, "managers")
+    if "manager_id" in columns:
+        return "manager_id"
+    if "id" in columns:
+        return "id"
+    return None
 
 
 def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:

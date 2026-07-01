@@ -763,7 +763,10 @@ def conviction_flow(
         scores_computed = 0
         try:
             _ensure_conviction_scores_table(db)
-            ensure_api_usage_schema(db)
+            if isinstance(db, sqlite3.Connection):
+                ensure_api_usage_schema(db)
+            else:
+                _ensure_postgres_table_exists(db, "api_usage")
             summary = score_all_latest_filings.fn(db)
             scores_computed = summary["scores_computed"]
             return summary

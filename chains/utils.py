@@ -120,17 +120,19 @@ def extract_json_text(text: str) -> str | None:
 
 def guard_context_values(context: dict[str, Any] | None) -> None:
     """Apply prompt-injection guard recursively to string context values."""
-    if not context:
-        return
-    for value in context.values():
+
+    def _guard_value(value: Any) -> None:
         if isinstance(value, str):
             guard_input(value)
         elif isinstance(value, dict):
-            guard_context_values(value)
-        elif isinstance(value, list):
+            for item in value.values():
+                _guard_value(item)
+        elif isinstance(value, (list, tuple)):
             for item in value:
-                if isinstance(item, str):
-                    guard_input(item)
+                _guard_value(item)
+
+    if context:
+        _guard_value(context)
 
 
 def acquire_connection(existing_conn: Any | None):

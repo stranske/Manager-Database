@@ -11,7 +11,7 @@ from prefect import flow, task
 from prefect.schedules import Cron
 
 from adapters import edgar
-from adapters.base import connect_db, get_placeholder, is_sqlite
+from adapters.base import connect_db, get_placeholder, is_postgres, is_sqlite
 from alerts.integration import fire_alerts_for_event
 from etl.activism_detection import (
     ALERT_EVENT_TYPE,
@@ -31,10 +31,6 @@ ACTIVISM_FORMS = ["SC 13D", "SC 13D/A", "SC 13G", "SC 13G/A"]
 ACTIVISM_FLOW_NIGHTLY_CRON = os.getenv("ACTIVISM_FLOW_CRON", "0 4 * * *")
 ACTIVISM_FLOW_TIMEZONE = os.getenv("ACTIVISM_FLOW_TIMEZONE", "UTC")
 DB_PATH = os.getenv("DB_PATH", "dev.db")
-
-
-def _is_postgres(conn: Any) -> bool:
-    return not is_sqlite(conn) and hasattr(conn, "execute")
 
 
 def _ensure_activism_filings_table(conn: Any) -> None:
@@ -66,7 +62,7 @@ def _ensure_activism_filings_table(conn: Any) -> None:
         )
         return
 
-    if _is_postgres(conn):
+    if is_postgres(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
             filing_id BIGSERIAL PRIMARY KEY,
             manager_id BIGINT NOT NULL REFERENCES managers(manager_id),
