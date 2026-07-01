@@ -11,7 +11,7 @@ from typing import Any
 from prefect import flow, task
 
 from adapters import news
-from adapters.base import connect_db, get_placeholder, is_sqlite
+from adapters.base import connect_db, get_placeholder, is_sqlite, resolve_manager_id_column
 from alerts.integration import fire_alerts_for_event
 from alerts.models import AlertEvent
 from etl.logging_setup import configure_logging, log_outcome
@@ -67,7 +67,8 @@ def _normalize_aliases(raw_aliases: Any) -> list[str]:
 @task
 def match_entities(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:
     """Link news items to managers by name/alias substring matching."""
-    rows = conn.execute("SELECT manager_id, name, aliases FROM managers").fetchall()
+    id_column = resolve_manager_id_column(conn)
+    rows = conn.execute(f"SELECT {id_column}, name, aliases FROM managers").fetchall()
 
     manager_terms: list[tuple[int, list[str]]] = []
     for manager_id, name, aliases in rows:

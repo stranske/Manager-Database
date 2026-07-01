@@ -6,9 +6,13 @@ from datetime import date
 
 import pytest
 
+import diff_holdings as diff_holdings_module
+import etl.activism_flow as activism_flow
 import etl.daily_diff_flow as daily_flow
 import etl.edgar_flow as edgar_flow
+import etl.news_flow as news_flow
 import etl.summariser_flow as summariser_flow
+from api import managers as managers_api
 
 
 def seed_daily_diffs(db_path, rows):
@@ -46,6 +50,39 @@ def seed_manager(db_path, cik, manager_id=1):
     )
     conn.commit()
     conn.close()
+
+
+def test_etl_manager_id_readers_support_api_created_sqlite_schema(tmp_path):
+    db_path = tmp_path / "api-created.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        managers_api._ensure_manager_table(conn)
+        manager_id = managers_api._insert_manager(
+            conn,
+            managers_api.ManagerCreate(
+                name="Elliott Investment Management L.P.",
+                cik="0001791786",
+                aliases=["Elliott"],
+                jurisdictions=["us"],
+            ),
+        )
+
+        matched = news_flow.match_entities.fn(
+            [{"headline": "Elliott files new position", "body_snippet": ""}],
+            conn,
+        )
+
+        assert manager_id == 1
+        assert matched[0]["manager_id"] == manager_id
+        assert daily_flow._fetch_all_manager_ids(conn) == [manager_id]
+        assert diff_holdings_module._resolve_manager_id("0001791786", conn) == manager_id
+        assert activism_flow._all_manager_ids(conn) == [manager_id]
+        assert activism_flow._load_manager_row(conn, manager_id) == (
+            "Elliott Investment Management L.P.",
+            "0001791786",
+        )
+    finally:
+        conn.close()
 
 
 # Fixed date for deterministic flow defaults.

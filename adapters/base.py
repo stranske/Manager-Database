@@ -124,16 +124,19 @@ def get_table_columns(conn: Any, table_name: str) -> set[str]:
     """Return table column names for SQLite or Postgres."""
     try:
         if is_sqlite(conn):
-            escaped_table = table_name.replace("'", "''")
-            rows = conn.execute(f"SELECT name FROM pragma_table_info('{escaped_table}')").fetchall()
-            return {str(row[0]) for row in rows}
+            rows = conn.execute(
+                "SELECT name FROM pragma_table_info(:table_name)",
+                {"table_name": table_name},
+            ).fetchall()
+            return {str(row[0]) for row in rows if row and row[0] is not None}
         rows = conn.execute(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_schema = current_schema() AND table_name = %s",
             (table_name,),
         ).fetchall()
-        return {str(row[0]) for row in rows}
+        return {str(row[0]) for row in rows if row and row[0] is not None}
     except Exception:
+        logger.debug("Failed to introspect columns for table %s", table_name, exc_info=True)
         return set()
 
 
@@ -147,6 +150,13 @@ def manager_id_column(conn: Any, *, require_table: bool = False) -> str | None:
     if "id" in columns:
         return "id"
     return None
+
+
+def resolve_manager_id_column(conn: Any) -> str:
+    """Return the manager primary-key column with a dialect fallback."""
+    if not is_sqlite(conn):
+        return "manager_id"
+    return manager_id_column(conn) or "id"
 
 
 def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:

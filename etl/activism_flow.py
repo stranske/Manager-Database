@@ -11,7 +11,13 @@ from prefect import flow, task
 from prefect.schedules import Cron
 
 from adapters import edgar
-from adapters.base import connect_db, get_placeholder, is_postgres, is_sqlite
+from adapters.base import (
+    connect_db,
+    get_placeholder,
+    is_postgres,
+    is_sqlite,
+    resolve_manager_id_column,
+)
 from alerts.integration import fire_alerts_for_event
 from etl.activism_detection import (
     ALERT_EVENT_TYPE,
@@ -97,8 +103,9 @@ def _ensure_activism_filings_table(conn: Any) -> None:
 
 def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
     ph = get_placeholder(conn)
+    id_column = resolve_manager_id_column(conn)
     row = conn.execute(
-        f"SELECT name, cik FROM managers WHERE manager_id = {ph} LIMIT 1",
+        f"SELECT name, cik FROM managers WHERE {id_column} = {ph} LIMIT 1",
         (manager_id,),
     ).fetchone()
     if not row or not row[1]:
@@ -107,8 +114,9 @@ def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
 
 
 def _all_manager_ids(conn: Any) -> list[int]:
+    id_column = resolve_manager_id_column(conn)
     rows = conn.execute(
-        "SELECT manager_id FROM managers WHERE cik IS NOT NULL ORDER BY manager_id"
+        f"SELECT {id_column} FROM managers WHERE cik IS NOT NULL ORDER BY {id_column}"
     ).fetchall()
     return [int(row[0]) for row in rows if row and row[0] is not None]
 
