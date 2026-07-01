@@ -66,6 +66,35 @@ def test_normalize_sql_injects_limit_when_missing(sqlite_conn: sqlite3.Connectio
     )
 
 
+def test_normalize_sql_caps_existing_large_limit(sqlite_conn: sqlite3.Connection):
+    chain = NLQueryChain(db_conn=sqlite_conn)
+
+    assert (
+        chain._normalize_sql("SELECT * FROM managers LIMIT 1000000")
+        == "SELECT * FROM managers LIMIT 100"
+    )
+    assert (
+        chain._normalize_sql("SELECT * FROM managers LIMIT 25") == "SELECT * FROM managers LIMIT 25"
+    )
+
+
+def test_validate_sql_rejects_tableless_system_calls(sqlite_conn: sqlite3.Connection):
+    chain = NLQueryChain(db_conn=sqlite_conn)
+
+    is_valid, error = chain._validate_sql("SELECT pg_sleep(20)")
+
+    assert is_valid is False
+    assert error is not None
+    assert "known application table" in error
+
+
+def test_validate_sql_still_allows_known_table_queries(sqlite_conn: sqlite3.Connection):
+    chain = NLQueryChain(db_conn=sqlite_conn)
+
+    assert chain._validate_sql("SELECT manager_id FROM managers LIMIT 1000000") == (True, None)
+    assert chain._validate_sql("SELECT manager_id FROM MANAGERS LIMIT 1000000") == (True, None)
+
+
 def test_run_executes_query_and_formats_small_results(sqlite_conn: sqlite3.Connection):
     llm = FakeLLM(
         '{"sql": "SELECT manager_id, name FROM managers ORDER BY manager_id", "columns": ["manager_id", "name"]}'
