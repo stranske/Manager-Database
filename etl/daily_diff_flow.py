@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 DAILY_DIFF_ARTIFACT_TOOL = "daily" "_diff"
 
+_placeholder = get_placeholder
+
 
 def _is_postgres(conn: Any) -> bool:
     return not is_sqlite(conn)

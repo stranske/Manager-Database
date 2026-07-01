@@ -117,10 +117,9 @@ def table_exists(conn: Any, table_name: str) -> bool:
 
 def get_table_columns(conn: Any, table_name: str) -> set[str]:
     """Return table column names for SQLite or Postgres."""
-    if not table_exists(conn, table_name):
-        return set()
     if is_sqlite(conn):
-        rows = conn.execute("SELECT name FROM pragma_table_info(?)", (table_name,)).fetchall()
+        escaped_table = table_name.replace("'", "''")
+        rows = conn.execute(f"SELECT name FROM pragma_table_info('{escaped_table}')").fetchall()
         return {str(row[0]) for row in rows}
     rows = conn.execute(
         "SELECT column_name FROM information_schema.columns "
