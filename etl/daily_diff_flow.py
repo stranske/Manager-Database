@@ -11,7 +11,13 @@ from typing import Any
 from prefect import flow, task
 from prefect.schedules import Cron
 
-from adapters.base import connect_db, get_placeholder, is_postgres, is_sqlite
+from adapters.base import (
+    connect_db,
+    get_placeholder,
+    is_postgres,
+    is_sqlite,
+    resolve_manager_id_column,
+)
 from alerts.integration import evaluate_and_record_alerts
 from alerts.models import AlertEvent
 from diff_holdings import diff_holdings
@@ -128,7 +134,8 @@ def _refresh_matview(conn: Any) -> None:
 
 def _fetch_all_manager_ids(conn: Any) -> list[int]:
     """Return all manager_ids from the managers table."""
-    rows = conn.execute("SELECT manager_id FROM managers ORDER BY manager_id").fetchall()
+    id_column = resolve_manager_id_column(conn)
+    rows = conn.execute(f"SELECT {id_column} FROM managers ORDER BY {id_column}").fetchall()
     return [r[0] for r in rows]
 
 

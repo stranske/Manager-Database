@@ -7,7 +7,7 @@ import sys
 import time
 from typing import Any
 
-from adapters.base import connect_db
+from adapters.base import connect_db, resolve_manager_id_column
 from tools.registry import run_contract_fields
 from tools.run_contract import RunResult
 
@@ -66,8 +66,9 @@ def _resolve_manager_id(identifier: int | str, conn: Any) -> int:
 
     cik = identifier.strip()
     ph = _placeholder(conn)
+    id_column = resolve_manager_id_column(conn)
     row = conn.execute(
-        f"SELECT manager_id FROM managers WHERE cik = {ph} LIMIT 1",
+        f"SELECT {id_column} FROM managers WHERE cik = {ph} LIMIT 1",
         (cik,),
     ).fetchone()
     if row is not None:
