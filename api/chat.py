@@ -10,7 +10,6 @@ import json
 import logging
 import math
 import os
-import sqlite3
 import time
 import uuid
 from collections import defaultdict, deque
@@ -29,7 +28,7 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
 from pydantic import BaseModel, ConfigDict, Field
 
-from adapters.base import connect_db
+from adapters.base import connect_db, get_placeholder, is_sqlite, manager_id_column, table_exists
 from api.activism import router as activism_router
 from api.alerts import router as alerts_router
 from api.data import router as data_router
@@ -365,7 +364,6 @@ DIRECT_CHAIN_PATHS = {
     "nl_query": ("chains.nl_query", "NLQueryChain"),
     "rag_search": ("chains.rag_search", "RAGSearchChain"),
 }
-SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
 
 class ChainUnavailableError(RuntimeError):
@@ -570,22 +568,8 @@ def _chat_zone_disabled() -> bool:
     return os.getenv("LLM_ZONE", "").strip().lower() == "disabled"
 
 
-def _is_sqlite_connection(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
 def _manager_id_column(conn: Any) -> str:
-    if _is_sqlite_connection(conn):
-        rows = conn.execute(SQLITE_TABLE_INFO_SQL, ("managers",)).fetchall()
-        columns = {str(row[0]) for row in rows}
-    else:
-        rows = conn.execute(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_schema = current_schema() AND table_name = %s",
-            ("managers",),
-        ).fetchall()
-        columns = {str(row[0]) for row in rows}
-    return "manager_id" if "manager_id" in columns else "id"
+    return manager_id_column(conn, require_table=True) or "id"
 
 
 def _normalize_manager_ids(value: Any) -> list[int]:
@@ -630,7 +614,7 @@ def _manager_ids_for_name(conn: Any, manager_name: str) -> list[int]:
     if not normalized_name:
         return []
     manager_id_col = _manager_id_column(conn)
-    placeholder = "?" if _is_sqlite_connection(conn) else "%s"
+    placeholder = get_placeholder(conn)
     rows = conn.execute(
         f"SELECT {manager_id_col} FROM managers WHERE lower(name) = lower({placeholder})",
         (normalized_name,),
@@ -882,17 +866,8 @@ def _response_id_from_trace_url(trace_url: str | None) -> str | None:
     return None
 
 
-def _placeholder(conn: Any) -> str:
-    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
-
-
-def _postgres_table_exists(conn: Any, table_name: str) -> bool:
-    row = conn.execute("SELECT to_regclass(%s)", (f"public.{table_name}",)).fetchone()
-    return bool(row and row[0])
-
-
 def _ensure_chat_feedback_table(conn: Any) -> None:
-    if isinstance(conn, sqlite3.Connection):
+    if is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS chat_feedback (
                 feedback_id INTEGER PRIMARY KEY,
                 response_id TEXT NOT NULL,
@@ -902,7 +877,7 @@ def _ensure_chat_feedback_table(conn: Any) -> None:
             )""")
         return
 
-    if not _postgres_table_exists(conn, "chat_feedback"):
+    if not table_exists(conn, "chat_feedback"):
         raise RuntimeError("chat_feedback table missing; run migrations before accepting feedback")
 
 
@@ -910,8 +885,8 @@ def _store_feedback(feedback: FeedbackRequest) -> int:
     conn = connect_db()
     try:
         _ensure_chat_feedback_table(conn)
-        ph = _placeholder(conn)
-        if isinstance(conn, sqlite3.Connection):
+        ph = get_placeholder(conn)
+        if is_sqlite(conn):
             cursor = conn.execute(
                 f"INSERT INTO chat_feedback(response_id, rating, comment) VALUES ({ph}, {ph}, {ph})",
                 (feedback.response_id, feedback.rating, feedback.comment),

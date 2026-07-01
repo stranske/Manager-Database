@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from adapters.base import connect_db
+from llm.injection import guard_input
+
 
 def format_holdings_table(holdings: list[dict[str, Any]], max_rows: int = 20) -> str:
     """Format holdings rows as a readable plain-text table."""
@@ -76,3 +79,64 @@ def truncate_context(text: str, max_tokens: int = 4000) -> str:
     if max_chars <= len(tail):
         return tail[:max_chars]
     return f"{text[: max_chars - len(tail)]}{tail}"
+
+
+def rows_to_dicts(cursor: Any, rows: list[Any]) -> list[dict[str, Any]]:
+    """Convert DB cursor rows to dictionaries without assuming one row type."""
+    if not rows:
+        return []
+    if isinstance(rows[0], dict):
+        return rows
+    if hasattr(rows[0], "keys"):
+        return [dict(row) for row in rows]
+    columns = [entry[0] for entry in (cursor.description or [])]
+    return [dict(zip(columns, row, strict=False)) for row in rows]
+
+
+def extract_json_text(text: str) -> str | None:
+    """Extract a JSON object from raw or fenced model output."""
+    stripped = text.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        return stripped
+
+    fence_start = stripped.find("```")
+    if fence_start >= 0:
+        last_fence = stripped.rfind("```")
+        if last_fence > fence_start:
+            fenced = stripped[fence_start + 3 : last_fence].strip()
+            if "\n" in fenced:
+                first_line, remainder = fenced.split("\n", 1)
+                if first_line.strip().lower() in {"json", "application/json"}:
+                    fenced = remainder.strip()
+            if fenced.startswith("{") and fenced.endswith("}"):
+                return fenced
+
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start >= 0 and end > start:
+        return stripped[start : end + 1]
+    return None
+
+
+def guard_context_values(context: dict[str, Any] | None) -> None:
+    """Apply prompt-injection guard recursively to string context values."""
+
+    def _guard_value(value: Any) -> None:
+        if isinstance(value, str):
+            guard_input(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                _guard_value(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                _guard_value(item)
+
+    if context:
+        _guard_value(context)
+
+
+def acquire_connection(existing_conn: Any | None):
+    """Return an existing connection or open a new one with an ownership flag."""
+    if existing_conn is not None:
+        return existing_conn, False
+    return connect_db(), True

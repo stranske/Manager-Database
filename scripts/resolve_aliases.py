@@ -13,6 +13,8 @@ from typing import Any
 import httpx
 
 from adapters.base import connect_db, tracked_call
+from adapters.base import manager_id_column as shared_manager_id_column
+from utils.identifiers import normalize_cik
 
 EDGAR_BASE_URL = "https://data.sec.gov"
 DEFAULT_USER_AGENT = "manager-intel/0.1 (resolve-aliases)"
@@ -24,16 +26,6 @@ class ManagerRow:
     name: str
     cik: str
     aliases_raw: Any
-
-
-def _normalize_cik(raw: Any) -> str:
-    cik = "" if raw is None else str(raw).strip()
-    if not cik:
-        return ""
-    digits = "".join(ch for ch in cik if ch.isdigit())
-    if not digits:
-        return ""
-    return digits.zfill(10)
 
 
 def _normalize_name(value: str) -> str:
@@ -62,28 +54,9 @@ def _parse_aliases(raw: Any) -> list[str]:
 
 
 def _manager_id_column(conn: Any) -> str:
-    if isinstance(conn, sqlite3.Connection):
-        columns = {
-            str(row[0]).lower()
-            for row in conn.execute("SELECT name FROM pragma_table_info('managers')")
-            if row and row[0] is not None
-        }
-        if "id" in columns:
-            return "id"
-        if "manager_id" in columns:
-            return "manager_id"
-        raise RuntimeError("managers table must include an id or manager_id column")
-
-    rows = conn.execute("""
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_name = 'managers'
-        """).fetchall()
-    columns = {str(row[0]).lower() for row in rows if row and row[0] is not None}
-    if "id" in columns:
-        return "id"
-    if "manager_id" in columns:
-        return "manager_id"
+    column = shared_manager_id_column(conn)
+    if column is not None:
+        return column
     raise RuntimeError("managers table must include an id or manager_id column")
 
 
@@ -99,7 +72,7 @@ def _fetch_managers_with_cik(conn: Any) -> tuple[str, list[ManagerRow]]:
         ManagerRow(
             manager_id=int(row[0]),
             name=str(row[1] or "").strip(),
-            cik=_normalize_cik(row[2]),
+            cik=normalize_cik(row[2]),
             aliases_raw=row[3] if len(row) > 3 else None,
         )
         for row in rows

@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from adapters.base import connect_db  # noqa: E402
+from utils.identifiers import normalize_cik  # noqa: E402
 
 DEFAULT_ROLE = "Manager"
 
@@ -23,16 +24,6 @@ DEFAULT_ROLE = "Manager"
 def _sqlite_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
     rows = conn.execute(f"SELECT name FROM pragma_table_info('{table_name}')").fetchall()
     return {str(row[0]).lower() for row in rows if row and row[0] is not None}
-
-
-def _normalize_cik(raw: Any) -> str:
-    cik = "" if raw is None else str(raw).strip()
-    if not cik:
-        return ""
-    digits = "".join(ch for ch in cik if ch.isdigit())
-    if not digits:
-        return ""
-    return digits.zfill(10)
 
 
 def _load_records(path: Path) -> list[dict[str, Any]]:
@@ -216,7 +207,7 @@ def seed_universe(file_path: Path, *, dry_run: bool = False) -> tuple[int, int, 
 
         for idx, record in enumerate(records):
             name = str(record.get("name", "")).strip()
-            cik = _normalize_cik(record.get("cik"))
+            cik = normalize_cik(record.get("cik"))
             jurisdiction = str(record.get("jurisdiction", "")).strip().lower() or None
 
             if not name or not cik or not jurisdiction:

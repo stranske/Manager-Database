@@ -5,14 +5,13 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
 from prefect import flow, task
 
 from adapters import news
-from adapters.base import connect_db
+from adapters.base import connect_db, get_placeholder, is_sqlite
 from alerts.integration import fire_alerts_for_event
 from alerts.models import AlertEvent
 from etl.logging_setup import configure_logging, log_outcome
@@ -122,12 +121,8 @@ def _resolve_sources(sources: list[str] | None) -> list[str]:
     return parsed_sources or ["rss", "gdelt"]
 
 
-def _placeholder(conn: Any) -> str:
-    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
-
-
 def _serialize_topics(topics: Any, conn: Any) -> Any:
-    if isinstance(conn, sqlite3.Connection):
+    if is_sqlite(conn):
         if topics is None:
             return "[]"
         if isinstance(topics, str):
@@ -147,7 +142,7 @@ def _ensure_watermarks_table(conn: Any) -> None:
             latest_published_at TEXT NOT NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""")
-    if isinstance(conn, sqlite3.Connection):
+    if is_sqlite(conn):
         conn.commit()
 
 
@@ -216,7 +211,7 @@ async def emit_news_spike_alerts(items: list[dict[str, Any]], conn: Any) -> int:
 
 
 def _fetch_source_watermark(conn: Any, source: str) -> str | None:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     row = conn.execute(
         f"SELECT latest_published_at FROM watermarks WHERE source = {ph}",
         (source,),
@@ -227,7 +222,7 @@ def _fetch_source_watermark(conn: Any, source: str) -> str | None:
 
 
 def _fallback_source_since_from_news(conn: Any, source: str) -> str | None:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     try:
         row = conn.execute(
             f"SELECT MAX(published_at) FROM news_items WHERE source = {ph}",
@@ -263,7 +258,7 @@ def update_source_watermark(source: str, items: list[dict[str, Any]], conn: Any)
     if current_dt is not None and latest_dt <= current_dt:
         return current
 
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     conn.execute(
         f"""INSERT INTO watermarks (source, latest_published_at)
             VALUES ({ph}, {ph})
@@ -272,7 +267,7 @@ def update_source_watermark(source: str, items: list[dict[str, Any]], conn: Any)
                           updated_at = CURRENT_TIMESTAMP""",
         (source, latest),
     )
-    if isinstance(conn, sqlite3.Connection):
+    if is_sqlite(conn):
         conn.commit()
     return latest
 
@@ -285,7 +280,7 @@ def persist_news(items: list[dict[str, Any]], conn: Any) -> int:
         return 0
 
     _ensure_news_unique_constraint(conn)
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     sql = (
         "INSERT INTO news_items "
         "(manager_id, published_at, source, headline, url, body_snippet, topics, confidence) "
@@ -312,7 +307,7 @@ def persist_news(items: list[dict[str, Any]], conn: Any) -> int:
         if isinstance(rowcount, int) and rowcount > 0:
             inserted += 1
 
-    if isinstance(conn, sqlite3.Connection):
+    if is_sqlite(conn):
         conn.commit()
 
     logger.info(
@@ -324,7 +319,7 @@ def persist_news(items: list[dict[str, Any]], conn: Any) -> int:
 
 def inserted_news_items(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:
     """Return only rows that are new to the table before writing this batch."""
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     inserted_items: list[dict[str, Any]] = []
     for item in items:
         row = conn.execute(

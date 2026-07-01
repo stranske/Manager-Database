@@ -59,7 +59,7 @@ def test_log_llm_usage_postgres_path_avoids_sqlite_tokens() -> None:
 
     statements = " ".join(conn.statements)
     assert "CREATE TABLE IF NOT EXISTS api_usage" in statements
-    assert "bigserial PRIMARY KEY" in statements
+    assert "BIGSERIAL PRIMARY KEY" in statements.upper()
     assert conn.params[-1] == ("langchain", "openai/gpt-4o-mini", 200, 0, 123, 0.00045)
 
 

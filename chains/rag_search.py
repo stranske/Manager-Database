@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-import sqlite3
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from adapters.base import connect_db
+from adapters.base import get_placeholder, is_sqlite, table_exists
 from chains.evidence import Evidence
+from chains.utils import acquire_connection, guard_context_values
 from embeddings import search_documents
 from llm.injection import guard_input
 from tools.llm_provider import (
@@ -53,40 +53,8 @@ class RAGSearchChain:
         self.llm = llm
         self.db = db_conn
 
-    def _guard_context(self, context: dict[str, Any] | None) -> None:
-        if not context:
-            return
-        for value in context.values():
-            if isinstance(value, str):
-                guard_input(value)
-            elif isinstance(value, dict):
-                self._guard_context(value)
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, str):
-                        guard_input(item)
-
-    def _acquire_connection(self):
-        if self.db is not None:
-            return self.db, False
-        return connect_db(), True
-
-    @staticmethod
-    def _is_sqlite_connection(conn: Any) -> bool:
-        return isinstance(conn, sqlite3.Connection)
-
-    def _placeholder(self, conn: Any) -> str:
-        return "?" if self._is_sqlite_connection(conn) else "%s"
-
     def _table_exists(self, conn: Any, table_name: str) -> bool:
-        if self._is_sqlite_connection(conn):
-            row = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
-                (table_name,),
-            ).fetchone()
-            return row is not None
-        row = conn.execute("SELECT to_regclass(%s)", (table_name,)).fetchone()
-        return bool(row and row[0])
+        return table_exists(conn, table_name)
 
     def _match_manager_ids(self, manager_name: str) -> list[int]:
         normalized_name = manager_name.strip().lower()
@@ -114,7 +82,7 @@ class RAGSearchChain:
         return (start, end)
 
     def _manager_catalog(self) -> list[dict[str, Any]]:
-        conn, should_close = self._acquire_connection()
+        conn, should_close = acquire_connection(self.db)
         try:
             cursor = conn.execute("SELECT manager_id, name, cik FROM managers")
             rows = cursor.fetchall()
@@ -215,13 +183,13 @@ class RAGSearchChain:
 
     def _structured_search(self, entities: dict[str, Any]) -> tuple[str, list[Evidence]]:
         """Build compact structured context from holdings, filings, news, and activism tables."""
-        conn, should_close = self._acquire_connection()
+        conn, should_close = acquire_connection(self.db)
         context_sections: list[str] = []
         sources: list[Evidence] = []
         manager_ids = [int(manager_id) for manager_id in entities.get("manager_ids", [])]
         cusips = [str(cusip) for cusip in entities.get("cusips", [])]
         date_range = self._parse_date_range(entities.get("date_range"))
-        ph = self._placeholder(conn)
+        ph = get_placeholder(conn)
         try:
             if manager_ids:
                 placeholders = ",".join(ph for _ in manager_ids)
@@ -288,7 +256,7 @@ class RAGSearchChain:
                     news_params: list[Any] = list(manager_ids)
                     news_where = f"manager_id IN ({placeholders})"
                     if date_range is not None:
-                        if self._is_sqlite_connection(conn):
+                        if is_sqlite(conn):
                             news_where += (
                                 f" AND date(published_at) BETWEEN date({ph}) AND date({ph})"
                             )
@@ -441,7 +409,7 @@ class RAGSearchChain:
     def run(self, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run vector retrieval and structured retrieval, then answer with source attribution."""
         guard_input(question)
-        self._guard_context(context)
+        guard_context_values(context)
         entities = self._merge_context(self._entity_extraction(question), context)
         manager_filter = entities["manager_ids"][0] if len(entities["manager_ids"]) == 1 else None
         documents = self._vector_search(question, k=5, manager_id=manager_filter)

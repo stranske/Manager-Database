@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from adapters.base import connect_db
+from adapters.base import manager_id_column as shared_manager_id_column
 from api.cache import cache_query, invalidate_cache_prefix
 from api.models import (
     BulkImportFailure,
@@ -29,6 +30,7 @@ from api.models import (
     ManagerStatsResponse,
     UniverseImportResponse,
 )
+from utils.identifiers import normalize_cik
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -159,7 +161,9 @@ def _ensure_manager_table(conn) -> None:
 
 def _manager_id_column(conn) -> str:
     """Return the manager primary-key column for the active database backend."""
-    return "id" if isinstance(conn, sqlite3.Connection) else "manager_id"
+    if not isinstance(conn, sqlite3.Connection):
+        return "manager_id"
+    return shared_manager_id_column(conn) or "id"
 
 
 def _json_array(raw: object) -> list[str]:
@@ -240,16 +244,6 @@ def _to_manager_response(row: tuple[object, ...]) -> ManagerResponse:
         created_at=str(created_at_raw) if created_at_raw is not None else None,
         updated_at=str(updated_at_raw) if updated_at_raw is not None else None,
     )
-
-
-def _normalize_cik(raw: Any) -> str:
-    cik = "" if raw is None else str(raw).strip()
-    if not cik:
-        return ""
-    digits = "".join(ch for ch in cik if ch.isdigit())
-    if not digits:
-        return ""
-    return digits.zfill(10)
 
 
 def _ensure_universe_schema(conn: Any) -> None:
@@ -1209,7 +1203,7 @@ async def import_manager_universe(
                 logger.warning("Universe import skipped record %s: record must be an object", index)
                 continue
             name = str(record.get("name", "")).strip()
-            cik = _normalize_cik(record.get("cik"))
+            cik = normalize_cik(record.get("cik"))
             jurisdiction = str(record.get("jurisdiction", "")).strip().lower()
             if not name or not cik or not jurisdiction:
                 skipped += 1

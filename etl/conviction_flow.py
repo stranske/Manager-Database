@@ -13,7 +13,7 @@ from typing import Any, TypedDict
 from prefect import flow, task
 from prefect.schedules import Cron
 
-from adapters.base import connect_db
+from adapters.base import connect_db, ensure_api_usage_schema, get_placeholder
 from alerts.integration import fire_alerts_for_event_sync
 from alerts.models import AlertEvent
 from etl.logging_setup import configure_logging
@@ -32,10 +32,6 @@ class _DailyDiffEntry(TypedDict):
     shares_curr: int | None
     value_prev: float | None
     value_curr: float | None
-
-
-def _placeholder(conn: Any) -> str:
-    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
 
 def _is_missing_postgres_table_error(exc: Exception) -> bool:
@@ -84,22 +80,6 @@ def _ensure_conviction_scores_table(conn: Any) -> None:
     _ensure_postgres_table_exists(conn, "conviction_scores")
 
 
-def _ensure_api_usage_table(conn: Any) -> None:
-    if isinstance(conn, sqlite3.Connection):
-        conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY,
-                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                source TEXT,
-                endpoint TEXT,
-                status INT,
-                bytes INT,
-                latency_ms INT,
-                cost_usd REAL
-        )""")
-        return
-    _ensure_postgres_table_exists(conn, "api_usage")
-
-
 def _record_flow_usage(
     conn: Any,
     *,
@@ -107,7 +87,7 @@ def _record_flow_usage(
     scores_computed: int,
     latency_ms: int,
 ) -> None:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     conn.execute(
         "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd) "
         f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
@@ -118,7 +98,7 @@ def _record_flow_usage(
 @task
 def compute_conviction_scores(filing_id: int, conn: Any) -> int:
     """Compute and upsert conviction scores for one filing."""
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
 
     manager_row = conn.execute(
         f"SELECT manager_id FROM filings WHERE filing_id = {ph}",
@@ -285,7 +265,7 @@ def _fetch_latest_conviction_rows(
     conn: Any,
     report_date: str,
 ) -> list[tuple[int, str, str | None, float, float | None]]:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     latest_sql = f"""
         WITH ranked_filings AS (
             SELECT
@@ -425,7 +405,7 @@ def _compute_delta_shares(
 
 
 def _load_crowded_trade_rows(conn: Any, report_date: str) -> list[tuple[Any, ...]]:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     return conn.execute(
         f"""SELECT cusip, name_of_issuer, manager_count, manager_ids, total_value_usd,
                    avg_conviction_pct, max_conviction_pct
@@ -437,7 +417,7 @@ def _load_crowded_trade_rows(conn: Any, report_date: str) -> list[tuple[Any, ...
 
 
 def _load_contrarian_signal_rows(conn: Any, report_date: str) -> list[tuple[Any, ...]]:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     return conn.execute(
         f"""SELECT manager_id, cusip, name_of_issuer, direction, consensus_direction,
                    manager_delta_shares, manager_delta_value, consensus_count
@@ -508,7 +488,7 @@ def detect_crowded_trades(
                 }
             )
 
-        ph = _placeholder(db)
+        ph = get_placeholder(db)
         db.execute(f"DELETE FROM crowded_trades WHERE report_date = {ph}", (report_date,))
 
         upsert_sql = (
@@ -589,7 +569,7 @@ def detect_contrarian_signals(
 
     try:
         _ensure_contrarian_signals_table(db)
-        ph = _placeholder(db)
+        ph = get_placeholder(db)
         daily_rows = db.execute(
             f"""
             SELECT manager_id, cusip, name_of_issuer, delta_type, shares_prev, shares_curr,
@@ -783,7 +763,10 @@ def conviction_flow(
         scores_computed = 0
         try:
             _ensure_conviction_scores_table(db)
-            _ensure_api_usage_table(db)
+            if isinstance(db, sqlite3.Connection):
+                ensure_api_usage_schema(db)
+            else:
+                _ensure_postgres_table_exists(db, "api_usage")
             summary = score_all_latest_filings.fn(db)
             scores_computed = summary["scores_computed"]
             return summary
