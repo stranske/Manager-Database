@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import builtins
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -40,10 +42,16 @@ python_version = '3.10'
     )
     real_import = builtins.__import__
 
-    def import_without_tomlkit(name: str, *args: object, **kwargs: object) -> object:
+    def import_without_tomlkit(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> ModuleType:
         if name == "tomlkit":
             raise ImportError("tomlkit intentionally unavailable")
-        return real_import(name, *args, **kwargs)
+        return real_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", import_without_tomlkit)
 

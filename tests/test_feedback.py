@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import types
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any, cast
 
@@ -36,7 +37,7 @@ def feedback_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def clear_rate_limiter() -> None:
+def clear_rate_limiter() -> Generator[None, None, None]:
     chat_api_module.CHAT_RATE_LIMITER.clear()
     chat_api_module.CHAT_IP_RATE_LIMITER.clear()
     yield

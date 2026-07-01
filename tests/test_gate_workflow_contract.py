@@ -1,15 +1,18 @@
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _workflow(path: str) -> dict:
-    return yaml.safe_load((REPO_ROOT / path).read_text(encoding="utf-8"))
+def _workflow(path: str) -> dict[str, Any]:
+    return cast(dict[str, Any], yaml.safe_load((REPO_ROOT / path).read_text(encoding="utf-8")))
 
 
 def _numeric(value: object) -> float:
+    if not isinstance(value, (str, bytes, bytearray, int, float)):
+        raise AssertionError(f"Expected numeric workflow value, got {value!r}")
     try:
         return float(value)
     except (TypeError, ValueError) as exc:
