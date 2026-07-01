@@ -306,8 +306,8 @@ def test_rate_limit_document_matches_shipped_header_contract():
     assert "POST /api/chat/feedback" in doc
 
 
-def test_api_design_guidelines_do_not_claim_global_rate_limiting():
-    doc = (REPO_ROOT / "docs/api_design_guidelines.md").read_text(encoding="utf-8")
+def _assert_doc_does_not_claim_global_rate_limiting(path: str) -> str:
+    doc = (REPO_ROOT / path).read_text(encoding="utf-8")
     normalized_doc = doc.lower()
     forbidden_global_claims = [
         "all api endpoints are subject to rate limit",
@@ -319,7 +319,17 @@ def test_api_design_guidelines_do_not_claim_global_rate_limiting():
     ]
 
     assert not any(claim in normalized_doc for claim in forbidden_global_claims), (
-        "api_design_guidelines.md must delegate rate-limit scope to "
-        "api_rate_limiting.md instead of claiming all endpoints are limited."
+        f"{path} must delegate rate-limit scope to api_rate_limiting.md "
+        "instead of claiming all endpoints are limited."
     )
+    return doc
+
+
+def test_api_design_guidelines_do_not_claim_global_rate_limiting():
+    doc = _assert_doc_does_not_claim_global_rate_limiting("docs/api_design_guidelines.md")
     assert "api_rate_limiting.md" in doc
+
+
+def test_readme_does_not_claim_global_rate_limiting():
+    doc = _assert_doc_does_not_claim_global_rate_limiting("README.md")
+    assert "docs/api_rate_limiting.md" in doc
