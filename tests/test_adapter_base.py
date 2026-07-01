@@ -84,16 +84,31 @@ def test_connect_db_uses_env_db_path(tmp_path, monkeypatch):
     assert env_path.exists()
 
 
-def test_connect_db_falls_back_when_postgres_unavailable(tmp_path, monkeypatch):
-    env_path = tmp_path / "fallback.db"
+def test_connect_db_postgres_url_requires_psycopg_without_sqlite_fallback(tmp_path, monkeypatch):
+    env_path = tmp_path / "should-not-exist.db"
     monkeypatch.setenv("DB_PATH", str(env_path))
-    monkeypatch.setenv("DB_URL", "postgres://user@localhost/db")
+    monkeypatch.setenv("DB_URL", "postgresql://user@localhost/db")
     monkeypatch.setattr(base, "psycopg", None)
-    conn = connect_db()
-    try:
-        assert isinstance(conn, sqlite3.Connection)
-    finally:
-        conn.close()
+
+    with pytest.raises(RuntimeError, match="psycopg is not installed"):
+        connect_db()
+
+    assert not env_path.exists()
+
+
+def test_connect_db_rejects_unsupported_db_url_scheme(tmp_path, monkeypatch):
+    env_path = tmp_path / "should-not-exist.db"
+    monkeypatch.setenv("DB_PATH", str(env_path))
+    monkeypatch.setenv("DB_URL", "mysql://user@localhost/db")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        connect_db()
+
+    assert str(exc_info.value) == (
+        "Unsupported DB_URL scheme; unset DB_URL for SQLite or use a "
+        "postgres:// or postgresql:// URL."
+    )
+    assert not env_path.exists()
 
 
 def test_connect_db_postgres_retries_and_timeout(monkeypatch):

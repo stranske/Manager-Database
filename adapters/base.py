@@ -52,7 +52,17 @@ def connect_db(
     url = os.getenv("DB_URL")
     retries, retry_delay = _db_retry_config(retries, retry_delay)
     attempt = 0
-    if url and psycopg and url.startswith("postgres"):
+    if url:
+        if not url.startswith("postgres"):
+            raise RuntimeError(
+                "Unsupported DB_URL scheme; unset DB_URL for SQLite or use a "
+                "postgres:// or postgresql:// URL."
+            )
+        if psycopg is None:
+            raise RuntimeError(
+                "DB_URL is configured for Postgres, but psycopg is not installed. "
+                "Install psycopg[binary] or unset DB_URL for SQLite."
+            )
         # psycopg connections require autocommit for DDL during tests.
         # Allow health checks to cap connection time.
         connect_kwargs: dict[str, Any] = {"autocommit": True}
