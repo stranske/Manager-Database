@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
 
@@ -38,9 +39,13 @@ class _FakePostgresResult:
 
 
 class _FakePostgresConnection:
-    def __init__(self, rows_by_cik: dict[str, dict[str, object]], commits: list[int]) -> None:
+    def __init__(
+        self,
+        rows_by_cik: dict[str, dict[str, object]],
+        transactions: list[str],
+    ) -> None:
         self._rows_by_cik = rows_by_cik
-        self._commits = commits
+        self._transactions = transactions
         self.closed = False
 
     def execute(self, query: str, params: tuple[object, ...]) -> _FakePostgresResult:
@@ -48,8 +53,13 @@ class _FakePostgresConnection:
         result.execute(query, params)
         return result
 
-    def commit(self) -> None:
-        self._commits.append(1)
+    @contextmanager
+    def transaction(self):
+        self._transactions.append("begin")
+        try:
+            yield
+        finally:
+            self._transactions.append("end")
 
     def close(self) -> None:
         self.closed = True
@@ -71,9 +81,13 @@ def test_seed_managers_uses_sqlite_when_db_url_unset(tmp_path, monkeypatch) -> N
         rows = conn.execute(
             "SELECT name, cik, aliases, jurisdictions, tags FROM managers ORDER BY cik"
         ).fetchall()
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(managers)").fetchall()}
+        indexes = {row[1] for row in conn.execute("PRAGMA index_list(managers)").fetchall()}
     finally:
         conn.close()
 
+    assert "id" in columns
+    assert "idx_managers_cik" in indexes
     assert [row[0] for row in rows] == [
         "SIR Capital Management L.P.",
         "Elliott Investment Management L.P.",
@@ -85,11 +99,11 @@ def test_seed_managers_uses_sqlite_when_db_url_unset(tmp_path, monkeypatch) -> N
 def test_seed_managers_keeps_postgres_upsert_contract(monkeypatch) -> None:
     sm = _load_seed_module()
     rows_by_cik: dict[str, dict[str, object]] = {}
-    commits: list[int] = []
+    transactions: list[str] = []
     connections: list[_FakePostgresConnection] = []
 
     def _fake_connect_db() -> _FakePostgresConnection:
-        conn = _FakePostgresConnection(rows_by_cik, commits)
+        conn = _FakePostgresConnection(rows_by_cik, transactions)
         connections.append(conn)
         return conn
 
@@ -102,5 +116,5 @@ def test_seed_managers_keeps_postgres_upsert_contract(monkeypatch) -> None:
     assert first_inserted == len(sm.SEED_MANAGERS)
     assert second_inserted == 0
     assert len(rows_by_cik) == len(sm.SEED_MANAGERS)
-    assert len(commits) == 2
+    assert transactions == ["begin", "end", "begin", "end"]
     assert all(conn.closed for conn in connections)

@@ -34,16 +34,19 @@ SEED_MANAGERS = [
 def _ensure_sqlite_schema(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS managers (
-            manager_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
-            cik TEXT UNIQUE,
+            cik TEXT,
             aliases TEXT NOT NULL DEFAULT '[]',
             jurisdictions TEXT NOT NULL DEFAULT '[]',
             tags TEXT NOT NULL DEFAULT '[]',
+            registry_ids TEXT NOT NULL DEFAULT '{}',
+            quality_flags TEXT NOT NULL DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik ON managers(cik)")
 
 
 def _sqlite_values(values: list[str]) -> str:
@@ -107,14 +110,15 @@ def seed_managers() -> int:
     try:
         if isinstance(conn, sqlite3.Connection):
             _ensure_sqlite_schema(conn)
-            upsert = _upsert_sqlite_manager
+            for manager in SEED_MANAGERS:
+                if _upsert_sqlite_manager(conn, manager):
+                    inserted += 1
+            conn.commit()
         else:
-            upsert = _upsert_postgres_manager
-
-        for manager in SEED_MANAGERS:
-            if upsert(conn, manager):
-                inserted += 1
-        conn.commit()
+            with conn.transaction():
+                for manager in SEED_MANAGERS:
+                    if _upsert_postgres_manager(conn, manager):
+                        inserted += 1
     finally:
         conn.close()
     return inserted
