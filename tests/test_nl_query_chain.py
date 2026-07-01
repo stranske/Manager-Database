@@ -85,7 +85,7 @@ def test_sqlite_chain_rejects_postgres_only_sql():
     conn = sqlite3.connect(":memory:", factory=TrackingConnection)
     conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT)")
     conn.execute("INSERT INTO managers(manager_id, name, cik) VALUES (1, 'Elliott', '0001791786')")
-    llm = FakeLLM("{\"sql\": \"SELECT manager_id FROM managers WHERE name ILIKE '%elliott%'\"}")
+    llm = FakeLLM('{"sql": "SELECT manager_id FROM managers WHERE name ILIKE \'%elliott%\'"}')
     chain = NLQueryChain(llm=llm, db_conn=conn)
 
     with pytest.raises(ValueError, match="ILIKE is PostgreSQL-only"):
