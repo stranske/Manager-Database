@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import time
 from datetime import date, datetime
 from decimal import Decimal
@@ -13,10 +12,13 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, ValidationError
 
+from adapters.base import ensure_api_usage_schema, get_placeholder
 from chains.filing_summary import langsmith_tracing_context
 from chains.utils import (
+    extract_json_text,
     format_delta_summary,
     format_holdings_table,
+    rows_to_dicts,
     truncate_context,
 )
 from scripts.langchain.injection_guard import check_prompt_injection
@@ -77,38 +79,6 @@ class HoldingsAnalysisChain:
             return None
 
     @staticmethod
-    def _is_sqlite_connection(conn: Any) -> bool:
-        return isinstance(conn, sqlite3.Connection)
-
-    @staticmethod
-    def _placeholder(conn: Any) -> str:
-        return "?" if HoldingsAnalysisChain._is_sqlite_connection(conn) else "%s"
-
-    @staticmethod
-    def _usage_table_ddl(conn: Any) -> str:
-        if HoldingsAnalysisChain._is_sqlite_connection(conn):
-            return """CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY,
-                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                source TEXT,
-                endpoint TEXT,
-                status INT,
-                bytes INT,
-                latency_ms INT,
-                cost_usd REAL
-            )"""
-        return """CREATE TABLE IF NOT EXISTS api_usage (
-            id BIGSERIAL PRIMARY KEY,
-            ts TIMESTAMPTZ DEFAULT now(),
-            source TEXT,
-            endpoint TEXT,
-            status INT,
-            bytes INT,
-            latency_ms INT,
-            cost_usd NUMERIC(10,4)
-        )"""
-
-    @staticmethod
     def _is_missing_table_error(exc: Exception, table_name: str) -> bool:
         message = str(exc).lower()
         return (
@@ -133,47 +103,12 @@ class HoldingsAnalysisChain:
         return "COALESCE(f.period_end, f.filed_date)"
 
     @staticmethod
-    def _cursor_rows_to_dicts(cursor: Any, rows: list[Any]) -> list[dict[str, Any]]:
-        if not rows:
-            return []
-        if isinstance(rows[0], dict):
-            return rows
-        if hasattr(rows[0], "keys"):
-            return [dict(row) for row in rows]
-        columns = [entry[0] for entry in (cursor.description or [])]
-        return [dict(zip(columns, row, strict=False)) for row in rows]
-
-    @staticmethod
     def _json_default(value: Any) -> Any:
         if isinstance(value, (date, datetime)):
             return value.isoformat()
         if isinstance(value, Decimal):
             return float(value)
         return str(value)
-
-    @staticmethod
-    def _extract_json_text(text: str) -> str | None:
-        stripped = text.strip()
-        if stripped.startswith("{") and stripped.endswith("}"):
-            return stripped
-
-        fence_start = stripped.find("```")
-        if fence_start >= 0:
-            last_fence = stripped.rfind("```")
-            if last_fence > fence_start:
-                fenced = stripped[fence_start + 3 : last_fence].strip()
-                if "\n" in fenced:
-                    first_line, remainder = fenced.split("\n", 1)
-                    if first_line.strip().lower() in {"json", "application/json"}:
-                        fenced = remainder.strip()
-                if fenced.startswith("{") and fenced.endswith("}"):
-                    return fenced
-
-        start = stripped.find("{")
-        end = stripped.rfind("}")
-        if start >= 0 and end > start:
-            return stripped[start : end + 1]
-        return None
 
     @staticmethod
     def _coerce_dict_list(raw: Any) -> list[dict[str, Any]]:
@@ -185,7 +120,7 @@ class HoldingsAnalysisChain:
         cursor = self.db.cursor()
         cursor.execute(query, params)
         rows = cursor.fetchall()
-        return self._cursor_rows_to_dicts(cursor, rows)
+        return rows_to_dicts(cursor, rows)
 
     def _rollback_after_recoverable_error(self) -> None:
         # Postgres aborts the current transaction on the first failing statement and
@@ -208,7 +143,7 @@ class HoldingsAnalysisChain:
         date_range: tuple[date, date] | None,
         use_filings_join: bool = True,
     ) -> tuple[str, tuple[Any, ...]]:
-        placeholder = self._placeholder(self.db)
+        placeholder = get_placeholder(self.db)
         clauses: list[str] = []
         params: list[Any] = []
         report_date_expr = self._report_date_expr()
@@ -256,7 +191,7 @@ class HoldingsAnalysisChain:
         manager_ids: list[int] | None,
         cusips: list[str] | None,
     ) -> tuple[str, tuple[Any, ...]]:
-        placeholder = self._placeholder(self.db)
+        placeholder = get_placeholder(self.db)
         clauses: list[str] = []
         params: list[Any] = []
 
@@ -326,7 +261,7 @@ class HoldingsAnalysisChain:
 
         sections: list[str] = ["Holdings:", format_holdings_table(holdings, max_rows=50)]
 
-        placeholder = self._placeholder(self.db)
+        placeholder = get_placeholder(self.db)
         where_parts: list[str] = []
         where_params: list[Any] = []
         if manager_ids:
@@ -530,7 +465,7 @@ class HoldingsAnalysisChain:
 
     def _parse_analysis(self, output_text: str, question: str) -> HoldingsAnalysis:
         decoded_payload: dict[str, Any] = {}
-        payload = self._extract_json_text(output_text)
+        payload = extract_json_text(output_text)
         if payload:
             try:
                 return HoldingsAnalysis.model_validate_json(payload)
@@ -562,11 +497,11 @@ class HoldingsAnalysisChain:
 
     def _log_usage(self, *, question: str, output_text: str, latency_ms: int, status: int) -> None:
         try:
-            self.db.execute(self._usage_table_ddl(self.db))
+            ensure_api_usage_schema(self.db)
         except Exception:
             return
 
-        placeholder = self._placeholder(self.db)
+        placeholder = get_placeholder(self.db)
         insert_sql = (
             "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd) "
             f"VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, "

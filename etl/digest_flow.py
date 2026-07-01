@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 from prefect import flow, task
 
-from adapters.base import connect_db
+from adapters.base import connect_db, get_placeholder, get_table_columns, table_exists
 from alerts.channels import DeliveryResult, send_email_message_via_smtp
 from alerts.db import deserialize_json_object
 from etl.logging_setup import configure_logging, log_outcome
@@ -66,35 +66,6 @@ class DigestDocument:
         return not (self.filings or self.news or self.alerts)
 
 
-def _placeholder(conn: Any) -> str:
-    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
-
-
-def _table_exists(conn: Any, table: str) -> bool:
-    if isinstance(conn, sqlite3.Connection):
-        row = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-            (table,),
-        ).fetchone()
-    else:
-        row = conn.execute("SELECT to_regclass(%s)", (table,)).fetchone()
-    return bool(row and row[0])
-
-
-def _columns(conn: Any, table: str) -> set[str]:
-    if not _table_exists(conn, table):
-        return set()
-    if isinstance(conn, sqlite3.Connection):
-        rows = conn.execute(f"PRAGMA table_xinfo({table})").fetchall()
-        return {str(row[1]) for row in rows}
-    rows = conn.execute(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_schema = current_schema() AND table_name = %s",
-        (table,),
-    ).fetchall()
-    return {str(row[0]) for row in rows}
-
-
 def _coerce_utc(value: datetime | None) -> datetime:
     current = value or datetime.now(UTC)
     if current.tzinfo is None:
@@ -125,11 +96,11 @@ def build_digest(
     """Query recent filings, news, and unacknowledged alerts into one digest."""
     generated_at = _coerce_utc(now)
     window_start = generated_at - timedelta(hours=lookback_hours)
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     digest = DigestDocument(generated_at=generated_at, lookback_hours=lookback_hours)
 
-    filing_cols = _columns(conn, "filings")
-    if {"manager_id", "type", "source"} <= filing_cols and _table_exists(conn, "managers"):
+    filing_cols = get_table_columns(conn, "filings")
+    if {"manager_id", "type", "source"} <= filing_cols and table_exists(conn, "managers"):
         filter_expr = "f.created_at" if "created_at" in filing_cols else "f.filed_date"
         filter_value = (
             window_start.isoformat()
@@ -161,7 +132,7 @@ def build_digest(
             for row in rows
         ]
 
-    news_cols = _columns(conn, "news_items")
+    news_cols = get_table_columns(conn, "news_items")
     if {"manager_id", "published_at", "source", "headline"} <= news_cols:
         rows = conn.execute(
             f"""SELECT COALESCE(
@@ -190,7 +161,7 @@ def build_digest(
             for row in rows
         ]
 
-    alert_cols = _columns(conn, "alert_history")
+    alert_cols = get_table_columns(conn, "alert_history")
     if {"rule_id", "fired_at", "event_type", "payload_json", "acknowledged"} <= alert_cols:
         rows = conn.execute(
             f"""SELECT COALESCE(ar.name, ah.event_type), ah.event_type, ah.fired_at,

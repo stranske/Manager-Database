@@ -5,14 +5,13 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import sqlite3
 from typing import Any
 
 from prefect import flow, task
 from prefect.schedules import Cron
 
 from adapters import edgar
-from adapters.base import connect_db
+from adapters.base import connect_db, get_placeholder, is_sqlite
 from alerts.integration import fire_alerts_for_event
 from etl.activism_detection import (
     ALERT_EVENT_TYPE,
@@ -34,20 +33,12 @@ ACTIVISM_FLOW_TIMEZONE = os.getenv("ACTIVISM_FLOW_TIMEZONE", "UTC")
 DB_PATH = os.getenv("DB_PATH", "dev.db")
 
 
-def _is_sqlite(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
 def _is_postgres(conn: Any) -> bool:
-    return not _is_sqlite(conn) and hasattr(conn, "execute")
-
-
-def _placeholder(conn: Any) -> str:
-    return "?" if _is_sqlite(conn) else "%s"
+    return not is_sqlite(conn) and hasattr(conn, "execute")
 
 
 def _ensure_activism_filings_table(conn: Any) -> None:
-    if _is_sqlite(conn):
+    if is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_filings (
                 filing_id INTEGER PRIMARY KEY,
                 manager_id INTEGER NOT NULL,
@@ -109,7 +100,7 @@ def _ensure_activism_filings_table(conn: Any) -> None:
 
 
 def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     row = conn.execute(
         f"SELECT name, cik FROM managers WHERE manager_id = {ph} LIMIT 1",
         (manager_id,),
@@ -144,7 +135,7 @@ def _find_existing_filing_id(
     subject_cusip: str | None,
     filed_date: str,
 ) -> int | None:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     params: list[object] = [manager_id, filing_type, filed_date]
     if subject_cusip:
         sql = (
@@ -174,7 +165,7 @@ def _upsert_activism_filing(
     parsed: dict[str, object],
     raw_key: str,
 ) -> tuple[int, bool]:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     subject_cusip = str(parsed.get("cusip") or "") or None
     filed_date = str(filing.get("filed") or "")
     existing_id = _find_existing_filing_id(
@@ -191,13 +182,13 @@ def _upsert_activism_filing(
         subject_cusip,
         parsed.get("ownership_pct"),
         parsed.get("shares"),
-        _serialize_group_members(parsed.get("group_members"), sqlite_mode=_is_sqlite(conn)),
+        _serialize_group_members(parsed.get("group_members"), sqlite_mode=is_sqlite(conn)),
         str(parsed.get("purpose_snippet") or "") or None,
         filed_date,
         str(filing.get("url") or "https://www.sec.gov"),
         raw_key,
     )
-    if _is_sqlite(conn):
+    if is_sqlite(conn):
         if existing_id is None:
             cursor = conn.execute(
                 "INSERT INTO activism_filings("

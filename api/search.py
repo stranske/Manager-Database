@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import sqlite3
 from typing import Any, Literal
 
+from adapters.base import get_table_columns, is_sqlite, table_exists
 from utils.numeric import finite_float_or_none
 
 try:
@@ -39,35 +39,6 @@ _BASE_RELEVANCE = {
 }
 
 _VALID_ENTITY_TYPES: set[str] = {"filing", "holding", "news", "document", "manager"}
-SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
-
-
-def _is_sqlite(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
-def _get_columns(conn: Any, table_name: str) -> set[str]:
-    if not _table_exists(conn, table_name):
-        return set()
-    if _is_sqlite(conn):
-        rows = conn.execute(SQLITE_TABLE_INFO_SQL, (table_name,)).fetchall()
-        return {str(row[0]) for row in rows}
-    rows = conn.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = %s",
-        (table_name,),
-    ).fetchall()
-    return {str(row[0]) for row in rows}
-
-
-def _table_exists(conn: Any, table_name: str) -> bool:
-    if _is_sqlite(conn):
-        row = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
-            (table_name,),
-        ).fetchone()
-        return row is not None
-    row = conn.execute("SELECT to_regclass(%s)", (table_name,)).fetchone()
-    return bool(row and row[0])
 
 
 def _normalize_rank(rank: float | int | None) -> float:
@@ -126,7 +97,7 @@ def _format_activism_filing_headline(
 
 
 def _sqlite_manager_name_map(conn: Any) -> dict[int, str]:
-    manager_columns = _get_columns(conn, "managers")
+    manager_columns = get_table_columns(conn, "managers")
     if not manager_columns or "name" not in manager_columns:
         return {}
     manager_id_col = "manager_id" if "manager_id" in manager_columns else "id"
@@ -139,7 +110,7 @@ def _sqlite_manager_name_map(conn: Any) -> dict[int, str]:
 def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
     results: list[SearchResult] = []
 
-    if _table_exists(conn, "managers"):
+    if table_exists(conn, "managers"):
         rows = conn.execute(
             """
             SELECT
@@ -179,7 +150,7 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
-    if _table_exists(conn, "filings"):
+    if table_exists(conn, "filings"):
         rows = conn.execute(
             """
             SELECT
@@ -224,7 +195,7 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
-    if _table_exists(conn, "activism_filings"):
+    if table_exists(conn, "activism_filings"):
         rows = conn.execute(
             """
             SELECT
@@ -296,7 +267,7 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
-    if _table_exists(conn, "holdings"):
+    if table_exists(conn, "holdings"):
         rows = conn.execute(
             """
             SELECT
@@ -345,7 +316,7 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
-    if _table_exists(conn, "news_items"):
+    if table_exists(conn, "news_items"):
         rows = conn.execute(
             """
             SELECT
@@ -389,7 +360,7 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
-    if _table_exists(conn, "documents"):
+    if table_exists(conn, "documents"):
         rows = conn.execute(
             """
             SELECT
@@ -442,7 +413,7 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
     like_token = f"%{query.strip()}%"
     manager_name_by_id = _sqlite_manager_name_map(conn)
 
-    manager_columns = _get_columns(conn, "managers")
+    manager_columns = get_table_columns(conn, "managers")
     if manager_columns:
         manager_id_col = "manager_id" if "manager_id" in manager_columns else "id"
         aliases_col = (
@@ -470,7 +441,7 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
-    if _table_exists(conn, "news_items"):
+    if table_exists(conn, "news_items"):
         rows = conn.execute(
             "SELECT news_id, manager_id, headline, body_snippet, url, published_at "
             "FROM news_items WHERE headline LIKE ? OR COALESCE(body_snippet, '') LIKE ? "
@@ -492,7 +463,7 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     timestamp=str(published_at) if published_at is not None else None,
                 )
             )
-    elif _table_exists(conn, "news"):
+    elif table_exists(conn, "news"):
         rows = conn.execute(
             "SELECT rowid, headline, source, published FROM news WHERE headline LIKE ? LIMIT ?",
             (like_token, limit),
@@ -512,7 +483,7 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
-    doc_columns = _get_columns(conn, "documents")
+    doc_columns = get_table_columns(conn, "documents")
     if doc_columns:
         doc_id_col = "doc_id" if "doc_id" in doc_columns else "id"
         doc_text_col = (
@@ -603,10 +574,10 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                         )
                     )
 
-    holdings_columns = _get_columns(conn, "holdings")
+    holdings_columns = get_table_columns(conn, "holdings")
     if holdings_columns:
         if "holding_id" in holdings_columns:
-            filing_columns = _get_columns(conn, "filings")
+            filing_columns = get_table_columns(conn, "filings")
             filing_date_col = (
                 "filed_date"
                 if "filed_date" in filing_columns
@@ -684,8 +655,8 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     )
                 )
 
-    if _table_exists(conn, "filings") and "holding_id" in holdings_columns:
-        filing_columns = _get_columns(conn, "filings")
+    if table_exists(conn, "filings") and "holding_id" in holdings_columns:
+        filing_columns = get_table_columns(conn, "filings")
         filing_manager_expr = "f.manager_id" if "manager_id" in filing_columns else "NULL"
         filing_url_expr = "f.url" if "url" in filing_columns else "NULL"
         filing_type_expr = "f.type" if "type" in filing_columns else "NULL"
@@ -699,7 +670,7 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
             f"COALESCE({filing_period_expr}, '') LIKE ?",
         ]
         params: list[Any] = [like_token, like_token, like_token]
-        manager_columns = _get_columns(conn, "managers")
+        manager_columns = get_table_columns(conn, "managers")
         if manager_columns and "name" in manager_columns and filing_manager_expr != "NULL":
             manager_id_col = "manager_id" if "manager_id" in manager_columns else "id"
             manager_join = f" LEFT JOIN managers m ON m.{manager_id_col} = {filing_manager_expr}"
@@ -736,8 +707,8 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
-    if _table_exists(conn, "activism_filings"):
-        manager_columns = _get_columns(conn, "managers")
+    if table_exists(conn, "activism_filings"):
+        manager_columns = get_table_columns(conn, "managers")
         manager_join = ""
         manager_name_expr = "NULL"
         if manager_columns and "name" in manager_columns:
@@ -810,7 +781,7 @@ def universal_search(
 
     results = (
         _search_sqlite(query, conn, limit)
-        if _is_sqlite(conn)
+        if is_sqlite(conn)
         else _search_postgres(query, conn, limit)
     )
 

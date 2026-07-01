@@ -12,7 +12,7 @@ from langchain_core.runnables import RunnableLambda
 from prefect import flow, task
 from prefect.schedules import Cron
 
-from adapters.base import connect_db
+from adapters.base import connect_db, ensure_api_usage_schema, get_placeholder
 from alerts.integration import evaluate_and_record_alerts
 from alerts.models import AlertEvent
 from llm.evaluation import ManagerDBEvaluator
@@ -94,36 +94,6 @@ class _DeterministicRAGLLM:
         return "Apple Inc (037833100) remained a top Elliott Investment Management holding."
 
 
-def _placeholder(conn: Any) -> str:
-    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
-
-
-def _ensure_api_usage_table(conn: Any) -> None:
-    if isinstance(conn, sqlite3.Connection):
-        conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY,
-                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                source TEXT,
-                endpoint TEXT,
-                status INT,
-                bytes INT,
-                latency_ms INT,
-                cost_usd REAL
-            )""")
-        return
-
-    conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
-            id bigserial PRIMARY KEY,
-            ts timestamptz DEFAULT now(),
-            source text,
-            endpoint text,
-            status int,
-            bytes int,
-            latency_ms int,
-            cost_usd numeric(10,4)
-        )""")
-
-
 def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
     """Seed a deterministic local corpus for live-chain evaluation."""
 
@@ -186,7 +156,7 @@ def seed_live_evaluation_database(conn: sqlite3.Connection) -> None:
         """,
         (1, 1, "13F-HR", "2025-12-31", "2026-03-01", "sec", "https://example.com/13f/1"),
     )
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     conn.execute(f"DELETE FROM holdings WHERE filing_id = {ph}", (1,))
     conn.executemany(
         """
@@ -392,9 +362,9 @@ def run_live_evaluation_suite(db_conn: Any | None = None) -> dict[str, Any]:
 def log_evaluation_summary(summary: dict[str, Any], db_conn: Any | None = None) -> None:
     conn = db_conn or connect_db()
     owns_connection = db_conn is None
-    _ensure_api_usage_table(conn)
+    ensure_api_usage_schema(conn)
     metrics = json.dumps(summary.get("metrics", {}), sort_keys=True)
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     conn.execute(
         f"INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
         (

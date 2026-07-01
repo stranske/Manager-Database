@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 
 from adapters.base import connect_db, tracked_call
+from utils.identifiers import normalize_cik
 
 EDGAR_BASE_URL = "https://data.sec.gov"
 DEFAULT_USER_AGENT = "manager-intel/0.1 (resolve-aliases)"
@@ -24,16 +25,6 @@ class ManagerRow:
     name: str
     cik: str
     aliases_raw: Any
-
-
-def _normalize_cik(raw: Any) -> str:
-    cik = "" if raw is None else str(raw).strip()
-    if not cik:
-        return ""
-    digits = "".join(ch for ch in cik if ch.isdigit())
-    if not digits:
-        return ""
-    return digits.zfill(10)
 
 
 def _normalize_name(value: str) -> str:
@@ -99,7 +90,7 @@ def _fetch_managers_with_cik(conn: Any) -> tuple[str, list[ManagerRow]]:
         ManagerRow(
             manager_id=int(row[0]),
             name=str(row[1] or "").strip(),
-            cik=_normalize_cik(row[2]),
+            cik=normalize_cik(row[2]),
             aliases_raw=row[3] if len(row) > 3 else None,
         )
         for row in rows

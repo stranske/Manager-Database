@@ -12,7 +12,7 @@ from typing import Any, cast
 from prefect import flow, task
 
 import etl.ingest_flow as ingest_module
-from adapters.base import connect_db, get_adapter
+from adapters.base import connect_db, get_adapter, get_placeholder, get_table_columns
 from alerts.integration import build_new_filing_event, fire_alerts_for_event
 from etl.logging_setup import configure_logging, log_outcome
 
@@ -66,27 +66,8 @@ class _EdgarLogProxy:
         self._base.exception(mapped, *args, **kwargs)
 
 
-def _columns(conn: Any, table: str) -> set[str]:
-    try:
-        if isinstance(conn, sqlite3.Connection):
-            rows = conn.execute(f"PRAGMA table_xinfo({table})").fetchall()
-            return {str(row[1]) for row in rows}
-        rows = conn.execute(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_schema = current_schema() AND table_name = %s",
-            (table,),
-        ).fetchall()
-        return {str(row[0]) for row in rows}
-    except Exception:
-        return set()
-
-
-def _placeholder(conn: Any) -> str:
-    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
-
-
 def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
-    manager_cols = _columns(conn, "managers")
+    manager_cols = get_table_columns(conn, "managers")
     if not manager_cols:
         return None
     id_col = (
@@ -94,7 +75,7 @@ def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
     )
     if not id_col or "cik" not in manager_cols:
         return None
-    marker = _placeholder(conn)
+    marker = get_placeholder(conn)
     row = conn.execute(
         f"SELECT {id_col} FROM managers WHERE cik = {marker} LIMIT 1", (cik,)
     ).fetchone()
@@ -173,7 +154,7 @@ def _upsert_filing_legacy(
         return 0
     payload = json.dumps({"raw_key": raw_key})
     if isinstance(conn, sqlite3.Connection):
-        columns = _columns(conn, "filings")
+        columns = get_table_columns(conn, "filings")
         values: dict[str, Any] = {
             "manager_id": manager_id,
             "type": filing_type,
@@ -231,8 +212,8 @@ def _insert_holding_legacy(
     accession: str,
     filed_date: str | None,
 ) -> None:
-    columns = _columns(conn, "holdings")
-    marker = _placeholder(conn)
+    columns = get_table_columns(conn, "holdings")
+    marker = get_placeholder(conn)
     values: dict[str, Any] = {
         "filing_id": filing_id,
         "cusip": row.get("cusip"),
@@ -263,9 +244,9 @@ def _insert_holding_legacy(
 
 
 def _delete_holdings_for_filing(conn: Any, filing_id: int) -> None:
-    if filing_id <= 0 or "filing_id" not in _columns(conn, "holdings"):
+    if filing_id <= 0 or "filing_id" not in get_table_columns(conn, "holdings"):
         return
-    marker = _placeholder(conn)
+    marker = get_placeholder(conn)
     conn.execute(f"DELETE FROM holdings WHERE filing_id = {marker}", (filing_id,))
 
 
@@ -306,13 +287,13 @@ def _replace_holdings_for_filing(
 def _latest_filed_date_for_cik(cik: str) -> str | None:
     conn = connect_db(DB_PATH)
     try:
-        filing_columns = _columns(conn, "filings")
+        filing_columns = get_table_columns(conn, "filings")
         if "filed_date" not in filing_columns or "manager_id" not in filing_columns:
             return None
         manager_id = _manager_id_for_cik(conn, cik)
         if manager_id is None:
             return None
-        marker = _placeholder(conn)
+        marker = get_placeholder(conn)
         where = f"manager_id = {marker}"
         params: list[Any] = [manager_id]
         if "source" in filing_columns:
@@ -333,7 +314,7 @@ async def fetch_and_store(cik: str, since: str):
     conn = connect_db(DB_PATH)
     _ensure_legacy_tables(conn)
 
-    manager_cols = _columns(conn, "managers")
+    manager_cols = get_table_columns(conn, "managers")
     manager_id = _manager_id_for_cik(conn, cik)
     if manager_cols and manager_id is None:
         logger.warning("Manager not found; skipping filings", extra={"cik": cik})

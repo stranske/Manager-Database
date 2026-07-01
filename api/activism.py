@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import date, datetime
 from typing import Any
 
@@ -14,7 +13,7 @@ except ModuleNotFoundError:
 
     APIRouter, BaseModel, Field, Query = offline_api_imports()
 
-from adapters.base import connect_db
+from adapters.base import connect_db, get_placeholder, is_sqlite, table_exists
 
 router = APIRouter()
 
@@ -59,25 +58,6 @@ class ActiveCampaignResponse(BaseModel):
     latest_filing_date: date
     event_count: int
     latest_event_type: str | None
-
-
-def _is_sqlite(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
-def _placeholder(conn: Any) -> str:
-    return "?" if _is_sqlite(conn) else "%s"
-
-
-def _table_exists(conn: Any, table_name: str) -> bool:
-    if _is_sqlite(conn):
-        row = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
-            (table_name,),
-        ).fetchone()
-        return row is not None
-    row = conn.execute("SELECT to_regclass(%s)", (table_name,)).fetchone()
-    return bool(row and row[0])
 
 
 def _to_float(value: Any) -> float | None:
@@ -125,10 +105,10 @@ def query_activism_filings(
     since: date | None = None,
     limit: int = 100,
 ) -> list[ActivismFilingResponse]:
-    if not _table_exists(conn, "activism_filings"):
+    if not table_exists(conn, "activism_filings"):
         return []
 
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     filters: list[str] = []
     params: list[Any] = []
 
@@ -182,10 +162,10 @@ def query_activism_events(
     since: date | None = None,
     limit: int = 100,
 ) -> list[ActivismEventResponse]:
-    if not _table_exists(conn, "activism_events"):
+    if not table_exists(conn, "activism_events"):
         return []
 
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     filters: list[str] = []
     params: list[Any] = []
 
@@ -199,7 +179,7 @@ def query_activism_events(
         filters.append(f"upper(COALESCE(ae.subject_cusip, '')) = upper({ph})")
         params.append(cusip)
     if since is not None:
-        if _is_sqlite(conn):
+        if is_sqlite(conn):
             filters.append(f"date(ae.detected_at) >= date({ph})")
         else:
             filters.append(f"ae.detected_at::date >= {ph}")
@@ -234,14 +214,14 @@ def query_activism_events(
 
 
 def query_activism_timeline(conn: Any, manager_id: int) -> list[ActivismTimelineEntry]:
-    if not _table_exists(conn, "activism_filings"):
+    if not table_exists(conn, "activism_filings"):
         return []
 
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     event_cte = (
         ", event_entries AS ("
         "    SELECT "
-        + ("date(ae.detected_at)" if _is_sqlite(conn) else "ae.detected_at::date")
+        + ("date(ae.detected_at)" if is_sqlite(conn) else "ae.detected_at::date")
         + " AS entry_date, 'event' AS entry_type, "
         "           ae.event_type || ' on ' || ae.subject_company || "
         "           CASE WHEN ae.threshold_crossed IS NOT NULL THEN ' (threshold ' || ae.threshold_crossed || '%)' ELSE '' END AS description, "
@@ -252,7 +232,7 @@ def query_activism_timeline(conn: Any, manager_id: int) -> list[ActivismTimeline
     )
     union_source = "SELECT * FROM filing_entries"
     params: tuple[Any, ...]
-    if _table_exists(conn, "activism_events"):
+    if table_exists(conn, "activism_events"):
         union_source = "SELECT * FROM filing_entries UNION ALL SELECT * FROM event_entries"
         params = (manager_id, manager_id)
     else:
@@ -290,11 +270,11 @@ def query_active_campaigns(
     min_ownership_pct: float = 5.0,
     limit: int = 100,
 ) -> list[ActiveCampaignResponse]:
-    if not _table_exists(conn, "activism_filings"):
+    if not table_exists(conn, "activism_filings"):
         return []
 
-    ph = _placeholder(conn)
-    if _table_exists(conn, "activism_events"):
+    ph = get_placeholder(conn)
+    if table_exists(conn, "activism_events"):
         event_count_sql = (
             "COALESCE((SELECT COUNT(*) FROM activism_events ae "
             "WHERE ae.manager_id = ranked.manager_id "

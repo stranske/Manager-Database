@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from datetime import date, datetime
 from typing import Any
 
@@ -17,10 +16,9 @@ except ModuleNotFoundError:
 
     APIRouter, BaseModel, _Field, Query = offline_api_imports()
 
-from adapters.base import connect_db
+from adapters.base import connect_db, get_placeholder, get_table_columns, table_exists
 
 router = APIRouter()
-SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
 
 class CrowdedTradeResponse(BaseModel):
@@ -52,25 +50,6 @@ class ConvictionScoreResponse(BaseModel):
     portfolio_weight: float | None
 
 
-def _is_sqlite(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
-def _placeholder(conn: Any) -> str:
-    return "?" if _is_sqlite(conn) else "%s"
-
-
-def _table_exists(conn: Any, table_name: str) -> bool:
-    if _is_sqlite(conn):
-        row = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
-            (table_name,),
-        ).fetchone()
-        return row is not None
-    row = conn.execute("SELECT to_regclass(%s)", (table_name,)).fetchone()
-    return bool(row and row[0])
-
-
 def _to_float(value: Any) -> float | None:
     if value is None:
         return None
@@ -89,7 +68,7 @@ def _to_date(value: Any) -> date:
 
 
 def _resolve_latest_report_date(conn: Any, table_name: str) -> date | None:
-    if not _table_exists(conn, table_name):
+    if not table_exists(conn, table_name):
         return None
     row = conn.execute(f"SELECT MAX(report_date) FROM {table_name}").fetchone()
     if not row or row[0] is None:
@@ -98,9 +77,9 @@ def _resolve_latest_report_date(conn: Any, table_name: str) -> date | None:
 
 
 def _resolve_latest_manager_filing_id(conn: Any, manager_id: int) -> int | None:
-    if not _table_exists(conn, "filings"):
+    if not table_exists(conn, "filings"):
         return None
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     row = conn.execute(
         "SELECT filing_id "
         "FROM filings "
@@ -151,16 +130,14 @@ def _parse_manager_ids(value: Any) -> list[int]:
 
 
 def _manager_id_column(conn: Any) -> str | None:
-    if not _table_exists(conn, "managers"):
+    if not table_exists(conn, "managers"):
         return None
     manager_id_column = "manager_id"
-    if _is_sqlite(conn):
-        rows = conn.execute(SQLITE_TABLE_INFO_SQL, ("managers",)).fetchall()
-        columns = {str(row[0]) for row in rows}
-        if "manager_id" not in columns and "id" in columns:
-            manager_id_column = "id"
-        elif "manager_id" not in columns:
-            return None
+    columns = get_table_columns(conn, "managers")
+    if "manager_id" not in columns and "id" in columns:
+        manager_id_column = "id"
+    elif "manager_id" not in columns:
+        return None
     return manager_id_column
 
 
@@ -189,14 +166,14 @@ def query_crowded_trades(
     min_managers: int = 3,
     limit: int = 50,
 ) -> list[CrowdedTradeResponse]:
-    if not _table_exists(conn, "crowded_trades"):
+    if not table_exists(conn, "crowded_trades"):
         return []
 
     resolved_date = report_date or _resolve_latest_report_date(conn, "crowded_trades")
     if resolved_date is None:
         return []
 
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     params: list[Any] = [resolved_date, max(1, min_managers)]
     manager_filter = ""
     if manager_id is not None:
@@ -253,14 +230,14 @@ def query_contrarian_signals(
     manager_id: int | None = None,
     limit: int = 50,
 ) -> list[ContrarianSignalResponse]:
-    if not _table_exists(conn, "contrarian_signals"):
+    if not table_exists(conn, "contrarian_signals"):
         return []
 
     resolved_date = report_date or _resolve_latest_report_date(conn, "contrarian_signals")
     if resolved_date is None:
         return []
 
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     manager_id_column = _manager_id_column(conn)
     manager_join = (
         f"LEFT JOIN managers m ON m.{manager_id_column} = cs.manager_id"
@@ -306,14 +283,14 @@ def query_conviction_scores(
     min_conviction_pct: float = 0.0,
     limit: int = 100,
 ) -> list[ConvictionScoreResponse]:
-    if not _table_exists(conn, "conviction_scores"):
+    if not table_exists(conn, "conviction_scores"):
         return []
 
     resolved_filing_id = filing_id or _resolve_latest_manager_filing_id(conn, manager_id)
     if resolved_filing_id is None:
         return []
 
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     rows = conn.execute(
         "SELECT cusip, name_of_issuer, value_usd, conviction_pct, portfolio_weight "
         "FROM conviction_scores "

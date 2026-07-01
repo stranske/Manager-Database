@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from adapters.base import get_placeholder, is_sqlite
 from alerts.db import ensure_alert_tables as _ensure_alert_tables
 from alerts.integration import fire_alerts_for_event_sync as _dispatch_alerts_for_event_sync
 from alerts.models import AlertEvent
@@ -41,16 +41,8 @@ class ActivismEvent:
     threshold_crossed: float | None = None
 
 
-def _is_sqlite(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
 def _is_postgres(conn: Any) -> bool:
-    return not _is_sqlite(conn) and hasattr(conn, "execute")
-
-
-def _placeholder(conn: Any) -> str:
-    return "?" if _is_sqlite(conn) else "%s"
+    return not is_sqlite(conn) and hasattr(conn, "execute")
 
 
 def _serialize_json(value: Any) -> str:
@@ -139,7 +131,7 @@ def _deserialize_group_members(raw: Any) -> list[str]:
 
 
 def ensure_activism_events_table(conn: Any) -> None:
-    if _is_sqlite(conn):
+    if is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_events (
                 event_id INTEGER PRIMARY KEY,
                 manager_id INTEGER NOT NULL,
@@ -241,7 +233,7 @@ def ensure_activism_events_table(conn: Any) -> None:
 
 
 def _prior_filing_query(conn: Any, *, has_cusip: bool) -> tuple[str, tuple[Any, ...]]:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     if has_cusip:
         sql = (
             "SELECT filing_id, filing_type, ownership_pct, filed_date, subject_company, subject_cusip "
@@ -363,7 +355,7 @@ def detect_events(conn: Any, filing: Mapping[str, Any]) -> list[ActivismEvent]:
 def detect_events_batch(conn: Any, since: str) -> list[ActivismEvent]:
     """Detect events for all activism filings since a given date."""
     ensure_activism_events_table(conn)
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     rows = conn.execute(
         "SELECT filing_id, manager_id, filing_type, subject_company, subject_cusip, "
         "ownership_pct, group_members, filed_date "
@@ -395,7 +387,7 @@ def detect_events_batch(conn: Any, since: str) -> list[ActivismEvent]:
 def insert_activism_events(conn: Any, events: Iterable[ActivismEvent]) -> list[ActivismEvent]:
     """Persist detected activism events, skipping duplicates on reruns."""
     ensure_activism_events_table(conn)
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     inserted: list[ActivismEvent] = []
     for event in events:
         params = (

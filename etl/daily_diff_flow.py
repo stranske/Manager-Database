@@ -5,14 +5,13 @@ import datetime as dt
 import io
 import logging
 import os
-import sqlite3
 import time
 from typing import Any
 
 from prefect import flow, task
 from prefect.schedules import Cron
 
-from adapters.base import connect_db
+from adapters.base import connect_db, get_placeholder, is_sqlite
 from alerts.integration import evaluate_and_record_alerts
 from alerts.models import AlertEvent
 from diff_holdings import diff_holdings
@@ -26,12 +25,8 @@ logger = logging.getLogger(__name__)
 DAILY_DIFF_ARTIFACT_TOOL = "daily" "_diff"
 
 
-def _placeholder(conn: Any) -> str:
-    return "?" if isinstance(conn, sqlite3.Connection) else "%s"
-
-
 def _is_postgres(conn: Any) -> bool:
-    return not isinstance(conn, sqlite3.Connection)
+    return not is_sqlite(conn)
 
 
 def _ensure_daily_diffs_table(conn: Any) -> None:
@@ -40,7 +35,7 @@ def _ensure_daily_diffs_table(conn: Any) -> None:
     SQLite test/dev runs create the table on demand. Postgres relies on
     canonical schema migrations and should fail fast if the table is missing.
     """
-    if isinstance(conn, sqlite3.Connection):
+    if is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS daily_diffs (
                 diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 manager_id INTEGER NOT NULL,
@@ -77,7 +72,7 @@ def _ensure_daily_diffs_table(conn: Any) -> None:
 
 def _delete_existing_diffs(conn: Any, manager_id: int, report_date: str) -> None:
     """Delete any existing diffs for this manager/date before reinserting (idempotency)."""
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     conn.execute(
         f"DELETE FROM daily_diffs WHERE manager_id = {ph} AND report_date = {ph}",
         (manager_id, report_date),
@@ -91,7 +86,7 @@ def _insert_diffs(
     diffs: list[dict[str, Any]],
 ) -> None:
     """Insert diff rows into the daily_diffs table."""
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     sql = (
         "INSERT INTO daily_diffs "
         "(manager_id, report_date, cusip, name_of_issuer, delta_type, "
@@ -141,7 +136,7 @@ def _fetch_all_manager_ids(conn: Any) -> list[int]:
 
 def _daily_diff_csv(conn: Any, report_date: str) -> str:
     """Return the current report date's persisted deltas as CSV."""
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     rows = conn.execute(
         "SELECT cusip, name_of_issuer, delta_type, shares_prev, shares_curr, "
         "value_prev, value_curr FROM daily_diffs WHERE report_date = "
@@ -165,7 +160,7 @@ def _daily_diff_csv(conn: Any, report_date: str) -> str:
 
 
 def _daily_diff_data_quality(conn: Any, report_date: str) -> dict[str, Any]:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     rows = conn.execute(
         "SELECT manager_id, cusip, shares_prev, shares_curr, value_prev, value_curr "
         "FROM daily_diffs WHERE report_date = "
@@ -200,7 +195,7 @@ def _daily_diff_data_quality(conn: Any, report_date: str) -> dict[str, Any]:
 
 
 def _fetch_inserted_diffs(conn: Any, manager_id: int, report_date: str) -> list[dict[str, Any]]:
-    ph = _placeholder(conn)
+    ph = get_placeholder(conn)
     rows = conn.execute(
         "SELECT manager_id, report_date, cusip, name_of_issuer, delta_type, "
         "shares_prev, shares_curr, value_prev, value_curr "
@@ -368,7 +363,7 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
                 )
                 raise
 
-        if not isinstance(conn, sqlite3.Connection):
+        if not is_sqlite(conn):
             conn.execute("COMMIT")
         else:
             conn.commit()

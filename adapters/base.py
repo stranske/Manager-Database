@@ -93,6 +93,43 @@ def connect_db(
             attempt += 1
 
 
+def is_sqlite(conn: Any) -> bool:
+    """Return whether a DB connection is SQLite-backed."""
+    return isinstance(conn, sqlite3.Connection)
+
+
+def get_placeholder(conn: Any) -> str:
+    """Return the parameter placeholder for the active DB connection."""
+    return "?" if is_sqlite(conn) else "%s"
+
+
+def table_exists(conn: Any, table_name: str) -> bool:
+    """Return whether a table exists on SQLite or Postgres."""
+    if is_sqlite(conn):
+        row = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
+            (table_name,),
+        ).fetchone()
+        return row is not None
+    row = conn.execute("SELECT to_regclass(%s)", (table_name,)).fetchone()
+    return bool(row and row[0])
+
+
+def get_table_columns(conn: Any, table_name: str) -> set[str]:
+    """Return table column names for SQLite or Postgres."""
+    if not table_exists(conn, table_name):
+        return set()
+    if is_sqlite(conn):
+        rows = conn.execute("SELECT name FROM pragma_table_info(?)", (table_name,)).fetchall()
+        return {str(row[0]) for row in rows}
+    rows = conn.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = %s",
+        (table_name,),
+    ).fetchall()
+    return {str(row[0]) for row in rows}
+
+
 def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
     conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
             id INTEGER PRIMARY KEY,
@@ -113,6 +150,16 @@ def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_postgres_usage_schema(conn: Any) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
+            id BIGSERIAL PRIMARY KEY,
+            ts TIMESTAMPTZ DEFAULT now(),
+            source TEXT,
+            endpoint TEXT,
+            status INT,
+            bytes INT,
+            latency_ms INT,
+            cost_usd NUMERIC(10,4)
+        )""")
     conn.execute("SELECT to_regclass('api_usage')")
     conn.execute("""
         DO $$
@@ -135,6 +182,14 @@ def _ensure_postgres_usage_schema(conn: Any) -> None:
         END
         $$;
         """)
+
+
+def ensure_api_usage_schema(conn: Any) -> None:
+    """Ensure the api_usage table and monthly_usage view exist for the active dialect."""
+    if is_sqlite(conn):
+        _ensure_sqlite_usage_schema(conn)
+        return
+    _ensure_postgres_usage_schema(conn)
 
 
 @asynccontextmanager
@@ -192,12 +247,8 @@ async def tracked_call(
             else:
                 computed_cost = 0.0
             conn = connect_db(db_path)
-            if isinstance(conn, sqlite3.Connection):
-                _ensure_sqlite_usage_schema(conn)
-                placeholder = "?"
-            else:  # Postgres
-                _ensure_postgres_usage_schema(conn)
-                placeholder = "%s"
+            ensure_api_usage_schema(conn)
+            placeholder = get_placeholder(conn)
             values_clause = ",".join([placeholder] * 6)
             sql = (
                 "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd)"

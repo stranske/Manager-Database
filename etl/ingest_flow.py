@@ -13,7 +13,7 @@ from typing import Any, cast
 import boto3
 from prefect import flow, task
 
-from adapters.base import connect_db, get_adapter
+from adapters.base import connect_db, get_adapter, get_placeholder, get_table_columns, is_sqlite
 from etl.logging_setup import configure_logging, log_outcome
 
 
@@ -73,24 +73,8 @@ logger = logging.getLogger(__name__)
 Fetcher = Callable[[str, str], Awaitable[list[dict[str, Any]]]]
 
 
-def _is_sqlite(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
-def _placeholder(conn: Any) -> str:
-    return "?" if _is_sqlite(conn) else "%s"
-
-
-def _table_columns(conn: Any, table: str) -> set[str]:
-    try:
-        cursor = conn.execute(f"SELECT * FROM {table} LIMIT 0")
-        return {str(column[0]) for column in cursor.description or ()}
-    except Exception:
-        return set()
-
-
 def _manager_id_column(conn: Any) -> str | None:
-    columns = _table_columns(conn, "managers")
+    columns = get_table_columns(conn, "managers")
     if "manager_id" in columns:
         return "manager_id"
     if "id" in columns:
@@ -99,7 +83,7 @@ def _manager_id_column(conn: Any) -> str | None:
 
 
 def _ensure_filing_tables(conn: Any) -> None:
-    if _is_sqlite(conn):
+    if is_sqlite(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS filings (
                 id INTEGER PRIMARY KEY,
                 manager_id INTEGER,
@@ -109,7 +93,7 @@ def _ensure_filing_tables(conn: Any) -> None:
                 type TEXT,
                 parsed_payload TEXT
             )""")
-        filing_columns = _table_columns(conn, "filings")
+        filing_columns = get_table_columns(conn, "filings")
         if {"source", "external_id"}.issubset(filing_columns):
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS filings_source_external_idx "
@@ -141,7 +125,7 @@ def _ensure_filing_tables(conn: Any) -> None:
             type text,
             parsed_payload jsonb
         )""")
-    filing_columns = _table_columns(conn, "filings")
+    filing_columns = get_table_columns(conn, "filings")
     if {"source", "external_id"}.issubset(filing_columns):
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS filings_source_external_idx "
@@ -167,7 +151,7 @@ def _lookup_manager_id(conn: Any, jurisdiction: str, identifier: str) -> int | N
     id_column = _manager_id_column(conn)
     if not id_column:
         return None
-    marker = _placeholder(conn)
+    marker = get_placeholder(conn)
     try:
         if jurisdiction in {"us", "ca"}:
             row = conn.execute(
@@ -180,7 +164,7 @@ def _lookup_manager_id(conn: Any, jurisdiction: str, identifier: str) -> int | N
                 "sg": "sg_entity_id",
                 "au": "au_asic_id",
             }[jurisdiction]
-            if _is_sqlite(conn):
+            if is_sqlite(conn):
                 row = conn.execute(
                     f"SELECT {id_column} FROM managers "
                     f"WHERE json_extract(registry_ids, '$.{registry_key}') = ? LIMIT 1",
@@ -253,12 +237,12 @@ def _insert_filing(
     parsed_rows: list[dict[str, Any]],
 ) -> int:
     payload = json.dumps(parsed_rows)
-    filing_columns = _table_columns(conn, "filings")
+    filing_columns = get_table_columns(conn, "filings")
     id_column = "filing_id" if "filing_id" in filing_columns else "id"
     raw_key = f"{source}:{external_id}"
     has_external_id = "external_id" in filing_columns
 
-    if _is_sqlite(conn):
+    if is_sqlite(conn):
         if has_external_id:
             sql = (
                 "INSERT INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
@@ -334,9 +318,9 @@ def _insert_holdings_rows(
     parsed_rows: list[dict[str, Any]],
     jurisdiction: str,
 ) -> int:
-    holdings_columns = _table_columns(conn, "holdings")
+    holdings_columns = get_table_columns(conn, "holdings")
     canonical_holdings = {"name_of_issuer", "shares", "value_usd"}.issubset(holdings_columns)
-    marker = _placeholder(conn)
+    marker = get_placeholder(conn)
     if canonical_holdings:
         sql = (
             "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
@@ -381,10 +365,10 @@ def _insert_holdings_rows(
 
 
 def _delete_holdings_rows(conn: Any, *, filing_id: int) -> None:
-    holdings_columns = _table_columns(conn, "holdings")
+    holdings_columns = get_table_columns(conn, "holdings")
     if "filing_id" not in holdings_columns:
         return
-    marker = _placeholder(conn)
+    marker = get_placeholder(conn)
     conn.execute(f"DELETE FROM holdings WHERE filing_id = {marker}", (filing_id,))
 
 

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from adapters.base import connect_db
+from adapters.base import is_sqlite
+from chains.utils import acquire_connection, guard_context_values
 from llm.injection import guard_input
 from tools.llm_provider import (
     build_langsmith_metadata,
@@ -78,19 +78,6 @@ class NLQueryChain:
         self._schema_ddl = self._load_schema_ddl()
         self._known_tables = self._extract_known_tables(self._schema_ddl)
 
-    def _guard_context(self, context: dict[str, Any] | None) -> None:
-        if not context:
-            return
-        for value in context.values():
-            if isinstance(value, str):
-                guard_input(value)
-            elif isinstance(value, dict):
-                self._guard_context(value)
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, str):
-                        guard_input(item)
-
     def _load_schema_ddl(self) -> str:
         """Load public CREATE TABLE statements and omit internal bookkeeping tables."""
         schema_path = Path(__file__).resolve().parents[1] / "schema.sql"
@@ -150,7 +137,7 @@ class NLQueryChain:
         return True, None
 
     def _connection_dialect(self, conn: Any | None = None) -> str:
-        if isinstance(conn if conn is not None else self.db, sqlite3.Connection):
+        if is_sqlite(conn if conn is not None else self.db):
             return "sqlite"
         return "postgresql"
 
@@ -168,14 +155,9 @@ class NLQueryChain:
                 return False, message
         return True, None
 
-    def _acquire_connection(self):
-        if self.db is not None:
-            return self.db, False
-        return connect_db(), True
-
     def _execute_query(self, sql: str) -> list[dict[str, Any]]:
         """Execute a validated SQL query and return rows as dictionaries."""
-        conn, should_close = self._acquire_connection()
+        conn, should_close = acquire_connection(self.db)
         try:
             is_valid_dialect, dialect_error = self._validate_sql_for_connection(sql, conn)
             if not is_valid_dialect:
@@ -280,7 +262,7 @@ class NLQueryChain:
     def run(self, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run the NL-to-SQL pipeline end-to-end."""
         guard_input(question)
-        self._guard_context(context)
+        guard_context_values(context)
         prompt = self._prompt_text(question, context)
         raw_response, trace_url = self._invoke_llm(prompt)
         parsed = self._parse_llm_result(raw_response)

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import time
 from contextlib import contextmanager
 from datetime import date, datetime
@@ -15,6 +14,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, ValidationError
 
+from adapters.base import ensure_api_usage_schema, get_placeholder
+from chains.utils import extract_json_text, rows_to_dicts
 from scripts.langchain.injection_guard import check_prompt_injection
 from tools.langchain_client import ClientInfo
 from tools.llm_provider import build_langsmith_metadata
@@ -105,49 +106,6 @@ class FilingSummaryChain:
             return None
 
     @staticmethod
-    def _is_sqlite_connection(conn: Any) -> bool:
-        return isinstance(conn, sqlite3.Connection)
-
-    @staticmethod
-    def _placeholder(conn: Any) -> str:
-        return "?" if FilingSummaryChain._is_sqlite_connection(conn) else "%s"
-
-    @staticmethod
-    def _usage_table_ddl(conn: Any) -> str:
-        if FilingSummaryChain._is_sqlite_connection(conn):
-            return """CREATE TABLE IF NOT EXISTS api_usage (
-                id INTEGER PRIMARY KEY,
-                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                source TEXT,
-                endpoint TEXT,
-                status INT,
-                bytes INT,
-                latency_ms INT,
-                cost_usd REAL
-            )"""
-        return """CREATE TABLE IF NOT EXISTS api_usage (
-            id BIGSERIAL PRIMARY KEY,
-            ts TIMESTAMPTZ DEFAULT now(),
-            source TEXT,
-            endpoint TEXT,
-            status INT,
-            bytes INT,
-            latency_ms INT,
-            cost_usd NUMERIC(10,4)
-        )"""
-
-    @staticmethod
-    def _cursor_rows_to_dicts(cursor: Any, rows: list[Any]) -> list[dict[str, Any]]:
-        if not rows:
-            return []
-        if isinstance(rows[0], dict):
-            return rows
-        if hasattr(rows[0], "keys"):
-            return [dict(row) for row in rows]
-        columns = [entry[0] for entry in (cursor.description or [])]
-        return [dict(zip(columns, row, strict=False)) for row in rows]
-
-    @staticmethod
     def _json_default(value: Any) -> Any:
         if isinstance(value, (date, datetime)):
             return value.isoformat()
@@ -164,30 +122,6 @@ class FilingSummaryChain:
         if value >= 1_000:
             return f"${value / 1_000:.2f}K"
         return f"${value:,.2f}"
-
-    @staticmethod
-    def _extract_json_text(text: str) -> str | None:
-        stripped = text.strip()
-        if stripped.startswith("{") and stripped.endswith("}"):
-            return stripped
-
-        fence_start = stripped.find("```")
-        if fence_start >= 0:
-            last_fence = stripped.rfind("```")
-            if last_fence > fence_start:
-                fenced = stripped[fence_start + 3 : last_fence].strip()
-                if "\n" in fenced:
-                    first_line, remainder = fenced.split("\n", 1)
-                    if first_line.strip().lower() in {"json", "application/json"}:
-                        fenced = remainder.strip()
-                if fenced.startswith("{") and fenced.endswith("}"):
-                    return fenced
-
-        start = stripped.find("{")
-        end = stripped.rfind("}")
-        if start >= 0 and end > start:
-            return stripped[start : end + 1]
-        return None
 
     @staticmethod
     def _coerce_str_list(raw: Any) -> list[str]:
@@ -257,7 +191,7 @@ class FilingSummaryChain:
         cursor = self.db.cursor()
         cursor.execute(query, params)
         rows = cursor.fetchall()
-        return self._cursor_rows_to_dicts(cursor, rows)
+        return rows_to_dicts(cursor, rows)
 
     def _execute_fetchone(self, query: str, params: tuple[Any, ...]) -> dict[str, Any] | None:
         cursor = self.db.cursor()
@@ -265,12 +199,12 @@ class FilingSummaryChain:
         row = cursor.fetchone()
         if row is None:
             return None
-        return self._cursor_rows_to_dicts(cursor, [row])[0]
+        return rows_to_dicts(cursor, [row])[0]
 
     def _build_fallback_delta_summary(
         self, manager_id: int | None, period_end: Any, filing_id: int
     ) -> list[dict[str, Any]]:
-        placeholder = self._placeholder(self.db)
+        placeholder = get_placeholder(self.db)
         if manager_id is not None and period_end is not None:
             query = (
                 "SELECT * FROM daily_diffs "
@@ -295,7 +229,7 @@ class FilingSummaryChain:
     def _load_filing_data(self, filing_id: int) -> dict[str, Any]:
         """Load filing + holdings + deltas from database for prompt variables."""
 
-        placeholder = self._placeholder(self.db)
+        placeholder = get_placeholder(self.db)
         filing_query = f"SELECT * FROM filings WHERE filing_id = {placeholder}"
         filing = self._execute_fetchone(filing_query, (filing_id,))
         if not filing:
@@ -366,7 +300,7 @@ class FilingSummaryChain:
 
     def _parse_summary_from_text(self, text: str, fallback_data: dict[str, Any]) -> FilingSummary:
         decoded_payload: dict[str, Any] = {}
-        payload = self._extract_json_text(text)
+        payload = extract_json_text(text)
         if payload:
             try:
                 return FilingSummary.model_validate_json(payload)
@@ -476,11 +410,11 @@ class FilingSummaryChain:
 
     def _log_usage(self, *, filing_id: int, output_text: str, latency_ms: int, status: int) -> None:
         try:
-            self.db.execute(self._usage_table_ddl(self.db))
+            ensure_api_usage_schema(self.db)
         except Exception:
             return
 
-        placeholder = self._placeholder(self.db)
+        placeholder = get_placeholder(self.db)
         insert_sql = (
             "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd) "
             f"VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, "

@@ -29,6 +29,7 @@ from api.models import (
     ManagerStatsResponse,
     UniverseImportResponse,
 )
+from utils.identifiers import normalize_cik
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -240,16 +241,6 @@ def _to_manager_response(row: tuple[object, ...]) -> ManagerResponse:
         created_at=str(created_at_raw) if created_at_raw is not None else None,
         updated_at=str(updated_at_raw) if updated_at_raw is not None else None,
     )
-
-
-def _normalize_cik(raw: Any) -> str:
-    cik = "" if raw is None else str(raw).strip()
-    if not cik:
-        return ""
-    digits = "".join(ch for ch in cik if ch.isdigit())
-    if not digits:
-        return ""
-    return digits.zfill(10)
 
 
 def _ensure_universe_schema(conn: Any) -> None:
@@ -1209,7 +1200,7 @@ async def import_manager_universe(
                 logger.warning("Universe import skipped record %s: record must be an object", index)
                 continue
             name = str(record.get("name", "")).strip()
-            cik = _normalize_cik(record.get("cik"))
+            cik = normalize_cik(record.get("cik"))
             jurisdiction = str(record.get("jurisdiction", "")).strip().lower()
             if not name or not cik or not jurisdiction:
                 skipped += 1
