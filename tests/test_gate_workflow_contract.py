@@ -32,8 +32,8 @@ def test_pr_gate_python_ci_matches_main_ci_contract() -> None:
     assert pr_python["coverage"] == main_python["coverage"]
     assert _numeric(pr_python["coverage-min"]) >= _numeric(main_python["coverage-min"])
 
-    if "format_check" in pr_python:
-        assert pr_python["format_check"] is not False
+    assert "format_check" in pr_python, "format_check input missing from pr-00-gate.yml python-ci"
+    assert pr_python["format_check"] is True
 
 
 def test_gate_summary_depends_on_python_ci() -> None:
