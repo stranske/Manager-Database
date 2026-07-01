@@ -96,6 +96,41 @@ def test_seed_managers_uses_sqlite_when_db_url_unset(tmp_path, monkeypatch) -> N
     assert json.loads(rows[1][3]) == ["us"]
 
 
+def test_seed_managers_adds_cik_index_to_existing_sqlite_table(tmp_path, monkeypatch) -> None:
+    sm = _load_seed_module()
+    db_path = tmp_path / "local.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("""
+            CREATE TABLE managers (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                cik TEXT,
+                aliases TEXT NOT NULL DEFAULT '[]',
+                jurisdictions TEXT NOT NULL DEFAULT '[]',
+                tags TEXT NOT NULL DEFAULT '[]'
+            )
+            """)
+        conn.commit()
+    finally:
+        conn.close()
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    inserted = sm.seed_managers()
+
+    conn = sqlite3.connect(db_path)
+    try:
+        indexes = {row[1] for row in conn.execute("PRAGMA index_list(managers)").fetchall()}
+        rows = conn.execute("SELECT cik FROM managers ORDER BY cik").fetchall()
+    finally:
+        conn.close()
+
+    assert inserted == len(sm.SEED_MANAGERS)
+    assert "idx_managers_cik" in indexes
+    assert [row[0] for row in rows] == ["0001434997", "0001791786"]
+
+
 def test_seed_managers_keeps_postgres_upsert_contract(monkeypatch) -> None:
     sm = _load_seed_module()
     rows_by_cik: dict[str, dict[str, object]] = {}

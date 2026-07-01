@@ -30,6 +30,17 @@ SEED_MANAGERS = [
     },
 ]
 
+SQLITE_MANAGER_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("lei", "TEXT"),
+    ("aliases", "TEXT NOT NULL DEFAULT '[]'"),
+    ("jurisdictions", "TEXT NOT NULL DEFAULT '[]'"),
+    ("tags", "TEXT NOT NULL DEFAULT '[]'"),
+    ("registry_ids", "TEXT NOT NULL DEFAULT '{}'"),
+    ("quality_flags", "TEXT NOT NULL DEFAULT '[]'"),
+    ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+    ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+)
+
 
 def _ensure_sqlite_schema(conn: sqlite3.Connection) -> None:
     conn.execute("""
@@ -37,6 +48,7 @@ def _ensure_sqlite_schema(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             cik TEXT,
+            lei TEXT,
             aliases TEXT NOT NULL DEFAULT '[]',
             jurisdictions TEXT NOT NULL DEFAULT '[]',
             tags TEXT NOT NULL DEFAULT '[]',
@@ -46,6 +58,12 @@ def _ensure_sqlite_schema(conn: sqlite3.Connection) -> None:
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
+    existing_columns = {
+        str(row[0]) for row in conn.execute("SELECT name FROM pragma_table_info('managers')")
+    }
+    for column, definition in SQLITE_MANAGER_COLUMNS:
+        if column not in existing_columns:
+            conn.execute(f"ALTER TABLE managers ADD COLUMN {column} {definition}")
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik ON managers(cik)")
 
 
@@ -57,7 +75,13 @@ def _sqlite_values(values: list[str]) -> str:
 
 def _upsert_sqlite_manager(conn: sqlite3.Connection, manager: dict[str, Any]) -> bool:
     cik = str(manager["cik"])
-    existed = conn.execute("SELECT 1 FROM managers WHERE cik = ?", (cik,)).fetchone() is not None
+    existed = (
+        conn.execute(
+            "SELECT 1 FROM managers WHERE cik = :cik",
+            {"cik": cik},
+        ).fetchone()
+        is not None
+    )
     conn.execute(
         """
         INSERT INTO managers (name, cik, aliases, jurisdictions, tags, updated_at)
