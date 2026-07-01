@@ -161,9 +161,9 @@ def _ensure_manager_table(conn) -> None:
 
 def _manager_id_column(conn) -> str:
     """Return the manager primary-key column for the active database backend."""
-    return shared_manager_id_column(conn) or (
-        "id" if isinstance(conn, sqlite3.Connection) else "manager_id"
-    )
+    if not isinstance(conn, sqlite3.Connection):
+        return "manager_id"
+    return shared_manager_id_column(conn) or "id"
 
 
 def _json_array(raw: object) -> list[str]:
