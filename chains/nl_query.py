@@ -36,7 +36,7 @@ Database schema:
 _COMMENT_BLOCK_RE = re.compile(r"/\*.*?\*/", re.S)
 _COMMENT_LINE_RE = re.compile(r"--.*?$", re.M)
 _TABLE_REF_RE = re.compile(r'\b(?:from|join)\s+"?([a-zA-Z_][\w]*)"?', re.I)
-_LIMIT_RE = re.compile(r"\blimit\s+\d+\b", re.I)
+_LIMIT_RE = re.compile(r"\blimit\s+(\d+)\b", re.I)
 _SQLITE_UNSUPPORTED_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bilike\b", re.I), "ILIKE is PostgreSQL-only; use LIKE for SQLite"),
     (re.compile(r"\bdate_trunc\s*\(", re.I), "date_trunc() is PostgreSQL-only"),
@@ -128,7 +128,12 @@ class NLQueryChain:
         cleaned = _COMMENT_BLOCK_RE.sub(" ", sql)
         cleaned = _COMMENT_LINE_RE.sub(" ", cleaned)
         cleaned = cleaned.strip().rstrip(";").strip()
-        if not _LIMIT_RE.search(cleaned):
+        limit_match = _LIMIT_RE.search(cleaned)
+        if limit_match:
+            requested_limit = int(limit_match.group(1))
+            if requested_limit > 100:
+                cleaned = _LIMIT_RE.sub("LIMIT 100", cleaned, count=1)
+        else:
             cleaned = f"{cleaned} LIMIT 100"
         return cleaned
 
@@ -144,6 +149,8 @@ class NLQueryChain:
             if re.search(rf"\b{keyword}\b", lowered):
                 return False, f"Disallowed SQL keyword: {keyword.upper()}"
         table_refs = {match.group(1) for match in _TABLE_REF_RE.finditer(normalized)}
+        if not table_refs:
+            return False, "SELECT queries must reference at least one known application table"
         unknown_tables = sorted(table_refs - self._known_tables)
         if unknown_tables:
             return False, f"Unknown tables referenced: {', '.join(unknown_tables)}"
