@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import quote
 
 import pytest
@@ -239,6 +240,9 @@ def _reset_schema(conn, schema_name: str) -> None:
 
 
 def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
+    def row_tuple(row: tuple[Any, ...]) -> tuple[str, ...]:
+        return tuple("" if value is None else str(value) for value in row)
+
     def normalize_sql(value: str | None, schema_name: str) -> str:
         if value is None:
             return ""
@@ -261,7 +265,7 @@ def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
             """,
             (list(IGNORED_PARITY_TABLES),),
         )
-        tables = {(row[0],) for row in cur.fetchall()}
+        tables = {row_tuple(row) for row in cur.fetchall()}
 
         cur.execute(
             """
@@ -286,7 +290,7 @@ def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
             (list(IGNORED_PARITY_TABLES),),
         )
         columns = {
-            (row[0], row[1], row[2], row[3], row[4], normalize_sql(row[5], schema_name))
+            row_tuple((*row[:5], normalize_sql(cast(str | None, row[5]), schema_name)))
             for row in cur.fetchall()
         }
 
@@ -303,7 +307,10 @@ def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
             """,
             (list(IGNORED_PARITY_TABLES),),
         )
-        indexes = {(row[0], row[1], normalize_sql(row[2], schema_name)) for row in cur.fetchall()}
+        indexes = {
+            row_tuple((*row[:2], normalize_sql(cast(str | None, row[2]), schema_name)))
+            for row in cur.fetchall()
+        }
 
         cur.execute(
             """
@@ -321,7 +328,8 @@ def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
             (list(IGNORED_PARITY_TABLES),),
         )
         constraints = {
-            (row[0], row[1], normalize_sql(row[2], schema_name)) for row in cur.fetchall()
+            row_tuple((*row[:2], normalize_sql(cast(str | None, row[2]), schema_name)))
+            for row in cur.fetchall()
         }
 
         cur.execute("""
@@ -330,7 +338,10 @@ def _catalog_snapshot(conn) -> dict[str, set[tuple[str, ...]]]:
              WHERE schemaname = current_schema()
              ORDER BY matviewname
             """)
-        matviews = {(row[0], normalize_sql(row[1], schema_name)) for row in cur.fetchall()}
+        matviews = {
+            row_tuple((row[0], normalize_sql(cast(str | None, row[1]), schema_name)))
+            for row in cur.fetchall()
+        }
 
     return {
         "tables": tables,

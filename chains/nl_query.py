@@ -41,7 +41,10 @@ _SQLITE_UNSUPPORTED_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bilike\b", re.I), "ILIKE is PostgreSQL-only; use LIKE for SQLite"),
     (re.compile(r"\bdate_trunc\s*\(", re.I), "date_trunc() is PostgreSQL-only"),
     (re.compile(r"::\s*[a-zA-Z_][\w]*", re.I), "PostgreSQL cast syntax is not valid SQLite"),
-    (re.compile(r"\bto_(?:char|date|timestamp)\s*\(", re.I), "to_* date functions are PostgreSQL-only"),
+    (
+        re.compile(r"\bto_(?:char|date|timestamp)\s*\(", re.I),
+        "to_* date functions are PostgreSQL-only",
+    ),
 )
 _DANGEROUS_KEYWORDS = {
     "insert",
@@ -176,7 +179,9 @@ class NLQueryChain:
         try:
             is_valid_dialect, dialect_error = self._validate_sql_for_connection(sql, conn)
             if not is_valid_dialect:
-                raise ValueError(dialect_error or "SQL dialect is incompatible with active database")
+                raise ValueError(
+                    dialect_error or "SQL dialect is incompatible with active database"
+                )
             if self._connection_dialect(conn) != "sqlite":
                 conn.execute("SET statement_timeout TO 10000")
             cursor = conn.execute(sql)
