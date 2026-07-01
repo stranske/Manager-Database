@@ -368,6 +368,22 @@ DIRECT_CHAIN_PATHS = {
 SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
 
+class ChainUnavailableError(RuntimeError):
+    """Raised when a requested chat chain cannot be loaded safely."""
+
+
+def _chat_chain_fallback_enabled() -> bool:
+    """Return True when deterministic chain stubs are explicitly allowed."""
+    return os.getenv("CHAT_CHAIN_FALLBACK_MODE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "dev",
+        "offline",
+        "stlite",
+    }
+
+
 def _read_positive_int_env(name: str, default: int) -> int:
     raw_value = os.getenv(name)
     if raw_value is None:
@@ -725,8 +741,26 @@ def _build_chain(chain_name: str, client_info: Any):
     try:
         module = importlib.import_module(module_path)
         chain_cls = getattr(module, class_name)
-    except Exception:
-        return FALLBACK_CHAINS[chain_name]()
+    except (ModuleNotFoundError, AttributeError) as exc:
+        if _chat_chain_fallback_enabled():
+            logger.warning(
+                "Using explicit chat chain fallback for %s after load failure",
+                chain_name,
+                exc_info=True,
+            )
+            return FALLBACK_CHAINS[chain_name]()
+        logger.exception("Chat chain %s is unavailable", chain_name)
+        raise ChainUnavailableError(f"Chat chain '{chain_name}' is unavailable") from exc
+    except Exception as exc:
+        if _chat_chain_fallback_enabled():
+            logger.warning(
+                "Using explicit chat chain fallback for %s after import error",
+                chain_name,
+                exc_info=True,
+            )
+            return FALLBACK_CHAINS[chain_name]()
+        logger.exception("Chat chain %s failed during import", chain_name)
+        raise ChainUnavailableError(f"Chat chain '{chain_name}' failed during import") from exc
 
     db_conn = connect_db()
     try:
@@ -1120,6 +1154,20 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             status_code=400,
             detail=f"Input rejected: {reason_text}",
         ) from exc
+    except ChainUnavailableError as exc:
+        logger.error("Chat chain unavailable: %s", exc, exc_info=True)
+        _record_chat_fleet_safe(
+            request_id=request_id,
+            endpoint=endpoint_path,
+            chain=chain_used,
+            session_id=session_id,
+            provider=provider_name,
+            model=model_name,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            http_status=503,
+            error_category="chain_unavailable",
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except HTTPException as exc:
         _record_chat_fleet_safe(
             request_id=request_id,
@@ -1243,6 +1291,26 @@ def _health_summary_timeout_seconds() -> float:
     """Return the timeout budget for /health dependency checks."""
     timeout = float(os.getenv("HEALTH_SUMMARY_TIMEOUT_S", "0.2"))
     return max(min(timeout, 0.2), 0.05)
+
+
+def _chat_chain_health_payload() -> tuple[dict[str, int | bool], str | None]:
+    """Report whether production chat chains are importable."""
+    fallback_enabled = _chat_chain_fallback_enabled()
+    if _chat_zone_disabled():
+        return {"healthy": True, "available": True, "fallback_enabled": fallback_enabled}, None
+    if fallback_enabled:
+        return {"healthy": True, "available": True, "fallback_enabled": True}, None
+
+    for chain_name, (module_path, class_name) in DIRECT_CHAIN_PATHS.items():
+        try:
+            module = importlib.import_module(module_path)
+            getattr(module, class_name)
+        except Exception as exc:
+            return (
+                {"healthy": False, "available": False, "fallback_enabled": False},
+                f"{chain_name}: {_format_dependency_error(exc)}",
+            )
+    return {"healthy": True, "available": True, "fallback_enabled": False}, None
 
 
 async def _run_dependency_check(
@@ -1379,6 +1447,8 @@ async def health_app():
             "minio": minio_payload,
             "redis": redis_payload,
         }
+        chat_chains_payload, chat_chains_reason = _chat_chain_health_payload()
+        components["chat_chains"] = chat_chains_payload
         failed_checks = {}
         if not db_payload["healthy"]:
             failed_checks["database"] = db_reason or "unhealthy"
@@ -1386,12 +1456,15 @@ async def health_app():
             failed_checks["minio"] = minio_reason or "unhealthy"
         if redis_payload.get("enabled", True) and not redis_payload["healthy"]:
             failed_checks["redis"] = redis_reason or "unhealthy"
+        if not chat_chains_payload["healthy"]:
+            failed_checks["chat_chains"] = chat_chains_reason or "unhealthy"
         redis_healthy = redis_payload["healthy"] if redis_payload.get("enabled", True) else True
         healthy = (
             app_payload["healthy"]
             and db_payload["healthy"]
             and minio_payload["healthy"]
             and redis_healthy
+            and chat_chains_payload["healthy"]
         )
         payload = {
             "healthy": healthy,
@@ -1692,12 +1765,17 @@ async def health_detailed():
             "minio": minio_payload,
             "redis": redis_payload,
         }
+        chat_chains_payload, chat_chains_reason = _chat_chain_health_payload()
+        if chat_chains_reason:
+            chat_chains_payload["reason_present"] = True
+        components["chat_chains"] = chat_chains_payload
         redis_healthy = redis_payload["healthy"] if redis_payload["enabled"] else True
         healthy = (
             app_payload["healthy"]
             and db_payload["healthy"]
             and minio_payload["healthy"]
             and redis_healthy
+            and chat_chains_payload["healthy"]
         )
         payload = {
             "healthy": healthy,
