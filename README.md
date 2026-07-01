@@ -33,4 +33,4 @@ curl -X POST "http://localhost:8000/managers" \
 curl "http://localhost:8000/health/db"
 ```
 
-**Note:** All API endpoints are subject to rate limiting. See the [API Rate Limiting documentation](docs/api_rate_limiting.md) for details on limits and how to handle rate limit responses.
+**Note:** Chat write endpoints are rate limited. See the [API Rate Limiting documentation](docs/api_rate_limiting.md) for the exact endpoint matrix and response contract.
