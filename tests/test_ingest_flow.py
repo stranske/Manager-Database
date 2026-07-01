@@ -22,6 +22,28 @@ class _USAdapter:
         ]
 
 
+class _LargeUSAdapter:
+    def __init__(self, row_count):
+        self.row_count = row_count
+
+    async def list_new_filings(self, _cik, _since):
+        return [{"accession": "0001-24-999999", "filed": "2024-01-05"}]
+
+    async def download(self, _filing):
+        return "<xml>large</xml>"
+
+    async def parse(self, _raw):
+        return [
+            {
+                "nameOfIssuer": f"Example Corp {index}",
+                "cusip": f"12345{index:04d}",
+                "value": index,
+                "sshPrnamt": index + 1,
+            }
+            for index in range(self.row_count)
+        ]
+
+
 class _UKAdapter:
     async def list_new_filings(self, company_number, since):
         return [{"transaction_id": "txn-1", "date": "2024-02-03"}]
@@ -184,6 +206,64 @@ async def test_fetch_and_store_us_uses_manager_cik_and_inserts_holdings(tmp_path
 
     assert filing == (1, "us", "0001-24-000001", "13F-HR")
     assert holding == (1, "0000000001", "0001-24-000001", "123456789", 1000, 50)
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_caps_single_large_filing_return_rows(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (id INTEGER PRIMARY KEY AUTOINCREMENT, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute("INSERT INTO managers(cik, registry_ids) VALUES (?, ?)", ("0000000001", "{}"))
+    conn.commit()
+    conn.close()
+
+    max_results = 3
+    monkeypatch.setenv("MAX_RESULTS_IN_MEMORY", str(max_results))
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+
+    rows = await ingest_flow.fetch_and_store.fn(
+        "0000000001",
+        "2024-01-01",
+        jurisdiction="us",
+        adapter=_LargeUSAdapter(max_results + 1),
+        db_path=str(db_path),
+    )
+
+    assert len(rows) == max_results
+
+    conn = sqlite3.connect(db_path)
+    holdings_count = conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0]
+    conn.close()
+    assert holdings_count == max_results + 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_ignores_invalid_max_results_env(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (id INTEGER PRIMARY KEY AUTOINCREMENT, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute("INSERT INTO managers(cik, registry_ids) VALUES (?, ?)", ("0000000001", "{}"))
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setenv("MAX_RESULTS_IN_MEMORY", "not-an-int")
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+
+    rows = await ingest_flow.fetch_and_store.fn(
+        "0000000001",
+        "2024-01-01",
+        jurisdiction="us",
+        adapter=_USAdapter(),
+        db_path=str(db_path),
+    )
+
+    assert rows and rows[0]["cusip"] == "123456789"
 
 
 @pytest.mark.asyncio

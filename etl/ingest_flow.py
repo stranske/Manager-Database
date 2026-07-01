@@ -449,6 +449,25 @@ def _replace_holdings_rows(
     return int(_run_in_transaction(conn, _work))
 
 
+def _max_results_in_memory() -> int:
+    raw_value = os.getenv("MAX_RESULTS_IN_MEMORY", "100000")
+    try:
+        max_results = int(raw_value)
+    except ValueError:
+        logger.warning(
+            "Invalid MAX_RESULTS_IN_MEMORY; using default",
+            extra={"value": raw_value, "default": 100000},
+        )
+        return 100000
+    if max_results < 1:
+        logger.warning(
+            "MAX_RESULTS_IN_MEMORY must be positive; using default",
+            extra={"value": raw_value, "default": 100000},
+        )
+        return 100000
+    return max_results
+
+
 @task
 async def fetch_and_store(
     identifier: str,
@@ -468,7 +487,7 @@ async def fetch_and_store(
 
         results: list[dict[str, Any]] = []
         row_count = 0
-        max_results = int(os.getenv("MAX_RESULTS_IN_MEMORY", "100000"))
+        max_results = _max_results_in_memory()
 
         for filing in filings:
             raw = await adapter.download(filing)
@@ -505,7 +524,7 @@ async def fetch_and_store(
                 parsed_rows=parsed_rows,
             )
 
-            should_keep_results = row_count < max_results
+            remaining_results = max(0, max_results - len(results))
             # UK filings are metadata-driven (e.g., CS01/AR01) and should be
             # stored as parsed payload on the filings row, not expanded holdings.
             if jurisdiction != "uk" and _looks_like_holdings_rows(parsed_rows):
@@ -519,8 +538,8 @@ async def fetch_and_store(
                     parsed_rows=parsed_rows,
                     jurisdiction=jurisdiction,
                 )
-            if should_keep_results:
-                results.extend(parsed_rows)
+            if remaining_results:
+                results.extend(parsed_rows[:remaining_results])
 
         conn.commit()
         logger.info(
