@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
@@ -14,6 +14,8 @@ from typing import Any
 from cachetools import TTLCache  # type: ignore[import-untyped]
 from prometheus_client import Counter, Gauge
 
+from config import load_runtime_config
+
 CACHE_HITS = Counter("cache_hits_total", "Cache hits by namespace.", ("namespace",))
 CACHE_MISSES = Counter("cache_misses_total", "Cache misses by namespace.", ("namespace",))
 CACHE_HIT_RATIO = Gauge("cache_hit_ratio", "Cache hit ratio by namespace.", ("namespace",))
@@ -22,14 +24,15 @@ _CACHE_LOCK = Lock()
 _CACHE_BACKEND: _CacheBackend | None = None
 _METRICS_LOCK = Lock()
 _CACHE_METRICS: dict[str, dict[str, int]] = {}
+logger = logging.getLogger(__name__)
 
 
 def _cache_ttl_seconds() -> int:
-    return max(int(os.getenv("CACHE_TTL_SECONDS", "60")), 1)
+    return load_runtime_config().cache_ttl_seconds
 
 
 def _cache_max_items() -> int:
-    return max(int(os.getenv("CACHE_MAX_ITEMS", "512")), 1)
+    return load_runtime_config().cache_max_items
 
 
 def _build_redis_client(redis_url: str):
@@ -51,11 +54,12 @@ def _get_backend() -> _CacheBackend:
     if _CACHE_BACKEND is not None:
         return _CACHE_BACKEND
 
-    redis_url = os.getenv("REDIS_URL")
+    redis_url = load_runtime_config().redis_url
     if redis_url:
         try:
             client = _build_redis_client(redis_url)
-        except Exception:
+        except (ImportError, OSError, ValueError):
+            logger.warning("Redis cache backend unavailable; using in-memory cache", exc_info=True)
             client = None
         if client is not None:
 

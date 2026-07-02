@@ -45,20 +45,6 @@ def _serialize_json(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
 
-def _deserialize_json_object(raw: Any) -> dict[str, Any]:
-    if isinstance(raw, dict):
-        return raw
-    if raw in (None, ""):
-        return {}
-    if isinstance(raw, (bytes, bytearray)):
-        raw = raw.decode("utf-8")
-    if isinstance(raw, str):
-        parsed = json.loads(raw)
-        if isinstance(parsed, dict):
-            return parsed
-    return {}
-
-
 def _deserialize_json_array(raw: Any) -> list[str]:
     if isinstance(raw, list):
         return [str(item) for item in raw]

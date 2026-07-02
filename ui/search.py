@@ -43,31 +43,6 @@ def search_news(term: str) -> pd.DataFrame:
     return df
 
 
-def search_notes(term: str) -> pd.DataFrame:
-    conn = connect_db()
-    if isinstance(conn, sqlite3.Connection):
-        conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(content, content='notes', content_rowid='rowid')"
-        )
-        conn.execute("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')")
-        query = (
-            "SELECT notes.filename "
-            "FROM notes_fts JOIN notes ON notes_fts.rowid = notes.rowid "
-            "WHERE notes_fts MATCH ? LIMIT 20"
-        )
-        df = pd.read_sql_query(query, conn, params=(term,))
-    else:
-        query = (
-            "SELECT filename "
-            "FROM notes "
-            "WHERE to_tsvector('english', content) @@ plainto_tsquery('english', %s) "
-            "LIMIT 20"
-        )
-        df = pd.read_sql_query(query, conn, params=(term,))
-    conn.close()
-    return df
-
-
 _ENTITY_LABELS: dict[str, str] = {
     "manager": "Managers",
     "filing": "Filings",
