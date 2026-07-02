@@ -132,6 +132,10 @@ CREATE TABLE IF NOT EXISTS holdings (
     shares bigint,
     value_usd numeric(18,2),
     delta_type text,
+    resolved_ticker text,
+    resolved_figi text,
+    resolved_lei text,
+    resolution_source text,
     created_at timestamptz DEFAULT now()
 );
 
@@ -140,6 +144,29 @@ CREATE INDEX IF NOT EXISTS idx_holdings_filing_id
 
 CREATE INDEX IF NOT EXISTS idx_holdings_cusip
     ON holdings (cusip);
+
+CREATE TABLE IF NOT EXISTS identifier_resolution_cache (
+    cusip text PRIMARY KEY,
+    ticker text,
+    figi text,
+    composite_figi text,
+    share_class_figi text,
+    isin text,
+    lei text,
+    name text,
+    source text NOT NULL DEFAULT 'openfigi',
+    resolved_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS identifier_resolution_metrics (
+    metric_id bigserial PRIMARY KEY,
+    source text NOT NULL,
+    filing_id bigint,
+    total_cusips integer NOT NULL,
+    unmapped_cusips integer NOT NULL,
+    unmapped_cusip_rate real NOT NULL,
+    created_at timestamptz DEFAULT now()
+);
 
 CREATE TABLE IF NOT EXISTS news_items (
     news_id bigserial PRIMARY KEY,

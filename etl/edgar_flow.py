@@ -20,6 +20,7 @@ from adapters.base import (
     get_placeholder,
     get_table_columns,
 )
+from adapters.openfigi import resolve_holding_identifiers
 from alerts.integration import build_new_filing_event, fire_alerts_for_event
 from etl.logging_setup import configure_logging, log_outcome
 
@@ -121,6 +122,10 @@ def _ensure_legacy_tables(conn: Any) -> None:
                 value NUMERIC,
                 filed TEXT,
                 delta_type TEXT,
+                resolved_ticker TEXT,
+                resolved_figi TEXT,
+                resolved_lei TEXT,
+                resolution_source TEXT,
                 FOREIGN KEY(filing_id) REFERENCES filings(filing_id)
             )""")
         return
@@ -150,6 +155,10 @@ def _ensure_legacy_tables(conn: Any) -> None:
             shares bigint,
             value_usd numeric(18,2),
             delta_type text,
+            resolved_ticker text,
+            resolved_figi text,
+            resolved_lei text,
+            resolution_source text,
             created_at timestamptz DEFAULT now()
         )""")
 
@@ -227,6 +236,10 @@ def _insert_holding_legacy(
         "name_of_issuer": row.get("nameOfIssuer"),
         "shares": int(row.get("sshPrnamt") or 0),
         "value_usd": int(row.get("value") or 0),
+        "resolved_ticker": row.get("resolved_ticker"),
+        "resolved_figi": row.get("resolved_figi"),
+        "resolved_lei": row.get("resolved_lei"),
+        "resolution_source": row.get("resolution_source"),
     }
     if isinstance(conn, sqlite3.Connection):
         values.update(
@@ -277,6 +290,10 @@ def _replace_holdings_for_filing(
 ) -> None:
     def _work() -> None:
         _delete_holdings_for_filing(conn, filing_id)
+        try:
+            resolve_holding_identifiers(conn, rows, filing_id=filing_id, source="edgar")
+        except Exception:
+            logger.warning("Identifier resolution failed; inserting raw holdings", exc_info=True)
         for row in rows:
             _insert_holding_legacy(
                 conn,
