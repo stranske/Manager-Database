@@ -270,35 +270,93 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
             )
 
     if table_exists(conn, "holdings"):
+        holdings_columns = get_table_columns(conn, "holdings")
+        resolved_identifier_columns = [
+            column
+            for column in (
+                "resolved_ticker",
+                "resolved_figi",
+                "resolved_lei",
+                "isin",
+            )
+            if column in holdings_columns
+        ]
+        resolved_identifier_select = ", ".join(
+            f"h.{column}" for column in resolved_identifier_columns
+        )
+        resolved_identifier_select = (
+            f", {resolved_identifier_select}" if resolved_identifier_select else ""
+        )
+        resolved_identifier_text = " || ' ' || ".join(
+            f"COALESCE(h.{column}, '')" for column in resolved_identifier_columns
+        )
+        holdings_search_text = "COALESCE(h.name_of_issuer, '')"
+        if resolved_identifier_text:
+            holdings_search_text = f"{holdings_search_text} || ' ' || {resolved_identifier_text}"
+        resolved_identifier_predicates = " ".join(
+            f"OR upper(COALESCE(h.{column}, '')) = upper(%s)"
+            for column in resolved_identifier_columns
+        )
+        resolved_identifier_rank = " + ".join(
+            f"CASE WHEN upper(COALESCE(h.{column}, '')) = upper(%s) THEN 1.0 ELSE 0.0 END"
+            for column in resolved_identifier_columns
+        )
+        resolved_identifier_rank = (
+            f" + {resolved_identifier_rank}" if resolved_identifier_rank else ""
+        )
         rows = conn.execute(
-            """
+            f"""
             SELECT
                 h.holding_id,
                 m.name,
                 h.name_of_issuer,
                 h.cusip,
-                f.filed_date,
+                f.filed_date{resolved_identifier_select},
                 ts_rank(
-                    to_tsvector('english', COALESCE(h.name_of_issuer, '')),
+                    to_tsvector('english', {holdings_search_text}),
                     plainto_tsquery('english', %s)
                 ) AS issuer_rank,
-                CASE WHEN upper(COALESCE(h.cusip, '')) = upper(%s) THEN 1.0 ELSE 0.0 END AS cusip_rank
+                (
+                    CASE WHEN upper(COALESCE(h.cusip, '')) = upper(%s) THEN 1.0 ELSE 0.0 END
+                    {resolved_identifier_rank}
+                ) AS identifier_rank
             FROM holdings h
             JOIN filings f ON f.filing_id = h.filing_id
             LEFT JOIN managers m ON m.manager_id = f.manager_id
-            WHERE to_tsvector('english', COALESCE(h.name_of_issuer, '')) @@ plainto_tsquery('english', %s)
+            WHERE to_tsvector('english', {holdings_search_text}) @@ plainto_tsquery('english', %s)
                OR upper(COALESCE(h.cusip, '')) = upper(%s)
+               {resolved_identifier_predicates}
             ORDER BY GREATEST(
-                ts_rank(to_tsvector('english', COALESCE(h.name_of_issuer, '')), plainto_tsquery('english', %s)),
+                ts_rank(to_tsvector('english', {holdings_search_text}), plainto_tsquery('english', %s)),
                 CASE WHEN upper(COALESCE(h.cusip, '')) = upper(%s) THEN 1.0 ELSE 0.0 END
+                {resolved_identifier_rank}
             ) DESC
             LIMIT %s
             """,
-            (query, query, query, query, query, query, limit),
+            (
+                query,
+                query,
+                *(query for _ in resolved_identifier_columns),
+                query,
+                query,
+                *(query for _ in resolved_identifier_columns),
+                query,
+                query,
+                *(query for _ in resolved_identifier_columns),
+                limit,
+            ),
         ).fetchall()
-        for holding_id, manager_name, issuer, cusip, filed_date, issuer_rank, cusip_rank in rows:
+        for row in rows:
+            holding_id, manager_name, issuer, cusip, filed_date, *tail = row
+            resolved_values = [
+                str(value).strip() for value in tail[: len(resolved_identifier_columns)] if value
+            ]
+            issuer_rank, identifier_rank = tail[len(resolved_identifier_columns) :]
             headline = f"{issuer or 'Holding'} ({cusip or 'n/a'})"
-            snippet = f"CUSIP: {cusip or 'n/a'}"
+            identifier_parts = [f"CUSIP: {cusip or 'n/a'}"]
+            if resolved_values:
+                identifier_parts.append("Resolved: " + " / ".join(resolved_values))
+            snippet = " | ".join(identifier_parts)
             results.append(
                 SearchResult(
                     entity_type="holding",
@@ -311,7 +369,7 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                         query,
                         headline,
                         snippet,
-                        fts_rank=max(float(issuer_rank or 0.0), float(cusip_rank or 0.0)),
+                        fts_rank=max(float(issuer_rank or 0.0), float(identifier_rank or 0.0)),
                     ),
                     url=None,
                     timestamp=str(filed_date) if filed_date is not None else None,
@@ -579,6 +637,16 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
     holdings_columns = get_table_columns(conn, "holdings")
     if holdings_columns:
         if "holding_id" in holdings_columns:
+            resolved_identifier_columns = [
+                column
+                for column in (
+                    "resolved_ticker",
+                    "resolved_figi",
+                    "resolved_lei",
+                    "isin",
+                )
+                if column in holdings_columns
+            ]
             filing_columns = get_table_columns(conn, "filings")
             filing_date_col = (
                 "filed_date"
@@ -586,18 +654,37 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 else ("period_end" if "period_end" in filing_columns else None)
             )
             filing_date_expr = f"f.{filing_date_col}" if filing_date_col else "NULL"
+            resolved_identifier_select = "".join(
+                f", h.{column}" for column in resolved_identifier_columns
+            )
+            resolved_identifier_where = "".join(
+                f" OR upper(COALESCE(h.{column}, '')) = upper(?)"
+                for column in resolved_identifier_columns
+            )
             rows = conn.execute(
                 "SELECT h.holding_id, f.manager_id, h.name_of_issuer, h.cusip, "
                 + filing_date_expr
+                + resolved_identifier_select
                 + " "
                 "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
                 "WHERE COALESCE(h.name_of_issuer, '') LIKE ? OR upper(COALESCE(h.cusip, '')) = upper(?) "
-                "LIMIT ?",
-                (like_token, query.strip(), limit),
+                + resolved_identifier_where
+                + " LIMIT ?",
+                (
+                    like_token,
+                    query.strip(),
+                    *(query.strip() for _ in resolved_identifier_columns),
+                    limit,
+                ),
             ).fetchall()
-            for entity_id, manager_id, issuer, cusip, filed_date in rows:
+            for row in rows:
+                entity_id, manager_id, issuer, cusip, filed_date, *resolved_values = row
+                resolved_values = [str(value).strip() for value in resolved_values if value]
                 headline = f"{issuer or 'Holding'} ({cusip or 'n/a'})"
-                snippet = f"CUSIP: {cusip or 'n/a'}"
+                identifier_parts = [f"CUSIP: {cusip or 'n/a'}"]
+                if resolved_values:
+                    identifier_parts.append("Resolved: " + " / ".join(resolved_values))
+                snippet = " | ".join(identifier_parts)
                 results.append(
                     SearchResult(
                         entity_type="holding",

@@ -9,6 +9,7 @@ from unittest.mock import Mock
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import httpx
+import pytest
 from fastapi.encoders import jsonable_encoder
 
 import api.chat as chat_api_module
@@ -57,7 +58,16 @@ class _FakePostgresConn:
                     ("period_end",),
                     ("url",),
                 ],
-                "holdings": [("holding_id",), ("filing_id",), ("name_of_issuer",), ("cusip",)],
+                "holdings": [
+                    ("holding_id",),
+                    ("filing_id",),
+                    ("name_of_issuer",),
+                    ("cusip",),
+                    ("resolved_ticker",),
+                    ("resolved_figi",),
+                    ("resolved_lei",),
+                    ("isin",),
+                ],
                 "news_items": [("news_id",), ("manager_id",), ("headline",), ("body_snippet",)],
                 "documents": [("doc_id",), ("manager_id",), ("filename",), ("text",)],
             }
@@ -70,7 +80,21 @@ class _FakePostgresConn:
             )
         if "from holdings h" in lowered:
             return _FakeCursor(
-                [(3, "Elliott Management", "Elliott Corp", "123456789", "2025-04-01", 0.6, 0.0)]
+                [
+                    (
+                        3,
+                        "Elliott Management",
+                        "Elliott Corp",
+                        "123456789",
+                        "2025-04-01",
+                        "ELT",
+                        "BBG000ELT",
+                        "5493001KJTIIGC8Y1R12",
+                        "US0000000001",
+                        0.6,
+                        0.0,
+                    )
+                ]
             )
         if "from news_items n" in lowered:
             return _FakeCursor(
@@ -185,6 +209,64 @@ def test_universal_search_returns_ranked_multi_entity_results():
     entity_types = {item.entity_type for item in results}
     assert {"manager", "filing", "news", "document", "holding"}.issubset(entity_types)
     assert results == sorted(results, key=lambda item: item.relevance, reverse=True)
+
+
+@pytest.mark.parametrize(
+    ("column", "query_value"),
+    [
+        ("resolved_ticker", "AAPL"),
+        ("resolved_figi", "BBG000B9XRY4"),
+        ("resolved_lei", "HWUPKR0MPOU8FGXBT394"),
+        ("isin", "US0378331005"),
+    ],
+)
+def test_universal_search_matches_resolved_holding_identifiers(column: str, query_value: str):
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
+    conn.execute(
+        "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, raw_key TEXT, period_end TEXT, url TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings ("
+        "holding_id INTEGER PRIMARY KEY, filing_id INTEGER, name_of_issuer TEXT, cusip TEXT, "
+        "resolved_ticker TEXT, resolved_figi TEXT, resolved_lei TEXT, isin TEXT)"
+    )
+    conn.execute("INSERT INTO managers(id, name, role) VALUES (1, 'Manager', 'Activist')")
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, raw_key, period_end, url) "
+        "VALUES (10, 1, '13F-HR', 'raw-10', '2025-01-01', NULL)"
+    )
+    conn.execute(
+        "INSERT INTO holdings("
+        "holding_id, filing_id, name_of_issuer, cusip, "
+        "resolved_ticker, resolved_figi, resolved_lei, isin"
+        ") VALUES (20, 10, 'Apple Inc', '037833100', "
+        "'AAPL', 'BBG000B9XRY4', 'HWUPKR0MPOU8FGXBT394', 'US0378331005')"
+    )
+
+    results = universal_search(query_value, conn, limit=20, entity_type="holding")
+
+    assert [item.entity_type for item in results] == ["holding"]
+    assert results[0].headline == "Apple Inc (037833100)"
+    assert query_value in results[0].snippet
+    assert "US0378331005" in results[0].snippet
+
+
+def test_universal_search_postgres_matches_resolved_holding_identifiers():
+    conn = _FakePostgresConn()
+
+    results = universal_search("US0000000001", conn, limit=10, entity_type="holding")
+
+    assert [item.entity_type for item in results] == ["holding"]
+    assert results[0].headline == "Elliott Corp (123456789)"
+    assert "ELT" in results[0].snippet
+    assert "BBG000ELT" in results[0].snippet
+    assert "5493001KJTIIGC8Y1R12" in results[0].snippet
+    assert "US0000000001" in results[0].snippet
+    holdings_queries = [query for query in conn.queries if "from holdings h" in query.lower()]
+    assert holdings_queries
+    assert "h.resolved_lei" in holdings_queries[0]
+    assert "h.isin" in holdings_queries[0]
 
 
 def test_score_result_clamps_non_finite_rank_and_distance():
