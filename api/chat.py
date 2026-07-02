@@ -382,9 +382,6 @@ def _chat_chain_fallback_enabled() -> bool:
     }
 
 
-_CHAT_SESSION_COOKIE_NAME = load_runtime_config().chat_session_cookie_name
-
-
 class InMemoryChatRateLimiter:
     """Simple in-memory session limiter for chat endpoints."""
 
@@ -446,12 +443,16 @@ def _verified_chat_session_cookie(raw_value: str | None) -> str | None:
     return session_id
 
 
+def _chat_session_cookie_name() -> str:
+    return load_runtime_config().chat_session_cookie_name
+
+
 def _chat_session_id(request: Request | None) -> str:
     """Derive a stable quota key without trusting client-chosen headers."""
     if request is None:
         return "unknown"
     client_host = request.client.host if request.client and request.client.host else "unknown"
-    session_id = _verified_chat_session_cookie(request.cookies.get(_CHAT_SESSION_COOKIE_NAME))
+    session_id = _verified_chat_session_cookie(request.cookies.get(_chat_session_cookie_name()))
     if session_id:
         return f"client:{client_host}:session:{session_id}"
     return f"client:{client_host}"
