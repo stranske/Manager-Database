@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,10 +28,16 @@ def _has_external_callers(name: str, definition_path: str) -> bool:
     for path in ROOT.rglob("*.py"):
         if path.resolve() == definition_file:
             continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-                if node.func.id == name:
+            if isinstance(node, ast.Call):
+                func = node.func
+                if (isinstance(func, ast.Name) and func.id == name) or (
+                    isinstance(func, ast.Attribute) and func.attr == name
+                ):
                     return True
     return False
 
@@ -120,3 +127,15 @@ def test_kept_issue_listed_helpers_still_have_callers():
     assert "detect_events_batch" in _defined_functions("etl/activism_detection.py")
     assert _has_external_callers("search_news", "ui/search.py")
     assert _has_external_callers("detect_events_batch", "etl/activism_detection.py")
+
+
+def test_external_caller_scan_skips_bad_files_and_finds_attribute_calls(tmp_path, monkeypatch):
+    (tmp_path / "helpers.py").write_text("def search_news():\n    pass\n", encoding="utf-8")
+    (tmp_path / "caller.py").write_text(
+        "import helpers\nhelpers.search_news()\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "bad_syntax.py").write_text("def broken(:\n", encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
+
+    assert _has_external_callers("search_news", "helpers.py")
