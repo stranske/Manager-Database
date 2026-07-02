@@ -49,7 +49,11 @@ def _warn_skip(channel: str, reason: str) -> DeliveryResult:
 
 def resolve_slack_webhook_url() -> str:
     """Return the configured Slack webhook using alert-specific then legacy names."""
-    return (os.getenv("ALERT_SLACK_WEBHOOK_URL") or os.getenv("SLACK_WEBHOOK_URL") or "").strip()
+    for env_name in ("ALERT_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL"):
+        webhook_url = (os.getenv(env_name) or "").strip()
+        if webhook_url:
+            return webhook_url
+    return ""
 
 
 def _build_email_message(

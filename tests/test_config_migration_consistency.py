@@ -62,6 +62,14 @@ def test_env_defaults_are_shared_for_region_slack_and_timezone(monkeypatch):
     assert 'os.getenv("ACTIVISM_FLOW_TIMEZONE", os.getenv("TZ", "UTC"))' in activism_source
 
 
+def test_slack_webhook_falls_back_when_alert_specific_value_is_blank(monkeypatch):
+    monkeypatch.setenv("ALERT_SLACK_WEBHOOK_URL", "   ")
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", " https://hooks.slack.test/legacy ")
+
+    assert resolve_slack_webhook_url() == "https://hooks.slack.test/legacy"
+    assert SlackChannel().webhook_url == "https://hooks.slack.test/legacy"
+
+
 @pytest.mark.asyncio
 async def test_edgar_request_spacing_lock_prevents_overlapping_sleeps(monkeypatch):
     sleep_calls: list[float] = []
