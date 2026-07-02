@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column("isin", sa.Text(), nullable=True),
         sa.Column("lei", sa.Text(), nullable=True),
         sa.Column("name", sa.Text(), nullable=True),
-        sa.Column("source", sa.Text(), nullable=False, server_default="openfigi"),
+        sa.Column("source", sa.Text(), nullable=False, server_default=sa.text("'openfigi'")),
         sa.Column(
             "resolved_at",
             sa.DateTime(timezone=True),
@@ -36,7 +36,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "identifier_resolution_metrics",
-        sa.Column("metric_id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("metric_id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("source", sa.Text(), nullable=False),
         sa.Column("filing_id", sa.BigInteger(), nullable=True),
         sa.Column("total_cusips", sa.Integer(), nullable=False),

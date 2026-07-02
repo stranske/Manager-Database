@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 OPENFIGI_MAPPING_URL = "https://api.openfigi.com/v3/mapping"
 MAX_OPENFIGI_JOBS = 100
+CACHE_LOOKUP_CHUNK_SIZE = 500
 DEFAULT_KEYLESS_DELAY_SECONDS = 2.5
 DEFAULT_KEYED_DELAY_SECONDS = 0.25
 
@@ -117,7 +118,8 @@ class OpenFigiClient:
 
 def _normalize_cusip(value: Any) -> str:
     text = str(value or "").strip().upper()
-    return "".join(ch for ch in text if ch.isalnum())[:9]
+    normalized = "".join(ch for ch in text if ch.isalnum())
+    return normalized if len(normalized) == 9 else ""
 
 
 def _parse_mapping_response(
@@ -240,13 +242,12 @@ def resolve_holding_identifiers(
         _upsert_cache(conn, live.values())
         cached.update(live)
 
-    unmapped = 0
+    unmapped_cusips = {cusip for cusip in unique_cusips if cusip not in cached}
     for row, cusip in zip(holdings, cusips, strict=False):
         if not cusip:
             continue
         resolution = cached.get(cusip)
         if resolution is None:
-            unmapped += 1
             continue
         row["resolved_ticker"] = resolution.ticker
         row["resolved_figi"] = (
@@ -257,6 +258,7 @@ def resolve_holding_identifiers(
         row["resolution_source"] = resolution.source
 
     total = len(unique_cusips)
+    unmapped = len(unmapped_cusips)
     rate = (unmapped / total) if total else 0.0
     _record_unmapped_rate(
         conn, source=source, filing_id=filing_id, total=total, unmapped=unmapped, rate=rate
@@ -268,12 +270,17 @@ def _load_cached(conn: Any, cusips: list[str]) -> dict[str, IdentifierResolution
     if not cusips:
         return {}
     marker = get_placeholder(conn)
-    rows = conn.execute(
-        "SELECT cusip, ticker, figi, composite_figi, share_class_figi, isin, lei, name, source "
-        "FROM identifier_resolution_cache "
-        f"WHERE cusip IN ({', '.join(marker for _ in cusips)})",
-        tuple(cusips),
-    ).fetchall()
+    rows = []
+    for start in range(0, len(cusips), CACHE_LOOKUP_CHUNK_SIZE):
+        batch = cusips[start : start + CACHE_LOOKUP_CHUNK_SIZE]
+        rows.extend(
+            conn.execute(
+                "SELECT cusip, ticker, figi, composite_figi, share_class_figi, isin, lei, name, source "
+                "FROM identifier_resolution_cache "
+                f"WHERE cusip IN ({', '.join(marker for _ in batch)})",
+                tuple(batch),
+            ).fetchall()
+        )
     return {
         str(row[0]): IdentifierResolution(
             cusip=str(row[0]),

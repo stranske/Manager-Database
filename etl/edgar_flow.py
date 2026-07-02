@@ -290,7 +290,10 @@ def _replace_holdings_for_filing(
 ) -> None:
     def _work() -> None:
         _delete_holdings_for_filing(conn, filing_id)
-        resolve_holding_identifiers(conn, rows, filing_id=filing_id, source="edgar")
+        try:
+            resolve_holding_identifiers(conn, rows, filing_id=filing_id, source="edgar")
+        except Exception:
+            logger.warning("Identifier resolution failed; inserting raw holdings", exc_info=True)
         for row in rows:
             _insert_holding_legacy(
                 conn,
