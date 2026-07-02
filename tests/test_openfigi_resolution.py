@@ -24,6 +24,11 @@ class DummyResponse:
         return self.payload
 
 
+def _record_openfigi_call(calls: list[bool]) -> DummyResponse:
+    calls.append(True)
+    return DummyResponse([])
+
+
 def _conn(tmp_path: Path):
     conn = sqlite3.connect(tmp_path / "ids.db")
     conn.execute("""CREATE TABLE holdings (
@@ -99,12 +104,12 @@ def test_openfigi_records_unmapped_rate_without_dropping_holding(tmp_path: Path)
 
 
 def test_openfigi_rejects_malformed_cusips_before_lookup(tmp_path: Path):
-    calls = []
+    calls: list[bool] = []
     conn = _conn(tmp_path)
     rows = [{"cusip": "037833100999", "nameOfIssuer": "Malformed", "value": 10}]
     client = openfigi.OpenFigiClient(
         api_key="test-key",
-        opener=lambda *_args, **_kwargs: calls.append(True) or DummyResponse([]),
+        opener=lambda *_args, **_kwargs: _record_openfigi_call(calls),
     )
 
     rate = openfigi.resolve_holding_identifiers(conn, rows, filing_id=43, client=client)
