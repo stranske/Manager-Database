@@ -58,8 +58,11 @@ def _get_backend() -> _CacheBackend:
     if redis_url:
         try:
             client = _build_redis_client(redis_url)
-        except (ImportError, OSError, ValueError):
-            logger.warning("Redis cache backend unavailable; using in-memory cache", exc_info=True)
+        except (ImportError, OSError, ValueError) as exc:
+            logger.warning(
+                "Redis cache backend unavailable (%s); using in-memory cache",
+                type(exc).__name__,
+            )
             client = None
         if client is not None:
 

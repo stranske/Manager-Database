@@ -22,6 +22,19 @@ def _defined_functions(path: str) -> set[str]:
     return {node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
 
 
+def _has_external_callers(name: str, definition_path: str) -> bool:
+    definition_file = (ROOT / definition_path).resolve()
+    for path in ROOT.rglob("*.py"):
+        if path.resolve() == definition_file:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id == name:
+                    return True
+    return False
+
+
 def test_runtime_config_centralizes_db_and_cache_defaults(monkeypatch):
     for name in ("DB_URL", "DB_PATH", "CACHE_TTL_SECONDS", "CACHE_MAX_ITEMS", "REDIS_URL"):
         monkeypatch.delenv(name, raising=False)
@@ -68,6 +81,24 @@ def test_redis_backend_does_not_swallow_unexpected_errors(monkeypatch):
         cache_module._get_backend()
 
 
+def test_redis_fallback_warning_does_not_log_secret_url(monkeypatch, caplog):
+    redis_url = "redis://:super-secret@example.invalid:6379/0"
+    monkeypatch.setenv("REDIS_URL", redis_url)
+    cache_module.reset_cache_backend()
+
+    def optional_backend_unavailable(_url: str):
+        raise ValueError(f"cannot connect to {redis_url}")
+
+    monkeypatch.setattr(cache_module, "_build_redis_client", optional_backend_unavailable)
+
+    with caplog.at_level("WARNING", logger=cache_module.logger.name):
+        cache_module._get_backend()
+
+    assert "ValueError" in caplog.text
+    assert redis_url not in caplog.text
+    assert "super-secret" not in caplog.text
+
+
 def test_store_document_does_not_swallow_unexpected_import_errors(monkeypatch):
     def unexpected_import_error(_name: str):
         raise RuntimeError("broken module side effect")
@@ -87,3 +118,5 @@ def test_removed_dead_code_does_not_reappear():
 def test_kept_issue_listed_helpers_still_have_callers():
     assert "search_news" in _defined_functions("ui/search.py")
     assert "detect_events_batch" in _defined_functions("etl/activism_detection.py")
+    assert _has_external_callers("search_news", "ui/search.py")
+    assert _has_external_callers("detect_events_batch", "etl/activism_detection.py")
