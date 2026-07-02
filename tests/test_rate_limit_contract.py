@@ -176,6 +176,39 @@ def test_chat_limiter_accepts_signed_server_session_cookies(
     assert second.status_code == 503
 
 
+def test_chat_limiter_reads_runtime_cookie_name(monkeypatch: pytest.MonkeyPatch):
+    limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=1, window_seconds=60)
+    ip_limiter = chat_api_module.InMemoryChatRateLimiter(max_requests=10, window_seconds=60)
+    monkeypatch.setattr(chat_api_module, "CHAT_RATE_LIMITER", limiter)
+    monkeypatch.setattr(chat_api_module, "CHAT_IP_RATE_LIMITER", ip_limiter)
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: None)
+    monkeypatch.setenv("CHAT_SESSION_COOKIE_NAME", "research_session")
+    monkeypatch.setenv("CHAT_SESSION_COOKIE_SECRET", "test-secret")
+
+    first_cookie = _signed_session_cookie("server-session-a", "test-secret")
+    second_cookie = _signed_session_cookie("server-session-b", "test-secret")
+
+    first = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json={"question": "first"},
+            headers={"Cookie": f"research_session={first_cookie}"},
+        )
+    )
+    second = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json={"question": "second"},
+            headers={"Cookie": f"research_session={second_cookie}"},
+        )
+    )
+
+    assert first.status_code == 503
+    assert second.status_code == 503
+
+
 def test_chat_limiter_rejects_rotating_client_session_headers(
     monkeypatch: pytest.MonkeyPatch,
 ):
