@@ -12,6 +12,7 @@ from prefect.schedules import Cron
 
 from adapters import edgar
 from adapters.base import (
+    DEFAULT_SQLITE_DB_PATH,
     connect_db,
     get_placeholder,
     is_postgres,
@@ -35,8 +36,8 @@ logger = logging.getLogger(__name__)
 
 ACTIVISM_FORMS = ["SC 13D", "SC 13D/A", "SC 13G", "SC 13G/A"]
 ACTIVISM_FLOW_NIGHTLY_CRON = os.getenv("ACTIVISM_FLOW_CRON", "0 4 * * *")
-ACTIVISM_FLOW_TIMEZONE = os.getenv("ACTIVISM_FLOW_TIMEZONE", "UTC")
-DB_PATH = os.getenv("DB_PATH", "dev.db")
+ACTIVISM_FLOW_TIMEZONE = os.getenv("ACTIVISM_FLOW_TIMEZONE", os.getenv("TZ", "UTC"))
+DB_PATH = os.getenv("DB_PATH", DEFAULT_SQLITE_DB_PATH)
 
 
 def _ensure_activism_filings_table(conn: Any) -> None:

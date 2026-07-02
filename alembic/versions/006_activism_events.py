@@ -55,12 +55,12 @@ def upgrade() -> None:
     op.create_index("idx_activism_events_date", "activism_events", [sa.text("detected_at DESC")])
     op.create_index("idx_activism_events_cusip", "activism_events", ["subject_cusip"])
     op.execute(
-        "CREATE UNIQUE INDEX idx_activism_events_unique_base "
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_base "
         "ON activism_events (manager_id, filing_id, event_type) "
         "WHERE threshold_crossed IS NULL"
     )
     op.execute(
-        "CREATE UNIQUE INDEX idx_activism_events_unique_threshold "
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_threshold "
         "ON activism_events (manager_id, filing_id, event_type, threshold_crossed) "
         "WHERE threshold_crossed IS NOT NULL"
     )

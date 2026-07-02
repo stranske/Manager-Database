@@ -44,6 +44,7 @@ EDGAR_MIN_REQUEST_INTERVAL: float = _parse_edgar_min_request_interval(
     os.getenv("EDGAR_MIN_REQUEST_INTERVAL")
 )
 _last_edgar_request_at: float | None = None
+_edgar_request_lock = asyncio.Lock()
 
 
 async def _request_with_retry(
@@ -57,11 +58,12 @@ async def _request_with_retry(
 ) -> httpx.Response:
     global _last_edgar_request_at
 
-    if _last_edgar_request_at is not None and EDGAR_MIN_REQUEST_INTERVAL > 0:
-        elapsed = monotonic() - _last_edgar_request_at
-        if elapsed < EDGAR_MIN_REQUEST_INTERVAL:
-            await asyncio.sleep(EDGAR_MIN_REQUEST_INTERVAL - elapsed)
-    _last_edgar_request_at = monotonic()
+    async with _edgar_request_lock:
+        if _last_edgar_request_at is not None and EDGAR_MIN_REQUEST_INTERVAL > 0:
+            elapsed = monotonic() - _last_edgar_request_at
+            if elapsed < EDGAR_MIN_REQUEST_INTERVAL:
+                await asyncio.sleep(EDGAR_MIN_REQUEST_INTERVAL - elapsed)
+        _last_edgar_request_at = monotonic()
 
     for attempt in range(1, max_retries + 1):
         try:

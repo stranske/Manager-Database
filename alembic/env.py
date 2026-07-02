@@ -3,6 +3,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
+from adapters.base import DEFAULT_SQLITE_DB_PATH
 from alembic import context
 
 # this is the Alembic Config object, which provides
@@ -35,7 +36,7 @@ def get_database_url() -> str:
     if ini_url and ini_url != "driver://user:pass@localhost/dbname":
         return ini_url
 
-    return "sqlite:///./manager_database.db"
+    return f"sqlite:///./{DEFAULT_SQLITE_DB_PATH}"
 
 
 def run_migrations_offline() -> None:
