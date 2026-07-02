@@ -8,8 +8,13 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from alerts.models import AlertEvent
+from utils.numeric import parse_finite_float
 
 CheckStatus = Literal["pass", "fail"]
+DEFAULT_HARVEST_WINDOW_MINUTES = 26 * 60.0
+DEFAULT_NEWS_MAX_AGE_HOURS = 24.0
+DEFAULT_ROW_COUNT_DROP_PCT = 50.0
+DEFAULT_UNMAPPED_CUSIP_RATE_PCT = 10.0
 
 
 def _parse_float_env(name: str, default: float) -> float:
@@ -17,30 +22,36 @@ def _parse_float_env(name: str, default: float) -> float:
     if raw is None or raw.strip() == "":
         return default
     try:
-        return float(raw)
-    except ValueError as exc:
+        parsed = parse_finite_float(raw, allow_none=False)
+    except (TypeError, ValueError) as exc:
         raise ValueError(f"{name} must be numeric, got {raw!r}") from exc
+    assert parsed is not None
+    return parsed
 
 
 @dataclass(frozen=True, slots=True)
 class DataQualityThresholds:
     """Operator-configurable thresholds for standing quality checks."""
 
-    harvest_window_minutes: float = 26 * 60.0
-    news_max_age_hours: float = 24.0
-    row_count_drop_pct: float = 50.0
-    unmapped_cusip_rate_pct: float = 10.0
+    harvest_window_minutes: float = DEFAULT_HARVEST_WINDOW_MINUTES
+    news_max_age_hours: float = DEFAULT_NEWS_MAX_AGE_HOURS
+    row_count_drop_pct: float = DEFAULT_ROW_COUNT_DROP_PCT
+    unmapped_cusip_rate_pct: float = DEFAULT_UNMAPPED_CUSIP_RATE_PCT
 
     @classmethod
     def from_env(cls) -> DataQualityThresholds:
         return cls(
             harvest_window_minutes=_parse_float_env(
-                "DQ_HARVEST_WINDOW_MINUTES", cls.harvest_window_minutes
+                "DQ_HARVEST_WINDOW_MINUTES", DEFAULT_HARVEST_WINDOW_MINUTES
             ),
-            news_max_age_hours=_parse_float_env("DQ_NEWS_MAX_AGE_HOURS", cls.news_max_age_hours),
-            row_count_drop_pct=_parse_float_env("DQ_ROW_COUNT_DROP_PCT", cls.row_count_drop_pct),
+            news_max_age_hours=_parse_float_env(
+                "DQ_NEWS_MAX_AGE_HOURS", DEFAULT_NEWS_MAX_AGE_HOURS
+            ),
+            row_count_drop_pct=_parse_float_env(
+                "DQ_ROW_COUNT_DROP_PCT", DEFAULT_ROW_COUNT_DROP_PCT
+            ),
             unmapped_cusip_rate_pct=_parse_float_env(
-                "DQ_UNMAPPED_CUSIP_RATE_PCT", cls.unmapped_cusip_rate_pct
+                "DQ_UNMAPPED_CUSIP_RATE_PCT", DEFAULT_UNMAPPED_CUSIP_RATE_PCT
             ),
         )
 
@@ -213,6 +224,7 @@ def build_data_quality_alert_event(
         payload={
             "kind": "data_quality",
             "failure_count": len(failures),
+            "failure_names": ", ".join(failure.name for failure in failures),
             "failures": [
                 {
                     "name": failure.name,

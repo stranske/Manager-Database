@@ -21,14 +21,18 @@ latency thresholds.
 - If `failed_checks` is empty but status is 503, inspect recent deploys.
 
 ## Diagnostics
+
 ### Data Quality And Freshness
+
 - `alerts.data_quality.evaluate_daily_quality()` defines the standing checks for
   harvest freshness, news max age, row-count drops, and unmapped-CUSIP rate.
 - Configure thresholds with `DQ_HARVEST_WINDOW_MINUTES`,
   `DQ_NEWS_MAX_AGE_HOURS`, `DQ_ROW_COUNT_DROP_PCT`, and
   `DQ_UNMAPPED_CUSIP_RATE_PCT`.
-- Convert failures with `build_data_quality_alert_event()` and route the event
-  through the existing alert dispatcher/channels as `etl_failure`.
+- Persist alert matches with
+  `alerts.integration.evaluate_and_record_data_quality_alerts()`; it converts
+  failures with `build_data_quality_alert_event()` and routes the event through
+  the existing alert dispatcher/channels as `etl_failure`.
 - Treat freshness and row-count failures as alertable warnings unless the
   calling flow explicitly chooses to fail the run.
 
