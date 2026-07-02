@@ -12,6 +12,8 @@ from importlib import import_module
 from types import ModuleType
 from typing import Any, Protocol
 
+from config import load_runtime_config
+
 try:
     import psycopg as _psycopg
 except ImportError:  # pragma: no cover - optional dependency
@@ -49,7 +51,8 @@ def connect_db(
     retry_delay: float | None = None,
 ):
     """Return a database connection to SQLite or Postgres."""
-    url = os.getenv("DB_URL")
+    config = load_runtime_config()
+    url = config.db_url
     retries, retry_delay = _db_retry_config(retries, retry_delay)
     attempt = 0
     if url:
@@ -77,7 +80,7 @@ def connect_db(
                     raise
                 time.sleep(retry_delay * (2**attempt))
                 attempt += 1
-    path = db_path or os.getenv("DB_PATH", "dev.db")
+    path = db_path or config.db_path
     # SQLite timeout prevents long waits on locked files during health checks.
     sqlite_kwargs: dict[str, Any] = {}
     if connect_timeout is not None:
@@ -120,6 +123,18 @@ def table_exists(conn: Any, table_name: str) -> bool:
     return bool(row and row[0])
 
 
+def _column_introspection_errors() -> tuple[type[BaseException], ...]:
+    errors: tuple[type[BaseException], ...] = (
+        sqlite3.Error,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    )
+    if psycopg is not None:
+        errors = (*errors, psycopg.Error)
+    return errors
+
+
 def get_table_columns(conn: Any, table_name: str) -> set[str]:
     """Return table column names for SQLite or Postgres."""
     try:
@@ -135,7 +150,7 @@ def get_table_columns(conn: Any, table_name: str) -> set[str]:
             (table_name,),
         ).fetchall()
         return {str(row[0]) for row in rows if row and row[0] is not None}
-    except Exception:
+    except _column_introspection_errors():
         logger.debug("Failed to introspect columns for table %s", table_name, exc_info=True)
         return set()
 

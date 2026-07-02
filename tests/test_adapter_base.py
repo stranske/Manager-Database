@@ -161,6 +161,35 @@ def test_connect_db_postgres_raises_after_retries(monkeypatch):
         connect_db(retries=1, retry_delay=0)
 
 
+def test_get_table_columns_falls_back_on_postgres_introspection_error(monkeypatch):
+    class DummyPsycopg:
+        class Error(Exception):
+            pass
+
+    class BrokenPostgresConn:
+        def execute(self, *_args, **_kwargs):
+            raise DummyPsycopg.Error("catalog unavailable")
+
+    monkeypatch.setattr(base, "psycopg", DummyPsycopg)
+
+    assert base.get_table_columns(BrokenPostgresConn(), "managers") == set()
+
+
+def test_get_table_columns_reraises_unexpected_postgres_error(monkeypatch):
+    class DummyPsycopg:
+        class Error(Exception):
+            pass
+
+    class BrokenPostgresConn:
+        def execute(self, *_args, **_kwargs):
+            raise KeyError("programmer bug")
+
+    monkeypatch.setattr(base, "psycopg", DummyPsycopg)
+
+    with pytest.raises(KeyError):
+        base.get_table_columns(BrokenPostgresConn(), "managers")
+
+
 def test_get_adapter_caches_module():
     adapter = get_adapter("edgar")
     # The registry should return the same module instance on repeated calls.

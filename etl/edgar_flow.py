@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import logging
 import os
@@ -25,8 +26,8 @@ def store_document(
     filename: str | None = None,
 ) -> int:
     try:
-        from embeddings import store_document as _store_document
-    except Exception:
+        _store_document = importlib.import_module("embeddings").store_document
+    except (ImportError, AttributeError):
         _ = (text, db_path, manager_id, kind, filename)
         return 0
     return _store_document(

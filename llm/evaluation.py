@@ -95,26 +95,6 @@ class ManagerDBEvaluator:
             extra={"filing_id": filing_id, "checks": checks},
         )
 
-    def evaluate_filing_summary_completeness(self, run: Any, example: Any) -> EvaluationResult:
-        output = self._run_output(run)
-        expected = self._example_payload(example)
-        min_positions = int(expected.get("min_positions_mentioned", 5))
-        checks = {
-            "key_positions": len(self._as_list_of_dicts(output.get("key_positions")))
-            >= min_positions,
-            "notable_changes": bool(self._as_list(output.get("notable_changes"))),
-            "sector_concentration": bool(self._as_list(output.get("sector_concentration"))),
-            "risk_flags": "risk" in json.dumps(output).lower()
-            or "no risk flags" in json.dumps(output).lower(),
-        }
-        score = sum(1.0 for passed in checks.values() if passed) / len(checks)
-        return EvaluationResult(
-            key="filing_summary_completeness",
-            score=round(score, 3),
-            comment=self._comment_from_checks(checks),
-            extra={"checks": checks},
-        )
-
     def evaluate_sql_correctness(self, run: Any, example: Any) -> EvaluationResult:
         output = self._run_output(run)
         expected = self._example_payload(example)
