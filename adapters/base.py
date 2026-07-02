@@ -123,6 +123,18 @@ def table_exists(conn: Any, table_name: str) -> bool:
     return bool(row and row[0])
 
 
+def _column_introspection_errors() -> tuple[type[BaseException], ...]:
+    errors: tuple[type[BaseException], ...] = (
+        sqlite3.Error,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    )
+    if psycopg is not None:
+        errors = (*errors, psycopg.Error)
+    return errors
+
+
 def get_table_columns(conn: Any, table_name: str) -> set[str]:
     """Return table column names for SQLite or Postgres."""
     try:
@@ -138,10 +150,7 @@ def get_table_columns(conn: Any, table_name: str) -> set[str]:
             (table_name,),
         ).fetchall()
         return {str(row[0]) for row in rows if row and row[0] is not None}
-    except (sqlite3.Error, RuntimeError, TypeError, ValueError) as exc:
-        if psycopg is not None and isinstance(exc, psycopg.Error):
-            logger.debug("Failed to introspect columns for table %s", table_name, exc_info=True)
-            return set()
+    except _column_introspection_errors():
         logger.debug("Failed to introspect columns for table %s", table_name, exc_info=True)
         return set()
 
