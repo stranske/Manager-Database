@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from alerts.channels import NotificationChannel, build_configured_channels
+from alerts.data_quality import DataQualityCheckResult, build_data_quality_alert_event
 from alerts.db import insert_alert_history
 from alerts.dispatch import AlertDispatcher
 from alerts.engine import AlertEngine
@@ -88,6 +89,19 @@ def evaluate_and_record_new_filing_alerts(
         payload=payload,
         occurred_at=occurred_at,
     )
+    return evaluate_and_record_alerts(conn, event)
+
+
+def evaluate_and_record_data_quality_alerts(
+    conn: Any,
+    results: list[DataQualityCheckResult],
+    *,
+    occurred_at: datetime | None = None,
+) -> list[int]:
+    """Persist alert matches for standing data-quality check failures."""
+    event = build_data_quality_alert_event(results, occurred_at=occurred_at)
+    if event is None:
+        return []
     return evaluate_and_record_alerts(conn, event)
 
 

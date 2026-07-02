@@ -13,6 +13,7 @@ from alerts.engine import AlertEngine
 from alerts.integration import (
     build_new_filing_event,
     evaluate_and_record_alerts,
+    evaluate_and_record_data_quality_alerts,
     evaluate_and_record_new_filing_alerts,
     fire_alerts_for_event,
     fire_alerts_for_event_sync,
@@ -47,6 +48,7 @@ __all__ = [
     "build_new_filing_event",
     "build_configured_channels",
     "evaluate_and_record_alerts",
+    "evaluate_and_record_data_quality_alerts",
     "evaluate_and_record_new_filing_alerts",
     "fire_alerts_for_event",
     "fire_alerts_for_event_sync",
