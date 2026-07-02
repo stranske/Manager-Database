@@ -43,7 +43,19 @@ def _has_external_callers(name: str, definition_path: str) -> bool:
 
 
 def test_runtime_config_centralizes_db_and_cache_defaults(monkeypatch):
-    for name in ("DB_URL", "DB_PATH", "CACHE_TTL_SECONDS", "CACHE_MAX_ITEMS", "REDIS_URL"):
+    for name in (
+        "DB_URL",
+        "DB_PATH",
+        "CACHE_TTL_SECONDS",
+        "CACHE_MAX_ITEMS",
+        "REDIS_URL",
+        "CHAT_CHAIN_FALLBACK_MODE",
+        "CHAT_RATE_LIMIT_PER_MINUTE",
+        "CHAT_RATE_LIMIT_WINDOW_SECONDS",
+        "CHAT_SESSION_COOKIE_NAME",
+        "CHAT_SESSION_COOKIE_SECRET",
+        "LLM_ZONE",
+    ):
         monkeypatch.delenv(name, raising=False)
 
     config = load_runtime_config()
@@ -53,26 +65,95 @@ def test_runtime_config_centralizes_db_and_cache_defaults(monkeypatch):
     assert config.cache_ttl_seconds == DEFAULT_CACHE_TTL_SECONDS
     assert config.cache_max_items == DEFAULT_CACHE_MAX_ITEMS
     assert config.redis_url is None
+    assert config.chat_chain_fallback_mode == ""
+    assert config.chat_rate_limit_per_minute == 10
+    assert config.chat_rate_limit_window_seconds == 60.0
+    assert config.chat_session_cookie_name == "session_id"
+    assert config.chat_session_cookie_secret is None
+    assert config.llm_zone == ""
 
 
 def test_runtime_config_uses_positive_cache_env_values(monkeypatch):
     monkeypatch.setenv("CACHE_TTL_SECONDS", "7")
     monkeypatch.setenv("CACHE_MAX_ITEMS", "11")
+    monkeypatch.setenv("CHAT_RATE_LIMIT_PER_MINUTE", "13")
+    monkeypatch.setenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "2.5")
+    monkeypatch.setenv("CHAT_SESSION_COOKIE_NAME", "research_session")
+    monkeypatch.setenv("CHAT_SESSION_COOKIE_SECRET", "secret")
+    monkeypatch.setenv("CHAT_CHAIN_FALLBACK_MODE", "offline")
+    monkeypatch.setenv("LLM_ZONE", "disabled")
 
     config = load_runtime_config()
 
     assert config.cache_ttl_seconds == 7
     assert config.cache_max_items == 11
+    assert config.chat_rate_limit_per_minute == 13
+    assert config.chat_rate_limit_window_seconds == 2.5
+    assert config.chat_session_cookie_name == "research_session"
+    assert config.chat_session_cookie_secret == "secret"
+    assert config.chat_chain_fallback_mode == "offline"
+    assert config.llm_zone == "disabled"
 
 
 def test_runtime_config_falls_back_for_bad_cache_env_values(monkeypatch):
     monkeypatch.setenv("CACHE_TTL_SECONDS", "not-int")
     monkeypatch.setenv("CACHE_MAX_ITEMS", "-1")
+    monkeypatch.setenv("CHAT_RATE_LIMIT_PER_MINUTE", "not-int")
+    monkeypatch.setenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "-1")
 
     config = load_runtime_config()
 
     assert config.cache_ttl_seconds == DEFAULT_CACHE_TTL_SECONDS
     assert config.cache_max_items == DEFAULT_CACHE_MAX_ITEMS
+    assert config.chat_rate_limit_per_minute == 10
+    assert config.chat_rate_limit_window_seconds == 60.0
+
+
+def test_chat_config_helpers_use_runtime_config(monkeypatch):
+    from api import chat as chat_module
+
+    monkeypatch.setenv("CHAT_CHAIN_FALLBACK_MODE", "offline")
+    monkeypatch.setenv("LLM_ZONE", "disabled")
+    monkeypatch.setenv("CHAT_RATE_LIMIT_PER_MINUTE", "3")
+    monkeypatch.setenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "4.5")
+
+    limiter = chat_module._build_chat_rate_limiter()
+
+    assert chat_module._chat_chain_fallback_enabled() is True
+    assert chat_module._chat_zone_disabled() is True
+    assert limiter._max_requests == 3
+    assert limiter._window_seconds == 4.5
+
+
+def test_chat_intent_classifier_does_not_swallow_unexpected_errors(monkeypatch):
+    from api import chat as chat_module
+
+    class BrokenIntentModule:
+        @staticmethod
+        def classify_intent(_question: str) -> str:
+            raise RuntimeError("classifier side effect")
+
+    def fake_import_module(name: str):
+        if name == "chains.intent":
+            return BrokenIntentModule
+        return __import__(name)
+
+    monkeypatch.setattr(chat_module.importlib, "import_module", fake_import_module)
+
+    with pytest.raises(RuntimeError, match="classifier side effect"):
+        chat_module._classify_intent("What changed?")
+
+
+def test_prompt_injection_loader_does_not_swallow_unexpected_errors(monkeypatch):
+    from api import chat as chat_module
+
+    def broken_import_module(_name: str):
+        raise RuntimeError("unexpected import side effect")
+
+    monkeypatch.setattr(chat_module.importlib, "import_module", broken_import_module)
+
+    with pytest.raises(RuntimeError, match="unexpected import side effect"):
+        chat_module._load_prompt_injection_error_class()
 
 
 def test_redis_backend_does_not_swallow_unexpected_errors(monkeypatch):

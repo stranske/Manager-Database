@@ -8,7 +8,6 @@ import hmac
 import importlib
 import json
 import logging
-import math
 import os
 import time
 import uuid
@@ -36,6 +35,7 @@ from api.managers import router as managers_router
 from api.memory_profiler import start_memory_profiler, stop_memory_profiler
 from api.search import SearchEntityType, SearchResult, universal_search
 from api.signals import router as signals_router
+from config import load_runtime_config
 from llm.langsmith_fleet import (
     ChatFleetContext,
     TokenUsage,
@@ -372,7 +372,7 @@ class ChainUnavailableError(RuntimeError):
 
 def _chat_chain_fallback_enabled() -> bool:
     """Return True when deterministic chain stubs are explicitly allowed."""
-    return os.getenv("CHAT_CHAIN_FALLBACK_MODE", "").strip().lower() in {
+    return load_runtime_config().chat_chain_fallback_mode.strip().lower() in {
         "1",
         "true",
         "yes",
@@ -382,39 +382,7 @@ def _chat_chain_fallback_enabled() -> bool:
     }
 
 
-def _read_positive_int_env(name: str, default: int) -> int:
-    raw_value = os.getenv(name)
-    if raw_value is None:
-        return default
-    try:
-        value = int(raw_value)
-    except ValueError:
-        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
-        return default
-    if value <= 0 or not math.isfinite(value):
-        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
-        return default
-    return value
-
-
-def _read_positive_float_env(name: str, default: float) -> float:
-    raw_value = os.getenv(name)
-    if raw_value is None:
-        return default
-    try:
-        value = float(raw_value)
-    except ValueError:
-        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
-        return default
-    if value <= 0 or not math.isfinite(value):
-        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
-        return default
-    return value
-
-
-_CHAT_RATE_LIMIT_PER_MINUTE = _read_positive_int_env("CHAT_RATE_LIMIT_PER_MINUTE", 10)
-_CHAT_RATE_LIMIT_WINDOW_SECONDS = _read_positive_float_env("CHAT_RATE_LIMIT_WINDOW_SECONDS", 60.0)
-_CHAT_SESSION_COOKIE_NAME = os.getenv("CHAT_SESSION_COOKIE_NAME", "session_id")
+_CHAT_SESSION_COOKIE_NAME = load_runtime_config().chat_session_cookie_name
 
 
 class InMemoryChatRateLimiter:
@@ -446,9 +414,10 @@ class InMemoryChatRateLimiter:
 
 
 def _build_chat_rate_limiter() -> InMemoryChatRateLimiter:
+    config = load_runtime_config()
     return InMemoryChatRateLimiter(
-        max_requests=_read_positive_int_env("CHAT_RATE_LIMIT_PER_MINUTE", 10),
-        window_seconds=_read_positive_float_env("CHAT_RATE_LIMIT_WINDOW_SECONDS", 60.0),
+        max_requests=config.chat_rate_limit_per_minute,
+        window_seconds=config.chat_rate_limit_window_seconds,
     )
 
 
@@ -462,7 +431,7 @@ def _sign_chat_session_id(session_id: str, secret: str) -> str:
 
 
 def _verified_chat_session_cookie(raw_value: str | None) -> str | None:
-    secret = os.getenv("CHAT_SESSION_COOKIE_SECRET")
+    secret = load_runtime_config().chat_session_cookie_secret
     if not raw_value or not secret:
         return None
     try:
@@ -521,7 +490,7 @@ def _load_prompt_injection_error_class() -> type[Exception]:
     try:
         module = importlib.import_module("llm.injection")
         return module.PromptInjectionError
-    except Exception:
+    except (ModuleNotFoundError, AttributeError):
         return _PromptInjectionError
 
 
@@ -565,7 +534,7 @@ def _chat_zone_disabled() -> bool:
     503. This is the single LLM-boundary switch documented in
     ``docs/deploy/INTERNAL_HOSTING.md``.
     """
-    return os.getenv("LLM_ZONE", "").strip().lower() == "disabled"
+    return load_runtime_config().llm_zone.strip().lower() == "disabled"
 
 
 def _manager_id_column(conn: Any) -> str:
@@ -662,8 +631,8 @@ def _classify_intent(question: str) -> str:
         chain_name = classify_intent(question)
         if chain_name in DIRECT_CHAIN_PATHS:
             return chain_name
-    except Exception:
-        pass
+    except (ModuleNotFoundError, AttributeError, TypeError, ValueError):
+        logger.debug("Intent classifier unavailable; using deterministic fallback", exc_info=True)
 
     lowered = question.lower()
     if "sql" in lowered or "query" in lowered or "database" in lowered:
