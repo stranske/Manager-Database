@@ -14,6 +14,7 @@ import boto3
 from prefect import flow, task
 
 from adapters.base import (
+    DEFAULT_SQLITE_DB_PATH,
     connect_db,
     get_adapter,
     get_placeholder,
@@ -55,10 +56,10 @@ S3 = boto3.client(
     endpoint_url=os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
     aws_access_key_id=os.getenv("MINIO_ROOT_USER", "minio"),
     aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD", "minio123"),
-    region_name="us-east-1",
+    region_name=os.getenv("MINIO_REGION", "us-east-1"),
 )
 BUCKET = os.getenv("MINIO_BUCKET", "filings")
-DB_PATH = os.getenv("DB_PATH", "dev.db")
+DB_PATH = os.getenv("DB_PATH", DEFAULT_SQLITE_DB_PATH)
 
 _ADAPTER_MAP = {"us": "edgar", "uk": "uk", "ca": "canada", "sg": "mas", "au": "asic"}
 _IDENTIFIER_ENV = {

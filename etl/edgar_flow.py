@@ -13,7 +13,13 @@ from typing import Any, cast
 from prefect import flow, task
 
 import etl.ingest_flow as ingest_module
-from adapters.base import connect_db, get_adapter, get_placeholder, get_table_columns
+from adapters.base import (
+    DEFAULT_SQLITE_DB_PATH,
+    connect_db,
+    get_adapter,
+    get_placeholder,
+    get_table_columns,
+)
 from alerts.integration import build_new_filing_event, fire_alerts_for_event
 from etl.logging_setup import configure_logging, log_outcome
 
@@ -42,7 +48,7 @@ def store_document(
 RAW_DIR = ingest_module.RAW_DIR
 S3 = ingest_module.S3
 BUCKET = ingest_module.BUCKET
-DB_PATH = os.getenv("DB_PATH", "dev.db")
+DB_PATH = os.getenv("DB_PATH", DEFAULT_SQLITE_DB_PATH)
 ADAPTER = get_adapter("edgar")
 
 configure_logging("edgar_flow")

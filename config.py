@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-DEFAULT_DB_PATH = "dev.db"
+DEFAULT_DB_PATH = "manager_database.db"
 DEFAULT_CACHE_TTL_SECONDS = 60
 DEFAULT_CACHE_MAX_ITEMS = 512
 

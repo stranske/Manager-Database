@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-import os
 
 import pandas as pd
 import requests  # type: ignore
 from prefect import flow, task
 
 from adapters.base import connect_db, tracked_call
+from alerts.channels import resolve_slack_webhook_url
 from etl.daily_diff_flow import _placeholder
 from etl.logging_setup import configure_logging, log_outcome
 
@@ -36,7 +36,7 @@ async def summarise(date: str) -> str:
         conn.close()
     change_count = int(df["change_count"].iloc[0])
     summary = f"{change_count} changes on {date}"
-    webhook = os.getenv("SLACK_WEBHOOK_URL")
+    webhook = resolve_slack_webhook_url()
     if webhook:
         # log Slack webhook usage to api_usage table
         async with tracked_call("slack", webhook) as log:

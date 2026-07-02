@@ -47,6 +47,15 @@ def _warn_skip(channel: str, reason: str) -> DeliveryResult:
     return DeliveryResult(channel=channel, success=True, skipped=True, error_message=reason)
 
 
+def resolve_slack_webhook_url() -> str:
+    """Return the configured Slack webhook using alert-specific then legacy names."""
+    for env_name in ("ALERT_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL"):
+        webhook_url = (os.getenv(env_name) or "").strip()
+        if webhook_url:
+            return webhook_url
+    return ""
+
+
 def _build_email_message(
     alert: FiredAlert,
     *,
@@ -215,7 +224,7 @@ class SlackChannel(NotificationChannel):
         timeout_seconds: float = 10.0,
         min_interval_seconds: float = 1.0,
     ) -> None:
-        self.webhook_url = (webhook_url or os.getenv("ALERT_SLACK_WEBHOOK_URL") or "").strip()
+        self.webhook_url = (webhook_url or resolve_slack_webhook_url() or "").strip()
         self.timeout_seconds = timeout_seconds
         self.min_interval_seconds = min_interval_seconds
         self._lock = asyncio.Lock()
@@ -223,7 +232,10 @@ class SlackChannel(NotificationChannel):
 
     async def deliver(self, alert: FiredAlert) -> DeliveryResult:
         if not self.webhook_url:
-            return _warn_skip(self.channel_name, "ALERT_SLACK_WEBHOOK_URL is not configured")
+            return _warn_skip(
+                self.channel_name,
+                "ALERT_SLACK_WEBHOOK_URL/SLACK_WEBHOOK_URL is not configured",
+            )
 
         payload = format_slack_blocks(alert)
         await self._respect_rate_limit()

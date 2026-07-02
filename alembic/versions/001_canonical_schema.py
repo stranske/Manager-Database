@@ -239,7 +239,7 @@ def upgrade() -> None:
     # ── materialized views (Postgres) / regular views (SQLite) ─
     if pg:
         op.execute("""
-            CREATE MATERIALIZED VIEW monthly_usage AS
+            CREATE MATERIALIZED VIEW IF NOT EXISTS monthly_usage AS
             SELECT date_trunc('month', ts) AS month,
                    source,
                    count(*) AS calls,
@@ -249,7 +249,7 @@ def upgrade() -> None:
             GROUP BY 1, 2
         """)
         op.execute("""
-            CREATE MATERIALIZED VIEW mv_daily_report AS
+            CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_report AS
             SELECT
                 d.report_date,
                 m.manager_id,

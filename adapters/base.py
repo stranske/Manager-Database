@@ -22,6 +22,7 @@ else:  # pragma: no cover - imported above when available
     psycopg = _psycopg
 
 logger = logging.getLogger(__name__)
+DEFAULT_SQLITE_DB_PATH = "manager_database.db"
 
 
 class AdapterProtocol(Protocol):
@@ -255,7 +256,7 @@ async def tracked_call(
     db_path:
         Optional path to a database. If ``DB_URL`` is set and points to
         a Postgres instance, that URL is used instead; otherwise defaults
-        to ``DB_PATH`` or ``dev.db``.
+        to ``DB_PATH`` or ``manager_database.db``.
     cost_usd:
         Optional per-call cost. A ``float`` is recorded directly; a callable is
         invoked with the logged response and must return a ``float`` (e.g. a
