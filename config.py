@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 
@@ -32,7 +33,7 @@ def _positive_float_env(name: str, default: float) -> float:
         value = float(raw_value)
     except ValueError:
         return default
-    return value if value > 0 else default
+    return value if math.isfinite(value) and value > 0 else default
 
 
 @dataclass(frozen=True)

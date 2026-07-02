@@ -99,7 +99,7 @@ def test_runtime_config_falls_back_for_bad_cache_env_values(monkeypatch):
     monkeypatch.setenv("CACHE_TTL_SECONDS", "not-int")
     monkeypatch.setenv("CACHE_MAX_ITEMS", "-1")
     monkeypatch.setenv("CHAT_RATE_LIMIT_PER_MINUTE", "not-int")
-    monkeypatch.setenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "-1")
+    monkeypatch.setenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "inf")
 
     config = load_runtime_config()
 
