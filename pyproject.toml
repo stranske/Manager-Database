@@ -9,6 +9,7 @@ authors = [{ name = "stranske" }]
 
 dependencies = [
     "alembic",
+    "edgartools>=4.6,<5.0",
     "httpx",
     "feedparser",
     "prefect",

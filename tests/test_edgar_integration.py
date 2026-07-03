@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import httpx
+import pandas as pd
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -222,6 +223,130 @@ async def test_parse_step_with_mocked_input():
             "sshPrnamt": 100,
         }
     ]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_parse_step_prefers_edgartools_rows(monkeypatch):
+    parsed_by_edgartools = [
+        {
+            "nameOfIssuer": "Maintained Parser Corp",
+            "cusip": "987654321",
+            "value": 2500,
+            "sshPrnamt": 75,
+        }
+    ]
+
+    def fake_edgartools_parser(raw):
+        assert raw == sample_xml()
+        return parsed_by_edgartools
+
+    monkeypatch.setattr(edgar, "_parse_13f_with_edgartools", fake_edgartools_parser)
+
+    assert await edgar.parse(sample_xml()) == parsed_by_edgartools
+
+
+def test_edgartools_table_normalization_matches_legacy_contract():
+    rows = edgar._normalize_13f_rows_from_table(
+        [
+            {
+                "Issuer": "Example Corp",
+                "Cusip": "123456789",
+                "Value": "1,000",
+                "SharesPrnAmount": "100",
+            }
+        ]
+    )
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+
+
+def test_edgartools_table_normalization_accepts_dataframe_records():
+    rows = edgar._normalize_13f_rows_from_table(
+        pd.DataFrame(
+            [
+                {
+                    "Issuer": "Example Corp",
+                    "Cusip": "123456789",
+                    "Value": "1,000",
+                    "SharesPrnAmount": "100",
+                }
+            ]
+        )
+    )
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+
+
+def test_real_edgartools_parser_reads_committed_fixture():
+    pytest.importorskip("edgar.thirteenf")
+    sample_path = Path(__file__).parent / "data" / "sample_13f.xml"
+
+    rows = edgar._parse_13f_with_edgartools(sample_path.read_text())
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_warns_when_edgartools_is_unavailable(monkeypatch, caplog):
+    def unavailable_parser(raw):
+        raise edgar._EdgartoolsSetupError("edgartools is required for primary 13F parsing")
+
+    monkeypatch.setattr(edgar, "_parse_13f_with_edgartools", unavailable_parser)
+
+    rows = await edgar.parse(sample_xml())
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+    assert "edgartools setup failure" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_parse_warns_separately_for_edgartools_parser_runtime_error(monkeypatch, caplog):
+    def broken_parser(raw):
+        raise RuntimeError("parser rejected valid fixture")
+
+    monkeypatch.setattr(edgar, "_parse_13f_with_edgartools", broken_parser)
+
+    rows = await edgar.parse(sample_xml())
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+    assert "edgartools setup failure" not in caplog.text
+    assert "Falling back to legacy 13F XML parser" in caplog.text
 
 
 @pytest.mark.integration
