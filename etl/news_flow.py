@@ -66,7 +66,7 @@ def _normalize_aliases(raw_aliases: Any) -> list[str]:
 
 @task
 def match_entities(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:
-    """Link news items to managers by name/alias substring matching."""
+    """Link news items to managers by keyword and optional model entity extraction."""
     id_column = resolve_manager_id_column(conn)
     rows = conn.execute(f"SELECT {id_column}, name, aliases FROM managers").fetchall()
 
@@ -86,14 +86,25 @@ def match_entities(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any
 
     matched = 0
     unmatched = 0
+    model_matched = 0
+    tagging_mode = news.configured_entity_tagging_mode()
 
     for item in items:
         text = f"{item.get('headline', '')} {item.get('body_snippet', '')}".lower()
         matched_manager_id: int | None = None
-        for manager_id, terms in manager_terms:
-            if any(term in text for term in terms):
-                matched_manager_id = manager_id
-                break
+        if tagging_mode in {"keyword", "parallel"}:
+            for manager_id, terms in manager_terms:
+                if any(term in text for term in terms):
+                    matched_manager_id = manager_id
+                    break
+
+        model_link = None
+        if matched_manager_id is None and tagging_mode in {"model", "parallel"}:
+            model_link = news.model_entity_link(item, manager_terms)
+            if model_link is not None:
+                matched_manager_id = int(model_link["manager_id"])
+                item["manager_entity"] = model_link
+                model_matched += 1
 
         if matched_manager_id is not None:
             item["manager_id"] = matched_manager_id
@@ -108,7 +119,9 @@ def match_entities(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any
             "items": len(items),
             "managers": len(manager_terms),
             "matched": matched,
+            "model_matched": model_matched,
             "unmatched": unmatched,
+            "tagging_mode": tagging_mode,
         },
     )
     return items

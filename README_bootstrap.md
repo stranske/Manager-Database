@@ -90,6 +90,13 @@ Feel free to open issues or pull requests as you iterate.
    delivery; it reuses the existing SMTP/SendGrid environment variables from alert email
    delivery.
 
+   News manager linking defaults to the existing keyword/alias matcher. Set
+   `NEWS_ENTITY_TAGGING_MODE=parallel` to let optional GLiNER entity extraction
+   complement keyword matching, or `model` to require model-only links. The model
+   path lazily loads `NEWS_GLINER_MODEL` only when enabled, and `NEWS_SPACY_MODEL`
+   can be set for optional spaCy sentence preprocessing. Default installs and CI do
+   not need GPU or model downloads.
+
 4. Start the Streamlit app shell:
    ```bash
    streamlit run ui/app.py
