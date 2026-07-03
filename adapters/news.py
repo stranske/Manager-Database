@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
@@ -36,6 +37,9 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
     "merger": ["merger", "acquisition", "deal", "takeover", "bid"],
     "fund_launch": ["new fund", "launch", "strategy"],
 }
+MODEL_TAGGING_MODES = {"keyword", "model", "parallel"}
+NEWS_ENTITY_LABELS = ("organization", "org", "ticker", "company")
+EntityPredictor = Callable[[str, Sequence[str]], Sequence[dict[str, Any]]]
 
 
 def _normalize_since(since: str | None) -> str:
@@ -118,6 +122,84 @@ def tag(item: dict[str, Any]) -> dict[str, Any]:
     item["topics"] = topics
     item["confidence"] = confidence
     return item
+
+
+def configured_entity_tagging_mode() -> str:
+    """Return the configured news entity-linking mode.
+
+    ``keyword`` preserves the historical substring matcher. ``model`` uses only
+    extracted model entities, and ``parallel`` lets model entities complement
+    the keyword path while keeping keyword behavior active.
+    """
+
+    mode = os.getenv("NEWS_ENTITY_TAGGING_MODE", "keyword").strip().lower()
+    if mode in MODEL_TAGGING_MODES:
+        return mode
+    logger.warning("Invalid NEWS_ENTITY_TAGGING_MODE=%r; using keyword mode", mode)
+    return "keyword"
+
+
+def model_entity_link(
+    item: dict[str, Any],
+    manager_terms: Sequence[tuple[int, Sequence[str]]],
+    *,
+    predictor: EntityPredictor | None = None,
+    threshold: float | None = None,
+) -> dict[str, Any] | None:
+    """Link a news item to a manager using extracted organization/ticker entities.
+
+    The predictor is injectable so CI can validate the model path without
+    downloading GLiNER. In production, the default predictor lazily imports
+    optional model dependencies only when model/parallel mode is enabled.
+    """
+
+    text = _prepare_model_text(_news_text(item))
+    if not text:
+        return None
+
+    min_confidence = _configured_model_confidence_threshold(threshold)
+    entity_labels = _configured_entity_labels()
+    entity_predictor = predictor or _predict_model_entities
+    try:
+        predictions = entity_predictor(text, entity_labels)
+    except Exception as exc:  # pragma: no cover - defensive fallback for optional model runtime
+        logger.warning("News model entity extraction failed: %s", exc)
+        return None
+
+    best: tuple[int, str, float, str] | None = None
+    for prediction in predictions:
+        entity_text = str(
+            prediction.get("text")
+            or prediction.get("entity")
+            or prediction.get("span")
+            or prediction.get("word")
+            or ""
+        ).strip()
+        if not entity_text:
+            continue
+        label = str(prediction.get("label") or prediction.get("entity_group") or "").lower()
+        if label and label not in {value.lower() for value in entity_labels}:
+            continue
+        confidence = _prediction_confidence(prediction)
+        if confidence < min_confidence:
+            continue
+        matched_manager_id = _match_extracted_entity(entity_text, manager_terms)
+        if matched_manager_id is None:
+            continue
+        if best is None or confidence > best[2]:
+            best = (matched_manager_id, entity_text, confidence, label or "organization")
+
+    if best is None:
+        return None
+
+    manager_id, entity_text, confidence, label = best
+    return {
+        "manager_id": manager_id,
+        "entity": entity_text,
+        "label": label,
+        "confidence": confidence,
+        "method": "model",
+    }
 
 
 async def _fetch_rss(since: str) -> list[dict[str, Any]]:
@@ -269,6 +351,124 @@ def _configured_topic_keywords() -> dict[str, list[str]]:
     if configured:
         return configured
     return TOPIC_KEYWORDS
+
+
+def _configured_entity_labels() -> tuple[str, ...]:
+    env_value = os.getenv("NEWS_ENTITY_LABELS", "")
+    if not env_value.strip():
+        return NEWS_ENTITY_LABELS
+    configured = tuple(label.strip().lower() for label in env_value.split(",") if label.strip())
+    return configured or NEWS_ENTITY_LABELS
+
+
+def _configured_model_confidence_threshold(value: float | None = None) -> float:
+    if value is not None:
+        return max(0.0, min(float(value), 1.0))
+    env_value = os.getenv("NEWS_ENTITY_CONFIDENCE_THRESHOLD", "0.55").strip()
+    try:
+        parsed = float(env_value)
+    except ValueError:
+        logger.warning("Invalid NEWS_ENTITY_CONFIDENCE_THRESHOLD=%r; using 0.55", env_value)
+        return 0.55
+    return max(0.0, min(parsed, 1.0))
+
+
+def _predict_model_entities(text: str, labels: Sequence[str]) -> Sequence[dict[str, Any]]:
+    model_name = os.getenv("NEWS_GLINER_MODEL", "EmergentMethods/gliner_medium_news-v2.1")
+    try:
+        from gliner import GLiNER  # type: ignore[import-not-found]
+    except ImportError:
+        logger.warning("NEWS_ENTITY_TAGGING_MODE requested but gliner is not installed")
+        return []
+
+    model = GLiNER.from_pretrained(model_name)
+    raw_predictions = model.predict_entities(text, list(labels))
+    return list(raw_predictions or [])
+
+
+def _prepare_model_text(text: str) -> str:
+    spacy_model = os.getenv("NEWS_SPACY_MODEL", "").strip()
+    if not spacy_model or not text:
+        return text
+    try:
+        import spacy  # type: ignore[import-not-found]
+    except ImportError:
+        logger.warning("NEWS_SPACY_MODEL=%s requested but spacy is not installed", spacy_model)
+        return text
+    try:
+        nlp = spacy.load(spacy_model)
+        doc = nlp(text)
+    except Exception as exc:  # pragma: no cover - optional model runtime
+        logger.warning("spaCy preprocessing failed for %s: %s", spacy_model, exc)
+        return text
+    sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+    return " ".join(sentences) or text
+
+
+def _prediction_confidence(prediction: dict[str, Any]) -> float:
+    for key in ("score", "confidence", "probability"):
+        if key not in prediction:
+            continue
+        try:
+            return max(0.0, min(float(prediction[key]), 1.0))
+        except (TypeError, ValueError):
+            return 0.0
+    return 1.0
+
+
+def _match_extracted_entity(
+    entity_text: str, manager_terms: Sequence[tuple[int, Sequence[str]]]
+) -> int | None:
+    normalized_entity = _normalize_entity_text(entity_text)
+    if not normalized_entity:
+        return None
+    entity_tokens = set(normalized_entity.split())
+
+    for manager_id, terms in manager_terms:
+        for term in terms:
+            normalized_term = _normalize_entity_text(term)
+            if not normalized_term:
+                continue
+            if normalized_entity == normalized_term:
+                return int(manager_id)
+            if normalized_entity in normalized_term or normalized_term in normalized_entity:
+                return int(manager_id)
+            term_tokens = set(normalized_term.split())
+            if entity_tokens and term_tokens and entity_tokens.issubset(term_tokens):
+                return int(manager_id)
+    return None
+
+
+def _normalize_entity_text(value: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    suffixes = {
+        "advisors",
+        "advisor",
+        "capital",
+        "company",
+        "corp",
+        "corporation",
+        "fund",
+        "funds",
+        "inc",
+        "investment",
+        "investments",
+        "llc",
+        "llp",
+        "lp",
+        "management",
+        "partners",
+    }
+    tokens = [token for token in cleaned.split() if token not in suffixes]
+    return " ".join(tokens or cleaned.split())
+
+
+def _news_text(item: dict[str, Any]) -> str:
+    return " ".join(
+        str(item.get(key, ""))
+        for key in ("headline", "body_snippet", "body", "summary")
+        if item.get(key)
+    )
 
 
 def _parse_iso_timestamp(value: str) -> datetime:

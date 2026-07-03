@@ -163,6 +163,60 @@ def test_configured_gdelt_managers_reads_env(monkeypatch):
     assert news._configured_gdelt_managers() == ["Alpha Capital", "Beta Partners"]
 
 
+def test_configured_entity_tagging_mode_defaults_to_keyword(monkeypatch):
+    monkeypatch.delenv("NEWS_ENTITY_TAGGING_MODE", raising=False)
+    assert news.configured_entity_tagging_mode() == "keyword"
+
+
+def test_model_entity_link_matches_extracted_manager_alias():
+    item = {
+        "headline": "EM opens new credit office",
+        "body_snippet": "The firm expects more activist opportunities.",
+    }
+
+    def fake_predictor(text, labels):
+        assert "EM opens" in text
+        assert "organization" in labels
+        return [
+            {
+                "text": "Elliott Investment Management",
+                "label": "organization",
+                "score": 0.94,
+            }
+        ]
+
+    link = news.model_entity_link(
+        item,
+        [(7, ["Elliott Management", "Elliott Investment Management"])],
+        predictor=fake_predictor,
+    )
+
+    assert link == {
+        "manager_id": 7,
+        "entity": "Elliott Investment Management",
+        "label": "organization",
+        "confidence": 0.94,
+        "method": "model",
+    }
+
+
+def test_model_entity_link_respects_confidence_threshold():
+    item = {"headline": "EM opens new credit office"}
+
+    def fake_predictor(_text, _labels):
+        return [{"text": "Elliott Investment Management", "label": "organization", "score": 0.2}]
+
+    assert (
+        news.model_entity_link(
+            item,
+            [(7, ["Elliott Investment Management"])],
+            predictor=fake_predictor,
+            threshold=0.8,
+        )
+        is None
+    )
+
+
 @pytest.mark.asyncio
 async def test_fetch_gdelt_parses_articles_filters_by_since_and_logs_calls(monkeypatch):
     called_endpoints = []

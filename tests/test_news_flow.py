@@ -534,3 +534,60 @@ def test_news_deployment_has_hourly_schedule():
     assert news_flow.news_deployment.name == "news-hourly"
     schedule = news_flow.news_deployment.schedules[0].schedule
     assert schedule.cron == "0 * * * *"
+
+
+def test_match_entities_defaults_to_keyword_mode(monkeypatch, tmp_path):
+    monkeypatch.delenv("NEWS_ENTITY_TAGGING_MODE", raising=False)
+    conn = sqlite3.connect(tmp_path / "news.db")
+    try:
+        _create_managers_table(conn)
+        conn.execute(
+            "INSERT INTO managers(manager_id, name, aliases) VALUES (?, ?, ?)",
+            (7, "Elliott Management", '["Elliott"]'),
+        )
+        items = [{"headline": "Elliott opens a new credit office", "body_snippet": ""}]
+
+        matched = news_flow.match_entities.fn(items, conn)
+    finally:
+        conn.close()
+
+    assert matched[0]["manager_id"] == 7
+    assert "manager_entity" not in matched[0]
+
+
+def test_match_entities_parallel_mode_links_model_alias_keyword_misses(monkeypatch, tmp_path):
+    monkeypatch.setenv("NEWS_ENTITY_TAGGING_MODE", "parallel")
+    conn = sqlite3.connect(tmp_path / "news.db")
+    try:
+        _create_managers_table(conn)
+        conn.execute(
+            "INSERT INTO managers(manager_id, name, aliases) VALUES (?, ?, ?)",
+            (7, "Elliott Management", '["Elliott Investment Management"]'),
+        )
+
+        def fake_model_entity_link(item, manager_terms):
+            assert item["headline"] == "EM opens a new credit office"
+            assert manager_terms == [(7, ["elliott management", "elliott investment management"])]
+            return {
+                "manager_id": 7,
+                "entity": "Elliott Investment Management",
+                "label": "organization",
+                "confidence": 0.91,
+                "method": "model",
+            }
+
+        monkeypatch.setattr(news_flow.news, "model_entity_link", fake_model_entity_link)
+        items = [{"headline": "EM opens a new credit office", "body_snippet": ""}]
+
+        matched = news_flow.match_entities.fn(items, conn)
+    finally:
+        conn.close()
+
+    assert matched[0]["manager_id"] == 7
+    assert matched[0]["manager_entity"] == {
+        "manager_id": 7,
+        "entity": "Elliott Investment Management",
+        "label": "organization",
+        "confidence": 0.91,
+        "method": "model",
+    }
