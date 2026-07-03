@@ -46,9 +46,9 @@ def _select_authoritative_filings(manager_id: int, conn: Any) -> list[tuple[Any,
 
     by_period: dict[Any, tuple[int, Any, Any]] = {}
     for filing_id, period_key, filed_date, filing_type in cursor:
-        period = period_key or filed_date
-        if period is None:
+        if period_key is None:
             continue
+        period = period_key
         candidate = (int(filing_id), filed_date, filing_type)
         existing = by_period.get(period)
         if existing is None:

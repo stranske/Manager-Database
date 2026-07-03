@@ -338,6 +338,57 @@ def test_fetch_latest_sets_reconciles_13f_amendments_before_diffing(monkeypatch)
     ]
 
 
+def test_fetch_latest_sets_ignores_missing_period_end_when_period_column_exists():
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT UNIQUE)"
+    )
+    conn.execute(
+        "CREATE TABLE filings ("
+        "filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, "
+        "period_end TEXT, filed_date TEXT, source TEXT, raw_key TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings ("
+        "holding_id INTEGER PRIMARY KEY AUTOINCREMENT, filing_id INTEGER, "
+        "cusip TEXT, name_of_issuer TEXT, shares INTEGER, value_usd REAL)"
+    )
+    conn.execute("INSERT INTO managers(manager_id, name, cik) VALUES (1, 'TestFund', '0000000000')")
+    conn.executemany(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            (101, 1, "13F-HR", None, "2024-04-15", "legacy"),
+            (102, 1, "13F-HR/A", "2024-03-31", "2024-04-20", "edgar"),
+            (201, 1, "13F-HR", "2023-12-31", "2024-01-15", "edgar"),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [
+            (101, "BBB", "CorpB", 50, 500),
+            (102, "AAA", "CorpA", 130, 1300),
+            (201, "AAA", "CorpA", 90, 900),
+        ],
+    )
+
+    rows = diff_holdings(1, conn).deltas
+    conn.close()
+
+    assert rows == [
+        {
+            "cusip": "AAA",
+            "name_of_issuer": "CorpA",
+            "delta_type": "INCREASE",
+            "shares_prev": 90,
+            "shares_curr": 130,
+            "value_prev": 900,
+            "value_curr": 1300,
+        }
+    ]
+
+
 def test_fetch_latest_sets_uses_postgres_placeholders():
     """Non-sqlite3 connections should produce %s placeholders."""
 
