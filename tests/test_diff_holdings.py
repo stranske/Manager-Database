@@ -230,29 +230,159 @@ def test_fetch_latest_sets_only_returns_top_two_dates():
     assert "AAA" in latest and "AAA" in prior
 
 
+def test_fetch_latest_sets_reconciles_13f_amendments_before_diffing(monkeypatch):
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT UNIQUE)"
+    )
+    conn.execute(
+        "CREATE TABLE filings ("
+        "filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, "
+        "period_end TEXT, filed_date TEXT, source TEXT, raw_key TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings ("
+        "holding_id INTEGER PRIMARY KEY AUTOINCREMENT, filing_id INTEGER, "
+        "cusip TEXT, name_of_issuer TEXT, shares INTEGER, value_usd REAL)"
+    )
+    conn.execute("INSERT INTO managers(manager_id, name, cik) VALUES (1, 'TestFund', '0000000000')")
+    conn.executemany(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            (101, 1, "13F-HR", "2024-03-31", "2024-04-15", "edgar"),
+            (102, 1, "13F-HR/A", "2024-03-31", "2024-04-20", "edgar"),
+            (201, 1, "13F-HR", "2023-12-31", "2024-01-15", "edgar"),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [
+            (101, "AAA", "CorpA", 100, 1000),
+            (101, "BBB", "CorpB", 50, 500),
+            (102, "AAA", "CorpA", 130, 1300),
+            (102, "CCC", "CorpC", 10, 100),
+            (201, "AAA", "CorpA", 90, 900),
+            (201, "DDD", "CorpD", 5, 50),
+        ],
+    )
+
+    rows = diff_holdings(1, conn).deltas
+
+    assert rows == [
+        {
+            "cusip": "AAA",
+            "name_of_issuer": "CorpA",
+            "delta_type": "INCREASE",
+            "shares_prev": 90,
+            "shares_curr": 130,
+            "value_prev": 900,
+            "value_curr": 1300,
+        },
+        {
+            "cusip": "CCC",
+            "name_of_issuer": "CorpC",
+            "delta_type": "ADD",
+            "shares_prev": None,
+            "shares_curr": 10,
+            "value_prev": None,
+            "value_curr": 100,
+        },
+        {
+            "cusip": "DDD",
+            "name_of_issuer": "CorpD",
+            "delta_type": "EXIT",
+            "shares_prev": 5,
+            "shares_curr": None,
+            "value_prev": 50,
+            "value_curr": None,
+        },
+    ]
+
+    def disable_supersede(_manager_id, _conn):
+        return [("2024-03-31 amended", 102), ("2024-03-31 original", 101)]
+
+    monkeypatch.setattr(diff_holdings_module, "_select_authoritative_filings", disable_supersede)
+    broken_rows = diff_holdings(1, conn).deltas
+    conn.close()
+
+    assert broken_rows == [
+        {
+            "cusip": "AAA",
+            "name_of_issuer": "CorpA",
+            "delta_type": "INCREASE",
+            "shares_prev": 100,
+            "shares_curr": 130,
+            "value_prev": 1000,
+            "value_curr": 1300,
+        },
+        {
+            "cusip": "BBB",
+            "name_of_issuer": "CorpB",
+            "delta_type": "EXIT",
+            "shares_prev": 50,
+            "shares_curr": None,
+            "value_prev": 500,
+            "value_curr": None,
+        },
+        {
+            "cusip": "CCC",
+            "name_of_issuer": "CorpC",
+            "delta_type": "ADD",
+            "shares_prev": None,
+            "shares_curr": 10,
+            "value_prev": None,
+            "value_curr": 100,
+        },
+    ]
+
+
 def test_fetch_latest_sets_uses_postgres_placeholders():
     """Non-sqlite3 connections should produce %s placeholders."""
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def __iter__(self):
+            return iter(self.rows)
+
+        def fetchall(self):
+            return self.rows
 
     class FakePostgresConn:
         def __init__(self):
             self.sql = ""
             self.params: tuple[int, ...] | None = None
+            self.calls: list[tuple[str, tuple[int, ...]]] = []
 
         def execute(self, sql, params):
             self.sql = sql
             self.params = params
-            return iter(
+            self.calls.append((sql, params))
+            if "information_schema.columns" in sql:
+                return FakeCursor(
+                    [(column,) for column in {"filing_id", "manager_id", "type", "filed_date"}]
+                )
+            if "FROM filings" in sql:
+                return FakeCursor(
+                    [
+                        (101, "2024-04-01", "2024-04-01", "13F-HR"),
+                        (102, "2024-01-01", "2024-01-01", "13F-HR"),
+                    ]
+                )
+            return FakeCursor(
                 [
-                    ("2024-04-01", "AAA", 110, 1100, "CorpA"),
-                    ("2024-01-01", "AAA", 100, 1000, "CorpA"),
+                    ("AAA", 110, 1100, "CorpA"),
+                    ("AAA", 100, 1000, "CorpA"),
                 ]
             )
 
     conn = FakePostgresConn()
     _fetch_latest_sets(7, conn)
-    assert "%s" in conn.sql
-    assert "?" not in conn.sql
-    assert conn.params == (7,)
+    assert all("?" not in sql for sql, _params in conn.calls)
+    assert any("%s" in sql and params == (7,) for sql, params in conn.calls)
 
 
 def test_diff_holdings_uses_default_connect_db_when_conn_missing(monkeypatch):

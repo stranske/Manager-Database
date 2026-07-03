@@ -7,7 +7,7 @@ import sys
 import time
 from typing import Any
 
-from adapters.base import connect_db, resolve_manager_id_column
+from adapters.base import connect_db, get_table_columns, resolve_manager_id_column
 from tools.registry import run_contract_fields
 from tools.run_contract import RunResult
 
@@ -17,46 +17,105 @@ def _placeholder(conn: Any) -> str:
     return "?" if isinstance(conn, sqlite3.Connection) else "%s"
 
 
-def _fetch_latest_sets(
-    manager_id: int, conn: Any
-) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
-    """Fetch holdings keyed by CUSIP for the two most-recent filing dates.
+def _is_amendment(filing_type: Any) -> bool:
+    return str(filing_type or "").strip().upper().endswith("/A")
 
-    Returns ``(current, prior)`` where each is
-    ``{cusip: {"shares": int|None, "value_usd": float|None, "name_of_issuer": str|None}}``.
+
+def _sort_key(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _select_authoritative_filings(manager_id: int, conn: Any) -> list[tuple[Any, int]]:
+    """Return authoritative filing IDs for the latest two reporting periods.
+
+    Raw EDGAR rows remain queryable in ``filings``/``holdings``. This selector is
+    the reconciliation boundary for downstream diffs: per manager-period, use the
+    latest amendment when present, otherwise the latest original filing.
     """
     ph = _placeholder(conn)
+    filing_columns = get_table_columns(conn, "filings")
+    period_column = "period_end" if "period_end" in filing_columns else "filed_date"
     cursor = conn.execute(
         f"""
-        SELECT f.filed_date, h.cusip, h.shares, h.value_usd, h.name_of_issuer
-        FROM holdings h
-        JOIN filings f ON f.filing_id = h.filing_id
+        SELECT f.filing_id, f.{period_column}, f.filed_date, f.type
+        FROM filings f
         WHERE f.manager_id = {ph}
-        ORDER BY f.filed_date DESC
         """,
         (manager_id,),
     )
 
-    grouped: dict[object, dict[str, dict[str, Any]]] = {}
-    ordered_dates: list[object] = []
+    by_period: dict[Any, tuple[int, Any, Any]] = {}
+    for filing_id, period_key, filed_date, filing_type in cursor:
+        period = period_key or filed_date
+        if period is None:
+            continue
+        candidate = (int(filing_id), filed_date, filing_type)
+        existing = by_period.get(period)
+        if existing is None:
+            by_period[period] = candidate
+            continue
+        existing_rank = (
+            _is_amendment(existing[2]),
+            _sort_key(existing[1]),
+            existing[0],
+        )
+        candidate_rank = (
+            _is_amendment(candidate[2]),
+            _sort_key(candidate[1]),
+            candidate[0],
+        )
+        if candidate_rank > existing_rank:
+            by_period[period] = candidate
 
-    for filed_date, cusip, shares, value_usd, name_of_issuer in cursor:
-        if filed_date not in grouped:
-            if len(ordered_dates) == 2:
-                break
-            ordered_dates.append(filed_date)
-            grouped[filed_date] = {}
-        grouped[filed_date][cusip] = {
+    return [
+        (period, filing[0])
+        for period, filing in sorted(
+            by_period.items(),
+            key=lambda item: (_sort_key(item[0]), _sort_key(item[1][1]), item[1][0]),
+            reverse=True,
+        )[:2]
+    ]
+
+
+def _fetch_holdings_for_filing(conn: Any, filing_id: int) -> dict[str, dict[str, Any]]:
+    ph = _placeholder(conn)
+    cursor = conn.execute(
+        f"""
+        SELECT h.cusip, h.shares, h.value_usd, h.name_of_issuer
+        FROM holdings h
+        WHERE h.filing_id = {ph}
+        ORDER BY h.cusip
+        """,
+        (filing_id,),
+    )
+    return {
+        cusip: {
             "shares": shares,
             "value_usd": value_usd,
             "name_of_issuer": name_of_issuer,
         }
+        for cusip, shares, value_usd, name_of_issuer in cursor
+    }
 
-    if not ordered_dates:
+
+def _fetch_latest_sets(
+    manager_id: int, conn: Any
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Fetch holdings keyed by CUSIP for the latest two authoritative periods.
+
+    Returns ``(current, prior)`` where each is
+    ``{cusip: {"shares": int|None, "value_usd": float|None, "name_of_issuer": str|None}}``.
+    """
+    authoritative = _select_authoritative_filings(manager_id, conn)
+    if not authoritative:
         raise SystemExit("Manager not found or has no filings")
-    if len(ordered_dates) < 2:
+    if len(authoritative) < 2:
         raise SystemExit("Need at least two filings to compute a diff")
-    return grouped[ordered_dates[0]], grouped[ordered_dates[1]]
+    current_filing_id = authoritative[0][1]
+    prior_filing_id = authoritative[1][1]
+    return _fetch_holdings_for_filing(conn, current_filing_id), _fetch_holdings_for_filing(
+        conn, prior_filing_id
+    )
 
 
 def _resolve_manager_id(identifier: int | str, conn: Any) -> int:
