@@ -389,6 +389,63 @@ def test_fetch_latest_sets_ignores_missing_period_end_when_period_column_exists(
     ]
 
 
+def test_fetch_latest_sets_ignores_filings_without_holdings():
+    conn = _setup_canonical_db()
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, filed_date, source) "
+        "VALUES (103, 1, '13F-HR', '2024-07-01', 'edgar')"
+    )
+
+    latest, prior = _fetch_latest_sets(1, conn)
+    conn.close()
+
+    assert "AAA" in latest and "AAA" in prior
+    assert latest["AAA"]["shares"] == 120
+    assert prior["AAA"]["shares"] == 100
+
+
+def test_fetch_latest_sets_prefers_latest_filed_date_before_amendment_tie_breaker():
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT UNIQUE)"
+    )
+    conn.execute(
+        "CREATE TABLE filings ("
+        "filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, "
+        "period_end TEXT, filed_date TEXT, source TEXT, raw_key TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE holdings ("
+        "holding_id INTEGER PRIMARY KEY AUTOINCREMENT, filing_id INTEGER, "
+        "cusip TEXT, name_of_issuer TEXT, shares INTEGER, value_usd REAL)"
+    )
+    conn.execute("INSERT INTO managers(manager_id, name, cik) VALUES (1, 'TestFund', '0000000000')")
+    conn.executemany(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            (101, 1, "13F-HR/A", "2024-03-31", "2024-04-15", "edgar"),
+            (102, 1, "13F-HR", "2024-03-31", "2024-04-20", "edgar"),
+            (103, 1, "13F-HR", "2023-12-31", "2024-01-15", "edgar"),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [
+            (101, "AAA", "CorpA", 130, 1300),
+            (102, "AAA", "CorpA", 140, 1400),
+            (103, "AAA", "CorpA", 90, 900),
+        ],
+    )
+
+    latest, prior = _fetch_latest_sets(1, conn)
+    conn.close()
+
+    assert latest["AAA"]["shares"] == 140
+    assert prior["AAA"]["shares"] == 90
+
+
 def test_fetch_latest_sets_uses_postgres_placeholders():
     """Non-sqlite3 connections should produce %s placeholders."""
 

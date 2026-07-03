@@ -40,6 +40,11 @@ def _select_authoritative_filings(manager_id: int, conn: Any) -> list[tuple[Any,
         SELECT f.filing_id, f.{period_column}, f.filed_date, f.type
         FROM filings f
         WHERE f.manager_id = {ph}
+          AND EXISTS (
+            SELECT 1
+            FROM holdings h
+            WHERE h.filing_id = f.filing_id
+          )
         """,
         (manager_id,),
     )
@@ -55,13 +60,13 @@ def _select_authoritative_filings(manager_id: int, conn: Any) -> list[tuple[Any,
             by_period[period] = candidate
             continue
         existing_rank = (
-            _is_amendment(existing[2]),
             _sort_key(existing[1]),
+            _is_amendment(existing[2]),
             existing[0],
         )
         candidate_rank = (
-            _is_amendment(candidate[2]),
             _sort_key(candidate[1]),
+            _is_amendment(candidate[2]),
             candidate[0],
         )
         if candidate_rank > existing_rank:
