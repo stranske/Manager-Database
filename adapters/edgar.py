@@ -125,7 +125,7 @@ def _parse_int_field(value: Any) -> int:
     try:
         return int(cleaned)
     except ValueError:
-        return int(float(cleaned))
+        return int(Decimal(cleaned))
 
 
 def _coalesce_mapping_value(row: Mapping[str, Any], *keys: str) -> Any:
@@ -187,9 +187,16 @@ def _legacy_parse_13f(raw: str) -> list[dict[str, int | str]]:
 
 def _parse_13f_with_edgartools(raw: str) -> list[dict[str, int | str]]:
     """Parse 13F information tables through edgartools, preserving our row contract."""
-    from edgar.thirteenf import ThirteenF
+    try:
+        from edgar.thirteenf import ThirteenF
+    except ImportError as exc:
+        raise RuntimeError("edgartools is required for primary 13F parsing") from exc
 
-    table = ThirteenF.parse_infotable_xml(raw)
+    parse_infotable_xml = getattr(ThirteenF, "parse_infotable_xml", None)
+    if parse_infotable_xml is None:
+        raise RuntimeError("edgartools ThirteenF parser is missing parse_infotable_xml")
+
+    table = parse_infotable_xml(raw)
     return _normalize_13f_rows_from_table(table)
 
 
@@ -552,6 +559,11 @@ async def parse(
 
     try:
         return _parse_13f_with_edgartools(raw)
+    except RuntimeError:
+        logger.warning(
+            "Falling back to legacy 13F parser after edgartools setup failure", exc_info=True
+        )
+        return _legacy_parse_13f(raw)
     except Exception:
-        logger.debug("Falling back to legacy 13F XML parser", exc_info=True)
+        logger.warning("Falling back to legacy 13F XML parser", exc_info=True)
         return _legacy_parse_13f(raw)

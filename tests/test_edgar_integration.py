@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import httpx
+import pandas as pd
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -265,6 +266,66 @@ def test_edgartools_table_normalization_matches_legacy_contract():
             "sshPrnamt": 100,
         }
     ]
+
+
+def test_edgartools_table_normalization_accepts_dataframe_records():
+    rows = edgar._normalize_13f_rows_from_table(
+        pd.DataFrame(
+            [
+                {
+                    "Issuer": "Example Corp",
+                    "Cusip": "123456789",
+                    "Value": "1,000",
+                    "SharesPrnAmount": "100",
+                }
+            ]
+        )
+    )
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+
+
+def test_real_edgartools_parser_reads_committed_fixture():
+    pytest.importorskip("edgar.thirteenf")
+    sample_path = Path(__file__).parent / "data" / "sample_13f.xml"
+
+    rows = edgar._parse_13f_with_edgartools(sample_path.read_text())
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_warns_when_edgartools_is_unavailable(monkeypatch, caplog):
+    def unavailable_parser(raw):
+        raise RuntimeError("edgartools is required for primary 13F parsing")
+
+    monkeypatch.setattr(edgar, "_parse_13f_with_edgartools", unavailable_parser)
+
+    rows = await edgar.parse(sample_xml())
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+    assert "edgartools setup failure" in caplog.text
 
 
 @pytest.mark.integration
