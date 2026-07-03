@@ -40,6 +40,9 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
 MODEL_TAGGING_MODES = {"keyword", "model", "parallel"}
 NEWS_ENTITY_LABELS = ("organization", "org", "ticker", "company")
 EntityPredictor = Callable[[str, Sequence[str]], Sequence[dict[str, Any]]]
+_GLINER_MODEL_CACHE: dict[str, Any] = {}
+_SPACY_MODEL_CACHE: dict[str, Any] = {}
+_OPTIONAL_MODEL_WARNED: set[str] = set()
 
 
 def _normalize_since(since: str | None) -> str:
@@ -375,13 +378,18 @@ def _configured_model_confidence_threshold(value: float | None = None) -> float:
 
 def _predict_model_entities(text: str, labels: Sequence[str]) -> Sequence[dict[str, Any]]:
     model_name = os.getenv("NEWS_GLINER_MODEL", "EmergentMethods/gliner_medium_news-v2.1")
-    try:
-        from gliner import GLiNER  # type: ignore[import-not-found]
-    except ImportError:
-        logger.warning("NEWS_ENTITY_TAGGING_MODE requested but gliner is not installed")
-        return []
-
-    model = GLiNER.from_pretrained(model_name)
+    model = _GLINER_MODEL_CACHE.get(model_name)
+    if model is None:
+        try:
+            from gliner import GLiNER  # type: ignore[import-not-found]
+        except ImportError:
+            _warn_optional_model_once(
+                f"gliner:{model_name}",
+                "NEWS_ENTITY_TAGGING_MODE requested but gliner is not installed",
+            )
+            return []
+        model = GLiNER.from_pretrained(model_name)
+        _GLINER_MODEL_CACHE[model_name] = model
     raw_predictions = model.predict_entities(text, list(labels))
     return list(raw_predictions or [])
 
@@ -390,13 +398,24 @@ def _prepare_model_text(text: str) -> str:
     spacy_model = os.getenv("NEWS_SPACY_MODEL", "").strip()
     if not spacy_model or not text:
         return text
+    nlp = _SPACY_MODEL_CACHE.get(spacy_model)
+    if nlp is None:
+        try:
+            import spacy  # type: ignore[import-not-found]
+        except ImportError:
+            _warn_optional_model_once(
+                f"spacy:{spacy_model}",
+                "NEWS_SPACY_MODEL=%s requested but spacy is not installed",
+                spacy_model,
+            )
+            return text
+        try:
+            nlp = spacy.load(spacy_model)
+        except Exception as exc:  # pragma: no cover - optional model runtime
+            logger.warning("spaCy preprocessing failed for %s: %s", spacy_model, exc)
+            return text
+        _SPACY_MODEL_CACHE[spacy_model] = nlp
     try:
-        import spacy  # type: ignore[import-not-found]
-    except ImportError:
-        logger.warning("NEWS_SPACY_MODEL=%s requested but spacy is not installed", spacy_model)
-        return text
-    try:
-        nlp = spacy.load(spacy_model)
         doc = nlp(text)
     except Exception as exc:  # pragma: no cover - optional model runtime
         logger.warning("spaCy preprocessing failed for %s: %s", spacy_model, exc)
@@ -413,7 +432,7 @@ def _prediction_confidence(prediction: dict[str, Any]) -> float:
             return max(0.0, min(float(prediction[key]), 1.0))
         except (TypeError, ValueError):
             return 0.0
-    return 1.0
+    return 0.0
 
 
 def _match_extracted_entity(
@@ -423,20 +442,38 @@ def _match_extracted_entity(
     if not normalized_entity:
         return None
     entity_tokens = set(normalized_entity.split())
+    candidates: list[tuple[int, int, int, int]] = []
 
-    for manager_id, terms in manager_terms:
+    for manager_index, (manager_id, terms) in enumerate(manager_terms):
         for term in terms:
             normalized_term = _normalize_entity_text(term)
             if not normalized_term:
                 continue
-            if normalized_entity == normalized_term:
-                return int(manager_id)
-            if normalized_entity in normalized_term or normalized_term in normalized_entity:
-                return int(manager_id)
             term_tokens = set(normalized_term.split())
-            if entity_tokens and term_tokens and entity_tokens.issubset(term_tokens):
-                return int(manager_id)
-    return None
+            score = 0
+            if normalized_entity == normalized_term:
+                score = 300
+            elif entity_tokens and term_tokens and entity_tokens == term_tokens:
+                score = 250
+            elif entity_tokens and term_tokens and entity_tokens.issubset(term_tokens):
+                score = 200
+            elif entity_tokens and term_tokens and term_tokens.issubset(entity_tokens):
+                score = 150
+            elif normalized_entity in normalized_term or normalized_term in normalized_entity:
+                score = 100
+            if score:
+                candidates.append((score, len(normalized_term), -manager_index, int(manager_id)))
+
+    if not candidates:
+        return None
+    return max(candidates)[3]
+
+
+def _warn_optional_model_once(key: str, message: str, *args: Any) -> None:
+    if key in _OPTIONAL_MODEL_WARNED:
+        return
+    _OPTIONAL_MODEL_WARNED.add(key)
+    logger.warning(message, *args)
 
 
 def _normalize_entity_text(value: str) -> str:

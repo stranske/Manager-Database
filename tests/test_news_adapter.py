@@ -1,3 +1,4 @@
+import sys
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
@@ -215,6 +216,89 @@ def test_model_entity_link_respects_confidence_threshold():
         )
         is None
     )
+
+
+def test_model_entity_link_ignores_predictions_without_confidence():
+    item = {"headline": "Elliott opens new office"}
+
+    def fake_predictor(_text, _labels):
+        return [{"text": "Elliott Management", "label": "organization"}]
+
+    assert (
+        news.model_entity_link(
+            item,
+            [(7, ["Elliott Management"])],
+            predictor=fake_predictor,
+            threshold=0.1,
+        )
+        is None
+    )
+
+
+def test_match_extracted_entity_prefers_specific_manager_term():
+    matched = news._match_extracted_entity(
+        "Alpha Strategic Partners",
+        [
+            (1, ["Alpha"]),
+            (2, ["Alpha Strategic Partners"]),
+        ],
+    )
+
+    assert matched == 2
+
+
+def test_predict_model_entities_caches_gliner_model(monkeypatch):
+    class FakeModel:
+        def __init__(self):
+            self.calls = 0
+
+        def predict_entities(self, text, labels):
+            self.calls += 1
+            return [{"text": text, "label": labels[0], "score": 0.9}]
+
+    loads = []
+
+    class FakeGliner:
+        @staticmethod
+        def from_pretrained(model_name):
+            loads.append(model_name)
+            return FakeModel()
+
+    monkeypatch.setitem(sys.modules, "gliner", SimpleNamespace(GLiNER=FakeGliner))
+    monkeypatch.setenv("NEWS_GLINER_MODEL", "test-model")
+    news._GLINER_MODEL_CACHE.clear()
+
+    assert news._predict_model_entities("Alpha", ["organization"]) == [
+        {"text": "Alpha", "label": "organization", "score": 0.9}
+    ]
+    assert news._predict_model_entities("Beta", ["organization"]) == [
+        {"text": "Beta", "label": "organization", "score": 0.9}
+    ]
+    assert loads == ["test-model"]
+
+
+def test_prepare_model_text_caches_spacy_model(monkeypatch):
+    loads = []
+
+    class FakeSentence:
+        def __init__(self, text):
+            self.text = text
+
+    class FakeNlp:
+        def __call__(self, text):
+            return SimpleNamespace(sents=[FakeSentence(part) for part in text.split(".")])
+
+    def fake_load(model_name):
+        loads.append(model_name)
+        return FakeNlp()
+
+    monkeypatch.setitem(sys.modules, "spacy", SimpleNamespace(load=fake_load))
+    monkeypatch.setenv("NEWS_SPACY_MODEL", "test-spacy")
+    news._SPACY_MODEL_CACHE.clear()
+
+    assert news._prepare_model_text("Alpha. Beta.") == "Alpha Beta"
+    assert news._prepare_model_text("Gamma.") == "Gamma"
+    assert loads == ["test-spacy"]
 
 
 @pytest.mark.asyncio
