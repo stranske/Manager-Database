@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable, Mapping
+from decimal import Decimal
 from time import monotonic
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -105,6 +106,91 @@ def _is_13f_form(form_type: str) -> bool:
 
 def _is_activism_form(form_type: str) -> bool:
     return _normalize_form_type(form_type) in ACTIVISM_FORMS
+
+
+def _parse_int_field(value: Any) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, Decimal):
+        return int(value)
+    cleaned = str(value).strip().replace(",", "")
+    if not cleaned:
+        return 0
+    try:
+        return int(cleaned)
+    except ValueError:
+        return int(float(cleaned))
+
+
+def _coalesce_mapping_value(row: Mapping[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in row and row[key] not in (None, ""):
+            return row[key]
+    return None
+
+
+def _iter_table_records(table: Any) -> Iterable[Mapping[str, Any]]:
+    if hasattr(table, "to_dict"):
+        records = table.to_dict(orient="records")
+        if isinstance(records, list):
+            return [record for record in records if isinstance(record, Mapping)]
+    if isinstance(table, Iterable) and not isinstance(table, (str, bytes, Mapping)):
+        return [record for record in table if isinstance(record, Mapping)]
+    return ()
+
+
+def _normalize_13f_rows_from_table(table: Any) -> list[dict[str, int | str]]:
+    rows: list[dict[str, int | str]] = []
+    for record in _iter_table_records(table):
+        rows.append(
+            {
+                "nameOfIssuer": str(
+                    _coalesce_mapping_value(record, "Issuer", "nameOfIssuer", "name", "issuer")
+                    or ""
+                ),
+                "cusip": str(_coalesce_mapping_value(record, "Cusip", "cusip", "CUSIP") or ""),
+                "value": _parse_int_field(_coalesce_mapping_value(record, "Value", "value")),
+                "sshPrnamt": _parse_int_field(
+                    _coalesce_mapping_value(
+                        record,
+                        "SharesPrnAmount",
+                        "Shares",
+                        "sshPrnamt",
+                        "shares",
+                    )
+                ),
+            }
+        )
+    return rows
+
+
+def _legacy_parse_13f(raw: str) -> list[dict[str, int | str]]:
+    root = ET.fromstring(raw)
+    rows: list[dict[str, int | str]] = []
+    for info in root.findall(".//infoTable"):
+        rows.append(
+            {
+                "nameOfIssuer": (info.findtext("nameOfIssuer") or ""),
+                "cusip": (info.findtext("cusip") or ""),
+                "value": int(info.findtext("value") or 0),
+                "sshPrnamt": int(info.findtext("shrsOrPrnAmt/sshPrnamt") or 0),
+            }
+        )
+    return rows
+
+
+def _parse_13f_with_edgartools(raw: str) -> list[dict[str, int | str]]:
+    """Parse 13F information tables through edgartools, preserving our row contract."""
+    from edgar.thirteenf import ThirteenF
+
+    table = ThirteenF.parse_infotable_xml(raw)
+    return _normalize_13f_rows_from_table(table)
 
 
 def _normalize_filed_date(raw_value: str | None) -> str | None:
@@ -464,15 +550,8 @@ async def parse(
             return parse_13d(raw)
         return parse_13g(raw)
 
-    root = ET.fromstring(raw)
-    rows: list[dict[str, int | str]] = []
-    for info in root.findall(".//infoTable"):
-        rows.append(
-            {
-                "nameOfIssuer": (info.findtext("nameOfIssuer") or ""),
-                "cusip": (info.findtext("cusip") or ""),
-                "value": int(info.findtext("value") or 0),
-                "sshPrnamt": int(info.findtext("shrsOrPrnAmt/sshPrnamt") or 0),
-            }
-        )
-    return rows
+    try:
+        return _parse_13f_with_edgartools(raw)
+    except Exception:
+        logger.debug("Falling back to legacy 13F XML parser", exc_info=True)
+        return _legacy_parse_13f(raw)

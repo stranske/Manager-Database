@@ -1,4 +1,5 @@
 pytest
+edgartools>=4.6,<5.0
 httpx
 prefect
 beautifulsoup4
