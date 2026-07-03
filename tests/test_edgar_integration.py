@@ -311,7 +311,7 @@ def test_real_edgartools_parser_reads_committed_fixture():
 @pytest.mark.asyncio
 async def test_parse_warns_when_edgartools_is_unavailable(monkeypatch, caplog):
     def unavailable_parser(raw):
-        raise RuntimeError("edgartools is required for primary 13F parsing")
+        raise edgar._EdgartoolsSetupError("edgartools is required for primary 13F parsing")
 
     monkeypatch.setattr(edgar, "_parse_13f_with_edgartools", unavailable_parser)
 
@@ -326,6 +326,27 @@ async def test_parse_warns_when_edgartools_is_unavailable(monkeypatch, caplog):
         }
     ]
     assert "edgartools setup failure" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_parse_warns_separately_for_edgartools_parser_runtime_error(monkeypatch, caplog):
+    def broken_parser(raw):
+        raise RuntimeError("parser rejected valid fixture")
+
+    monkeypatch.setattr(edgar, "_parse_13f_with_edgartools", broken_parser)
+
+    rows = await edgar.parse(sample_xml())
+
+    assert rows == [
+        {
+            "nameOfIssuer": "Example Corp",
+            "cusip": "123456789",
+            "value": 1000,
+            "sshPrnamt": 100,
+        }
+    ]
+    assert "edgartools setup failure" not in caplog.text
+    assert "Falling back to legacy 13F XML parser" in caplog.text
 
 
 @pytest.mark.integration

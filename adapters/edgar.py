@@ -185,16 +185,20 @@ def _legacy_parse_13f(raw: str) -> list[dict[str, int | str]]:
     return rows
 
 
+class _EdgartoolsSetupError(RuntimeError):
+    """Raised when edgartools is unavailable or lacks the expected parser API."""
+
+
 def _parse_13f_with_edgartools(raw: str) -> list[dict[str, int | str]]:
     """Parse 13F information tables through edgartools, preserving our row contract."""
     try:
         from edgar.thirteenf import ThirteenF
     except ImportError as exc:
-        raise RuntimeError("edgartools is required for primary 13F parsing") from exc
+        raise _EdgartoolsSetupError("edgartools is required for primary 13F parsing") from exc
 
     parse_infotable_xml = getattr(ThirteenF, "parse_infotable_xml", None)
     if parse_infotable_xml is None:
-        raise RuntimeError("edgartools ThirteenF parser is missing parse_infotable_xml")
+        raise _EdgartoolsSetupError("edgartools ThirteenF parser is missing parse_infotable_xml")
 
     table = parse_infotable_xml(raw)
     return _normalize_13f_rows_from_table(table)
@@ -559,7 +563,7 @@ async def parse(
 
     try:
         return _parse_13f_with_edgartools(raw)
-    except RuntimeError:
+    except _EdgartoolsSetupError:
         logger.warning(
             "Falling back to legacy 13F parser after edgartools setup failure", exc_info=True
         )
