@@ -20,7 +20,15 @@ def check_lock_file_completeness() -> tuple[bool, list[str]]:
     issues = []
 
     # Read pyproject.toml to get all optional groups
-    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    pyproject_path = Path("pyproject.toml")
+    try:
+        pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        issues.append(f"{pyproject_path} not found")
+        return False, issues
+    except tomllib.TOMLDecodeError as exc:
+        issues.append(f"{pyproject_path} could not be parsed: {exc}")
+        return False, issues
     optional_dependencies = pyproject.get("project", {}).get("optional-dependencies", {})
     if not optional_dependencies:
         issues.append("No [project.optional-dependencies] section found")

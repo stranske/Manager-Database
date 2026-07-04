@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -27,10 +28,9 @@ def test_check_test_dependencies_recommends_existing_commands() -> None:
     helper = Path("scripts/check_test_dependencies.sh").read_text(encoding="utf-8")
 
     assert "./scripts/run_tests.sh" not in helper
+    assert "python -m pytest" in helper
 
-    recommended_script_paths = {
-        line.split("./", 1)[1].strip() for line in helper.splitlines() if "./scripts/" in line
-    }
+    recommended_script_paths = set(re.findall(r"\./(scripts/[A-Za-z0-9_./-]+)", helper))
 
     missing = sorted(path for path in recommended_script_paths if not Path(path).is_file())
     assert not missing
