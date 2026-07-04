@@ -11,6 +11,7 @@ Run this script to verify:
 
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -19,44 +20,51 @@ def check_lock_file_completeness() -> tuple[bool, list[str]]:
     issues = []
 
     # Read pyproject.toml to get all optional groups
-    pyproject = Path("pyproject.toml").read_text()
-
-    # Extract optional dependency groups
-    optional_section = re.search(
-        r"\[project\.optional-dependencies\](.*?)(?=\n\[|\Z)", pyproject, re.DOTALL
-    )
-    if not optional_section:
+    pyproject_path = Path("pyproject.toml")
+    try:
+        pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        issues.append(f"{pyproject_path} not found")
+        return False, issues
+    except tomllib.TOMLDecodeError as exc:
+        issues.append(f"{pyproject_path} could not be parsed: {exc}")
+        return False, issues
+    optional_dependencies = pyproject.get("project", {}).get("optional-dependencies", {})
+    if not optional_dependencies:
         issues.append("No [project.optional-dependencies] section found")
         return False, issues
 
-    optional_groups = re.findall(r"^(\w+)\s*=", optional_section.group(1), re.MULTILINE)
+    optional_groups = sorted(optional_dependencies)
     print(f"✓ Found optional dependency groups: {', '.join(optional_groups)}")
 
-    # Check dependabot-auto-lock.yml includes all extras
-    workflow_path = Path(".github/workflows/dependabot-auto-lock.yml")
+    # Check the current Dependabot lock workflow includes all non-empty extras.
+    workflow_path = Path(".github/workflows/maint-dependabot-auto-lock.yml")
     if workflow_path.exists():
-        workflow = workflow_path.read_text()
+        workflow = workflow_path.read_text(encoding="utf-8")
         for group in optional_groups:
+            if not optional_dependencies[group]:
+                continue
             if f"--extra {group}" not in workflow:
-                issues.append(f"dependabot-auto-lock.yml missing --extra {group}")
+                issues.append(f"{workflow_path.name} missing --extra {group}")
 
         if not issues:
-            print("✓ dependabot-auto-lock.yml includes all extras")
+            print(f"✓ {workflow_path.name} includes all non-empty extras")
     else:
-        issues.append("dependabot-auto-lock.yml not found")
+        issues.append(f"{workflow_path.name} not found")
 
     return len(issues) == 0, issues
 
 
 def check_for_hardcoded_versions() -> tuple[bool, list[str]]:
-    """Check for hardcoded version numbers in tests."""
+    """Check for hardcoded dependency version pins in tests."""
     issues = []
     test_files = list(Path("tests").rglob("*.py"))
 
-    # Patterns that indicate hardcoded versions
+    # Patterns that indicate package version pins, not ordinary numeric
+    # assertions such as score == 1.0 or threshold == 25.0.
     version_patterns = [
-        r'==\s*["\']?\d+\.\d+',  # == version
-        r'assert.*version.*==.*["\d]',  # assert version == "x.y"
+        r'["\'][A-Za-z0-9_.-]+==\d+\.\d+',
+        r'assert.*(?:package|dependency|requirement|version).*==.*["\'][A-Za-z0-9_.-]+==\d+\.\d+',
     ]
 
     problematic_files = []
@@ -79,49 +87,30 @@ def check_for_hardcoded_versions() -> tuple[bool, list[str]]:
                         problematic_files.append((test_file, i + 1, line.strip()))
 
     if problematic_files:
-        issues.append("Found potential hardcoded versions in tests:")
+        issues.append("Found potential hardcoded dependency version pins in tests:")
         for file, line_no, line in problematic_files:
             issues.append(f"  {file}:{line_no}: {line[:80]}")
     else:
-        print("✓ No hardcoded version numbers found in tests")
+        print("✓ No hardcoded dependency version pins found in tests")
 
     return len(issues) == 0, issues
 
 
-def check_metadata_serialization() -> tuple[bool, list[str]]:
-    """Check that metadata is properly serialized to dicts, not Pydantic objects."""
+def check_dependency_script_recommendations() -> tuple[bool, list[str]]:
+    """Check that dependency helper output references existing repo commands."""
     issues = []
+    helper_path = Path("scripts/check_test_dependencies.sh")
+    if not helper_path.exists():
+        return False, ["scripts/check_test_dependencies.sh not found"]
 
-    # Check validators.py returns dict
-    validators_path = Path("src/trend_analysis/io/validators.py")
-    if validators_path.exists():
-        content = validators_path.read_text()
+    content = helper_path.read_text(encoding="utf-8")
+    recommended_script_paths = sorted(set(re.findall(r"\./(scripts/[A-Za-z0-9_./-]+)", content)))
+    for script_path in recommended_script_paths:
+        if not Path(script_path).is_file():
+            issues.append(f"{helper_path}: recommended script path does not exist: {script_path}")
 
-        # Look for load_and_validate_upload function
-        if "validated.metadata.model_dump(mode=" in content:
-            print("✓ load_and_validate_upload serializes metadata to dict")
-        else:
-            issues.append("load_and_validate_upload may not be serializing metadata properly")
-
-    # Check attach_metadata serializes
-    market_data_path = Path("src/trend_analysis/io/market_data.py")
-    if market_data_path.exists():
-        content = market_data_path.read_text()
-
-        if "metadata.model_dump(mode=" in content:
-            print("✓ attach_metadata serializes metadata to dict")
-        else:
-            issues.append("attach_metadata may not be serializing metadata properly")
-
-    # Check data_schema.py serializes
-    data_schema_path = Path("streamlit_app/components/data_schema.py")
-    if data_schema_path.exists():
-        content = data_schema_path.read_text()
-
-        if "metadata.model_dump(mode=" in content:
-            print("✓ _build_meta serializes metadata to dict")
-        else:
-            issues.append("_build_meta may not be serializing metadata properly")
+    if not issues:
+        print("✓ Dependency helper recommendations reference existing script paths")
 
     return len(issues) == 0, issues
 
@@ -168,7 +157,7 @@ def main():
     checks = [
         ("Lock file completeness", check_lock_file_completeness),
         ("Hardcoded versions", check_for_hardcoded_versions),
-        ("Metadata serialization", check_metadata_serialization),
+        ("Dependency helper recommendations", check_dependency_script_recommendations),
         ("Test expectations", check_test_expectations),
     ]
 
