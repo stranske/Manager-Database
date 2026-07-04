@@ -1,3 +1,7 @@
+# Legacy compatibility list only.
+# Active CI and bootstrap installs use pyproject.toml via:
+#   python -m pip install -e ".[dev]"
+# Keep requirements.lock as the generated dependency snapshot guarded by tests.
 pytest
 edgartools>=4.6,<5.0
 httpx
