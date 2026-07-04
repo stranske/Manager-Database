@@ -6,6 +6,12 @@ import tomllib
 from pathlib import Path
 
 _OPERATORS = ("==", ">=", "<=", "~=", "!=", ">", "<", "===")
+_ACTIVE_INSTALL_SOURCE_GLOBS = (
+    ".github/workflows/*.yml",
+    "README*.md",
+    "docs/**/*.md",
+)
+_STALE_REQUIREMENTS_INSTALL = "pip install -r requirements.txt"
 
 
 def _split_spec(raw: str) -> str:
@@ -76,3 +82,20 @@ def test_all_pyproject_dependencies_are_in_lock() -> None:
             missing.append(dependency)
 
     assert not missing, "requirements.lock is missing pinned versions for: " + ", ".join(missing)
+
+
+def test_active_install_instructions_do_not_use_legacy_requirements_txt() -> None:
+    offenders: list[str] = []
+
+    for pattern in _ACTIVE_INSTALL_SOURCE_GLOBS:
+        for path in Path(".").glob(pattern):
+            if not path.is_file():
+                continue
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if _STALE_REQUIREMENTS_INSTALL in line:
+                    offenders.append(f"{path}:{line_number}")
+
+    assert not offenders, (
+        "Active workflows/docs must install from pyproject.toml, not legacy "
+        f"requirements.txt: {', '.join(offenders)}"
+    )

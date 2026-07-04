@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install -e ".[dev]"
       - name: Start services
         run: docker compose up -d
       - name: Run nightly tests

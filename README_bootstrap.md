@@ -61,7 +61,7 @@ Feel free to open issues or pull requests as you iterate.
 
 1. Ensure Python 3.12 is available via `pyenv` and install dependencies:
    ```bash
-   python -m pip install -r requirements.txt
+   python -m pip install -e ".[dev]"
    ```
 2. Trigger the sample EDGAR flow:
    ```bash
