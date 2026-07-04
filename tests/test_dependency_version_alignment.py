@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -11,7 +12,29 @@ _ACTIVE_INSTALL_SOURCE_GLOBS = (
     "README*.md",
     "docs/**/*.md",
 )
-_STALE_REQUIREMENTS_INSTALL = "pip install -r requirements.txt"
+_STALE_REQUIREMENTS_INSTALL = re.compile(r"\bpip\s+install\s+-r\s+(?:\./)?requirements\.txt\b")
+
+
+def _logical_lines(text: str) -> list[tuple[int, str]]:
+    lines: list[tuple[int, str]] = []
+    start_line = 1
+    current: list[str] = []
+
+    for line_number, raw_line in enumerate(text.splitlines(), 1):
+        stripped = raw_line.rstrip()
+        if not current:
+            start_line = line_number
+        if stripped.endswith("\\"):
+            current.append(stripped[:-1])
+            continue
+        current.append(stripped)
+        lines.append((start_line, re.sub(r"\s+", " ", " ".join(current)).strip()))
+        current = []
+
+    if current:
+        lines.append((start_line, re.sub(r"\s+", " ", " ".join(current)).strip()))
+
+    return lines
 
 
 def _split_spec(raw: str) -> str:
@@ -91,11 +114,27 @@ def test_active_install_instructions_do_not_use_legacy_requirements_txt() -> Non
         for path in Path(".").glob(pattern):
             if not path.is_file():
                 continue
-            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if _STALE_REQUIREMENTS_INSTALL in line:
+            for line_number, line in _logical_lines(path.read_text(encoding="utf-8")):
+                if _STALE_REQUIREMENTS_INSTALL.search(line):
                     offenders.append(f"{path}:{line_number}")
 
     assert not offenders, (
         "Active workflows/docs must install from pyproject.toml, not legacy "
         f"requirements.txt: {', '.join(offenders)}"
     )
+
+
+def test_legacy_requirements_install_scan_handles_shell_variants() -> None:
+    logical_lines = _logical_lines("""
+python -m pip install \\
+  -r ./requirements.txt
+python -m pip install -r tools/requirements-llm.txt
+""".strip())
+
+    matches = [
+        line_number
+        for line_number, line in logical_lines
+        if _STALE_REQUIREMENTS_INSTALL.search(line)
+    ]
+
+    assert matches == [1]
