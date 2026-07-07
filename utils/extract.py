@@ -22,9 +22,9 @@ def _extract_pdf(file_bytes: bytes) -> str:
 
     try:
         output = TextBaselineProvider().extract_modalities("upload", file_bytes)
+        text = "\n\n".join(block.text.strip() for block in output.text_blocks if block.text.strip())
     except Exception as exc:
         raise ValueError("Failed to extract PDF text") from exc
-    text = "\n\n".join(block.text for block in output.text_blocks if block.text)
     if not text or text.lstrip().startswith("%PDF-"):
         raise ValueError("Failed to extract PDF text")
     return text

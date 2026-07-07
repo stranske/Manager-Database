@@ -135,13 +135,6 @@ disable_error_code = ["attr-defined"]
 
 [[tool.mypy.overrides]]
 module = [
-    "stranske_pdf_extract",
-    "stranske_pdf_extract.*",
-]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = [
     "semantic_matcher",
     "label_matcher",
     "issue_dedup",
