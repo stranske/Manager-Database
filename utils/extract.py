@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import io
+from stranske_pdf_extract.providers.text_baseline import TextBaselineProvider
 
 
 def extract_text(file_bytes: bytes, filename: str) -> str:
@@ -18,16 +18,13 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
 
 
 def _extract_pdf(file_bytes: bytes) -> str:
-    """Extract text from PDF using pdfplumber."""
-    import pdfplumber
+    """Extract text from PDF using the shared baseline provider."""
 
-    text_parts: list[str] = []
     try:
-        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text_parts.append(page_text)
+        output = TextBaselineProvider().extract_modalities("upload", file_bytes)
+        text = "\n\n".join(block.text.strip() for block in output.text_blocks if block.text.strip())
     except Exception as exc:
         raise ValueError("Failed to extract PDF text") from exc
-    return "\n\n".join(text_parts)
+    if not text or text.lstrip().startswith("%PDF-"):
+        raise ValueError("Failed to extract PDF text")
+    return text
