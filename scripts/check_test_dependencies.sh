@@ -131,7 +131,7 @@ if [ "$all_ok" = true ]; then
     echo -e "${GREEN}All required dependencies are available!${NC}"
     echo ""
     echo "You can run the full test suite with:"
-    echo "  python -m pytest"
+    echo "  ./scripts/run_tests.sh"
     exit 0
 else
     echo -e "${RED}Some required dependencies are missing!${NC}"
