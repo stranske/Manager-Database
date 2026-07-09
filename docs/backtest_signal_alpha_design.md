@@ -1,4 +1,4 @@
-# Backtest And Signal Alpha Harness Design
+# Backtest Signal Alpha Design
 
 Issue: #1401
 
@@ -13,7 +13,7 @@ reuse.
 The harness depends on the bitemporal holdings contract from #1400:
 
 - holdings are selected through an as-of knowledge cutoff;
-- portfolio entry occurs after disclosure lag, not at the report date;
+- portfolio entry occurs after public disclosure lag, not at the report date;
 - backtest output records the event period and the knowledge cutoff used for
   every simulated position.
 
@@ -63,7 +63,8 @@ Selection semantics:
    manager.
 3. Select new or materially increased positions that cross the conviction
    threshold.
-4. Enter at `knowledge_time + disclosure_lag`.
+4. Enter at `filed_date + disclosure_lag`; `knowledge_time` only determines
+   whether a filing is visible for the as-of cutoff.
 5. Hold until the configured horizon or next rebalance.
 6. Attribute returns at the position, manager, period, and strategy levels.
 
@@ -82,10 +83,15 @@ class PriceReturnProvider(Protocol):
         *,
         start: date,
         end: date,
-        benchmark: str | None = None,
+        benchmark: str,
     ) -> ReturnFrame:
         ...
 ```
+
+`ReturnFrame` is one row per requested identifier for the `(start, end)`
+window. Each row must include the identifier, start date, end date, total
+return, benchmark symbol, benchmark return, currency, and source tag. A provider
+must fail the run rather than returning rows without benchmark data.
 
 The fixture provider should load checked-in test data with:
 
