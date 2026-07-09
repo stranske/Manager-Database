@@ -2,46 +2,15 @@
 
 from __future__ import annotations
 
-import sqlite3
 from collections import Counter
 from html import escape
 
-import pandas as pd
 import streamlit as st
 
 from adapters.base import connect_db
 from api.search import SearchResult, universal_search
 
 from . import require_login
-
-
-def search_news(term: str) -> pd.DataFrame:
-    conn = connect_db()
-    if isinstance(conn, sqlite3.Connection):
-        query = (
-            "SELECT n.headline, n.url, n.published_at, n.source, n.topics, "
-            "m.name AS manager_name "
-            "FROM news_items n "
-            "LEFT JOIN managers m ON m.manager_id = n.manager_id "
-            "WHERE n.headline LIKE ? OR COALESCE(n.body_snippet, '') LIKE ? "
-            "ORDER BY n.published_at DESC LIMIT 20"
-        )
-        like_term = f"%{term}%"
-        df = pd.read_sql_query(query, conn, params=(like_term, like_term))
-    else:
-        query = (
-            "SELECT n.headline, n.url, n.published_at, n.source, n.topics, "
-            "m.name AS manager_name "
-            "FROM news_items n "
-            "LEFT JOIN managers m ON m.manager_id = n.manager_id "
-            "WHERE to_tsvector('english', n.headline || ' ' || COALESCE(n.body_snippet, '')) "
-            "@@ plainto_tsquery('english', %s) "
-            "ORDER BY n.published_at DESC LIMIT 20"
-        )
-        df = pd.read_sql_query(query, conn, params=(term,))
-    conn.close()
-    return df
-
 
 _ENTITY_LABELS: dict[str, str] = {
     "manager": "Managers",

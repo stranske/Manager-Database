@@ -47,7 +47,8 @@ def test_deterministic_pages_render_offline(monkeypatch, tmp_path):
     assert not dashboard.load_latest_holdings_snapshot(manager_id).empty
     assert not dashboard.load_top_deltas(manager_id).empty
     assert not daily_report.load_diffs("2026-03-15").empty
-    assert not search.search_news("readiness").empty
+    with sqlite3.connect(db_path) as conn:
+        assert search.universal_search("readiness", conn, 20)
     assert upload._load_managers()
 
 
