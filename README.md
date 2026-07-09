@@ -15,6 +15,7 @@ and serve `web/index.html` locally; details are in `README_bootstrap.md`.
 - [API Changes](docs/api_changes.md) - Historical API modifications
 - [Point-In-Time Holdings Design](docs/bitemporal_holdings_design.md) -
   bitemporal holdings migration and as-of query contract
+- [Manager Similarity](docs/manager_similarity_design.md) - Peer similarity and crowding design
 - [Memory Profiler](docs/memory_profiler.md) - Background memory leak diagnostics
 
 ## API examples
