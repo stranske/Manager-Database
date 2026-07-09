@@ -334,38 +334,6 @@ def detect_events(conn: Any, filing: Mapping[str, Any]) -> list[ActivismEvent]:
     return events
 
 
-def detect_events_batch(conn: Any, since: str) -> list[ActivismEvent]:
-    """Detect events for all activism filings since a given date."""
-    ensure_activism_events_table(conn)
-    ph = get_placeholder(conn)
-    rows = conn.execute(
-        "SELECT filing_id, manager_id, filing_type, subject_company, subject_cusip, "
-        "ownership_pct, group_members, filed_date "
-        f"FROM activism_filings WHERE filed_date >= {ph} "
-        "ORDER BY filed_date ASC, filing_id ASC",
-        (since,),
-    ).fetchall()
-
-    events: list[ActivismEvent] = []
-    for row in rows:
-        events.extend(
-            detect_events(
-                conn,
-                {
-                    "filing_id": int(row[0]),
-                    "manager_id": int(row[1]),
-                    "filing_type": str(row[2] or ""),
-                    "subject_company": str(row[3] or ""),
-                    "subject_cusip": str(row[4] or "") or None,
-                    "ownership_pct": _to_float(row[5]),
-                    "group_members": row[6],
-                    "filed_date": str(row[7] or ""),
-                },
-            )
-        )
-    return events
-
-
 def insert_activism_events(conn: Any, events: Iterable[ActivismEvent]) -> list[ActivismEvent]:
     """Persist detected activism events, skipping duplicates on reruns."""
     ensure_activism_events_table(conn)

@@ -7,7 +7,6 @@ from etl.activism_detection import (
     ALERT_EVENT_TYPE,
     AlertEvent,
     detect_events,
-    detect_events_batch,
     ensure_activism_events_table,
     ensure_alert_tables,
     event_payload,
@@ -337,26 +336,5 @@ def test_fire_alerts_for_matching_activism_event(tmp_path):
         assert history[1] == ALERT_EVENT_TYPE
         assert '"threshold_crossing"' in str(history[2])
         assert history[3] == '["streamlit"]'
-    finally:
-        conn.close()
-
-
-def test_detect_events_batch_returns_recent_events(tmp_path):
-    conn = _setup_db(tmp_path / "activism.db")
-    try:
-        _insert_filing(conn, filing_type="SC 13D", filed_date="2024-05-01", ownership_pct=4.0)
-        _insert_filing(conn, filing_type="SC 13D", filed_date="2024-05-03", ownership_pct=11.0)
-        _insert_filing(
-            conn,
-            filing_type="SC 13D/A",
-            filed_date="2024-05-05",
-            ownership_pct=10.0,
-            group_members="Elliott|Blue Pool",
-        )
-
-        events = detect_events_batch(conn, "2024-05-03")
-
-        assert any(event.event_type == "threshold_crossing" for event in events)
-        assert any(event.event_type == "amendment" for event in events)
     finally:
         conn.close()
