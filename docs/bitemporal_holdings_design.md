@@ -41,7 +41,7 @@ That is sufficient for current latest-state views, but it cannot answer:
 
 Add bitemporal columns to both filing-level and position-level rows:
 
-```
+```sql
 -- filings
 event_time date
 knowledge_time timestamptz
@@ -101,15 +101,19 @@ load_holdings_as_of(
 
 Semantics:
 
-1. Filter rows to `knowledge_time <= as_of`.
-2. If `event_time` is provided, use only that reporting period; otherwise choose
+1. Normalize `as_of` before comparing it with `knowledge_time`: callers should
+   pass a timezone-aware `datetime`; bare `date` values are interpreted as
+   midnight UTC at the start of that date. SQLite stores the normalized value as
+   ISO-8601 UTC text, while Postgres compares the same instant as `timestamptz`.
+2. Filter rows to `knowledge_time <= as_of`.
+3. If `event_time` is provided, use only that reporting period; otherwise choose
    the latest event period whose knowledge time is visible by `as_of`.
-3. For each logical position key, pick the latest visible version ordered by
+4. For each logical position key, pick the latest visible version ordered by
    `(knowledge_time, holding_id)`.
-4. A logical position key is `(manager_id, event_time, cusip)` when CUSIP is
+5. A logical position key is `(manager_id, event_time, cusip)` when CUSIP is
    present; otherwise use `(manager_id, event_time, name_of_issuer,
    resolved_ticker, resolved_figi)` so unresolved fixture rows remain queryable.
-5. Return filing metadata alongside each holding so downstream prompts and
+6. Return filing metadata alongside each holding so downstream prompts and
    backtests can display both the reporting period and the knowledge cutoff.
 
 Postgres can express the last-visible row with `DISTINCT ON` or
