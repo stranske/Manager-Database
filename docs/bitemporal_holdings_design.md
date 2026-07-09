@@ -41,7 +41,7 @@ That is sufficient for current latest-state views, but it cannot answer:
 
 Add bitemporal columns to both filing-level and position-level rows:
 
-```sql
+```
 -- filings
 event_time date
 knowledge_time timestamptz
