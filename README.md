@@ -22,6 +22,8 @@ and serve `web/index.html` locally; details are in `README_bootstrap.md`.
   Form 4-first conviction context, with short-interest and options staged separately
 - [Position Performance Attribution Design](docs/position_performance_attribution_design.md) -
   holdings-to-skill attribution built on the backtest contract
+- [Activism Campaign Lifecycle Design](docs/activism_campaign_lifecycle_design.md) -
+  campaign entity, timeline, and staged activism scope
 - [Memory Profiler](docs/memory_profiler.md) - Background memory leak diagnostics
 
 ## API examples
