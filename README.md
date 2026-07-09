@@ -20,6 +20,8 @@ and serve `web/index.html` locally; details are in `README_bootstrap.md`.
   point-in-time strategy validation and metrics contract
 - [Conviction Cross-Reference](docs/conviction_cross_reference_design.md) -
   Form 4-first conviction context, with short-interest and options staged separately
+- [Position Performance Attribution Design](docs/position_performance_attribution_design.md) -
+  holdings-to-skill attribution built on the backtest contract
 - [Memory Profiler](docs/memory_profiler.md) - Background memory leak diagnostics
 
 ## API examples
