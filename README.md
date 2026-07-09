@@ -18,6 +18,8 @@ and serve `web/index.html` locally; details are in `README_bootstrap.md`.
 - [Manager Similarity](docs/manager_similarity_design.md) - Peer similarity and crowding design
 - [Backtest Signal Alpha Design](docs/backtest_signal_alpha_design.md) -
   point-in-time strategy validation and metrics contract
+- [Conviction Cross-Reference](docs/conviction_cross_reference_design.md) -
+  Form 4, short-interest, and options context for de-biasing conviction
 - [Memory Profiler](docs/memory_profiler.md) - Background memory leak diagnostics
 
 ## API examples
