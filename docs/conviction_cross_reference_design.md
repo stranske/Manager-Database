@@ -47,7 +47,10 @@ The first slice should answer:
 
 ## Data Model Sketch
 
-Add an `insider_transactions` table or view:
+Add an `insider_transactions` table. The first slice should use a persisted table
+instead of a plain view because ingestion needs stable transaction keys, idempotent
+upserts, indexes, and audit timestamps. A materialized view can be added later for
+query acceleration only if its refresh contract is specified separately.
 
 | Column | Purpose |
 | --- | --- |
@@ -130,9 +133,15 @@ Parameters:
 - `limit` default `50`, max `200`.
 
 Response rows should include the held security, conviction score, holding value,
-summary insider counts/values, latest transaction date, and context flags.
-When `include_transactions=true`, include a bounded list of recent transactions
-for each security.
+summary insider counts/values, latest transaction date, and context flags. Apply
+`limit` after sorting rows by `holding_value_usd DESC`, then
+`latest_insider_transaction_date DESC NULLS LAST`, then `security_identifier ASC`
+so repeated calls return the same capped set.
+
+When `include_transactions=true`, include at most `10` recent transactions per
+security, ordered by `transaction_date DESC NULLS LAST`, then `filed_date DESC`,
+then `transaction_id ASC`. The endpoint should not expose an unbounded or
+cursor-paged raw transaction collection.
 
 ## Dashboard And Chat Surface
 

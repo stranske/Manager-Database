@@ -19,7 +19,7 @@ and serve `web/index.html` locally; details are in `README_bootstrap.md`.
 - [Backtest Signal Alpha Design](docs/backtest_signal_alpha_design.md) -
   point-in-time strategy validation and metrics contract
 - [Conviction Cross-Reference](docs/conviction_cross_reference_design.md) -
-  Form 4, short-interest, and options context for de-biasing conviction
+  Form 4-first conviction context, with short-interest and options staged separately
 - [Memory Profiler](docs/memory_profiler.md) - Background memory leak diagnostics
 
 ## API examples
