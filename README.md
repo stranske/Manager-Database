@@ -13,7 +13,8 @@ and serve `web/index.html` locally; details are in `README_bootstrap.md`.
 - [API Rate Limiting](docs/api_rate_limiting.md) - Rate limits, headers, and error handling
 - [API Design Guidelines](docs/api_design_guidelines.md) - API design standards and conventions
 - [API Changes](docs/api_changes.md) - Historical API modifications
-- [Point-In-Time Holdings Design](docs/bitemporal_holdings_design.md) - bitemporal holdings migration and as-of query contract
+- [Point-In-Time Holdings Design](docs/bitemporal_holdings_design.md) -
+  bitemporal holdings migration and as-of query contract
 - [Memory Profiler](docs/memory_profiler.md) - Background memory leak diagnostics
 
 ## API examples
