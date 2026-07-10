@@ -3,7 +3,7 @@
 #   python -m pip install -e ".[dev]"
 # Keep requirements.lock as the generated dependency snapshot guarded by tests.
 pytest
-edgartools>=5.40,<5.41
+edgartools>=5.42,<5.43
 httpx
 prefect
 beautifulsoup4
