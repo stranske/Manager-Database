@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from adapters.base import connect_db
+from etl.manager_similarity_flow import ensure_manager_similarity_table
 from adapters.base import resolve_manager_id_column as shared_manager_id_column
 from api.cache import cache_query, invalidate_cache_prefix
 from api.models import (
@@ -1345,6 +1346,35 @@ async def get_manager(
     if row is None:
         raise HTTPException(status_code=404, detail="Manager not found")
     return _to_manager_response(row)
+
+
+@router.get("/managers/{id}/similar", summary="List similar managers")
+async def get_similar_managers(
+    id: int = Path(..., ge=1, description="Manager identifier"),
+    limit: int = Query(10, ge=1, le=100),
+):
+    """Return the strongest deterministic holding-overlap peers for a manager."""
+    conn = None
+    try:
+        conn = connect_db()
+        _ensure_manager_table(conn)
+        manager_column = _manager_id_column(conn)
+        if conn.execute(f"SELECT 1 FROM managers WHERE {manager_column} = {'?' if isinstance(conn, sqlite3.Connection) else '%s'}", (id,)).fetchone() is None:
+            raise HTTPException(status_code=404, detail="Manager not found")
+        ensure_manager_similarity_table(conn)
+        ph = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+        rows = conn.execute(
+            "SELECT CASE WHEN manager_id_a = " + ph + " THEN manager_id_b ELSE manager_id_a END, jaccard, overlap_count, union_count "
+            "FROM manager_similarity WHERE manager_id_a = " + ph + " OR manager_id_b = " + ph + " "
+            "ORDER BY jaccard DESC, overlap_count DESC LIMIT " + ph,
+            (id, id, id, limit),
+        ).fetchall()
+        return {"items": [{"manager_id": int(row[0]), "jaccard": float(row[1]), "overlap_count": int(row[2]), "union_count": int(row[3])} for row in rows]}
+    except DB_ERROR_TYPES as exc:
+        _raise_db_unavailable(exc)
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 @router.patch(

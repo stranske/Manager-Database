@@ -161,6 +161,19 @@ SELECT *
 FROM holdings
 WHERE superseded_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS manager_similarity (
+    manager_id_a bigint NOT NULL REFERENCES managers(manager_id),
+    manager_id_b bigint NOT NULL REFERENCES managers(manager_id),
+    jaccard real NOT NULL,
+    overlap_count integer NOT NULL,
+    union_count integer NOT NULL,
+    computed_at timestamptz DEFAULT now(),
+    PRIMARY KEY (manager_id_a, manager_id_b),
+    CHECK (manager_id_a < manager_id_b)
+);
+CREATE INDEX IF NOT EXISTS idx_manager_similarity_a ON manager_similarity (manager_id_a);
+CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity (manager_id_b);
+
 CREATE TABLE IF NOT EXISTS identifier_resolution_cache (
     cusip text PRIMARY KEY,
     ticker text,
