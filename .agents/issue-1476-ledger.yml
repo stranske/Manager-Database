@@ -7,10 +7,10 @@ tasks:
     title: "Update `pyproject.toml` to change the `stranske-pdf-extract` dependency\
       \ ref from `@a0ee3aa25c08\u2026` to `@pdf-extract-v0.1.0`, keeping `#subdirectory=packages/stranske_pdf_extract`\
       \ and the existing extras."
-    status: doing
+    status: done
     started_at: '2026-07-24T21:34:33Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-07-24T21:34:41Z'
+    commit: af559208c21d3822bb51b82bbcf2d30c398003a9
     notes: []
   - id: task-02
     title: Regenerate the lockfile(s) so their embedded git URL uses `@pdf-extract-v0.1.0`
