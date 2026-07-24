@@ -32,13 +32,11 @@ def upgrade() -> None:
             sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("1"))
         )
 
-    op.execute(
-        text("""
+    op.execute(text("""
             UPDATE holdings
                SET knowledge_time = COALESCE(created_at, CURRENT_TIMESTAMP)
              WHERE knowledge_time IS NULL
-            """)
-    )
+            """))
 
     with op.batch_alter_table("holdings") as batch:
         batch.alter_column(
@@ -65,14 +63,12 @@ def upgrade() -> None:
         if op.get_bind().dialect.name == "postgresql"
         else "CREATE VIEW IF NOT EXISTS"
     )
-    op.execute(
-        text(f"""
+    op.execute(text(f"""
             {create_view} v_current_holdings AS
             SELECT *
             FROM holdings
             WHERE superseded_at IS NULL
-            """)
-    )
+            """))
 
 
 def downgrade() -> None:
