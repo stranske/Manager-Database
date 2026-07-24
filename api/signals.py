@@ -55,6 +55,7 @@ class ConvictionScoreResponse(BaseModel):
     value_usd: float | None
     conviction_pct: float | None
     portfolio_weight: float | None
+    insider_net_direction: str | None = None
 
 
 def _to_float(value: Any) -> float | None:
@@ -298,16 +299,48 @@ def query_conviction_scores(
         f"LIMIT {ph}",
         (manager_id, resolved_filing_id, min_conviction_pct, limit),
     ).fetchall()
-    return [
-        ConvictionScoreResponse(
-            cusip=str(row[0]),
-            name_of_issuer=str(row[1]) if row[1] is not None else None,
-            value_usd=_to_float(row[2]),
-            conviction_pct=_to_float(row[3]),
-            portfolio_weight=_to_float(row[4]),
+
+    # Optional Form-4 annotation — never changes conviction scoring (#1461).
+    annotate = None
+    if table_exists(conn, "insider_transactions"):
+        from etl.insider_flow import insider_net_direction_for_ticker
+
+        annotate = insider_net_direction_for_ticker
+
+    ticker_by_cusip: dict[str, str | None] = {}
+    if annotate is not None:
+        try:
+            hold_rows = conn.execute(
+                "SELECT cusip, resolved_ticker FROM holdings " f"WHERE filing_id = {ph}",
+                (resolved_filing_id,),
+            ).fetchall()
+            for hold in hold_rows:
+                cusip = str(hold[0])
+                ticker_by_cusip[cusip] = str(hold[1]) if hold[1] is not None else None
+        except Exception:
+            ticker_by_cusip = {}
+
+    out: list[ConvictionScoreResponse] = []
+    for row in rows:
+        cusip = str(row[0])
+        direction = None
+        if annotate is not None:
+            direction = annotate(
+                conn,
+                ticker_by_cusip.get(cusip),
+                cusip=cusip,
+            )
+        out.append(
+            ConvictionScoreResponse(
+                cusip=cusip,
+                name_of_issuer=str(row[1]) if row[1] is not None else None,
+                value_usd=_to_float(row[2]),
+                conviction_pct=_to_float(row[3]),
+                portfolio_weight=_to_float(row[4]),
+                insider_net_direction=direction,
+            )
         )
-        for row in rows
-    ]
+    return out
 
 
 @router.get(
