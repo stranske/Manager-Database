@@ -13,12 +13,15 @@ from etl.manager_similarity_flow import compute_manager_similarity
 def test_similarity_uses_union_denominator_and_latest_filings():
     conn = sqlite3.connect(":memory:")
     conn.executescript(
-        """CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, period_end TEXT);
-    CREATE TABLE holdings (filing_id INTEGER, cusip TEXT, resolved_ticker TEXT);
+        """PRAGMA foreign_keys = ON;
+    CREATE TABLE managers (id INTEGER PRIMARY KEY);
+    CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, period_end TEXT);
+    CREATE TABLE holdings (filing_id INTEGER, cusip TEXT, resolved_ticker TEXT, superseded_at TEXT);
+    INSERT INTO managers VALUES (1), (2), (3), (4);
     INSERT INTO filings VALUES (0, 1, '2024-12-31'), (1, 1, '2025-03-31'), (2, 2, '2025-03-31'),
       (3, 3, '2025-03-31'), (4, 4, '2025-03-31');
-    INSERT INTO holdings VALUES (0,'OLD',NULL),(1,'CUSIP-A','A'),(1,'B',NULL),(1,'C',NULL),(1,'D',NULL),
-      (2,'C',NULL),(2,'D',NULL),(2,'E',NULL),(2,'F',NULL),(3,'Z',NULL);"""
+    INSERT INTO holdings VALUES (0,'OLD',NULL,NULL),(1,'CUSIP-A','A',NULL),(1,'B',NULL,NULL),(1,'C',NULL,NULL),(1,'D',NULL,NULL),
+      (1,'STALE',NULL,'2025-04-01'),(2,'C',NULL,NULL),(2,'D',NULL,NULL),(2,'E',NULL,NULL),(2,'F',NULL,NULL),(3,'Z',NULL,NULL);"""
     )
     assert compute_manager_similarity(conn) == 6
     assert conn.execute(
@@ -30,6 +33,31 @@ def test_similarity_uses_union_denominator_and_latest_filings():
     assert conn.execute(
         "SELECT jaccard FROM manager_similarity WHERE manager_id_a=1 AND manager_id_b=4"
     ).fetchone() == (0.0,)
+    assert {row[2] for row in conn.execute("PRAGMA foreign_key_list(manager_similarity)")} == {
+        "managers"
+    }
+
+
+def test_similarity_rebuild_rolls_back_on_insert_failure():
+    conn = sqlite3.connect(":memory:")
+    conn.executescript("""PRAGMA foreign_keys = ON;
+    CREATE TABLE managers (id INTEGER PRIMARY KEY);
+    CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, period_end TEXT);
+    CREATE TABLE holdings (filing_id INTEGER, cusip TEXT, resolved_ticker TEXT, superseded_at TEXT);
+    INSERT INTO managers VALUES (1), (2);
+    INSERT INTO filings VALUES (1, 1, '2025-03-31'), (2, 2, '2025-03-31');
+    INSERT INTO holdings VALUES (1, 'A', NULL, NULL), (2, 'B', NULL, NULL);""")
+    assert compute_manager_similarity(conn) == 1
+    before = conn.execute("SELECT * FROM manager_similarity").fetchall()
+    conn.execute("""CREATE TRIGGER fail_similarity_insert BEFORE INSERT ON manager_similarity
+        BEGIN SELECT RAISE(ABORT, 'injected write failure'); END""")
+    try:
+        compute_manager_similarity(conn)
+    except sqlite3.IntegrityError as error:
+        assert "injected write failure" in str(error)
+    else:
+        raise AssertionError("expected injected manager similarity write failure")
+    assert conn.execute("SELECT * FROM manager_similarity").fetchall() == before
 
 
 async def _get_similar_manager(manager_id: int, limit: int):
