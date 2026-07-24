@@ -174,6 +174,22 @@ CREATE TABLE IF NOT EXISTS manager_similarity (
 CREATE INDEX IF NOT EXISTS idx_manager_similarity_a ON manager_similarity (manager_id_a);
 CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity (manager_id_b);
 
+CREATE TABLE IF NOT EXISTS insider_transactions (
+    txn_id bigserial PRIMARY KEY,
+    issuer_cik text NOT NULL,
+    ticker text,
+    insider_name text,
+    txn_code text,
+    shares numeric,
+    txn_date date,
+    acquired_disposed text,
+    cusip text,
+    ingested_at timestamptz DEFAULT now(),
+    UNIQUE (issuer_cik, ticker, insider_name, txn_code, shares, txn_date, acquired_disposed)
+);
+CREATE INDEX IF NOT EXISTS idx_insider_issuer_date ON insider_transactions (issuer_cik, txn_date);
+CREATE INDEX IF NOT EXISTS idx_insider_ticker_date ON insider_transactions (ticker, txn_date);
+
 CREATE TABLE IF NOT EXISTS identifier_resolution_cache (
     cusip text PRIMARY KEY,
     ticker text,
