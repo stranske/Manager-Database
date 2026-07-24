@@ -136,6 +136,10 @@ CREATE TABLE IF NOT EXISTS holdings (
     resolved_figi text,
     resolved_lei text,
     resolution_source text,
+    content_hash text,
+    knowledge_time timestamptz NOT NULL DEFAULT now(),
+    superseded_at timestamptz,
+    version integer NOT NULL DEFAULT 1,
     created_at timestamptz DEFAULT now()
 );
 
@@ -144,6 +148,18 @@ CREATE INDEX IF NOT EXISTS idx_holdings_filing_id
 
 CREATE INDEX IF NOT EXISTS idx_holdings_cusip
     ON holdings (cusip);
+
+CREATE INDEX IF NOT EXISTS idx_holdings_filing_knowledge
+    ON holdings (filing_id, knowledge_time DESC, holding_id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_holdings_current_filing
+    ON holdings (filing_id)
+    WHERE superseded_at IS NULL;
+
+CREATE OR REPLACE VIEW v_current_holdings AS
+SELECT *
+FROM holdings
+WHERE superseded_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS identifier_resolution_cache (
     cusip text PRIMARY KEY,

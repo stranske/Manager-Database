@@ -314,6 +314,113 @@ def _insert_filing(
     return int(row[0]) if row and row[0] is not None else 0
 
 
+def _holdings_content_hash(parsed_rows: list[dict[str, Any]]) -> str:
+    """Stable content fingerprint so identical re-ingests are no-ops."""
+    import hashlib
+
+    normalized: list[tuple[Any, ...]] = []
+    for row in parsed_rows:
+        normalized.append(
+            (
+                str(row.get("cusip") or ""),
+                str(row.get("nameOfIssuer") or ""),
+                int(row.get("sshPrnamt") or 0),
+                int(row.get("value") or 0),
+            )
+        )
+    normalized.sort()
+    payload = json.dumps(normalized, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _bitemporal_enabled(holdings_columns: set[str]) -> bool:
+    return {"knowledge_time", "superseded_at", "version"}.issubset(holdings_columns)
+
+
+def _current_content_hash(conn: Any, *, filing_id: int) -> str | None:
+    holdings_columns = _table_columns(conn, "holdings")
+    if "content_hash" not in holdings_columns or "filing_id" not in holdings_columns:
+        return None
+    marker = get_placeholder(conn)
+    if "superseded_at" in holdings_columns:
+        row = conn.execute(
+            f"SELECT content_hash FROM holdings "
+            f"WHERE filing_id = {marker} AND superseded_at IS NULL "
+            f"AND content_hash IS NOT NULL LIMIT 1",
+            (filing_id,),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            f"SELECT content_hash FROM holdings "
+            f"WHERE filing_id = {marker} AND content_hash IS NOT NULL LIMIT 1",
+            (filing_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return str(row[0]) if row[0] is not None else None
+
+
+def _next_holdings_version(conn: Any, *, filing_id: int) -> int:
+    marker = get_placeholder(conn)
+    row = conn.execute(
+        f"SELECT COALESCE(MAX(version), 0) FROM holdings WHERE filing_id = {marker}",
+        (filing_id,),
+    ).fetchone()
+    current = int(row[0] or 0) if row else 0
+    return current + 1
+
+
+def _supersede_current_holdings(conn: Any, *, filing_id: int, knowledge_time: str) -> None:
+    marker = get_placeholder(conn)
+    conn.execute(
+        f"UPDATE holdings SET superseded_at = {marker} "
+        f"WHERE filing_id = {marker} AND superseded_at IS NULL",
+        (knowledge_time, filing_id),
+    )
+
+
+def _supersede_prior_period_holdings(
+    conn: Any,
+    *,
+    manager_id: int,
+    filing_id: int,
+    knowledge_time: str,
+) -> None:
+    """Mark prior filings' current holdings superseded for the same event period."""
+    holdings_columns = _table_columns(conn, "holdings")
+    filing_columns = _table_columns(conn, "filings")
+    if not _bitemporal_enabled(holdings_columns):
+        return
+    if "period_end" not in filing_columns and "filed_date" not in filing_columns:
+        return
+    marker = get_placeholder(conn)
+    period_expr = (
+        "COALESCE(period_end, filed_date)" if "period_end" in filing_columns else "filed_date"
+    )
+    period_row = conn.execute(
+        f"SELECT {period_expr}, manager_id FROM filings WHERE filing_id = {marker}",
+        (filing_id,),
+    ).fetchone()
+    if not period_row or period_row[0] is None:
+        return
+    event_time = period_row[0]
+    owner_id = int(period_row[1]) if period_row[1] is not None else manager_id
+    prior_ids = conn.execute(
+        f"SELECT filing_id FROM filings "
+        f"WHERE manager_id = {marker} "
+        f"AND filing_id <> {marker} "
+        f"AND {period_expr} = {marker}",
+        (owner_id, filing_id, event_time),
+    ).fetchall()
+    for prior in prior_ids:
+        prior_id = int(prior[0])
+        conn.execute(
+            f"UPDATE holdings SET superseded_at = {marker} "
+            f"WHERE filing_id = {marker} AND superseded_at IS NULL",
+            (knowledge_time, prior_id),
+        )
+
+
 def _insert_holdings_rows(
     conn: Any,
     *,
@@ -324,34 +431,66 @@ def _insert_holdings_rows(
     filed_date: str | None,
     parsed_rows: list[dict[str, Any]],
     jurisdiction: str,
+    knowledge_time: str | None = None,
+    version: int = 1,
+    content_hash: str | None = None,
 ) -> int:
+    from datetime import UTC, datetime
+
     holdings_columns = _table_columns(conn, "holdings")
     canonical_holdings = {"name_of_issuer", "shares", "value_usd"}.issubset(holdings_columns)
     marker = get_placeholder(conn)
+    bitemporal = _bitemporal_enabled(holdings_columns)
+    stamp = knowledge_time or datetime.now(UTC).replace(microsecond=0).isoformat().replace(
+        "+00:00", "Z"
+    )
+    digest = content_hash or _holdings_content_hash(parsed_rows)
+
     if canonical_holdings:
+        columns = ["filing_id", "cusip", "name_of_issuer", "shares", "value_usd"]
+        if bitemporal:
+            for optional in ("content_hash", "knowledge_time", "version"):
+                if optional in holdings_columns:
+                    columns.append(optional)
         sql = (
-            "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
-            f"VALUES ({','.join([marker] * 5)})"
+            f"INSERT INTO holdings({', '.join(columns)}) "
+            f"VALUES ({','.join([marker] * len(columns))})"
         )
     else:
+        columns = [
+            "filing_id",
+            "manager_id",
+            "cik",
+            "accession",
+            "filed",
+            "nameOfIssuer",
+            "cusip",
+            "value",
+            "sshPrnamt",
+        ]
         sql = (
-            "INSERT INTO holdings(filing_id, manager_id, cik, accession, filed, nameOfIssuer, cusip, value, sshPrnamt) "
-            f"VALUES ({','.join([marker] * 9)})"
+            f"INSERT INTO holdings({', '.join(columns)}) "
+            f"VALUES ({','.join([marker] * len(columns))})"
         )
     inserted = 0
     cik_value = identifier if jurisdiction == "us" else None
     for row in parsed_rows:
         if canonical_holdings:
-            conn.execute(
-                sql,
-                (
-                    filing_id,
-                    row.get("cusip"),
-                    row.get("nameOfIssuer"),
-                    int(row.get("sshPrnamt") or 0),
-                    int(row.get("value") or 0),
-                ),
-            )
+            values: list[Any] = [
+                filing_id,
+                row.get("cusip"),
+                row.get("nameOfIssuer"),
+                int(row.get("sshPrnamt") or 0),
+                int(row.get("value") or 0),
+            ]
+            if bitemporal:
+                if "content_hash" in holdings_columns:
+                    values.append(digest)
+                if "knowledge_time" in holdings_columns:
+                    values.append(stamp)
+                if "version" in holdings_columns:
+                    values.append(version)
+            conn.execute(sql, tuple(values))
         else:
             conn.execute(
                 sql,
@@ -434,7 +573,38 @@ def _replace_holdings_rows(
     parsed_rows: list[dict[str, Any]],
     jurisdiction: str,
 ) -> int:
+    from datetime import UTC, datetime
+
     def _work() -> int:
+        holdings_columns = _table_columns(conn, "holdings")
+        digest = _holdings_content_hash(parsed_rows)
+        if _bitemporal_enabled(holdings_columns):
+            existing = _current_content_hash(conn, filing_id=filing_id)
+            if existing is not None and existing == digest:
+                # Identical re-ingest: no version churn.
+                return 0
+            stamp = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            version = _next_holdings_version(conn, filing_id=filing_id)
+            _supersede_current_holdings(conn, filing_id=filing_id, knowledge_time=stamp)
+            _supersede_prior_period_holdings(
+                conn,
+                manager_id=manager_id,
+                filing_id=filing_id,
+                knowledge_time=stamp,
+            )
+            return _insert_holdings_rows(
+                conn,
+                filing_id=filing_id,
+                manager_id=manager_id,
+                identifier=identifier,
+                external_id=external_id,
+                filed_date=filed_date,
+                parsed_rows=parsed_rows,
+                jurisdiction=jurisdiction,
+                knowledge_time=stamp,
+                version=version,
+                content_hash=digest,
+            )
         _delete_holdings_rows(conn, filing_id=filing_id)
         return _insert_holdings_rows(
             conn,
