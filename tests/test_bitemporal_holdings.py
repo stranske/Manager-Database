@@ -82,7 +82,7 @@ def test_holdings_as_of_preserves_versions_and_no_lookahead(tmp_path):
     # Amended filing with changed holdings (v2)
     conn.execute(
         "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source, raw_key) "
-        "VALUES (11, 1, '13F-HR/A', '2024-03-31', '2024-06-01', 'us', 'acc-v2')"
+        "VALUES (11, 1, '13F-HR/A', '2024-03-31', '2024-05-10', 'us', 'acc-v2')"
     )
     v2_rows = [
         {"cusip": "037833100", "nameOfIssuer": "APPLE INC", "sshPrnamt": 250, "value": 2500},
@@ -94,7 +94,7 @@ def test_holdings_as_of_preserves_versions_and_no_lookahead(tmp_path):
         manager_id=1,
         identifier="0000320193",
         external_id="acc-v2",
-        filed_date="2024-06-01",
+        filed_date="2024-05-10",
         parsed_rows=v2_rows,
         jurisdiction="us",
     )

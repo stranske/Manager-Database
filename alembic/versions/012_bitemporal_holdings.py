@@ -24,8 +24,7 @@ def upgrade() -> None:
             sa.Column(
                 "knowledge_time",
                 sa.DateTime(timezone=True),
-                nullable=False,
-                server_default=sa.text("CURRENT_TIMESTAMP"),
+                nullable=True,
             )
         )
         batch.add_column(sa.Column("superseded_at", sa.DateTime(timezone=True), nullable=True))
@@ -33,11 +32,21 @@ def upgrade() -> None:
             sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("1"))
         )
 
-    op.execute(text("""
+    op.execute(
+        text("""
             UPDATE holdings
                SET knowledge_time = COALESCE(created_at, CURRENT_TIMESTAMP)
              WHERE knowledge_time IS NULL
-            """))
+            """)
+    )
+
+    with op.batch_alter_table("holdings") as batch:
+        batch.alter_column(
+            "knowledge_time",
+            existing_type=sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        )
 
     op.execute(
         text(
@@ -51,12 +60,19 @@ def upgrade() -> None:
             "ON holdings (filing_id) WHERE superseded_at IS NULL"
         )
     )
-    op.execute(text("""
-            CREATE VIEW IF NOT EXISTS v_current_holdings AS
+    create_view = (
+        "CREATE OR REPLACE VIEW"
+        if op.get_bind().dialect.name == "postgresql"
+        else "CREATE VIEW IF NOT EXISTS"
+    )
+    op.execute(
+        text(f"""
+            {create_view} v_current_holdings AS
             SELECT *
             FROM holdings
             WHERE superseded_at IS NULL
-            """))
+            """)
+    )
 
 
 def downgrade() -> None:

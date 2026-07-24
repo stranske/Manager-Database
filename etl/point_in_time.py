@@ -38,6 +38,7 @@ def current_holdings(
     columns = get_table_columns(conn, "holdings")
     if "holding_id" not in columns and "id" not in columns:
         return []
+    holding_order_column = "holding_id" if "holding_id" in columns else "id"
     marker = get_placeholder(conn)
     where: list[str] = []
     params: list[Any] = []
@@ -55,10 +56,10 @@ def current_holdings(
         sql = (
             "SELECT h.* FROM holdings h "
             "JOIN filings f ON f.filing_id = h.filing_id"
-            f"{where_sql} ORDER BY h.holding_id"
+            f"{where_sql} ORDER BY h.{holding_order_column}"
         )
     else:
-        sql = f"SELECT h.* FROM holdings h{where_sql} ORDER BY h.holding_id"
+        sql = f"SELECT h.* FROM holdings h{where_sql} ORDER BY h.{holding_order_column}"
     result = conn.execute(sql, tuple(params))
     return _rows_as_dicts(result)
 
@@ -77,7 +78,11 @@ def holdings_as_of(
     """
     holdings_columns = get_table_columns(conn, "holdings")
     filing_columns = get_table_columns(conn, "filings")
-    if "filing_id" not in holdings_columns or "filing_id" not in filing_columns:
+    if (
+        "filing_id" not in holdings_columns
+        or "filing_id" not in filing_columns
+        or ("holding_id" not in holdings_columns and "id" not in holdings_columns)
+    ):
         return []
 
     as_of = _normalize_as_of(as_of_date)
@@ -86,6 +91,7 @@ def holdings_as_of(
     marker = get_placeholder(conn)
     has_knowledge = "knowledge_time" in holdings_columns
     has_superseded = "superseded_at" in holdings_columns
+    holding_order_column = "holding_id" if "holding_id" in holdings_columns else "id"
     period_expr = (
         "COALESCE(f.period_end, f.filed_date)" if "period_end" in filing_columns else "f.filed_date"
     )
@@ -99,7 +105,14 @@ def holdings_as_of(
         f"AND f.filed_date IS NOT NULL "
         f"AND f.filed_date <= {marker}"
     )
-    filing_rows = conn.execute(filing_sql, (manager_id, as_of_day)).fetchall()
+    filing_params: list[Any] = [manager_id, as_of_day]
+    if has_knowledge:
+        filing_sql += (
+            " AND EXISTS (SELECT 1 FROM holdings h_visible "
+            f"WHERE h_visible.filing_id = f.filing_id AND h_visible.knowledge_time <= {marker})"
+        )
+        filing_params.append(as_of_text)
+    filing_rows = conn.execute(filing_sql, tuple(filing_params)).fetchall()
     if not filing_rows:
         return []
 
@@ -139,7 +152,7 @@ def holdings_as_of(
     sql = (
         "SELECT h.* FROM holdings h "
         f"WHERE {' AND '.join(where)} "
-        "ORDER BY h.filing_id, h.holding_id"
+        f"ORDER BY h.filing_id, h.{holding_order_column}"
     )
     result = conn.execute(sql, tuple(params))
     return _rows_as_dicts(result)
