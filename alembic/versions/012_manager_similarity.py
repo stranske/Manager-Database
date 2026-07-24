@@ -17,8 +17,12 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "manager_similarity",
-        sa.Column("manager_id_a", sa.BigInteger(), sa.ForeignKey("managers.manager_id"), nullable=False),
-        sa.Column("manager_id_b", sa.BigInteger(), sa.ForeignKey("managers.manager_id"), nullable=False),
+        sa.Column(
+            "manager_id_a", sa.BigInteger(), sa.ForeignKey("managers.manager_id"), nullable=False
+        ),
+        sa.Column(
+            "manager_id_b", sa.BigInteger(), sa.ForeignKey("managers.manager_id"), nullable=False
+        ),
         sa.Column("jaccard", sa.REAL(), nullable=False),
         sa.Column("overlap_count", sa.Integer(), nullable=False),
         sa.Column("union_count", sa.Integer(), nullable=False),

@@ -36,7 +36,9 @@ async def _get_similar_manager(manager_id: int, limit: int):
     await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
-        async with httpx.AsyncClient(transport=transport, base_url="http://test", timeout=5.0) as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
             return await client.get(f"/managers/{manager_id}/similar", params={"limit": limit})
     finally:
         await cast(Any, app.router).shutdown()
@@ -47,7 +49,9 @@ def test_similar_manager_endpoint_orders_canonical_pairs_and_returns_404(tmp_pat
     monkeypatch.setenv("DB_PATH", str(db_path))
     conn = sqlite3.connect(db_path)
     managers_module._ensure_manager_table(conn)
-    conn.executemany("INSERT INTO managers (id, name) VALUES (?, ?)", [(1, "One"), (2, "Two"), (3, "Three")])
+    conn.executemany(
+        "INSERT INTO managers (id, name) VALUES (?, ?)", [(1, "One"), (2, "Two"), (3, "Three")]
+    )
     conn.execute(
         "CREATE TABLE manager_similarity (manager_id_a INTEGER, manager_id_b INTEGER, jaccard REAL, overlap_count INTEGER, union_count INTEGER)"
     )
