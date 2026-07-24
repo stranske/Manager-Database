@@ -33,15 +33,11 @@ def upgrade() -> None:
             sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("1"))
         )
 
-    op.execute(
-        text(
-            """
+    op.execute(text("""
             UPDATE holdings
                SET knowledge_time = COALESCE(created_at, CURRENT_TIMESTAMP)
              WHERE knowledge_time IS NULL
-            """
-        )
-    )
+            """))
 
     op.execute(
         text(
@@ -55,16 +51,12 @@ def upgrade() -> None:
             "ON holdings (filing_id) WHERE superseded_at IS NULL"
         )
     )
-    op.execute(
-        text(
-            """
+    op.execute(text("""
             CREATE VIEW IF NOT EXISTS v_current_holdings AS
             SELECT *
             FROM holdings
             WHERE superseded_at IS NULL
-            """
-        )
-    )
+            """))
 
 
 def downgrade() -> None:

@@ -12,16 +12,13 @@ from etl import ingest_flow, point_in_time
 def _connect(tmp_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(tmp_path / "bitemporal.db")
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE managers (
             manager_id INTEGER PRIMARY KEY,
             name TEXT
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE filings (
             filing_id INTEGER PRIMARY KEY,
             manager_id INTEGER NOT NULL,
@@ -31,10 +28,8 @@ def _connect(tmp_path: Path) -> sqlite3.Connection:
             source TEXT NOT NULL,
             raw_key TEXT
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE holdings (
             holding_id INTEGER PRIMARY KEY AUTOINCREMENT,
             filing_id INTEGER NOT NULL,
@@ -48,8 +43,7 @@ def _connect(tmp_path: Path) -> sqlite3.Connection:
             version INTEGER NOT NULL DEFAULT 1,
             created_at TEXT
         )
-        """
-    )
+        """)
     conn.execute("INSERT INTO managers(manager_id, name) VALUES (1, 'Test Manager')")
     conn.commit()
     return conn
@@ -113,9 +107,7 @@ def test_holdings_as_of_preserves_versions_and_no_lookahead(tmp_path):
     conn.commit()
 
     # Before v2 knowledge: still v1
-    as_of_before_v2 = point_in_time.holdings_as_of(
-        conn, 1, datetime(2024, 5, 15, tzinfo=UTC)
-    )
+    as_of_before_v2 = point_in_time.holdings_as_of(conn, 1, datetime(2024, 5, 15, tzinfo=UTC))
     assert len(as_of_before_v2) == 1
     assert int(as_of_before_v2[0]["shares"]) == 100
     assert int(as_of_before_v2[0]["filing_id"]) == 10
@@ -167,7 +159,9 @@ def test_identical_reingest_is_noop(tmp_path):
     )
     assert first == 1
     assert second == 0
-    versions = conn.execute("SELECT COUNT(*), MAX(version) FROM holdings WHERE filing_id = 20").fetchone()
+    versions = conn.execute(
+        "SELECT COUNT(*), MAX(version) FROM holdings WHERE filing_id = 20"
+    ).fetchone()
     assert int(versions[0]) == 1
     assert int(versions[1]) == 1
 

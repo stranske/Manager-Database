@@ -87,9 +87,7 @@ def holdings_as_of(
     has_knowledge = "knowledge_time" in holdings_columns
     has_superseded = "superseded_at" in holdings_columns
     period_expr = (
-        "COALESCE(f.period_end, f.filed_date)"
-        if "period_end" in filing_columns
-        else "f.filed_date"
+        "COALESCE(f.period_end, f.filed_date)" if "period_end" in filing_columns else "f.filed_date"
     )
 
     # Load candidate filings for the manager filed by as_of, then pick latest
