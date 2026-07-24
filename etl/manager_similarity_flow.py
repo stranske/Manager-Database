@@ -34,7 +34,7 @@ def compute_manager_similarity(conn: Any) -> int:
                ROW_NUMBER() OVER (PARTITION BY f.manager_id ORDER BY f.period_end DESC, f.filing_id DESC) AS rn
         FROM filings f
     )
-    SELECT r.manager_id, COALESCE(NULLIF(h.resolved_ticker, ''), h.cusip)
+    SELECT r.manager_id, COALESCE(NULLIF(h.resolved_ticker, ''), NULLIF(h.cusip, ''))
     FROM ranked r LEFT JOIN holdings h ON h.filing_id = r.filing_id
     WHERE r.rn = 1""").fetchall()
     holdings: dict[int, set[str]] = {}

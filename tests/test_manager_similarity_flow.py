@@ -63,4 +63,9 @@ def test_similar_manager_endpoint_orders_canonical_pairs_and_returns_404(tmp_pat
     assert response.json() == {
         "items": [{"manager_id": 3, "jaccard": 0.75, "overlap_count": 3, "union_count": 4}]
     }
+    reverse_response = asyncio.run(_get_similar_manager(2, 10))
+    assert reverse_response.status_code == 200
+    assert reverse_response.json() == {
+        "items": [{"manager_id": 1, "jaccard": 0.5, "overlap_count": 2, "union_count": 4}]
+    }
     assert asyncio.run(_get_similar_manager(999, 10)).status_code == 404
