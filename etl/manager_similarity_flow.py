@@ -18,8 +18,12 @@ def ensure_manager_similarity_table(conn: Any) -> None:
             PRIMARY KEY (manager_id_a, manager_id_b),
             CHECK (manager_id_a < manager_id_b)
         )""")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_manager_similarity_a ON manager_similarity(manager_id_a)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_manager_similarity_a ON manager_similarity(manager_id_a)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)"
+        )
 
 
 def compute_manager_similarity(conn: Any) -> int:
