@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from datetime import date, timedelta
 from typing import Any
 
+from adapters.base import is_sqlite
 from adapters.insider import (
     InsiderFetchError,
     fetch_form4_transactions,
@@ -48,13 +49,9 @@ CREATE TABLE IF NOT EXISTS insider_transactions (
 """
 
 
-def _is_sqlite(conn: Any) -> bool:
-    return conn.__class__.__module__.startswith("sqlite3")
-
-
 def ensure_insider_transactions_table(conn: Any) -> None:
     """Create insider_transactions when missing (SQLite bootstrap / tests)."""
-    ddl = DDL_SQLITE if _is_sqlite(conn) else DDL_PG
+    ddl = DDL_SQLITE if is_sqlite(conn) else DDL_PG
     conn.execute(ddl)
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_insider_issuer_date "
@@ -77,7 +74,7 @@ def upsert_insider_transactions(conn: Any, rows: list[Mapping[str, Any]]) -> int
         "INSERT OR IGNORE INTO insider_transactions "
         "(issuer_cik, ticker, insider_name, txn_code, shares, txn_date, acquired_disposed, cusip) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        if _is_sqlite(conn)
+        if is_sqlite(conn)
         else (
             "INSERT INTO insider_transactions "
             "(issuer_cik, ticker, insider_name, txn_code, shares, txn_date, acquired_disposed, cusip) "
@@ -116,12 +113,12 @@ def _holdings_current_clause(conn: Any) -> str:
                 str(r[1] if not isinstance(r, Mapping) else r.get("name") or next(iter(r.values())))
                 for r in conn.execute("PRAGMA table_info(holdings)").fetchall()
             }
-            if _is_sqlite(conn)
+            if is_sqlite(conn)
             else set()
         )
     except Exception:
         cols = set()
-    if not cols and not _is_sqlite(conn):
+    if not cols and not is_sqlite(conn):
         try:
             rows = conn.execute(
                 "SELECT column_name FROM information_schema.columns "
@@ -144,7 +141,7 @@ def resolve_held_issuers(conn: Any, manager_id: int | None = None) -> list[dict[
     join = ""
     if manager_id is not None:
         join = " JOIN filings f ON f.filing_id = h.filing_id "
-        where = f" AND f.manager_id = {'?' if _is_sqlite(conn) else '%s'}" + where
+        where = f" AND f.manager_id = {'?' if is_sqlite(conn) else '%s'}" + where
         params = (manager_id,)
     sql = (
         "SELECT DISTINCT "
@@ -241,7 +238,7 @@ def insider_net_direction_for_ticker(
     ensure_insider_transactions_table(conn)
     if not ticker and not cusip:
         return "unknown"
-    ph = "?" if _is_sqlite(conn) else "%s"
+    ph = "?" if is_sqlite(conn) else "%s"
     cutoff = (date.today() - timedelta(days=lookback_days)).isoformat()
     clauses: list[str] = []
     params: list[Any] = []
