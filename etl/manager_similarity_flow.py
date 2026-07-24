@@ -35,17 +35,21 @@ def compute_manager_similarity(conn: Any) -> int:
         FROM filings f
     )
     SELECT r.manager_id, COALESCE(NULLIF(h.resolved_ticker, ''), h.cusip)
-    FROM ranked r JOIN holdings h ON h.filing_id = r.filing_id
-    WHERE r.rn = 1 AND COALESCE(NULLIF(h.resolved_ticker, ''), h.cusip) IS NOT NULL""").fetchall()
+    FROM ranked r LEFT JOIN holdings h ON h.filing_id = r.filing_id
+    WHERE r.rn = 1""").fetchall()
     holdings: dict[int, set[str]] = {}
     for manager_id, security in rows:
-        holdings.setdefault(int(manager_id), set()).add(str(security))
+        securities = holdings.setdefault(int(manager_id), set())
+        if security is not None:
+            securities.add(str(security))
     conn.execute("DELETE FROM manager_similarity")
     ph = get_placeholder(conn)
     count = 0
     for left, right in combinations(sorted(holdings), 2):
         union = holdings[left] | holdings[right]
         overlap = holdings[left] & holdings[right]
+        if not union:
+            continue
         conn.execute(
             "INSERT INTO manager_similarity (manager_id_a, manager_id_b, jaccard, overlap_count, union_count) "
             f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph})",

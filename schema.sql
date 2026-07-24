@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS manager_similarity (
     jaccard real NOT NULL,
     overlap_count integer NOT NULL,
     union_count integer NOT NULL,
-    computed_at timestamptz DEFAULT now(),
+    computed_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (manager_id_a, manager_id_b),
     CHECK (manager_id_a < manager_id_b)
 );
