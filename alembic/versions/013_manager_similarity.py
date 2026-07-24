@@ -1,15 +1,15 @@
 """Add manager similarity table.
 
-Revision ID: 012
-Revises: 011
+Revision ID: 013
+Revises: 012
 """
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision = "012"
-down_revision = "011"
+revision = "013"
+down_revision = "012"
 branch_labels = None
 depends_on = None
 
