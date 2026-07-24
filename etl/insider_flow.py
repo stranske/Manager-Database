@@ -111,10 +111,14 @@ def upsert_insider_transactions(conn: Any, rows: list[Mapping[str, Any]]) -> int
 def _holdings_current_clause(conn: Any) -> str:
     """Prefer non-superseded holdings when the bitemporal column exists."""
     try:
-        cols = {
-            str(r[1] if not isinstance(r, Mapping) else r.get("name") or next(iter(r.values())))
-            for r in conn.execute("PRAGMA table_info(holdings)").fetchall()
-        } if _is_sqlite(conn) else set()
+        cols = (
+            {
+                str(r[1] if not isinstance(r, Mapping) else r.get("name") or next(iter(r.values())))
+                for r in conn.execute("PRAGMA table_info(holdings)").fetchall()
+            }
+            if _is_sqlite(conn)
+            else set()
+        )
     except Exception:
         cols = set()
     if not cols and not _is_sqlite(conn):
@@ -286,7 +290,10 @@ def annotate_conviction_rows(
         ticker = item.get("ticker") or item.get("resolved_ticker")
         cusip = item.get("cusip")
         item["insider_net_direction"] = insider_net_direction_for_ticker(
-            conn, str(ticker) if ticker else None, lookback_days=lookback_days, cusip=str(cusip) if cusip else None
+            conn,
+            str(ticker) if ticker else None,
+            lookback_days=lookback_days,
+            cusip=str(cusip) if cusip else None,
         )
         out.append(item)
     return out

@@ -12,32 +12,25 @@ from etl import insider_flow
 
 def _conn() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE filings (
             filing_id INTEGER PRIMARY KEY,
             manager_id INTEGER,
             filed_date TEXT
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE holdings (
             filing_id INTEGER,
             cusip TEXT,
             resolved_ticker TEXT,
             superseded_at TEXT
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE conviction_scores (
             score_id INTEGER PRIMARY KEY,
             manager_id INTEGER,
@@ -49,10 +42,11 @@ def _conn() -> sqlite3.Connection:
             conviction_pct REAL,
             portfolio_weight REAL
         )
-        """
-    )
+        """)
     conn.execute("INSERT INTO managers(manager_id, name) VALUES (1, 'Alpha')")
-    conn.execute("INSERT INTO filings(filing_id, manager_id, filed_date) VALUES (10, 1, '2026-01-01')")
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, filed_date) VALUES (10, 1, '2026-01-01')"
+    )
     conn.execute(
         "INSERT INTO holdings(filing_id, cusip, resolved_ticker, superseded_at) "
         "VALUES (10, '037833100', 'AAPL', NULL)"

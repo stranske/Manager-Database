@@ -311,8 +311,7 @@ def query_conviction_scores(
     if annotate is not None:
         try:
             hold_rows = conn.execute(
-                "SELECT cusip, resolved_ticker FROM holdings "
-                f"WHERE filing_id = {ph}",
+                "SELECT cusip, resolved_ticker FROM holdings " f"WHERE filing_id = {ph}",
                 (resolved_filing_id,),
             ).fetchall()
             for hold in hold_rows:

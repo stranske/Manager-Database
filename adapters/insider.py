@@ -72,7 +72,9 @@ def _normalize_acquired_disposed(value: Any, txn_code: str | None = None) -> str
     return None
 
 
-def normalize_form4_row(raw: Mapping[str, Any], *, default_ticker: str | None = None) -> dict[str, Any]:
+def normalize_form4_row(
+    raw: Mapping[str, Any], *, default_ticker: str | None = None
+) -> dict[str, Any]:
     """Normalize one raw Form-4 row into the stable insider contract."""
     issuer_cik = _as_str(
         raw.get("issuer_cik") or raw.get("cik") or raw.get("issuerCik") or raw.get("issuer")
@@ -87,7 +89,9 @@ def normalize_form4_row(raw: Mapping[str, Any], *, default_ticker: str | None = 
         or raw.get("reportingOwner")
     )
     txn_code = _as_str(raw.get("txn_code") or raw.get("transaction_code") or raw.get("code"))
-    shares = _as_float(raw.get("shares") or raw.get("transactionShares") or raw.get("shares_traded"))
+    shares = _as_float(
+        raw.get("shares") or raw.get("transactionShares") or raw.get("shares_traded")
+    )
     txn_date = _as_date(
         raw.get("txn_date") or raw.get("transaction_date") or raw.get("transactionDate")
     )
@@ -238,7 +242,9 @@ def net_direction_for_rows(
         if cutoff and txn_date and date.fromisoformat(txn_date) < cutoff:
             continue
         shares = _as_float(row.get("shares")) or 0.0
-        ad = _normalize_acquired_disposed(row.get("acquired_disposed"), _as_str(row.get("txn_code")))
+        ad = _normalize_acquired_disposed(
+            row.get("acquired_disposed"), _as_str(row.get("txn_code"))
+        )
         if ad is None:
             continue
         saw_any = True
