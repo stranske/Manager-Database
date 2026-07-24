@@ -227,6 +227,9 @@ def _insert_holding_legacy(
     cik: str,
     accession: str,
     filed_date: str | None,
+    knowledge_time: str | None = None,
+    version: int = 1,
+    content_hash: str | None = None,
 ) -> None:
     columns = get_table_columns(conn, "holdings")
     marker = get_placeholder(conn)
@@ -241,6 +244,12 @@ def _insert_holding_legacy(
         "resolved_lei": row.get("resolved_lei"),
         "resolution_source": row.get("resolution_source"),
     }
+    if knowledge_time is not None and "knowledge_time" in columns:
+        values["knowledge_time"] = knowledge_time
+    if "version" in columns:
+        values["version"] = version
+    if content_hash is not None and "content_hash" in columns:
+        values["content_hash"] = content_hash
     if isinstance(conn, sqlite3.Connection):
         values.update(
             {
@@ -288,8 +297,32 @@ def _replace_holdings_for_filing(
     accession: str,
     filed_date: str | None,
 ) -> None:
+    from datetime import UTC, datetime
+
     def _work() -> None:
-        _delete_holdings_for_filing(conn, filing_id)
+        holdings_columns = get_table_columns(conn, "holdings")
+        bitemporal = ingest_module._bitemporal_enabled(holdings_columns)
+        digest = ingest_module._holdings_content_hash(rows)
+        if bitemporal:
+            existing = ingest_module._current_content_hash(conn, filing_id=filing_id)
+            if existing is not None and existing == digest:
+                return
+            stamp = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            version = ingest_module._next_holdings_version(conn, filing_id=filing_id)
+            ingest_module._supersede_current_holdings(
+                conn, filing_id=filing_id, knowledge_time=stamp
+            )
+            if manager_id is not None:
+                ingest_module._supersede_prior_period_holdings(
+                    conn,
+                    manager_id=manager_id,
+                    filing_id=filing_id,
+                    knowledge_time=stamp,
+                )
+        else:
+            _delete_holdings_for_filing(conn, filing_id)
+            stamp = None
+            version = 1
         try:
             resolve_holding_identifiers(conn, rows, filing_id=filing_id, source="edgar")
         except Exception:
@@ -303,6 +336,9 @@ def _replace_holdings_for_filing(
                 cik=cik,
                 accession=accession,
                 filed_date=filed_date,
+                knowledge_time=stamp if bitemporal else None,
+                version=version if bitemporal else 1,
+                content_hash=digest if bitemporal else None,
             )
 
     _run_in_transaction(conn, _work)
