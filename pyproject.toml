@@ -25,7 +25,7 @@ dependencies = [
     # Prefect requires newer FastAPI; avoid conflicting pin.
     "fastapi",
     "uvicorn",
-    "stranske-pdf-extract[baseline] @ git+https://github.com/stranske/Workflows.git@a0ee3aa25c08d4eeb8e96dc6c8d7791930cd2d9a#subdirectory=packages/stranske_pdf_extract",
+    "stranske-pdf-extract[baseline] @ git+https://github.com/stranske/Workflows.git@pdf-extract-v0.1.0#subdirectory=packages/stranske_pdf_extract",
     "langchain>=1.2,<2.0",
     "langchain-core>=1.2,<2.0",
     "langchain-openai>=0.3,<2.0",
