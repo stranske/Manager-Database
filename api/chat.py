@@ -504,19 +504,16 @@ def _build_chat_client_info():
     try:
         llm_client_module = importlib.import_module("llm.client")
     except ModuleNotFoundError as exc:
-        # Fall back only when the llm client module is not installed.
+        # The chat path must not bypass the local registry-enforcing client.
         if exc.name not in {"llm", "llm.client"}:
             raise
+        return None
 
     if llm_client_module is not None:
         build_fn = getattr(llm_client_module, "build_chat_client", None)
         if callable(build_fn):
             return build_fn()
-        return None
-
-    from tools.langchain_client import build_chat_client
-
-    return build_chat_client()
+    return None
 
 
 # Closed-zone notice surfaced when the LLM boundary is disabled for this deployment.
