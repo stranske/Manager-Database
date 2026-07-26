@@ -40,6 +40,31 @@ def _write_blocked_model_registry(tmp_path) -> str:
     return str(registry_path)
 
 
+def _write_lifecycle_registry(tmp_path) -> str:
+    registry_path = tmp_path / "model_registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "model_id": "gpt-5.5",
+                        "provider": "openai",
+                        "lifecycle": "compatibility",
+                    },
+                    {
+                        "model_id": "gpt-5.4",
+                        "provider": "openai",
+                        "lifecycle": "current",
+                    },
+                ],
+                "selections": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return str(registry_path)
+
+
 class _FakeClient:
     pass
 
@@ -65,7 +90,7 @@ def test_build_chat_client_falls_back_to_anthropic(monkeypatch):
 
     assert client_info is not None
     assert client_info.provider == "anthropic"
-    assert client_info.model == "claude-sonnet-4-6"
+    assert client_info.model == "claude-opus-4-6"
 
 
 def test_build_chat_client_returns_none_when_no_keys(monkeypatch):
@@ -78,7 +103,7 @@ def test_build_chat_client_returns_none_when_no_keys(monkeypatch):
 def test_build_chat_client_honors_env_overrides(monkeypatch):
     monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
     monkeypatch.setenv("LANGCHAIN_PROVIDER", "openai")
-    monkeypatch.setenv("LANGCHAIN_MODEL", "o3-mini")
+    monkeypatch.setenv("LANGCHAIN_MODEL", "gpt-5.6-sol")
     captured = {}
 
     def _fake_create_llm(config):
@@ -90,33 +115,36 @@ def test_build_chat_client_honors_env_overrides(monkeypatch):
     client_info = llm_client.build_chat_client()
 
     assert client_info is not None
-    assert client_info.model == "o3-mini"
+    assert client_info.model == "gpt-5.6-sol"
     assert captured["config"].client_kwargs["max_retries"] == llm_client.DEFAULT_MAX_RETRIES
-    assert "temperature" not in captured["config"].client_kwargs
+    assert captured["config"].client_kwargs["temperature"] == 0.1
 
 
-def test_slot_config_loading_from_json_file(monkeypatch, tmp_path):
+def test_non_current_lifecycle_model_is_not_served(monkeypatch, tmp_path):
     config_path = tmp_path / "llm_slots.json"
     config_path.write_text(
         json.dumps(
             {
                 "slots": [
-                    {"name": "slot1", "provider": "anthropic", "model": "claude-test"},
-                    {"name": "slot2", "provider": "openai", "model": "gpt-test"},
+                    {"name": "slot1", "provider": "openai", "model": "gpt-5.5"},
                 ]
             }
         )
     )
     monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
-    monkeypatch.setenv("MANAGER_DB_ANTHROPIC_API_KEY", "anthropic-key")
-    monkeypatch.delenv("MANAGER_DB_OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(llm_client, "create_llm", lambda config: _FakeClient())
+    monkeypatch.setenv(ENV_MODEL_REGISTRY_CONFIG, _write_lifecycle_registry(tmp_path))
+    monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
+
+    def _fake_create_llm(config):
+        if config.model_name == "gpt-5.5":
+            raise AssertionError("non-current model reached create_llm")
+        return _FakeClient()
+
+    monkeypatch.setattr(llm_client, "create_llm", _fake_create_llm)
 
     client_info = llm_client.build_chat_client()
 
-    assert client_info is not None
-    assert client_info.provider == "anthropic"
-    assert client_info.model == "claude-test"
+    assert client_info is None
 
 
 def test_blocked_slot_model_is_not_selected(monkeypatch, tmp_path):
@@ -187,7 +215,7 @@ def test_blocked_slot_env_model_falls_back_to_slot_model(monkeypatch, tmp_path):
     assert captured == ["gpt-5.4"]
 
 
-def test_invalid_slot_config_slots_shape_falls_back_to_defaults(monkeypatch, tmp_path):
+def test_invalid_slot_config_slots_shape_fails_closed(monkeypatch, tmp_path):
     config_path = tmp_path / "llm_slots.json"
     config_path.write_text(json.dumps({"slots": {"name": "slot1"}}))
     monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
@@ -197,12 +225,10 @@ def test_invalid_slot_config_slots_shape_falls_back_to_defaults(monkeypatch, tmp
 
     client_info = llm_client.build_chat_client()
 
-    assert client_info is not None
-    assert client_info.provider == "openai"
-    assert client_info.model == "gpt-5.4"
+    assert client_info is None
 
 
-def test_invalid_slot_config_entry_falls_back_to_defaults(monkeypatch, tmp_path):
+def test_invalid_slot_config_entry_fails_closed(monkeypatch, tmp_path):
     config_path = tmp_path / "llm_slots.json"
     config_path.write_text(json.dumps({"slots": [None]}))
     monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
@@ -212,9 +238,7 @@ def test_invalid_slot_config_entry_falls_back_to_defaults(monkeypatch, tmp_path)
 
     client_info = llm_client.build_chat_client()
 
-    assert client_info is not None
-    assert client_info.provider == "openai"
-    assert client_info.model == "gpt-5.4"
+    assert client_info is None
 
 
 def test_blank_slot_env_model_falls_back_to_slot_model(monkeypatch, tmp_path):

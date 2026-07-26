@@ -71,10 +71,27 @@ def _normalize_provider(value: str | None) -> str | None:
 
 
 def _default_slots() -> list[SlotDefinition]:
+    """Build defaults from the reviewed registry selections."""
     return [
-        SlotDefinition(name="slot1", provider="openai", model="gpt-5.4"),
-        SlotDefinition(name="slot2", provider="anthropic", model="claude-sonnet-4-6"),
+        SlotDefinition(name=slot.name, provider=slot.provider, model=slot.model)
+        for slot in _llm_registry.default_slots()
+        if slot.model
     ]
+
+
+def _is_model_eligible(
+    provider: str,
+    model: str,
+    *,
+    registry: list[_llm_registry.ModelRegistryEntry] | None = None,
+) -> bool:
+    """Allow only current, unblocked registry models on the chat path."""
+    entry = _llm_registry.registry_entry_for(provider, model, registry=registry)
+    return bool(
+        entry
+        and entry.lifecycle == "current"
+        and not is_model_blocked(provider, model, registry=registry)
+    )
 
 
 def _slot_config_path() -> Path:
@@ -85,23 +102,35 @@ def _slot_config_path() -> Path:
 
 
 def _load_slot_config() -> list[SlotDefinition]:
+    if ENV_SLOT_CONFIG not in os.environ:
+        # The bundled config is advisory.  Let the shared resolver replace
+        # stale pins with its reviewed current selections before this local
+        # client applies its final eligibility checks.
+        return [
+            SlotDefinition(name=slot.name, provider=slot.provider, model=slot.model)
+            for slot in _llm_registry.load_slot_config()
+            if slot.model
+        ]
+
     path = _slot_config_path()
     if not path.is_file():
-        return _default_slots()
+        logger.warning("Configured LLM slot config %s is unavailable; refusing fallback", path)
+        return []
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return _default_slots()
+        logger.warning("Configured LLM slot config %s is invalid; refusing fallback", path)
+        return []
 
     registry = load_model_registry()
     if not isinstance(payload, dict):
         logger.warning("Invalid LLM slot config %s; expected object", path)
-        return _default_slots()
+        return []
 
     raw_slots = payload.get("slots", [])
     if not isinstance(raw_slots, list):
         logger.warning("Invalid LLM slot config %s; expected slots list", path)
-        return _default_slots()
+        return []
 
     slots: list[SlotDefinition] = []
     for index, entry in enumerate(raw_slots, start=1):
@@ -115,12 +144,14 @@ def _load_slot_config() -> list[SlotDefinition]:
             model = select_model_for_tier(provider=provider, tier=tier, registry=registry) or ""
         if not provider or not model:
             continue
-        if is_model_blocked(provider, model, registry=registry):
-            logger.warning("Skipping blocked LLM model in slot config: %s/%s", provider, model)
+        if not _is_model_eligible(provider, model, registry=registry):
+            logger.warning("Skipping registry-ineligible LLM model in slot config: %s/%s", provider, model)
             continue
         name = str(entry.get("name") or f"slot{index}").strip() or f"slot{index}"
         slots.append(SlotDefinition(name=name, provider=provider, model=model))
-    return slots or _default_slots()
+    # A configured slot file is an execution allowlist.  Never broaden it to
+    # defaults when every configured entry is malformed or registry-ineligible.
+    return slots
 
 
 def _apply_slot_env_overrides(slots: list[SlotDefinition]) -> list[SlotDefinition]:
@@ -139,12 +170,10 @@ def _apply_slot_env_overrides(slots: list[SlotDefinition]) -> list[SlotDefinitio
                 model = candidate_model
             else:
                 logger.warning("Ignoring blank LLM slot model override for %s", slot.name)
-        if is_model_blocked(provider, model, registry=registry):
-            logger.warning("Skipping blocked LLM slot override: %s/%s", provider, model)
+        if not _is_model_eligible(provider, model, registry=registry):
+            logger.warning("Skipping registry-ineligible LLM slot override: %s/%s", provider, model)
             override_requested = provider_override is not None or model_override is not None
-            if override_requested and not is_model_blocked(
-                slot.provider, slot.model, registry=registry
-            ):
+            if override_requested and _is_model_eligible(slot.provider, slot.model, registry=registry):
                 updated.append(slot)
             continue
         updated.append(
@@ -242,9 +271,12 @@ def build_chat_client(
     if selected_provider is not None:
         selected_model = (model or os.environ.get(ENV_MODEL) or "").strip()
         if not selected_model:
-            selected_model = _default_slots()[0].model
-        if is_model_blocked(selected_provider, selected_model):
-            logger.warning("Refusing blocked LLM model: %s/%s", selected_provider, selected_model)
+            defaults = _default_slots()
+            selected_model = defaults[0].model if defaults else ""
+        if not selected_model or not _is_model_eligible(
+            selected_provider, selected_model
+        ):
+            logger.warning("Refusing registry-ineligible LLM model: %s/%s", selected_provider, selected_model)
             return None
         return _build_for(selected_provider, selected_model, selected_timeout, selected_retries)
 
@@ -254,13 +286,13 @@ def build_chat_client(
         slot_model = slot.model
         if index == 1 and (model or os.environ.get(ENV_MODEL)):
             slot_model = (model or os.environ.get(ENV_MODEL) or slot.model).strip()
-            if is_model_blocked(slot.provider, slot_model, registry=registry):
+            if not _is_model_eligible(slot.provider, slot_model, registry=registry):
                 logger.warning(
-                    "Skipping blocked LLM model override: %s/%s", slot.provider, slot_model
+                    "Skipping registry-ineligible LLM model override: %s/%s", slot.provider, slot_model
                 )
                 slot_model = slot.model
-        if is_model_blocked(slot.provider, slot_model, registry=registry):
-            logger.warning("Skipping blocked LLM model: %s/%s", slot.provider, slot_model)
+        if not _is_model_eligible(slot.provider, slot_model, registry=registry):
+            logger.warning("Skipping registry-ineligible LLM model: %s/%s", slot.provider, slot_model)
             continue
         client_info = _build_for(slot.provider, slot_model, selected_timeout, selected_retries)
         if client_info is not None:
