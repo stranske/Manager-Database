@@ -120,6 +120,36 @@ def test_build_chat_client_honors_env_overrides(monkeypatch):
     assert captured["config"].client_kwargs["temperature"] == 0.1
 
 
+def test_explicit_provider_uses_its_matching_default_model(monkeypatch):
+    registry = object()
+    monkeypatch.setattr(
+        llm_client,
+        "_default_slots",
+        lambda: [
+            llm_client.SlotDefinition("openai", "openai", "gpt-5.4"),
+            llm_client.SlotDefinition("anthropic", "anthropic", "claude-opus-4-6"),
+        ],
+    )
+    monkeypatch.setattr(llm_client, "load_model_registry", lambda: registry)
+    monkeypatch.setenv("MANAGER_DB_ANTHROPIC_API_KEY", "anthropic-key")
+    monkeypatch.delenv("MANAGER_DB_OPENAI_API_KEY", raising=False)
+    captured = {}
+
+    def _eligible(provider, model, *, registry=None):
+        captured["registry"] = registry
+        return provider == "anthropic" and model == "claude-opus-4-6"
+
+    monkeypatch.setattr(llm_client, "_is_model_eligible", _eligible)
+    monkeypatch.setattr(llm_client, "create_llm", lambda config: _FakeClient())
+
+    client_info = llm_client.build_chat_client(provider="anthropic")
+
+    assert client_info is not None
+    assert client_info.provider == "anthropic"
+    assert client_info.model == "claude-opus-4-6"
+    assert captured["registry"] is registry
+
+
 def test_non_current_lifecycle_model_is_not_served(monkeypatch, tmp_path):
     config_path = tmp_path / "llm_slots.json"
     config_path.write_text(

@@ -274,10 +274,15 @@ def build_chat_client(
 
     if selected_provider is not None:
         selected_model = (model or os.environ.get(ENV_MODEL) or "").strip()
+        registry = load_model_registry()
         if not selected_model:
-            defaults = _default_slots()
-            selected_model = defaults[0].model if defaults else ""
-        if not selected_model or not _is_model_eligible(selected_provider, selected_model):
+            selected_model = next(
+                (slot.model for slot in _default_slots() if slot.provider == selected_provider),
+                "",
+            )
+        if not selected_model or not _is_model_eligible(
+            selected_provider, selected_model, registry=registry
+        ):
             logger.warning(
                 "Refusing registry-ineligible LLM model: %s/%s", selected_provider, selected_model
             )
