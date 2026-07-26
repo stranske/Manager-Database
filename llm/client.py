@@ -145,7 +145,9 @@ def _load_slot_config() -> list[SlotDefinition]:
         if not provider or not model:
             continue
         if not _is_model_eligible(provider, model, registry=registry):
-            logger.warning("Skipping registry-ineligible LLM model in slot config: %s/%s", provider, model)
+            logger.warning(
+                "Skipping registry-ineligible LLM model in slot config: %s/%s", provider, model
+            )
             continue
         name = str(entry.get("name") or f"slot{index}").strip() or f"slot{index}"
         slots.append(SlotDefinition(name=name, provider=provider, model=model))
@@ -173,7 +175,9 @@ def _apply_slot_env_overrides(slots: list[SlotDefinition]) -> list[SlotDefinitio
         if not _is_model_eligible(provider, model, registry=registry):
             logger.warning("Skipping registry-ineligible LLM slot override: %s/%s", provider, model)
             override_requested = provider_override is not None or model_override is not None
-            if override_requested and _is_model_eligible(slot.provider, slot.model, registry=registry):
+            if override_requested and _is_model_eligible(
+                slot.provider, slot.model, registry=registry
+            ):
                 updated.append(slot)
             continue
         updated.append(
@@ -273,10 +277,10 @@ def build_chat_client(
         if not selected_model:
             defaults = _default_slots()
             selected_model = defaults[0].model if defaults else ""
-        if not selected_model or not _is_model_eligible(
-            selected_provider, selected_model
-        ):
-            logger.warning("Refusing registry-ineligible LLM model: %s/%s", selected_provider, selected_model)
+        if not selected_model or not _is_model_eligible(selected_provider, selected_model):
+            logger.warning(
+                "Refusing registry-ineligible LLM model: %s/%s", selected_provider, selected_model
+            )
             return None
         return _build_for(selected_provider, selected_model, selected_timeout, selected_retries)
 
@@ -288,11 +292,15 @@ def build_chat_client(
             slot_model = (model or os.environ.get(ENV_MODEL) or slot.model).strip()
             if not _is_model_eligible(slot.provider, slot_model, registry=registry):
                 logger.warning(
-                    "Skipping registry-ineligible LLM model override: %s/%s", slot.provider, slot_model
+                    "Skipping registry-ineligible LLM model override: %s/%s",
+                    slot.provider,
+                    slot_model,
                 )
                 slot_model = slot.model
         if not _is_model_eligible(slot.provider, slot_model, registry=registry):
-            logger.warning("Skipping registry-ineligible LLM model: %s/%s", slot.provider, slot_model)
+            logger.warning(
+                "Skipping registry-ineligible LLM model: %s/%s", slot.provider, slot_model
+            )
             continue
         client_info = _build_for(slot.provider, slot_model, selected_timeout, selected_retries)
         if client_info is not None:
