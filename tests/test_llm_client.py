@@ -4,6 +4,41 @@ import json
 
 from llm import client as llm_client
 
+# Tests that exercise the blocked-model guard must pin their own model registry.
+# The guard filters a model only when the registry marks it ``blocked``; it does
+# not maintain a hardcoded denylist of legacy model ids. Relying on the ambient
+# config/model_registry.json is fragile — a catalog refresh that drops a legacy
+# id (as the 2026-07-24 refresh dropped gpt-4o-mini) silently turns a "blocked"
+# fixture into an "unknown, therefore allowed" one. Pin a hermetic registry so
+# the guard is tested against a model that is unambiguously blocked.
+ENV_MODEL_REGISTRY_CONFIG = "LANGCHAIN_MODEL_REGISTRY_CONFIG"
+
+
+def _write_blocked_model_registry(tmp_path) -> str:
+    registry_path = tmp_path / "model_registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "model_id": "gpt-4o-mini",
+                        "provider": "openai",
+                        "lifecycle": "deprecated",
+                        "blocked": True,
+                    },
+                    {
+                        "model_id": "gpt-5.4",
+                        "provider": "openai",
+                        "lifecycle": "current",
+                    },
+                ],
+                "selections": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return str(registry_path)
+
 
 class _FakeClient:
     pass
@@ -97,6 +132,7 @@ def test_blocked_slot_model_is_not_selected(monkeypatch, tmp_path):
         )
     )
     monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
+    monkeypatch.setenv(ENV_MODEL_REGISTRY_CONFIG, _write_blocked_model_registry(tmp_path))
     monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
     monkeypatch.delenv("MANAGER_DB_ANTHROPIC_API_KEY", raising=False)
     captured = []
@@ -130,6 +166,7 @@ def test_blocked_slot_env_model_falls_back_to_slot_model(monkeypatch, tmp_path):
     )
     monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(config_path))
     monkeypatch.setenv("LANGCHAIN_SLOT1_MODEL", "gpt-4o-mini")
+    monkeypatch.setenv(ENV_MODEL_REGISTRY_CONFIG, _write_blocked_model_registry(tmp_path))
     monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "openai-key")
     monkeypatch.delenv("MANAGER_DB_ANTHROPIC_API_KEY", raising=False)
     captured = []
