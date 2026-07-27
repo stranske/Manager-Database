@@ -18,11 +18,11 @@ annotated-doc==0.0.4
     # via
     #   fastapi
     #   typer
-annotated-types==0.7.0
+annotated-types==0.8.0
     # via pydantic
-anthropic==0.116.0
+anthropic==0.120.0
     # via langchain-anthropic
-anyio==4.14.2
+anyio==4.14.1
     # via
     #   anthropic
     #   httpx
@@ -56,22 +56,21 @@ black==26.5.1
     # via manager-database (pyproject.toml)
 blinker==1.9.0
     # via streamlit
-boto3==1.43.46
+boto3==1.43.56
     # via manager-database (pyproject.toml)
-botocore==1.43.46
+botocore==1.43.56
     # via
     #   boto3
     #   s3transfer
 burner-redis==0.1.7
     # via pydocket
-cachetools==7.1.4
+cachetools==7.1.6
     # via
     #   prefect
     #   py-key-value-aio
-    #   streamlit
 captcha==0.7.1
     # via streamlit-authenticator
-certifi==2026.6.17
+certifi==2026.7.22
     # via
     #   apprise
     #   httpcore
@@ -116,7 +115,7 @@ cryptography==49.0.0
     #   pdfminer-six
     #   prefect
     #   streamlit-authenticator
-cyclopts==4.21.0
+cyclopts==4.22.2
     # via prefect
 dateparser==1.4.1
     # via prefect
@@ -139,15 +138,15 @@ exceptiongroup==1.3.1
     # via prefect
 extra-streamlit-components==0.1.81
     # via streamlit-authenticator
-fakeredis==2.36.2
+fakeredis==2.37.0
     # via manager-database (pyproject.toml)
-fastapi==0.139.0
+fastapi==0.140.0
     # via
     #   manager-database (pyproject.toml)
     #   prefect
 feedparser==6.0.12
     # via manager-database (pyproject.toml)
-filelock==3.29.7
+filelock==3.32.0
     # via
     #   httpxthrottlecache
     #   python-discovery
@@ -156,11 +155,11 @@ fsspec==2026.6.0
     # via prefect
 gitdb==4.0.12
     # via gitpython
-gitpython==3.1.51
+gitpython==3.1.57
     # via streamlit
 graphviz==0.21
     # via prefect
-greenlet==3.5.3
+greenlet==3.5.4
     # via sqlalchemy
 griffe==2.1.0
     # via prefect
@@ -174,7 +173,7 @@ h11==0.16.0
     # via
     #   httpcore
     #   uvicorn
-h2==4.3.0
+h2==4.4.0
     # via httpx
 hpack==4.2.0
     # via h2
@@ -244,11 +243,11 @@ jsonschema==4.26.0
     #   prefect
 jsonschema-specifications==2025.9.1
     # via jsonschema
-langchain==1.3.13
+langchain==1.3.14
     # via manager-database (pyproject.toml)
-langchain-anthropic==1.4.8
+langchain-anthropic==1.5.2
     # via manager-database (pyproject.toml)
-langchain-core==1.4.9
+langchain-core==1.5.1
     # via
     #   manager-database (pyproject.toml)
     #   langchain
@@ -258,7 +257,7 @@ langchain-core==1.4.9
     #   langgraph-checkpoint
     #   langgraph-prebuilt
     #   langgraph-sdk
-langchain-openai==1.3.5
+langchain-openai==1.4.1
     # via manager-database (pyproject.toml)
 langchain-protocol==0.0.18
     # via
@@ -274,7 +273,7 @@ langgraph-prebuilt==1.1.0
     # via langgraph
 langgraph-sdk==0.4.2
     # via langgraph
-langsmith==0.10.2
+langsmith==0.10.10
     # via
     #   manager-database (pyproject.toml)
     #   langchain-core
@@ -300,7 +299,7 @@ mypy-extensions==1.1.0
     # via
     #   black
     #   mypy
-narwhals==2.23.0
+narwhals==2.24.0
     # via altair
 nest-asyncio==1.6.0
     # via edgartools
@@ -314,9 +313,9 @@ numpy==2.5.1
     #   streamlit
 oauthlib==3.3.1
     # via requests-oauthlib
-openai==2.45.0
+openai==2.48.0
     # via langchain-openai
-opentelemetry-api==1.43.0
+opentelemetry-api==1.44.0
     # via
     #   prefect
     #   pydocket
@@ -337,7 +336,7 @@ packaging==26.2
     #   prefect
     #   pytest
     #   streamlit
-pandas==3.0.3
+pandas==3.0.5
     # via
     #   manager-database (pyproject.toml)
     #   edgartools
@@ -356,7 +355,7 @@ pillow==12.3.0
     #   captcha
     #   pdfplumber
     #   streamlit
-platformdirs==4.10.0
+platformdirs==4.11.0
     # via
     #   black
     #   python-discovery
@@ -366,11 +365,11 @@ pluggy==1.6.0
     #   prefect
     #   pytest
     #   pytest-cov
-pre-commit==4.6.0
+pre-commit==4.6.1
     # via manager-database (pyproject.toml)
-prefect==3.7.8
+prefect==3.8.0
     # via manager-database (pyproject.toml)
-prometheus-client==0.25.0
+prometheus-client==0.26.0
     # via
     #   prefect
     #   pydocket
@@ -382,7 +381,7 @@ psycopg-binary==3.3.4 ; implementation_name != 'pypy'
     # via psycopg
 py-key-value-aio==0.4.5
     # via pydocket
-pyarrow==25.0.0
+pyarrow==24.0.0
     # via
     #   edgartools
     #   streamlit
@@ -412,7 +411,7 @@ pydantic-settings==2.14.2
     # via prefect
 pydeck==0.9.3
     # via streamlit
-pydocket==0.23.0
+pydocket==0.23.1
     # via prefect
 pygments==2.20.0
     # via
@@ -423,7 +422,7 @@ pyjwt==2.13.0
     # via streamlit-authenticator
 pypdf==6.14.2
     # via stranske-pdf-extract
-pypdfium2==5.11.0
+pypdfium2==5.12.1
     # via pdfplumber
 pyrate-limiter==4.4.0
     # via
@@ -453,7 +452,7 @@ python-dateutil==2.9.0.post0
     #   dateparser
     #   pandas
     #   prefect
-python-discovery==1.4.4
+python-discovery==1.5.0
     # via virtualenv
 python-dotenv==1.2.2
     # via pydantic-settings
@@ -467,7 +466,7 @@ python-slugify==8.0.4
     # via prefect
 pytokens==0.4.1
     # via black
-pytz==2026.2
+pytz==2026.3.post1
     # via
     #   dateparser
     #   prefect
@@ -499,7 +498,7 @@ referencing==0.37.0
     #   manager-database (pyproject.toml)
     #   jsonschema
     #   jsonschema-specifications
-regex==2026.7.10
+regex==2026.7.19
     # via
     #   dateparser
     #   tiktoken
@@ -538,7 +537,7 @@ ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
     # via prefect
 ruff==0.16.0
     # via manager-database (pyproject.toml)
-s3transfer==0.19.1
+s3transfer==0.19.2
     # via boto3
 semver==3.0.4
     # via prefect
@@ -561,7 +560,7 @@ sniffio==1.3.1
     #   prefect
 sortedcontainers==2.4.0
     # via fakeredis
-soupsieve==2.8.4
+soupsieve==2.9.1
     # via beautifulsoup4
 sqlalchemy==2.0.51
     # via
@@ -574,9 +573,9 @@ starlette==1.3.1
     #   fastapi
     #   prefect
     #   streamlit
-stranske-pdf-extract @ git+https://github.com/stranske/Workflows.git@pdf-extract-v0.1.0#subdirectory=packages/stranske_pdf_extract
+stranske-pdf-extract @ git+https://github.com/stranske/Workflows.git@a0ee3aa25c08d4eeb8e96dc6c8d7791930cd2d9a#subdirectory=packages/stranske_pdf_extract
     # via manager-database (pyproject.toml)
-streamlit==1.59.1
+streamlit==1.60.0
     # via
     #   manager-database (pyproject.toml)
     #   extra-streamlit-components
@@ -600,15 +599,15 @@ toml==0.10.2
     # via
     #   prefect
     #   streamlit
-tqdm==4.68.4
+tqdm==4.69.1
     # via
     #   edgartools
     #   openai
 truststore==0.10.4
     # via edgartools
-typer==0.26.8
+typer==0.27.0
     # via pydocket
-types-pyyaml==6.0.12.20260518
+types-pyyaml==6.0.12.20260724
     # via manager-database (pyproject.toml)
 typing-extensions==4.16.0
     # via
@@ -667,7 +666,7 @@ uvicorn==0.51.0
     #   manager-database (pyproject.toml)
     #   prefect
     #   streamlit
-virtualenv==21.6.1
+virtualenv==21.7.0
     # via pre-commit
 watchdog==6.0.0 ; sys_platform != 'darwin'
     # via streamlit
@@ -677,7 +676,7 @@ websockets==15.0.1
     #   langsmith
     #   prefect
     #   streamlit
-whenever==0.10.2
+whenever==0.10.3
     # via prefect
 xxhash==3.8.1
     # via
