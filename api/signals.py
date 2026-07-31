@@ -61,6 +61,30 @@ class ConvictionScoreResponse(BaseModel):
     short_interest_source: str | None = None
 
 
+class AttributionPositionResponse(BaseModel):
+    filing_id: int | None
+    disclosure_date: date
+    as_of_date: date
+    security_key: str
+    ticker: str | None
+    cusip: str | None
+    name_of_issuer: str | None
+    position_return: float | None
+    value_usd: float | None
+    status: str
+    skip_reason: str | None = None
+
+
+class ManagerAttributionResponse(BaseModel):
+    manager_id: int
+    as_of_date: date | None
+    positions: int
+    positions_skipped: int
+    realized_return: float | None
+    hit_rate: float | None
+    rows: list[AttributionPositionResponse]
+
+
 def _to_float(value: Any) -> float | None:
     if value is None:
         return None
@@ -75,7 +99,8 @@ def _to_date(value: Any) -> date:
         return value
     if isinstance(value, datetime):
         return value.date()
-    return date.fromisoformat(str(value))
+    # Slice so ISO timestamps ("2024-05-01T12:00:00Z") parse as their date part.
+    return date.fromisoformat(str(value)[:10])
 
 
 def _resolve_latest_report_date(conn: Any, table_name: str) -> date | None:
@@ -319,7 +344,7 @@ def query_conviction_scores(
     if annotate_insider is not None or annotate_short_interest is not None:
         try:
             hold_rows = conn.execute(
-                "SELECT cusip, resolved_ticker FROM holdings " f"WHERE filing_id = {ph}",
+                f"SELECT cusip, resolved_ticker FROM holdings WHERE filing_id = {ph}",
                 (resolved_filing_id,),
             ).fetchall()
             for hold in hold_rows:
@@ -435,3 +460,79 @@ async def get_conviction_scores(
         )
     finally:
         conn.close()
+
+
+@router.get(
+    "/api/signals/attribution/{manager_id}",
+    response_model=ManagerAttributionResponse,
+    summary="List position attribution for a manager",
+)
+def get_manager_attribution(
+    manager_id: int,
+    as_of_date: date | None = None,
+    limit: int = Query(200, ge=1, le=1000),
+) -> ManagerAttributionResponse:
+    """Read-only derived returns since disclosure. Raw prices are not redistributed."""
+    from etl.attribution_flow import (
+        PositionAttribution,
+        query_manager_attribution,
+        summarize_manager_attribution,
+    )
+
+    conn = connect_db()
+    try:
+        rows = query_manager_attribution(
+            conn,
+            manager_id,
+            as_of_date=as_of_date,
+            limit=limit,
+        )
+    finally:
+        conn.close()
+
+    positions = [
+        PositionAttribution(
+            manager_id=int(row["manager_id"]),
+            filing_id=int(row["filing_id"]) if row.get("filing_id") is not None else None,
+            disclosure_date=_to_date(row["disclosure_date"]),
+            as_of_date=_to_date(row["as_of_date"]),
+            security_key=str(row["security_key"]),
+            ticker=str(row["ticker"]) if row.get("ticker") else None,
+            cusip=str(row["cusip"]) if row.get("cusip") else None,
+            name_of_issuer=str(row["name_of_issuer"]) if row.get("name_of_issuer") else None,
+            value_usd=_to_float(row.get("value_usd")),
+            position_return=_to_float(row.get("position_return")),
+            status=str(row.get("status") or "filled"),
+            skip_reason=str(row["skip_reason"]) if row.get("skip_reason") else None,
+        )
+        for row in rows
+    ]
+    summary = summarize_manager_attribution(positions)
+    # Unfiltered reads span every as-of window, so a single top-level value would
+    # misrepresent the rows. Only report one when the rows actually share it.
+    window_dates = {p.as_of_date for p in positions}
+    resolved_as_of = as_of_date or (window_dates.pop() if len(window_dates) == 1 else None)
+    return ManagerAttributionResponse(
+        manager_id=manager_id,
+        as_of_date=resolved_as_of,
+        positions=int(summary["positions"]),
+        positions_skipped=int(summary["positions_skipped"]),
+        realized_return=summary["realized_return"],
+        hit_rate=summary["hit_rate"],
+        rows=[
+            AttributionPositionResponse(
+                filing_id=p.filing_id,
+                disclosure_date=p.disclosure_date,
+                as_of_date=p.as_of_date,
+                security_key=p.security_key,
+                ticker=p.ticker,
+                cusip=p.cusip,
+                name_of_issuer=p.name_of_issuer,
+                position_return=p.position_return,
+                value_usd=p.value_usd,
+                status=p.status,
+                skip_reason=p.skip_reason,
+            )
+            for p in positions
+        ],
+    )

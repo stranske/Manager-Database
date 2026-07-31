@@ -308,6 +308,33 @@ CREATE TABLE IF NOT EXISTS backtest_results (
 );
 CREATE INDEX IF NOT EXISTS idx_backtest_results_run ON backtest_results (run_id);
 
+-- Position-level performance attribution since disclosure (#1465 / design #1402).
+-- Derived returns may be surfaced via the signals API; raw prices are internal-use only.
+CREATE TABLE IF NOT EXISTS manager_attribution (
+    attribution_id bigserial PRIMARY KEY,
+    manager_id bigint NOT NULL,
+    filing_id bigint,
+    disclosure_date date NOT NULL,
+    as_of_date date NOT NULL,
+    security_key text NOT NULL,
+    ticker text,
+    cusip text,
+    name_of_issuer text,
+    disclosure_price double precision,
+    as_of_price double precision,
+    position_return double precision,
+    value_usd double precision,
+    status text NOT NULL DEFAULT 'filled',
+    skip_reason text,
+    computed_at timestamptz DEFAULT now(),
+    UNIQUE (manager_id, filing_id, security_key, as_of_date)
+);
+CREATE INDEX IF NOT EXISTS idx_manager_attribution_manager
+    ON manager_attribution (manager_id, as_of_date);
+-- NULL filing_id rows escape the UNIQUE constraint above, so they need a partial index.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_manager_attribution_no_filing
+    ON manager_attribution (manager_id, security_key, as_of_date) WHERE filing_id IS NULL;
+
 CREATE TABLE IF NOT EXISTS identifier_resolution_cache (
     cusip text PRIMARY KEY,
     ticker text,

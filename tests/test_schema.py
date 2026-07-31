@@ -10,6 +10,7 @@ from alembic.config import Config
 from adapters.prices import ensure_price_cache_table
 from alembic import command
 from etl.activism_campaign_flow import ensure_activism_campaign_tables
+from etl.attribution_flow import ensure_manager_attribution_table
 from etl.backtest_flow import ensure_backtest_tables
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -245,25 +246,21 @@ def test_short_interest_migration_uses_sqlite_autoincrement_primary_key(monkeypa
         assert conn.execute("SELECT metric_id FROM short_interest").fetchone()[0] is not None
 
 
-def test_backtest_schema_contract_stays_in_sync_across_all_three_definitions(monkeypatch, tmp_path):
-    """Keep migration, runtime SQLite DDL, and canonical schema.sql column contracts aligned."""
-    monkeypatch.delenv("DB_URL", raising=False)
-    db_path = tmp_path / "migrated.db"
-    command.upgrade(_alembic_config(f"sqlite:///{db_path}"), "head")
+def _sqlite_column_names(conn, tables):
+    return {
+        table: {row[1] for row in conn.execute(f"PRAGMA table_info({table})")} for table in tables
+    }
 
-    tables = {"price_cache", "backtest_runs", "backtest_results"}
-    with sqlite3.connect(db_path) as migrated, sqlite3.connect(":memory:") as runtime:
-        ensure_price_cache_table(runtime)
-        ensure_backtest_tables(runtime)
-        migrated_columns = {
-            table: {row[1] for row in migrated.execute(f"PRAGMA table_info({table})")}
-            for table in tables
-        }
-        runtime_columns = {
-            table: {row[1] for row in runtime.execute(f"PRAGMA table_info({table})")}
-            for table in tables
-        }
 
+def _sqlite_column_types(conn, tables):
+    """Declared type per column (``PRAGMA table_info`` row 2), normalized for comparison."""
+    return {
+        table: {row[1]: row[2].upper() for row in conn.execute(f"PRAGMA table_info({table})")}
+        for table in tables
+    }
+
+
+def _schema_sql_column_names(tables):
     schema = (ROOT / "schema.sql").read_text(encoding="utf-8")
     schema_columns = {}
     for table in tables:
@@ -277,8 +274,77 @@ def test_backtest_schema_contract_stays_in_sync_across_all_three_definitions(mon
             if line.strip()
             and not line.lstrip().startswith(("PRIMARY", "FOREIGN", "UNIQUE", "CONSTRAINT"))
         }
+    return schema_columns
 
-    assert runtime_columns == migrated_columns == schema_columns
+
+def _assert_schema_contract_in_sync(
+    monkeypatch, tmp_path, tables, setup_runtime, *, compare_types=False
+):
+    """Migration, runtime SQLite DDL, and schema.sql must agree on their column contracts.
+
+    Column names alone miss declared-type drift between the migration and the runtime
+    DDL, so ``compare_types`` additionally pins the ``PRAGMA table_info`` type column.
+    It is off for the backtest tables because they carry 17 pre-existing mismatches
+    from #1464 (for example ``price_cache.close_usd`` NUMERIC vs REAL, which is a real
+    affinity difference); reconciling those belongs to that table's owner, not here.
+    """
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "migrated.db"
+    command.upgrade(_alembic_config(f"sqlite:///{db_path}"), "head")
+
+    with sqlite3.connect(db_path) as migrated, sqlite3.connect(":memory:") as runtime:
+        setup_runtime(runtime)
+        migrated_columns = _sqlite_column_names(migrated, tables)
+        runtime_columns = _sqlite_column_names(runtime, tables)
+        if compare_types:
+            assert _sqlite_column_types(runtime, tables) == _sqlite_column_types(migrated, tables)
+
+    assert runtime_columns == migrated_columns == _schema_sql_column_names(tables)
+
+
+def test_backtest_schema_contract_stays_in_sync_across_all_three_definitions(monkeypatch, tmp_path):
+    """Keep migration, runtime SQLite DDL, and canonical schema.sql column contracts aligned."""
+
+    def setup_runtime(runtime):
+        ensure_price_cache_table(runtime)
+        ensure_backtest_tables(runtime)
+
+    _assert_schema_contract_in_sync(
+        monkeypatch,
+        tmp_path,
+        {"price_cache", "backtest_runs", "backtest_results"},
+        setup_runtime,
+    )
+
+
+def test_manager_attribution_migration_uses_sqlite_autoincrement_primary_key(monkeypatch, tmp_path):
+    """Migration 019 must generate attribution_id without callers supplying BIGINT keys."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema.db"
+    command.upgrade(_alembic_config(f"sqlite:///{db_path}"), "head")
+
+    with sqlite3.connect(db_path) as conn:
+        inserted = conn.execute(
+            "INSERT INTO manager_attribution("
+            "manager_id, filing_id, disclosure_date, as_of_date, security_key) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (1, 10, "2024-05-01", "2024-08-01", "AAA"),
+        )
+        assert inserted.lastrowid is not None
+        assert (
+            conn.execute("SELECT attribution_id FROM manager_attribution").fetchone()[0] is not None
+        )
+
+
+def test_manager_attribution_schema_contract_stays_in_sync(monkeypatch, tmp_path):
+    """Keep migration, runtime SQLite DDL, and schema.sql column contracts aligned."""
+    _assert_schema_contract_in_sync(
+        monkeypatch,
+        tmp_path,
+        {"manager_attribution"},
+        ensure_manager_attribution_table,
+        compare_types=True,
+    )
 
 
 def test_filings_raw_key_unique_index(monkeypatch, tmp_path):
