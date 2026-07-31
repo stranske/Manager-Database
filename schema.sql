@@ -123,6 +123,47 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_activism_events_unique_threshold
     ON activism_events (manager_id, filing_id, event_type, threshold_crossed)
     WHERE threshold_crossed IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS activism_campaigns (
+    campaign_id bigserial PRIMARY KEY,
+    manager_id bigint NOT NULL REFERENCES managers(manager_id),
+    target_identifier text NOT NULL,
+    target_company text NOT NULL,
+    first_filed date NOT NULL,
+    last_filed date NOT NULL,
+    status text NOT NULL,
+    peak_ownership_pct numeric(8,4),
+    latest_ownership_pct numeric(8,4),
+    filing_count integer NOT NULL DEFAULT 0,
+    event_count integer NOT NULL DEFAULT 0,
+    latest_event_type text,
+    source_forms text NOT NULL DEFAULT '[]',
+    data_quality_flags text NOT NULL DEFAULT '[]',
+    computed_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (manager_id, target_identifier),
+    CONSTRAINT ck_activism_campaigns_status
+        CHECK (status IN ('active', 'monitoring', 'closed', 'unknown'))
+);
+CREATE INDEX IF NOT EXISTS idx_activism_campaigns_manager ON activism_campaigns(manager_id);
+CREATE INDEX IF NOT EXISTS idx_activism_campaigns_status ON activism_campaigns(status);
+
+CREATE TABLE IF NOT EXISTS activism_campaign_timeline (
+    timeline_id bigserial PRIMARY KEY,
+    campaign_id bigint NOT NULL REFERENCES activism_campaigns(campaign_id),
+    filing_id bigint NOT NULL REFERENCES activism_filings(filing_id),
+    event_id bigint REFERENCES activism_events(event_id),
+    event_date date NOT NULL,
+    event_type text NOT NULL,
+    form_type text NOT NULL,
+    ownership_pct numeric(8,4),
+    summary text NOT NULL,
+    source_url text,
+    UNIQUE (campaign_id, filing_id, event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_activism_campaign_timeline_campaign
+    ON activism_campaign_timeline(campaign_id, event_date);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_activism_campaign_timeline_filing_only
+    ON activism_campaign_timeline (campaign_id, filing_id) WHERE event_id IS NULL;
+
 CREATE TABLE IF NOT EXISTS holdings (
     holding_id bigserial PRIMARY KEY,
     filing_id bigint NOT NULL REFERENCES filings(filing_id),

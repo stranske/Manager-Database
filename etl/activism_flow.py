@@ -20,6 +20,7 @@ from adapters.base import (
     resolve_manager_id_column,
 )
 from alerts.integration import fire_alerts_for_event
+from etl.activism_campaign_flow import materialize_activism_campaigns
 from etl.activism_detection import (
     ALERT_EVENT_TYPE,
     AlertEvent,
@@ -341,6 +342,16 @@ async def fetch_all_managers(since: str) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for manager_id in manager_ids:
         rows.extend(await fetch_activism_filings.fn(manager_id, since))
+
+    # Materialization rebuilds every campaign it touches, so it runs once for the whole
+    # ingest rather than once per manager, and it must never discard committed filings.
+    conn = connect_db(DB_PATH)
+    try:
+        materialize_activism_campaigns(conn)
+    except Exception:
+        logger.exception("Activism campaign materialization failed", extra={"since": since})
+    finally:
+        conn.close()
     return rows
 
 

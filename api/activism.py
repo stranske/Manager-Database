@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime
 from typing import Any
 
@@ -60,13 +61,43 @@ class ActiveCampaignResponse(BaseModel):
     latest_event_type: str | None
 
 
+class ActivismCampaignResponse(BaseModel):
+    campaign_id: int
+    manager_id: int
+    manager_name: str | None
+    target_identifier: str
+    target_company: str
+    first_filed: date
+    last_filed: date
+    status: str
+    peak_ownership_pct: float | None
+    latest_ownership_pct: float | None
+    filing_count: int
+    event_count: int
+    latest_event_type: str | None
+    data_quality_flags: list[str] = Field(default_factory=list)
+
+
+class ActivismCampaignTimelineResponse(BaseModel):
+    filing_id: int
+    event_id: int | None
+    event_date: date
+    event_type: str
+    form_type: str
+    ownership_pct: float | None
+    summary: str
+    source_url: str | None
+
+
 def _to_float(value: Any) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    # SQLite REAL columns can hold Infinity/NaN, which Starlette cannot serialize.
+    return number if math.isfinite(number) else None
 
 
 def _to_int(value: Any) -> int | None:
@@ -93,6 +124,18 @@ def _to_datetime(value: Any) -> datetime:
     if text.endswith("Z"):
         text = f"{text[:-1]}+00:00"
     return datetime.fromisoformat(text)
+
+
+def _json_strings(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if value in (None, ""):
+        return []
+    try:
+        parsed = __import__("json").loads(str(value))
+    except (TypeError, ValueError):
+        return []
+    return [str(item) for item in parsed] if isinstance(parsed, list) else []
 
 
 # Keep the SQL-building logic in one place so API and Streamlit views stay aligned.
@@ -327,6 +370,98 @@ def query_active_campaigns(
     ]
 
 
+def query_activism_campaigns(
+    conn: Any,
+    *,
+    campaign_id: int | None = None,
+    manager_id: int | None = None,
+    target_identifier: str | None = None,
+    status: str | None = None,
+    filed_from: date | None = None,
+    filed_to: date | None = None,
+    limit: int = 25,
+) -> list[ActivismCampaignResponse]:
+    if not table_exists(conn, "activism_campaigns"):
+        return []
+    ph = get_placeholder(conn)
+    filters: list[str] = []
+    params: list[Any] = []
+    if campaign_id is not None:
+        filters.append(f"ac.campaign_id = {ph}")
+        params.append(campaign_id)
+    if manager_id is not None:
+        filters.append(f"ac.manager_id = {ph}")
+        params.append(manager_id)
+    if target_identifier:
+        filters.append(f"upper(ac.target_identifier) = upper({ph})")
+        params.append(target_identifier)
+    if status:
+        filters.append(f"ac.status = {ph}")
+        params.append(status)
+    if filed_from is not None:
+        filters.append(f"ac.last_filed >= {ph}")
+        params.append(filed_from)
+    if filed_to is not None:
+        filters.append(f"ac.first_filed <= {ph}")
+        params.append(filed_to)
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+    params.append(limit)
+    rows = conn.execute(
+        "SELECT ac.campaign_id, ac.manager_id, m.name, ac.target_identifier, ac.target_company, "
+        "ac.first_filed, ac.last_filed, ac.status, ac.peak_ownership_pct, ac.latest_ownership_pct, "
+        "ac.filing_count, ac.event_count, ac.latest_event_type, ac.data_quality_flags "
+        "FROM activism_campaigns ac LEFT JOIN managers m ON m.manager_id = ac.manager_id "
+        f"{where} ORDER BY ac.last_filed DESC, ac.campaign_id DESC LIMIT {ph}",
+        tuple(params),
+    ).fetchall()
+    return [
+        ActivismCampaignResponse(
+            campaign_id=int(row[0]),
+            manager_id=int(row[1]),
+            manager_name=str(row[2]) if row[2] is not None else None,
+            target_identifier=str(row[3]),
+            target_company=str(row[4]),
+            first_filed=_to_date(row[5]),
+            last_filed=_to_date(row[6]),
+            status=str(row[7]),
+            peak_ownership_pct=_to_float(row[8]),
+            latest_ownership_pct=_to_float(row[9]),
+            filing_count=int(row[10]),
+            event_count=int(row[11]),
+            latest_event_type=str(row[12]) if row[12] is not None else None,
+            data_quality_flags=_json_strings(row[13]),
+        )
+        for row in rows
+    ]
+
+
+def query_activism_campaign_timeline(
+    conn: Any, campaign_id: int
+) -> list[ActivismCampaignTimelineResponse]:
+    if not table_exists(conn, "activism_campaign_timeline"):
+        return []
+    ph = get_placeholder(conn)
+    rows = conn.execute(
+        "SELECT filing_id, event_id, event_date, event_type, form_type, ownership_pct, summary, source_url "
+        "FROM activism_campaign_timeline WHERE campaign_id = " + ph + " "
+        "ORDER BY event_date ASC, form_type ASC, filing_id ASC, event_id ASC",
+        (campaign_id,),
+    ).fetchall()
+    return [
+        ActivismCampaignTimelineResponse(
+            filing_id=int(row[0]),
+            event_id=_to_int(row[1]),
+            event_date=_to_date(row[2]),
+            event_type=str(row[3]),
+            form_type=str(row[4]),
+            ownership_pct=_to_float(row[5]),
+            summary=str(row[6]),
+            source_url=str(row[7]) if row[7] is not None else None,
+        )
+        for row in rows
+    ]
+
+
 @router.get(
     "/api/activism/filings",
     response_model=list[ActivismFilingResponse],
@@ -404,5 +539,62 @@ async def active_campaigns(
     conn = connect_db()
     try:
         return query_active_campaigns(conn, min_ownership_pct=min_ownership_pct, limit=limit)
+    finally:
+        conn.close()
+
+
+@router.get(
+    "/api/activism/campaigns",
+    response_model=list[ActivismCampaignResponse],
+    summary="List materialized activism campaigns",
+)
+async def list_activism_campaigns(
+    manager_id: int | None = None,
+    target_identifier: str | None = None,
+    status: str | None = None,
+    filed_from: date | None = None,
+    filed_to: date | None = None,
+    limit: int = Query(25, ge=1, le=100),
+) -> list[ActivismCampaignResponse]:
+    conn = connect_db()
+    try:
+        return query_activism_campaigns(
+            conn,
+            manager_id=manager_id,
+            target_identifier=target_identifier,
+            status=status,
+            filed_from=filed_from,
+            filed_to=filed_to,
+            limit=limit,
+        )
+    finally:
+        conn.close()
+
+
+@router.get(
+    "/api/activism/campaigns/{campaign_id}",
+    response_model=ActivismCampaignResponse | None,
+    summary="Get an activism campaign",
+)
+async def get_activism_campaign(campaign_id: int) -> ActivismCampaignResponse | None:
+    conn = connect_db()
+    try:
+        campaigns = query_activism_campaigns(conn, campaign_id=campaign_id, limit=1)
+        return campaigns[0] if campaigns else None
+    finally:
+        conn.close()
+
+
+@router.get(
+    "/api/activism/campaigns/{campaign_id}/timeline",
+    response_model=list[ActivismCampaignTimelineResponse],
+    summary="Get a deterministic activism campaign timeline",
+)
+async def get_activism_campaign_timeline(
+    campaign_id: int,
+) -> list[ActivismCampaignTimelineResponse]:
+    conn = connect_db()
+    try:
+        return query_activism_campaign_timeline(conn, campaign_id)
     finally:
         conn.close()
