@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 
 import pytest
 from alembic.config import Config
 
+from adapters.prices import ensure_price_cache_table
 from alembic import command
+from etl.backtest_flow import ensure_backtest_tables
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -83,6 +86,63 @@ def test_schema_foreign_keys(monkeypatch, tmp_path):
             conn.execute(
                 "INSERT INTO filings(manager_id, type, source) VALUES (999, '13F-HR', 'sec')"
             )
+
+
+def test_backtest_migration_uses_sqlite_autoincrement_primary_keys(monkeypatch, tmp_path):
+    """Migration 015 must generate IDs without callers supplying SQLite BIGINT keys."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema.db"
+    command.upgrade(_alembic_config(f"sqlite:///{db_path}"), "head")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        run = conn.execute(
+            "INSERT INTO backtest_runs(strategy, start_date, end_date) VALUES (?, ?, ?)",
+            ("test", "2024-01-01", "2024-03-31"),
+        )
+        assert run.lastrowid is not None
+        result = conn.execute(
+            "INSERT INTO backtest_results(run_id, decision_date, entry_date, exit_date) "
+            "VALUES (?, ?, ?, ?)",
+            (run.lastrowid, "2024-01-01", "2024-01-02", "2024-04-02"),
+        )
+        assert result.lastrowid is not None
+
+
+def test_backtest_schema_contract_stays_in_sync_across_all_three_definitions(monkeypatch, tmp_path):
+    """Keep migration, runtime SQLite DDL, and canonical schema.sql column contracts aligned."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "migrated.db"
+    command.upgrade(_alembic_config(f"sqlite:///{db_path}"), "head")
+
+    tables = {"price_cache", "backtest_runs", "backtest_results"}
+    with sqlite3.connect(db_path) as migrated, sqlite3.connect(":memory:") as runtime:
+        ensure_price_cache_table(runtime)
+        ensure_backtest_tables(runtime)
+        migrated_columns = {
+            table: {row[1] for row in migrated.execute(f"PRAGMA table_info({table})")}
+            for table in tables
+        }
+        runtime_columns = {
+            table: {row[1] for row in runtime.execute(f"PRAGMA table_info({table})")}
+            for table in tables
+        }
+
+    schema = (ROOT / "schema.sql").read_text(encoding="utf-8")
+    schema_columns = {}
+    for table in tables:
+        definition = re.search(
+            rf"CREATE TABLE IF NOT EXISTS {table} \((.*?)\n\);", schema, flags=re.DOTALL
+        )
+        assert definition is not None
+        schema_columns[table] = {
+            line.strip().split()[0]
+            for line in definition.group(1).splitlines()
+            if line.strip()
+            and not line.lstrip().startswith(("PRIMARY", "FOREIGN", "UNIQUE", "CONSTRAINT"))
+        }
+
+    assert runtime_columns == migrated_columns == schema_columns
 
 
 def test_filings_raw_key_unique_index(monkeypatch, tmp_path):
