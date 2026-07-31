@@ -232,6 +232,23 @@ CREATE TABLE IF NOT EXISTS insider_transactions (
 CREATE INDEX IF NOT EXISTS idx_insider_issuer_date ON insider_transactions (issuer_cik, txn_date);
 CREATE INDEX IF NOT EXISTS idx_insider_ticker_date ON insider_transactions (ticker, txn_date);
 
+-- FINRA/exchange short-interest context for held issuers (#1470). This annotates
+-- conviction output only; it must never change conviction scoring.
+CREATE TABLE IF NOT EXISTS short_interest (
+    metric_id bigserial PRIMARY KEY,
+    ticker text NOT NULL,
+    cusip text,
+    short_interest numeric,
+    float_shares numeric,
+    short_interest_pct numeric,
+    report_date date NOT NULL,
+    source text NOT NULL DEFAULT 'finra',
+    ingested_at timestamptz DEFAULT now(),
+    UNIQUE (ticker, report_date, source)
+);
+CREATE INDEX IF NOT EXISTS idx_short_interest_ticker_date ON short_interest (ticker, report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_short_interest_cusip_date ON short_interest (cusip, report_date DESC);
+
 -- Free-source daily closes cached for the backtest harness (#1464). Internal use
 -- only: derived statistics may be surfaced, raw prices may not be redistributed.
 CREATE TABLE IF NOT EXISTS price_cache (
