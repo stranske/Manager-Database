@@ -130,6 +130,9 @@ def test_health_livez_ok():
 @pytest.mark.asyncio
 async def test_health_app_reports_failed_dependencies(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
+    # Real backoff sleeps would consume most of the 0.18s budget, so a slow runner
+    # reports "timeout" instead of the dependency error this test is asserting on.
+    monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
 
     def _raise_minio(_timeout_seconds):
         raise RuntimeError("minio down")
@@ -458,6 +461,10 @@ async def test_circuit_breaker_allows_dependency_after_cooldown(monkeypatch):
 @pytest.mark.asyncio
 async def test_health_app_reports_circuit_breaker_open(tmp_path, monkeypatch):
     _configure_health_env(monkeypatch, tmp_path)
+    # Without this the first check races the 0.18s budget against real backoff
+    # sleeps and records "timeout", which is a different failure reason than the
+    # dependency error the circuit is supposed to report here.
+    monkeypatch.setattr(chat, "_HEALTH_RETRY_BACKOFFS", ())
     monkeypatch.setattr(
         chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=60.0)
     )
