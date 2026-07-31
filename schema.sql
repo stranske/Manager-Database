@@ -190,6 +190,61 @@ CREATE TABLE IF NOT EXISTS insider_transactions (
 CREATE INDEX IF NOT EXISTS idx_insider_issuer_date ON insider_transactions (issuer_cik, txn_date);
 CREATE INDEX IF NOT EXISTS idx_insider_ticker_date ON insider_transactions (ticker, txn_date);
 
+-- Free-source daily closes cached for the backtest harness (#1464). Internal use
+-- only: derived statistics may be surfaced, raw prices may not be redistributed.
+CREATE TABLE IF NOT EXISTS price_cache (
+    ticker text NOT NULL,
+    price_date date NOT NULL,
+    source text NOT NULL DEFAULT 'stooq',
+    close_usd numeric,
+    fetched_at timestamptz DEFAULT now(),
+    PRIMARY KEY (ticker, price_date, source)
+);
+CREATE INDEX IF NOT EXISTS idx_price_cache_ticker_date ON price_cache (ticker, price_date);
+
+CREATE TABLE IF NOT EXISTS backtest_runs (
+    run_id bigserial PRIMARY KEY,
+    strategy text NOT NULL,
+    manager_id bigint,
+    start_date date NOT NULL,
+    end_date date NOT NULL,
+    entry_lag_days integer NOT NULL DEFAULT 0,
+    holding_period_days integer NOT NULL DEFAULT 91,
+    benchmark_ticker text,
+    price_source text,
+    periods integer NOT NULL DEFAULT 0,
+    positions integer NOT NULL DEFAULT 0,
+    positions_skipped integer NOT NULL DEFAULT 0,
+    total_return real,
+    annualized_return real,
+    sharpe real,
+    hit_rate real,
+    benchmark_total_return real,
+    excess_return real,
+    params_json text,
+    created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_strategy ON backtest_runs (strategy, created_at);
+
+CREATE TABLE IF NOT EXISTS backtest_results (
+    result_id bigserial PRIMARY KEY,
+    run_id bigint NOT NULL REFERENCES backtest_runs(run_id) ON DELETE CASCADE,
+    decision_date date NOT NULL,
+    entry_date date NOT NULL,
+    exit_date date NOT NULL,
+    ticker text,
+    cusip text,
+    entry_price real,
+    exit_price real,
+    position_return real,
+    benchmark_return real,
+    excess_return real,
+    weight real,
+    status text NOT NULL DEFAULT 'filled',
+    skip_reason text
+);
+CREATE INDEX IF NOT EXISTS idx_backtest_results_run ON backtest_results (run_id);
+
 CREATE TABLE IF NOT EXISTS identifier_resolution_cache (
     cusip text PRIMARY KEY,
     ticker text,
