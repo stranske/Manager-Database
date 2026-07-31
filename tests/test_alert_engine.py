@@ -131,7 +131,7 @@ def test_alert_engine_supports_news_and_crowded_trade_conditions(tmp_path):
             conn,
             name="Crowding Rule",
             event_type="crowded_trade_change",
-            condition_json='{"manager_count_gte":8}',
+            condition_json='{"similar_manager_count_gte":3}',
         )
         engine = AlertEngine(conn)
 
@@ -147,13 +147,26 @@ def test_alert_engine_supports_news_and_crowded_trade_conditions(tmp_path):
             AlertEvent(
                 event_type="crowded_trade_change",
                 manager_id=1,
-                payload={"manager_count": 9},
+                payload={"manager_count": 9, "similar_manager_count": 3},
             )
         )
-
         assert [alert.rule.name for alert in recent_news] == ["News Surge"]
         assert recent_news[0].channels == ["email", "streamlit"]
         assert [alert.rule.name for alert in crowded] == ["Crowding Rule"]
+        _insert_rule(
+            conn,
+            name="Fractional Crowding Rule",
+            event_type="crowded_trade_change",
+            condition_json='{"similar_manager_count_gte":3.9}',
+        )
+        fractional_crowding = engine.evaluate(
+            AlertEvent(
+                event_type="crowded_trade_change",
+                manager_id=1,
+                payload={"manager_count": 9, "similar_manager_count": 3},
+            )
+        )
+        assert [alert.rule.name for alert in fractional_crowding] == ["Crowding Rule"]
     finally:
         conn.close()
 

@@ -206,6 +206,7 @@ CREATE TABLE IF NOT EXISTS manager_similarity (
     manager_id_a bigint NOT NULL REFERENCES managers(manager_id),
     manager_id_b bigint NOT NULL REFERENCES managers(manager_id),
     jaccard real NOT NULL,
+    cosine real,
     overlap_count integer NOT NULL,
     union_count integer NOT NULL,
     computed_at timestamptz NOT NULL DEFAULT now(),

@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import logging
+import math
 import os
 import re
 import sqlite3
@@ -1352,8 +1353,9 @@ async def get_manager(
 async def get_similar_managers(
     id: int = Path(..., ge=1, description="Manager identifier"),
     limit: int = Query(10, ge=1, le=100),
+    basis: str = Query("jaccard", pattern="^(jaccard|cosine)$"),
 ):
-    """Return the strongest deterministic holding-overlap peers for a manager."""
+    """Return the strongest holding-overlap or embedding-cosine peers for a manager."""
     conn = None
     try:
         conn = connect_db()
@@ -1369,23 +1371,43 @@ async def get_similar_managers(
             raise HTTPException(status_code=404, detail="Manager not found")
         ensure_manager_similarity_table(conn)
         ph = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+        score_column = "cosine" if basis == "cosine" else "jaccard"
         rows = conn.execute(
             "SELECT CASE WHEN manager_id_a = "
             + ph
-            + " THEN manager_id_b ELSE manager_id_a END, jaccard, overlap_count, union_count "
-            "FROM manager_similarity WHERE manager_id_a = " + ph + " OR manager_id_b = " + ph + " "
-            "ORDER BY jaccard DESC, overlap_count DESC LIMIT " + ph,
-            (id, id, id, limit),
+            + " THEN manager_id_b ELSE manager_id_a END, "
+            + score_column
+            + ", jaccard, cosine, overlap_count, union_count "
+            "FROM manager_similarity WHERE (manager_id_a = "
+            + ph
+            + " OR manager_id_b = "
+            + ph
+            + ") AND "
+            + score_column
+            + " IS NOT NULL ORDER BY "
+            + score_column
+            + " DESC, overlap_count DESC",
+            (id, id, id),
         ).fetchall()
+        finite_rows = [
+            row
+            for row in rows
+            if all(
+                value is None or math.isfinite(float(value)) for value in (row[1], row[2], row[3])
+            )
+        ]
         return {
             "items": [
                 {
                     "manager_id": int(row[0]),
-                    "jaccard": float(row[1]),
-                    "overlap_count": int(row[2]),
-                    "union_count": int(row[3]),
+                    "basis": basis,
+                    "score": float(row[1]),
+                    "jaccard": float(row[2]),
+                    "cosine": float(row[3]) if row[3] is not None else None,
+                    "overlap_count": int(row[4]),
+                    "union_count": int(row[5]),
                 }
-                for row in rows
+                for row in finite_rows[:limit]
             ]
         }
     except DB_ERROR_TYPES as exc:

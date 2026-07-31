@@ -46,6 +46,21 @@ def _seed_manager_and_filing(
     )
 
 
+def test_similarity_crowding_counts_only_connected_managers():
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE manager_similarity (manager_id_a INTEGER, manager_id_b INTEGER, jaccard REAL)"
+    )
+    conn.executemany(
+        "INSERT INTO manager_similarity VALUES (?, ?, ?)",
+        [(1, 2, 0.8), (1, 3, 0.7), (2, 3, 0.9), (3, 4, 0.2), (1, 4, 0.5)],
+    )
+
+    assert conviction_flow._similar_manager_ids(conn, [1, 2, 3, 4], 0.5) == [1, 2, 3, 4]
+    assert conviction_flow._similar_manager_ids(conn, [1, 2, 3, 4], 0.8) == [1, 2, 3]
+    assert conviction_flow._similar_manager_ids(conn, [1, 2, 3, 4], 0.95) == []
+
+
 def test_compute_conviction_scores_known_portfolio(tmp_path):
     db_path = tmp_path / "conviction.db"
     conn = sqlite3.connect(db_path)

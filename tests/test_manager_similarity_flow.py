@@ -4,10 +4,11 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx
+import pytest
 
 from api import managers as managers_module
 from api.chat import app
-from etl.manager_similarity_flow import compute_manager_similarity
+from etl.manager_similarity_flow import compute_manager_similarity, cosine_similarity
 
 
 def test_similarity_uses_union_denominator_and_latest_filings():
@@ -38,6 +39,12 @@ def test_similarity_uses_union_denominator_and_latest_filings():
     }
 
 
+def test_cosine_similarity_matches_hand_computed_vectors():
+    assert cosine_similarity([1.0, 1.0], [1.0, 0.0]) == pytest.approx(1 / 2**0.5)
+    assert cosine_similarity([0.0, 0.0], [1.0, 0.0]) is None
+    assert cosine_similarity([float("nan")], [1.0]) is None
+
+
 def test_similarity_rebuild_rolls_back_on_insert_failure():
     conn = sqlite3.connect(":memory:")
     conn.executescript("""PRAGMA foreign_keys = ON;
@@ -60,14 +67,16 @@ def test_similarity_rebuild_rolls_back_on_insert_failure():
     assert conn.execute("SELECT * FROM manager_similarity").fetchall() == before
 
 
-async def _get_similar_manager(manager_id: int, limit: int):
+async def _get_similar_manager(manager_id: int, limit: int, basis: str = "jaccard"):
     await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
-            return await client.get(f"/managers/{manager_id}/similar", params={"limit": limit})
+            return await client.get(
+                f"/managers/{manager_id}/similar", params={"limit": limit, "basis": basis}
+            )
     finally:
         await cast(Any, app.router).shutdown()
 
@@ -81,11 +90,11 @@ def test_similar_manager_endpoint_orders_canonical_pairs_and_returns_404(tmp_pat
         "INSERT INTO managers (id, name) VALUES (?, ?)", [(1, "One"), (2, "Two"), (3, "Three")]
     )
     conn.execute(
-        "CREATE TABLE manager_similarity (manager_id_a INTEGER, manager_id_b INTEGER, jaccard REAL, overlap_count INTEGER, union_count INTEGER)"
+        "CREATE TABLE manager_similarity (manager_id_a INTEGER, manager_id_b INTEGER, jaccard REAL, cosine REAL, overlap_count INTEGER, union_count INTEGER)"
     )
     conn.executemany(
-        "INSERT INTO manager_similarity VALUES (?, ?, ?, ?, ?)",
-        [(1, 2, 0.5, 2, 4), (1, 3, 0.75, 3, 4)],
+        "INSERT INTO manager_similarity VALUES (?, ?, ?, ?, ?, ?)",
+        [(1, 2, 0.5, 0.8, 2, 4), (1, 3, 0.75, 0.6, 3, 4)],
     )
     conn.commit()
     conn.close()
@@ -93,11 +102,35 @@ def test_similar_manager_endpoint_orders_canonical_pairs_and_returns_404(tmp_pat
     response = asyncio.run(_get_similar_manager(1, 1))
     assert response.status_code == 200
     assert response.json() == {
-        "items": [{"manager_id": 3, "jaccard": 0.75, "overlap_count": 3, "union_count": 4}]
+        "items": [
+            {
+                "manager_id": 3,
+                "basis": "jaccard",
+                "score": 0.75,
+                "jaccard": 0.75,
+                "cosine": 0.6,
+                "overlap_count": 3,
+                "union_count": 4,
+            }
+        ]
     }
     reverse_response = asyncio.run(_get_similar_manager(2, 10))
     assert reverse_response.status_code == 200
     assert reverse_response.json() == {
-        "items": [{"manager_id": 1, "jaccard": 0.5, "overlap_count": 2, "union_count": 4}]
+        "items": [
+            {
+                "manager_id": 1,
+                "basis": "jaccard",
+                "score": 0.5,
+                "jaccard": 0.5,
+                "cosine": 0.8,
+                "overlap_count": 2,
+                "union_count": 4,
+            }
+        ]
     }
+    cosine_response = asyncio.run(_get_similar_manager(1, 10, basis="cosine"))
+    assert cosine_response.json()["items"][0]["manager_id"] == 2
+    assert cosine_response.json()["items"][0]["score"] == 0.8
+    assert asyncio.run(_get_similar_manager(1, 10, basis="invalid")).status_code == 400
     assert asyncio.run(_get_similar_manager(999, 10)).status_code == 404

@@ -83,6 +83,12 @@ class AlertEngine:
                 if count is None or count < int(expected):
                     return False
                 continue
+            if key == "similar_manager_count_gte":
+                count = _as_int(payload.get("similar_manager_count"))
+                threshold = _as_float(expected)
+                if count is None or threshold is None or count < threshold:
+                    return False
+                continue
             if key == "any_new_filing":
                 if bool(expected) and event.event_type != "new_filing":
                     return False
