@@ -327,7 +327,6 @@ async def fetch_activism_filings(manager_id: int, since: str) -> list[dict[str, 
         )
 
     conn.commit()
-    materialize_activism_campaigns(conn)
     conn.close()
     return inserted
 
@@ -343,6 +342,16 @@ async def fetch_all_managers(since: str) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for manager_id in manager_ids:
         rows.extend(await fetch_activism_filings.fn(manager_id, since))
+
+    # Materialization rebuilds every campaign it touches, so it runs once for the whole
+    # ingest rather than once per manager, and it must never discard committed filings.
+    conn = connect_db(DB_PATH)
+    try:
+        materialize_activism_campaigns(conn)
+    except Exception:
+        logger.exception("Activism campaign materialization failed", extra={"since": since})
+    finally:
+        conn.close()
     return rows
 
 

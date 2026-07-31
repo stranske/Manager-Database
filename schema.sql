@@ -139,7 +139,9 @@ CREATE TABLE IF NOT EXISTS activism_campaigns (
     source_forms text NOT NULL DEFAULT '[]',
     data_quality_flags text NOT NULL DEFAULT '[]',
     computed_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (manager_id, target_identifier)
+    UNIQUE (manager_id, target_identifier),
+    CONSTRAINT ck_activism_campaigns_status
+        CHECK (status IN ('active', 'monitoring', 'closed', 'unknown'))
 );
 CREATE INDEX IF NOT EXISTS idx_activism_campaigns_manager ON activism_campaigns(manager_id);
 CREATE INDEX IF NOT EXISTS idx_activism_campaigns_status ON activism_campaigns(status);
@@ -159,6 +161,8 @@ CREATE TABLE IF NOT EXISTS activism_campaign_timeline (
 );
 CREATE INDEX IF NOT EXISTS idx_activism_campaign_timeline_campaign
     ON activism_campaign_timeline(campaign_id, event_date);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_activism_campaign_timeline_filing_only
+    ON activism_campaign_timeline (campaign_id, filing_id) WHERE event_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS holdings (
     holding_id bigserial PRIMARY KEY,

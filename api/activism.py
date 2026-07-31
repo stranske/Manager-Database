@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime
 from typing import Any
 
@@ -92,9 +93,11 @@ def _to_float(value: Any) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    # SQLite REAL columns can hold Infinity/NaN, which Starlette cannot serialize.
+    return number if math.isfinite(number) else None
 
 
 def _to_int(value: Any) -> int | None:

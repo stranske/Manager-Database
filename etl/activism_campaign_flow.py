@@ -43,7 +43,8 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
                 source_forms TEXT NOT NULL DEFAULT '[]',
                 data_quality_flags TEXT NOT NULL DEFAULT '[]',
                 computed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(manager_id, target_identifier)
+                UNIQUE(manager_id, target_identifier),
+                CHECK (status IN ('active', 'monitoring', 'closed', 'unknown'))
             )""")
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_campaign_timeline (
                 timeline_id INTEGER PRIMARY KEY,
@@ -72,10 +73,11 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
                 filing_count INTEGER NOT NULL DEFAULT 0,
                 event_count INTEGER NOT NULL DEFAULT 0,
                 latest_event_type TEXT,
-                source_forms JSONB NOT NULL DEFAULT '[]'::jsonb,
-                data_quality_flags JSONB NOT NULL DEFAULT '[]'::jsonb,
+                source_forms TEXT NOT NULL DEFAULT '[]',
+                data_quality_flags TEXT NOT NULL DEFAULT '[]',
                 computed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(manager_id, target_identifier)
+                UNIQUE(manager_id, target_identifier),
+                CHECK (status IN ('active', 'monitoring', 'closed', 'unknown'))
             )""")
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_campaign_timeline (
                 timeline_id BIGSERIAL PRIMARY KEY,
@@ -88,7 +90,7 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
                 ownership_pct NUMERIC(8,4),
                 summary TEXT NOT NULL,
                 source_url TEXT,
-                UNIQUE NULLS NOT DISTINCT(campaign_id, filing_id, event_id)
+                UNIQUE(campaign_id, filing_id, event_id)
             )""")
     else:
         raise TypeError(f"Unsupported database connection type: {type(conn)!r}")
@@ -101,6 +103,12 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_activism_campaign_timeline_campaign "
         "ON activism_campaign_timeline(campaign_id, event_date)"
+    )
+    # Both SQLite and PostgreSQL treat NULLs as distinct in a UNIQUE constraint, so the
+    # composite key above cannot stop duplicate filing-only rows. A partial index can.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_activism_campaign_timeline_filing_only "
+        "ON activism_campaign_timeline(campaign_id, filing_id) WHERE event_id IS NULL"
     )
 
 
@@ -166,45 +174,29 @@ def _upsert_campaign(
         _json(forms),
         _json(flags),
     )
-    if is_sqlite(conn):
-        conn.execute(
-            "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, first_filed, "
-            "last_filed, status, peak_ownership_pct, latest_ownership_pct, filing_count, event_count, "
-            "latest_event_type, source_forms, data_quality_flags, computed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) "
-            "ON CONFLICT(manager_id, target_identifier) DO UPDATE SET "
-            "target_company=excluded.target_company, first_filed=excluded.first_filed, "
-            "last_filed=excluded.last_filed, status=excluded.status, peak_ownership_pct=excluded.peak_ownership_pct, "
-            "latest_ownership_pct=excluded.latest_ownership_pct, filing_count=excluded.filing_count, "
-            "event_count=excluded.event_count, latest_event_type=excluded.latest_event_type, "
-            "source_forms=excluded.source_forms, data_quality_flags=excluded.data_quality_flags, "
-            "computed_at=CURRENT_TIMESTAMP",
-            values,
+    conn.execute(
+        "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, first_filed, "
+        "last_filed, status, peak_ownership_pct, latest_ownership_pct, filing_count, event_count, "
+        "latest_event_type, source_forms, data_quality_flags, computed_at) "
+        f"VALUES ({', '.join([ph] * 13)}, CURRENT_TIMESTAMP) "
+        "ON CONFLICT(manager_id, target_identifier) DO UPDATE SET "
+        "target_company=excluded.target_company, first_filed=excluded.first_filed, "
+        "last_filed=excluded.last_filed, status=excluded.status, peak_ownership_pct=excluded.peak_ownership_pct, "
+        "latest_ownership_pct=excluded.latest_ownership_pct, filing_count=excluded.filing_count, "
+        "event_count=excluded.event_count, latest_event_type=excluded.latest_event_type, "
+        "source_forms=excluded.source_forms, data_quality_flags=excluded.data_quality_flags, "
+        "computed_at=CURRENT_TIMESTAMP",
+        values,
+    )
+    row = conn.execute(
+        f"SELECT campaign_id FROM activism_campaigns WHERE manager_id = {ph} AND target_identifier = {ph}",
+        (manager_id, target_identifier),
+    ).fetchone()
+    if row is None:
+        raise RuntimeError(
+            "activism campaign upsert did not yield a campaign_id for "
+            f"manager_id={manager_id} target_identifier={target_identifier!r}"
         )
-        row = conn.execute(
-            "SELECT campaign_id FROM activism_campaigns WHERE manager_id = ? AND target_identifier = ?",
-            (manager_id, target_identifier),
-        ).fetchone()
-    else:
-        conn.execute(
-            "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, first_filed, "
-            "last_filed, status, peak_ownership_pct, latest_ownership_pct, filing_count, event_count, "
-            "latest_event_type, source_forms, data_quality_flags, computed_at) "
-            f"VALUES ({', '.join([ph] * 13)}, CURRENT_TIMESTAMP) "
-            "ON CONFLICT(manager_id, target_identifier) DO UPDATE SET "
-            "target_company=excluded.target_company, first_filed=excluded.first_filed, "
-            "last_filed=excluded.last_filed, status=excluded.status, peak_ownership_pct=excluded.peak_ownership_pct, "
-            "latest_ownership_pct=excluded.latest_ownership_pct, filing_count=excluded.filing_count, "
-            "event_count=excluded.event_count, latest_event_type=excluded.latest_event_type, "
-            "source_forms=excluded.source_forms, data_quality_flags=excluded.data_quality_flags, "
-            "computed_at=CURRENT_TIMESTAMP",
-            values,
-        )
-        row = conn.execute(
-            f"SELECT campaign_id FROM activism_campaigns WHERE manager_id = {ph} AND target_identifier = {ph}",
-            (manager_id, target_identifier),
-        ).fetchone()
-    assert row is not None
     return int(row[0])
 
 
@@ -214,12 +206,10 @@ def materialize_activism_campaigns(conn: Any, since: date | None = None) -> Camp
         return CampaignRunSummary(skip_reasons={"missing_activism_filings_table": 1})
     ensure_activism_campaign_tables(conn)
     ph = get_placeholder(conn)
-    where = "WHERE af.filed_date >= " + ph if since else ""
     rows = conn.execute(
         "SELECT af.filing_id, af.manager_id, af.filing_type, af.subject_company, af.subject_cusip, "
         "af.ownership_pct, af.filed_date, af.url FROM activism_filings af "
-        f"{where} ORDER BY af.manager_id, af.subject_cusip, af.subject_company, af.filed_date, af.filing_id",
-        (since,) if since else (),
+        "ORDER BY af.manager_id, af.filed_date, af.filing_id"
     ).fetchall()
     events_by_filing: dict[int, list[tuple[Any, ...]]] = defaultdict(list)
     if table_exists(conn, "activism_events"):
@@ -237,11 +227,31 @@ def materialize_activism_campaigns(conn: Any, since: date | None = None) -> Camp
             continue
         grouped[(int(row[1]), identifier)].append(row)
 
+    # `since` selects which campaigns to refresh; each selected campaign is still
+    # recomputed from its full filing history so incremental runs cannot shrink
+    # aggregates such as filing_count or first_filed.
+    if since is not None:
+        cutoff = str(since)
+        grouped = defaultdict(
+            list,
+            {
+                key: filings
+                for key, filings in grouped.items()
+                if any(str(row[6]) >= cutoff for row in filings)
+            },
+        )
+
     timeline_count = 0
     for (manager_id, identifier), filings in grouped.items():
+        # Group members are collected across differing raw cusip/company spellings,
+        # so order inside the group by filing date rather than trusting the SQL sort.
+        filings.sort(key=lambda row: (str(row[6]), int(row[0])))
         first, latest = filings[0], filings[-1]
         ownerships = [float(row[5]) for row in filings if row[5] is not None]
-        events = [event for row in filings for event in events_by_filing[int(row[0])]]
+        events = sorted(
+            (event for row in filings for event in events_by_filing[int(row[0])]),
+            key=lambda event: (str(event[3]), int(event[0])),
+        )
         campaign_id = _upsert_campaign(
             conn,
             manager_id=manager_id,
@@ -258,69 +268,44 @@ def materialize_activism_campaigns(conn: Any, since: date | None = None) -> Camp
             forms=sorted({str(row[2]) for row in filings}),
             flags=_target_identifier(latest[4], latest[3])[1],
         )
+        insert_sql = (
+            "INSERT INTO activism_campaign_timeline(campaign_id, filing_id, event_id, event_date, "
+            "event_type, form_type, ownership_pct, summary, source_url) "
+            f"VALUES ({', '.join([ph] * 9)})"
+        )
         for filing in filings:
             filing_id = int(filing[0])
             event_rows = events_by_filing.get(filing_id) or [
                 (None, filing_id, "initial_filing", filing[6])
             ]
-            for event_id, _event_filing_id, event_type, detected_at in event_rows:
-                event_date = (
-                    str(detected_at).split("T", 1)[0] if event_id is not None else str(filing[6])
+            # Clear the whole filing rather than the rows about to be rewritten: a filing
+            # first materialized without events leaves an event_id IS NULL row that no
+            # later per-event delete would match.
+            conn.execute(
+                f"DELETE FROM activism_campaign_timeline WHERE campaign_id = {ph} AND filing_id = {ph}",
+                (campaign_id, filing_id),
+            )
+            for event_id, _event_filing_id, event_type, _detected_at in event_rows:
+                conn.execute(
+                    insert_sql,
+                    (
+                        campaign_id,
+                        filing_id,
+                        event_id,
+                        # detected_at records ingestion time, so the filing date is the
+                        # only stable ordering key for a backfilled timeline.
+                        str(filing[6]),
+                        event_type,
+                        filing[2],
+                        filing[5],
+                        _timeline_summary(
+                            str(filing[2]),
+                            str(filing[3]),
+                            float(filing[5]) if filing[5] is not None else None,
+                        ),
+                        filing[7],
+                    ),
                 )
-                if is_sqlite(conn):
-                    # SQLite UNIQUE constraints consider NULL values distinct, so a
-                    # filing-only timeline row (event_id NULL) needs an explicit
-                    # replacement to keep reruns append-safe.
-                    conn.execute(
-                        "DELETE FROM activism_campaign_timeline WHERE campaign_id = ? AND filing_id = ? "
-                        "AND event_id IS ?",
-                        (campaign_id, filing_id, event_id),
-                    )
-                    conn.execute(
-                        "INSERT INTO activism_campaign_timeline(campaign_id, filing_id, event_id, event_date, "
-                        "event_type, form_type, ownership_pct, summary, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                        "",
-                        (
-                            campaign_id,
-                            filing_id,
-                            event_id,
-                            event_date,
-                            event_type,
-                            filing[2],
-                            filing[5],
-                            _timeline_summary(
-                                str(filing[2]),
-                                str(filing[3]),
-                                float(filing[5]) if filing[5] is not None else None,
-                            ),
-                            filing[7],
-                        ),
-                    )
-                else:
-                    conn.execute(
-                        "DELETE FROM activism_campaign_timeline WHERE campaign_id = %s AND filing_id = %s "
-                        "AND event_id IS NOT DISTINCT FROM %s",
-                        (campaign_id, filing_id, event_id),
-                    )
-                    conn.execute(
-                        "INSERT INTO activism_campaign_timeline(campaign_id, filing_id, event_id, event_date, "
-                        "event_type, form_type, ownership_pct, summary, source_url) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (
-                            campaign_id,
-                            filing_id,
-                            event_id,
-                            event_date,
-                            event_type,
-                            filing[2],
-                            filing[5],
-                            _timeline_summary(
-                                str(filing[2]),
-                                str(filing[3]),
-                                float(filing[5]) if filing[5] is not None else None,
-                            ),
-                            filing[7],
-                        ),
-                    )
                 timeline_count += 1
     conn.commit()
     return CampaignRunSummary(

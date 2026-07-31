@@ -8,6 +8,7 @@ import httpx
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from api.activism import query_activism_campaigns
 from api.chat import app
 from etl.activism_campaign_flow import materialize_activism_campaigns
 from tests.route_helpers import route_paths
@@ -309,4 +310,60 @@ def test_campaign_endpoints_return_grouped_timeline(tmp_path, monkeypatch):
 
     timeline = asyncio.run(_request(f"/api/activism/campaigns/{campaign['campaign_id']}/timeline"))
     assert timeline.status_code == 200
-    assert [entry["form_type"] for entry in timeline.json()] == ["SC 13D", "SC 13D/A", "SC 13D/A"]
+    entries = timeline.json()
+    assert [entry["form_type"] for entry in entries] == ["SC 13D", "SC 13D/A", "SC 13D/A"]
+    # Ordering is deterministic by filing date, so the two amendment events cannot swap.
+    assert [entry["event_type"] for entry in entries] == [
+        "initial_stake",
+        "threshold_crossing",
+        "stake_increase",
+    ]
+    assert [entry["event_date"] for entry in entries] == [
+        "2024-05-01",
+        "2024-05-03",
+        "2024-05-03",
+    ]
+
+
+def test_campaign_list_applies_target_date_and_limit_filters(tmp_path, monkeypatch):
+    db_path = tmp_path / "activism.db"
+    _seed_db(db_path)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    by_target = asyncio.run(
+        _request("/api/activism/campaigns", params={"target_identifier": "88160r101"})
+    )
+    assert by_target.status_code == 200
+    assert [row["target_company"] for row in by_target.json()] == ["Tesla, Inc."]
+
+    filed_from = asyncio.run(
+        _request("/api/activism/campaigns", params={"filed_from": "2024-05-03"})
+    )
+    assert [row["target_identifier"] for row in filed_from.json()] == ["037833100"]
+
+    filed_to = asyncio.run(_request("/api/activism/campaigns", params={"filed_to": "2024-05-01"}))
+    assert [row["target_identifier"] for row in filed_to.json()] == ["037833100"]
+
+    limited = asyncio.run(_request("/api/activism/campaigns", params={"limit": 1}))
+    assert len(limited.json()) == 1
+
+
+def test_campaign_query_drops_non_finite_ownership(tmp_path):
+    """SQLite REAL keeps Infinity; every consumer of the query layer must see None."""
+    db_path = tmp_path / "activism.db"
+    _seed_db(db_path)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE activism_campaigns SET peak_ownership_pct = 1e999, "
+            "latest_ownership_pct = 1e999 WHERE target_identifier = '037833100'"
+        )
+        conn.commit()
+
+        campaigns = query_activism_campaigns(conn, target_identifier="037833100")
+    finally:
+        conn.close()
+
+    assert len(campaigns) == 1
+    assert campaigns[0].peak_ownership_pct is None
+    assert campaigns[0].latest_ownership_pct is None
