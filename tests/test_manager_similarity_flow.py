@@ -67,18 +67,38 @@ def test_similarity_rebuild_rolls_back_on_insert_failure():
     assert conn.execute("SELECT * FROM manager_similarity").fetchall() == before
 
 
-async def _get_similar_manager(manager_id: int, limit: int, basis: str = "jaccard"):
+async def _get_similar_manager(manager_id: int, limit: int, basis: str | None = "jaccard"):
+    params: dict[str, Any] = {"limit": limit}
+    if basis is not None:
+        params["basis"] = basis
     await cast(Any, app.router).startup()
     try:
         transport = httpx.ASGITransport(app=cast(Any, app))
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test", timeout=5.0
         ) as client:
-            return await client.get(
-                f"/managers/{manager_id}/similar", params={"limit": limit, "basis": basis}
-            )
+            return await client.get(f"/managers/{manager_id}/similar", params=params)
     finally:
         await cast(Any, app.router).shutdown()
+
+
+def _seed_similarity_pairs(tmp_path, monkeypatch, name: str = "similarity.db") -> None:
+    db_path = Path(tmp_path) / name
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    conn = sqlite3.connect(db_path)
+    managers_module._ensure_manager_table(conn)
+    conn.executemany(
+        "INSERT INTO managers (id, name) VALUES (?, ?)", [(1, "One"), (2, "Two"), (3, "Three")]
+    )
+    conn.execute(
+        "CREATE TABLE manager_similarity (manager_id_a INTEGER, manager_id_b INTEGER, jaccard REAL, cosine REAL, overlap_count INTEGER, union_count INTEGER)"
+    )
+    conn.executemany(
+        "INSERT INTO manager_similarity VALUES (?, ?, ?, ?, ?, ?)",
+        [(1, 2, 0.5, 0.8, 2, 4), (1, 3, 0.75, 0.6, 3, 4)],
+    )
+    conn.commit()
+    conn.close()
 
 
 def test_similar_manager_endpoint_orders_canonical_pairs_and_returns_404(tmp_path, monkeypatch):
@@ -134,3 +154,27 @@ def test_similar_manager_endpoint_orders_canonical_pairs_and_returns_404(tmp_pat
     assert cosine_response.json()["items"][0]["score"] == 0.8
     assert asyncio.run(_get_similar_manager(1, 10, basis="invalid")).status_code == 400
     assert asyncio.run(_get_similar_manager(999, 10)).status_code == 404
+
+
+def test_similar_manager_default_basis_is_config_selectable(tmp_path, monkeypatch):
+    _seed_similarity_pairs(tmp_path, monkeypatch, name="similarity-basis.db")
+
+    monkeypatch.delenv("MANAGER_SIMILARITY_DEFAULT_BASIS", raising=False)
+    default_item = asyncio.run(_get_similar_manager(1, 10, basis=None)).json()["items"][0]
+    assert default_item["basis"] == "jaccard"
+    assert default_item["manager_id"] == 3
+
+    monkeypatch.setenv("MANAGER_SIMILARITY_DEFAULT_BASIS", "cosine")
+    configured_item = asyncio.run(_get_similar_manager(1, 10, basis=None)).json()["items"][0]
+    assert configured_item["basis"] == "cosine"
+    assert configured_item["manager_id"] == 2
+    assert configured_item["score"] == 0.8
+
+    explicit_item = asyncio.run(_get_similar_manager(1, 10, basis="jaccard")).json()["items"][0]
+    assert explicit_item["basis"] == "jaccard"
+    assert explicit_item["manager_id"] == 3
+
+    monkeypatch.setenv("MANAGER_SIMILARITY_DEFAULT_BASIS", "euclidean")
+    fallback_item = asyncio.run(_get_similar_manager(1, 10, basis=None)).json()["items"][0]
+    assert fallback_item["basis"] == "jaccard"
+    assert fallback_item["manager_id"] == 3
