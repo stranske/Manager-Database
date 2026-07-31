@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterable, Mapping
 from datetime import date, timedelta
 from typing import Any
 from urllib.error import URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from adapters.base import get_placeholder
@@ -94,7 +95,7 @@ def fetch_stooq_prices(ticker: str, start: date, end: date) -> Mapping[date, flo
     if "." not in symbol:
         symbol = f"{symbol}.us"
     url = _STOOQ_URL.format(
-        symbol=symbol,
+        symbol=quote(symbol, safe=""),
         start=start.strftime("%Y%m%d"),
         end=end.strftime("%Y%m%d"),
     )
@@ -223,11 +224,16 @@ class PriceAdapter:
 
         start = on - timedelta(days=self.max_staleness_days)
         window = self._cached_window(symbol, start, on)
-        if not window and (symbol, on) not in self._missing:
+        # A cached as-of close is useful for a market holiday, but it must not
+        # suppress a provider refresh when a newer requested trading day is
+        # absent. Otherwise a prior lookup can permanently pin later requests
+        # to an older close for the lifetime of this adapter.
+        needs_refresh = not window or max(window) < on
+        if needs_refresh and (symbol, on) not in self._missing:
             fetched = self._fetch(symbol, start, on)
             if fetched:
                 self._store(symbol, fetched)
-                window = {d: p for d, p in fetched.items() if start <= d <= on}
+                window.update({d: p for d, p in fetched.items() if start <= d <= on})
 
         if not window:
             self._missing.add((symbol, on))
@@ -272,6 +278,8 @@ class PriceAdapter:
             prices = self._fetch(symbol, start, end)
             self._store(symbol, prices)
             stored += len(prices)
+        if self.use_cache and hasattr(self.conn, "commit"):
+            self.conn.commit()
         return stored
 
 

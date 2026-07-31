@@ -203,19 +203,29 @@ def enforce_no_lookahead(
     """
     cutoff = decision_cutoff(decision_date)
     visible: list[dict[str, Any]] = []
+    excluded = 0
     for row in rows:
         known_at = _knowledge_time(row)
-        if known_at is not None and known_at > cutoff:
+        if known_at is None or known_at > cutoff:
+            excluded += 1
             logger.warning(
                 "Dropping look-ahead holding from decision set",
                 extra={
                     "decision_date": decision_date.isoformat(),
-                    "knowledge_time": known_at.isoformat(),
+                    "knowledge_time": known_at.isoformat() if known_at is not None else None,
                     "cusip": row.get("cusip"),
+                    "reason": (
+                        "unknown_knowledge_time" if known_at is None else "future_knowledge_time"
+                    ),
                 },
             )
             continue
         visible.append(row)
+    if excluded:
+        logger.warning(
+            "Excluded holdings without decision-time knowledge",
+            extra={"decision_date": decision_date.isoformat(), "excluded_count": excluded},
+        )
     return visible
 
 
@@ -544,40 +554,49 @@ def persist_backtest(
     placeholders = ", ".join([ph] * len(values))
     insert_sql = f"INSERT INTO backtest_runs({columns}) VALUES ({placeholders})"
 
-    if isinstance(conn, sqlite3.Connection):
-        cursor = conn.execute(insert_sql, values)
-        run_id = int(cursor.lastrowid) if cursor.lastrowid is not None else None
-    else:
-        row = conn.execute(f"{insert_sql} RETURNING run_id", values).fetchone()
-        run_id = int(row[0]) if row else None
+    def insert_rows() -> int | None:
+        if isinstance(conn, sqlite3.Connection):
+            cursor = conn.execute(insert_sql, values)
+            run_id = int(cursor.lastrowid) if cursor.lastrowid is not None else None
+        else:
+            row = conn.execute(f"{insert_sql} RETURNING run_id", values).fetchone()
+            run_id = int(row[0]) if row else None
 
-    if run_id is not None:
-        for position in report.positions:
-            conn.execute(
-                "INSERT INTO backtest_results("
-                "run_id, decision_date, entry_date, exit_date, ticker, cusip, entry_price, "
-                "exit_price, position_return, benchmark_return, excess_return, weight, "
-                "status, skip_reason) "
-                f"VALUES ({', '.join([ph] * 14)})",
-                (
-                    run_id,
-                    position.decision_date.isoformat(),
-                    position.entry_date.isoformat(),
-                    position.exit_date.isoformat(),
-                    position.ticker,
-                    position.cusip,
-                    position.entry_price,
-                    position.exit_price,
-                    position.position_return,
-                    position.benchmark_return,
-                    position.excess_return,
-                    position.weight,
-                    position.status,
-                    position.skip_reason,
-                ),
-            )
-    if hasattr(conn, "commit"):
-        conn.commit()
+        if run_id is not None:
+            for position in report.positions:
+                conn.execute(
+                    "INSERT INTO backtest_results("
+                    "run_id, decision_date, entry_date, exit_date, ticker, cusip, entry_price, "
+                    "exit_price, position_return, benchmark_return, excess_return, weight, "
+                    "status, skip_reason) "
+                    f"VALUES ({', '.join([ph] * 14)})",
+                    (
+                        run_id,
+                        position.decision_date.isoformat(),
+                        position.entry_date.isoformat(),
+                        position.exit_date.isoformat(),
+                        position.ticker,
+                        position.cusip,
+                        position.entry_price,
+                        position.exit_price,
+                        position.position_return,
+                        position.benchmark_return,
+                        position.excess_return,
+                        position.weight,
+                        position.status,
+                        position.skip_reason,
+                    ),
+                )
+        return run_id
+
+    if isinstance(conn, sqlite3.Connection):
+        with conn:
+            run_id = insert_rows()
+    else:
+        # connect_db() returns psycopg connections in autocommit mode. A
+        # transaction context keeps a failed detail insert from orphaning its run.
+        with conn.transaction():
+            run_id = insert_rows()
     return run_id
 
 

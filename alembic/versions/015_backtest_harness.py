@@ -18,6 +18,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    sqlite_autoincrement_id = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
     op.create_table(
         "price_cache",
         sa.Column("ticker", sa.Text(), nullable=False),
@@ -35,7 +36,7 @@ def upgrade() -> None:
 
     op.create_table(
         "backtest_runs",
-        sa.Column("run_id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("run_id", sqlite_autoincrement_id, autoincrement=True),
         sa.Column("strategy", sa.Text(), nullable=False),
         sa.Column("manager_id", sa.BigInteger(), nullable=True),
         sa.Column("start_date", sa.Date(), nullable=False),
@@ -59,6 +60,7 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             server_default=text("CURRENT_TIMESTAMP"),
         ),
+        sa.PrimaryKeyConstraint("run_id", name=op.f("pk_backtest_runs")),
     )
     op.create_index(
         "idx_backtest_runs_strategy",
@@ -68,7 +70,7 @@ def upgrade() -> None:
 
     op.create_table(
         "backtest_results",
-        sa.Column("result_id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("result_id", sqlite_autoincrement_id, autoincrement=True),
         sa.Column("run_id", sa.BigInteger(), nullable=False),
         sa.Column("decision_date", sa.Date(), nullable=False),
         sa.Column("entry_date", sa.Date(), nullable=False),
@@ -83,10 +85,11 @@ def upgrade() -> None:
         sa.Column("weight", sa.Float(), nullable=True),
         sa.Column("status", sa.Text(), nullable=False, server_default=text("'filled'")),
         sa.Column("skip_reason", sa.Text(), nullable=True),
+        sa.PrimaryKeyConstraint("result_id", name=op.f("pk_backtest_results")),
         sa.ForeignKeyConstraint(
             ["run_id"],
             ["backtest_runs.run_id"],
-            name="fk_backtest_results_run",
+            name=op.f("fk_backtest_results_run"),
             ondelete="CASCADE",
         ),
     )

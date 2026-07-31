@@ -85,6 +85,27 @@ def test_schema_foreign_keys(monkeypatch, tmp_path):
             )
 
 
+def test_backtest_migration_uses_sqlite_autoincrement_primary_keys(monkeypatch, tmp_path):
+    """Migration 015 must generate IDs without callers supplying SQLite BIGINT keys."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema.db"
+    command.upgrade(_alembic_config(f"sqlite:///{db_path}"), "head")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        run = conn.execute(
+            "INSERT INTO backtest_runs(strategy, start_date, end_date) VALUES (?, ?, ?)",
+            ("test", "2024-01-01", "2024-03-31"),
+        )
+        assert run.lastrowid is not None
+        result = conn.execute(
+            "INSERT INTO backtest_results(run_id, decision_date, entry_date, exit_date) "
+            "VALUES (?, ?, ?, ?)",
+            (run.lastrowid, "2024-01-01", "2024-01-02", "2024-04-02"),
+        )
+        assert result.lastrowid is not None
+
+
 def test_filings_raw_key_unique_index(monkeypatch, tmp_path):
     """Verify migration 002 creates a unique index on filings.raw_key."""
     monkeypatch.delenv("DB_URL", raising=False)

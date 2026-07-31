@@ -4,14 +4,23 @@ from __future__ import annotations
 
 import math
 import sqlite3
+import sys
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from adapters.prices import PriceAdapter
+from adapters.prices import PriceAdapter, fetch_yfinance_prices
 from etl import backtest_flow
-from etl.backtest_flow import enforce_no_lookahead, run_backtest, select_new_buys
+from etl.backtest_flow import (
+    BacktestReport,
+    Position,
+    enforce_no_lookahead,
+    persist_backtest,
+    run_backtest,
+    select_new_buys,
+)
 
 # Fixture price series. Keys are (ticker) -> {date: close}.
 PRICES: dict[str, dict[date, float]] = {
@@ -195,9 +204,10 @@ def test_enforce_no_lookahead_drops_future_knowledge_rows():
         {"cusip": "AAA000000", "knowledge_time": "2024-05-01T12:00:00Z"},
         {"cusip": "ZZZ000000", "knowledge_time": "2024-07-15T12:00:00Z"},
         {"cusip": "NNN000000", "knowledge_time": None},
+        {"cusip": "BAD000000", "knowledge_time": "not-a-timestamp"},
     ]
     visible = enforce_no_lookahead(rows, date(2024, 5, 1))
-    assert [row["cusip"] for row in visible] == ["AAA000000", "NNN000000"]
+    assert [row["cusip"] for row in visible] == ["AAA000000"]
 
 
 def test_missing_price_skips_position_without_crashing(tmp_path, caplog):
@@ -279,6 +289,41 @@ def test_backtest_persists_run_and_position_rows(tmp_path):
     assert runs[0]["sharpe"] == pytest.approx(4.2426406871, rel=1e-9)
 
 
+def test_backtest_persistence_rolls_back_the_header_when_a_result_insert_fails(tmp_path):
+    conn = _connect(tmp_path)
+    report = BacktestReport(
+        strategy="test",
+        manager_id=1,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 3, 31),
+        positions=[
+            Position(date(2024, 1, 1), date(2024, 1, 2), date(2024, 4, 2), "AAA", None),
+            Position(
+                date(2024, 1, 1),
+                date(2024, 1, 2),
+                date(2024, 4, 2),
+                "BBB",
+                None,
+                status=None,  # type: ignore[arg-type]
+            ),
+        ],
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        persist_backtest(
+            conn,
+            report,
+            entry_lag_days=1,
+            holding_period_days=91,
+            benchmark_ticker="SPY",
+            price_source="test",
+            top_n=10,
+        )
+
+    assert conn.execute("SELECT COUNT(*) FROM backtest_runs").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM backtest_results").fetchone()[0] == 0
+
+
 def test_decision_dates_derived_from_filing_disclosure_dates(tmp_path):
     conn = _two_quarter_fixture(tmp_path)
     dates = backtest_flow.derive_decision_dates(conn, 1, date(2024, 1, 1), date(2024, 12, 31))
@@ -322,6 +367,45 @@ def test_price_adapter_uses_most_recent_close_within_staleness_window(tmp_path):
         max_staleness_days=1,
     )
     assert stale.close_on_or_before("AAA", date(2024, 5, 10)) is None
+
+
+def test_price_adapter_refreshes_a_partial_cache_for_a_newer_as_of_date(tmp_path):
+    conn = _connect(tmp_path)
+    prices = {"AAA": {date(2024, 5, 1): 90.0}}
+    fetcher = _make_fetcher(prices)
+    adapter = PriceAdapter(conn, source="test", fetcher=fetcher)
+
+    assert adapter.close_on_or_before("AAA", date(2024, 5, 1)) == pytest.approx(90.0)
+    prices["AAA"][date(2024, 5, 2)] = 100.0
+
+    assert adapter.close_on_or_before("AAA", date(2024, 5, 2)) == pytest.approx(100.0)
+    assert len(fetcher.calls) == 2
+
+
+def test_fetch_yfinance_prices_handles_dates_empty_frames_and_missing_dependency(monkeypatch):
+    calls: list[dict[str, object]] = []
+
+    class Frame:
+        Close = {date(2024, 5, 1): 12.5}
+
+    class Ticker:
+        def __init__(self, ticker: str) -> None:
+            self.ticker = ticker
+
+        def history(self, **kwargs):
+            calls.append(kwargs)
+            return Frame()
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=Ticker))
+    assert fetch_yfinance_prices("AAA", date(2024, 5, 1), date(2024, 5, 2)) == {
+        date(2024, 5, 1): 12.5
+    }
+    assert calls == [{"start": "2024-05-01", "end": "2024-05-03", "auto_adjust": True}]
+
+    Frame.Close = {}
+    assert fetch_yfinance_prices("AAA", date(2024, 5, 1), date(2024, 5, 2)) == {}
+    monkeypatch.setitem(sys.modules, "yfinance", None)
+    assert fetch_yfinance_prices("AAA", date(2024, 5, 1), date(2024, 5, 2)) == {}
 
 
 def test_price_adapter_rejects_non_finite_quotes(tmp_path):
