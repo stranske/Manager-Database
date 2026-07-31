@@ -144,6 +144,13 @@ def test_activism_campaign_migration_uses_timezone_aware_computed_at():
     assert computed_at.group(1) == "sa.DateTime(timezone=True)"
 
 
+def test_activism_campaign_return_migration_uses_timezone_aware_timestamp():
+    migration = (ROOT / "alembic" / "versions" / "019_activism_campaign_returns.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"return_computed_at", sa.DateTime(timezone=True)' in migration
+
+
 def test_activism_campaign_definitions_stay_in_sync(monkeypatch, tmp_path):
     """Keep migration, runtime SQLite DDL, and canonical schema.sql column sets aligned."""
     monkeypatch.delenv("DB_URL", raising=False)

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from adapters.base import get_placeholder, is_postgres, is_sqlite, table_exists
+from adapters.prices import PriceAdapter
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,12 @@ class CampaignRunSummary:
     timeline_rows_written: int = 0
     skipped_filings: int = 0
     skip_reasons: dict[str, int] | None = None
+
+
+def _add_sqlite_column_if_missing(conn: Any, table: str, column: str) -> None:
+    names = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column.split()[0] not in names:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column}")
 
 
 def ensure_activism_campaign_tables(conn: Any) -> None:
@@ -40,12 +48,23 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
                 filing_count INTEGER NOT NULL DEFAULT 0,
                 event_count INTEGER NOT NULL DEFAULT 0,
                 latest_event_type TEXT,
+                target_ticker TEXT,
+                window_return REAL,
+                holding_period_days INTEGER,
+                return_computed_at TEXT,
                 source_forms TEXT NOT NULL DEFAULT '[]',
                 data_quality_flags TEXT NOT NULL DEFAULT '[]',
                 computed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(manager_id, target_identifier),
                 CHECK (status IN ('active', 'monitoring', 'closed', 'unknown'))
             )""")
+        for column in (
+            "target_ticker TEXT",
+            "window_return REAL",
+            "holding_period_days INTEGER",
+            "return_computed_at TEXT",
+        ):
+            _add_sqlite_column_if_missing(conn, "activism_campaigns", column)
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_campaign_timeline (
                 timeline_id INTEGER PRIMARY KEY,
                 campaign_id INTEGER NOT NULL REFERENCES activism_campaigns(campaign_id),
@@ -73,6 +92,10 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
                 filing_count INTEGER NOT NULL DEFAULT 0,
                 event_count INTEGER NOT NULL DEFAULT 0,
                 latest_event_type TEXT,
+                target_ticker TEXT,
+                window_return DOUBLE PRECISION,
+                holding_period_days INTEGER,
+                return_computed_at TIMESTAMPTZ,
                 source_forms TEXT NOT NULL DEFAULT '[]',
                 data_quality_flags TEXT NOT NULL DEFAULT '[]',
                 computed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -155,6 +178,9 @@ def _upsert_campaign(
     filing_count: int,
     event_count: int,
     latest_event_type: str | None,
+    target_ticker: str | None,
+    window_return: float | None,
+    holding_period_days: int,
     forms: list[str],
     flags: list[str],
 ) -> int:
@@ -171,19 +197,25 @@ def _upsert_campaign(
         filing_count,
         event_count,
         latest_event_type,
+        target_ticker,
+        window_return,
+        holding_period_days,
         _json(forms),
         _json(flags),
     )
     conn.execute(
         "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, first_filed, "
         "last_filed, status, peak_ownership_pct, latest_ownership_pct, filing_count, event_count, "
-        "latest_event_type, source_forms, data_quality_flags, computed_at) "
-        f"VALUES ({', '.join([ph] * 13)}, CURRENT_TIMESTAMP) "
+        "latest_event_type, target_ticker, window_return, holding_period_days, source_forms, "
+        "data_quality_flags, computed_at, return_computed_at) "
+        f"VALUES ({', '.join([ph] * 16)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
         "ON CONFLICT(manager_id, target_identifier) DO UPDATE SET "
         "target_company=excluded.target_company, first_filed=excluded.first_filed, "
         "last_filed=excluded.last_filed, status=excluded.status, peak_ownership_pct=excluded.peak_ownership_pct, "
         "latest_ownership_pct=excluded.latest_ownership_pct, filing_count=excluded.filing_count, "
         "event_count=excluded.event_count, latest_event_type=excluded.latest_event_type, "
+        "target_ticker=excluded.target_ticker, window_return=excluded.window_return, "
+        "holding_period_days=excluded.holding_period_days, return_computed_at=CURRENT_TIMESTAMP, "
         "source_forms=excluded.source_forms, data_quality_flags=excluded.data_quality_flags, "
         "computed_at=CURRENT_TIMESTAMP",
         values,
@@ -200,11 +232,49 @@ def _upsert_campaign(
     return int(row[0])
 
 
-def materialize_activism_campaigns(conn: Any, since: date | None = None) -> CampaignRunSummary:
+def _ticker_for_cusip(conn: Any, cusip: Any) -> str | None:
+    """Return a cached OpenFIGI ticker without falling back to unsafe name matching."""
+    if not cusip or not table_exists(conn, "identifier_resolution_cache"):
+        return None
+    ph = get_placeholder(conn)
+    row = conn.execute(
+        f"SELECT ticker FROM identifier_resolution_cache WHERE upper(cusip) = upper({ph}) LIMIT 1",
+        (str(cusip),),
+    ).fetchone()
+    ticker = str(row[0] or "").strip().upper() if row else ""
+    return ticker or None
+
+
+def _campaign_return(
+    adapter: PriceAdapter | None, ticker: str | None, first_filed: Any, last_filed: Any
+) -> float | None:
+    if adapter is None or not ticker:
+        return None
+    try:
+        entry_date = date.fromisoformat(str(first_filed)[:10])
+        exit_date = date.fromisoformat(str(last_filed)[:10])
+    except ValueError:
+        return None
+    entry = adapter.close_on_or_before(ticker, entry_date)
+    exit_price = adapter.close_on_or_before(ticker, exit_date)
+    if entry is None or exit_price is None or entry <= 0:
+        return None
+    value = (exit_price - entry) / entry
+    return value if math.isfinite(value) else None
+
+
+def materialize_activism_campaigns(
+    conn: Any, since: date | None = None, *, price_adapter: PriceAdapter | None = None
+) -> CampaignRunSummary:
     """Build campaign summaries and deterministic filing timelines from source rows."""
     if not table_exists(conn, "activism_filings"):
         return CampaignRunSummary(skip_reasons={"missing_activism_filings_table": 1})
     ensure_activism_campaign_tables(conn)
+    # The price adapter is injected in tests and may be omitted by deployments that
+    # intentionally have no market-data access. Construct the cached free adapter
+    # only when the identifier cache is present, avoiding speculative name matches.
+    if price_adapter is None and table_exists(conn, "identifier_resolution_cache"):
+        price_adapter = PriceAdapter(conn)
     ph = get_placeholder(conn)
     rows = conn.execute(
         "SELECT af.filing_id, af.manager_id, af.filing_type, af.subject_company, af.subject_cusip, "
@@ -252,6 +322,11 @@ def materialize_activism_campaigns(conn: Any, since: date | None = None) -> Camp
             (event for row in filings for event in events_by_filing[int(row[0])]),
             key=lambda event: (str(event[3]), int(event[0])),
         )
+        ticker = _ticker_for_cusip(conn, latest[4])
+        holding_days = max(
+            0,
+            (date.fromisoformat(str(latest[6])[:10]) - date.fromisoformat(str(first[6])[:10])).days,
+        )
         campaign_id = _upsert_campaign(
             conn,
             manager_id=manager_id,
@@ -265,6 +340,9 @@ def materialize_activism_campaigns(conn: Any, since: date | None = None) -> Camp
             filing_count=len(filings),
             event_count=len(events),
             latest_event_type=str(events[-1][2]) if events else None,
+            target_ticker=ticker,
+            window_return=_campaign_return(price_adapter, ticker, first[6], latest[6]),
+            holding_period_days=holding_days,
             forms=sorted({str(row[2]) for row in filings}),
             flags=_target_identifier(latest[4], latest[3])[1],
         )
