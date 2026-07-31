@@ -1349,13 +1349,33 @@ async def get_manager(
     return _to_manager_response(row)
 
 
+SIMILARITY_BASES = ("jaccard", "cosine")
+
+
+def _configured_similarity_basis() -> str:
+    """Return the configured default similarity basis, keeping Jaccard as fallback."""
+    raw = os.getenv("MANAGER_SIMILARITY_DEFAULT_BASIS")
+    if raw is None:
+        return "jaccard"
+    candidate = raw.strip().lower()
+    if candidate in SIMILARITY_BASES:
+        return candidate
+    logger.warning("Invalid MANAGER_SIMILARITY_DEFAULT_BASIS value: %s", raw)
+    return "jaccard"
+
+
 @router.get("/managers/{id}/similar", summary="List similar managers")
 async def get_similar_managers(
     id: int = Path(..., ge=1, description="Manager identifier"),
     limit: int = Query(10, ge=1, le=100),
-    basis: str = Query("jaccard", pattern="^(jaccard|cosine)$"),
+    basis: str | None = Query(
+        None,
+        pattern="^(jaccard|cosine)$",
+        description="Similarity basis; defaults to MANAGER_SIMILARITY_DEFAULT_BASIS (jaccard).",
+    ),
 ):
     """Return the strongest holding-overlap or embedding-cosine peers for a manager."""
+    basis = basis or _configured_similarity_basis()
     conn = None
     try:
         conn = connect_db()
