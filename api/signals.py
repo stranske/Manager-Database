@@ -56,6 +56,9 @@ class ConvictionScoreResponse(BaseModel):
     conviction_pct: float | None
     portfolio_weight: float | None
     insider_net_direction: str | None = None
+    short_interest_pct: float | None = None
+    short_interest_report_date: date | None = None
+    short_interest_source: str | None = None
 
 
 def _to_float(value: Any) -> float | None:
@@ -300,15 +303,20 @@ def query_conviction_scores(
         (manager_id, resolved_filing_id, min_conviction_pct, limit),
     ).fetchall()
 
-    # Optional Form-4 annotation — never changes conviction scoring (#1461).
-    annotate = None
+    # Optional external annotations — never change conviction scoring (#1461, #1470).
+    annotate_insider = None
+    annotate_short_interest = None
     if table_exists(conn, "insider_transactions"):
         from etl.insider_flow import insider_net_direction_for_ticker
 
-        annotate = insider_net_direction_for_ticker
+        annotate_insider = insider_net_direction_for_ticker
+    if table_exists(conn, "short_interest"):
+        from etl.short_interest_flow import short_interest_annotation
+
+        annotate_short_interest = short_interest_annotation
 
     ticker_by_cusip: dict[str, str | None] = {}
-    if annotate is not None:
+    if annotate_insider is not None or annotate_short_interest is not None:
         try:
             hold_rows = conn.execute(
                 "SELECT cusip, resolved_ticker FROM holdings " f"WHERE filing_id = {ph}",
@@ -324,12 +332,17 @@ def query_conviction_scores(
     for row in rows:
         cusip = str(row[0])
         direction = None
-        if annotate is not None:
-            direction = annotate(
+        if annotate_insider is not None:
+            direction = annotate_insider(
                 conn,
                 ticker_by_cusip.get(cusip),
                 cusip=cusip,
             )
+        short_interest = (
+            annotate_short_interest(conn, ticker_by_cusip.get(cusip), cusip=cusip)
+            if annotate_short_interest is not None
+            else None
+        )
         out.append(
             ConvictionScoreResponse(
                 cusip=cusip,
@@ -338,6 +351,19 @@ def query_conviction_scores(
                 conviction_pct=_to_float(row[3]),
                 portfolio_weight=_to_float(row[4]),
                 insider_net_direction=direction,
+                short_interest_pct=(
+                    _to_float(short_interest.get("short_interest_pct")) if short_interest else None
+                ),
+                short_interest_report_date=(
+                    _to_date(short_interest["short_interest_report_date"])
+                    if short_interest and short_interest.get("short_interest_report_date")
+                    else None
+                ),
+                short_interest_source=(
+                    str(short_interest["short_interest_source"])
+                    if short_interest and short_interest.get("short_interest_source")
+                    else None
+                ),
             )
         )
     return out

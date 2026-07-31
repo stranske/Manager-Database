@@ -32,7 +32,7 @@ def _seed_db(db_path: Path) -> None:
             "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT, filed_date TEXT, period_end TEXT, source TEXT)"
         )
         conn.execute(
-            "CREATE TABLE holdings (holding_id INTEGER PRIMARY KEY, filing_id INTEGER, cusip TEXT, name_of_issuer TEXT, shares INTEGER, value_usd REAL)"
+            "CREATE TABLE holdings (holding_id INTEGER PRIMARY KEY, filing_id INTEGER, cusip TEXT, name_of_issuer TEXT, shares INTEGER, value_usd REAL, resolved_ticker TEXT)"
         )
         conn.execute(
             "CREATE TABLE conviction_scores (score_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_id INTEGER, cusip TEXT, name_of_issuer TEXT, shares INTEGER, value_usd REAL, conviction_pct REAL, portfolio_weight REAL, computed_at TEXT)"
@@ -56,11 +56,11 @@ def _seed_db(db_path: Path) -> None:
             ],
         )
         conn.executemany(
-            "INSERT INTO holdings(holding_id, filing_id, cusip, name_of_issuer, shares, value_usd) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO holdings(holding_id, filing_id, cusip, name_of_issuer, shares, value_usd, resolved_ticker) VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
-                (1, 10, "AAA111111", "Example Corp", 100, 3000.0),
-                (2, 10, "BBB222222", "Second Corp", 75, 1500.0),
-                (3, 20, "AAA111111", "Example Corp", 40, 800.0),
+                (1, 10, "AAA111111", "Example Corp", 100, 3000.0, "EXM"),
+                (2, 10, "BBB222222", "Second Corp", 75, 1500.0, "SCN"),
+                (3, 20, "AAA111111", "Example Corp", 40, 800.0, "EXM"),
             ],
         )
         conn.executemany(
@@ -248,6 +248,28 @@ def test_get_conviction_scores_defaults_to_latest_filing(tmp_path, monkeypatch):
     payload = response.json()
     assert [item["cusip"] for item in payload] == ["AAA111111"]
     assert payload[0]["conviction_pct"] == 66.67
+
+
+def test_get_conviction_scores_exposes_optional_short_interest_context(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals.db"
+    _seed_db(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE short_interest (metric_id INTEGER PRIMARY KEY, ticker TEXT, cusip TEXT, short_interest REAL, float_shares REAL, short_interest_pct REAL, report_date TEXT, source TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO short_interest VALUES (1, 'EXM', 'AAA111111', 200, 1000, 20.0, '2024-05-01', 'finra')"
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(_request("/api/signals/conviction/1"))
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["short_interest_pct"] == 20.0
+    assert payload[0]["short_interest_report_date"] == "2024-05-01"
+    assert payload[0]["short_interest_source"] == "finra"
 
 
 def test_signals_endpoints_return_empty_arrays_for_missing_data(tmp_path, monkeypatch):
