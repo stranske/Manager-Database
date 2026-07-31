@@ -48,7 +48,7 @@ def ensure_backtest_tables(conn: Any) -> None:
     """Create backtest tables on SQLite; fail fast when Postgres has no schema."""
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS backtest_runs (
-                run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER PRIMARY KEY,
                 strategy TEXT NOT NULL,
                 manager_id INTEGER,
                 start_date DATE NOT NULL,
@@ -70,7 +70,7 @@ def ensure_backtest_tables(conn: Any) -> None:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""")
         conn.execute("""CREATE TABLE IF NOT EXISTS backtest_results (
-                result_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                result_id INTEGER PRIMARY KEY,
                 run_id INTEGER NOT NULL REFERENCES backtest_runs(run_id) ON DELETE CASCADE,
                 decision_date DATE NOT NULL,
                 entry_date DATE NOT NULL,
