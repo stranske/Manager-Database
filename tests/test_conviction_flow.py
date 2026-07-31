@@ -53,10 +53,11 @@ def test_similarity_crowding_counts_only_connected_managers():
     )
     conn.executemany(
         "INSERT INTO manager_similarity VALUES (?, ?, ?)",
-        [(1, 2, 0.8), (1, 3, 0.7), (2, 3, 0.9), (3, 4, 0.2)],
+        [(1, 2, 0.8), (1, 3, 0.7), (2, 3, 0.9), (3, 4, 0.2), (1, 4, 0.5)],
     )
 
-    assert conviction_flow._similar_manager_ids(conn, [1, 2, 3, 4], 0.5) == [1, 2, 3]
+    assert conviction_flow._similar_manager_ids(conn, [1, 2, 3, 4], 0.5) == [1, 2, 3, 4]
+    assert conviction_flow._similar_manager_ids(conn, [1, 2, 3, 4], 0.8) == [1, 2, 3]
     assert conviction_flow._similar_manager_ids(conn, [1, 2, 3, 4], 0.95) == []
 
 

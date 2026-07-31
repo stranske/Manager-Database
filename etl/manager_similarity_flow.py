@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from itertools import combinations
-from math import sqrt
+from math import isfinite, sqrt
 from typing import Any
 
 from adapters.base import get_placeholder, get_table_columns
@@ -13,14 +13,15 @@ from embeddings import embed_text
 
 def cosine_similarity(left: list[float], right: list[float]) -> float | None:
     """Return cosine similarity for two finite, equally-sized vectors."""
-    if len(left) != len(right) or not left:
+    if len(left) != len(right) or not left or not all(isfinite(value) for value in (*left, *right)):
         return None
     denominator = sqrt(sum(value * value for value in left)) * sqrt(
         sum(value * value for value in right)
     )
-    if denominator == 0:
+    if denominator == 0 or not isfinite(denominator):
         return None
-    return sum(a * b for a, b in zip(left, right, strict=True)) / denominator
+    score = sum(a * b for a, b in zip(left, right, strict=True)) / denominator
+    return score if isfinite(score) else None
 
 
 def ensure_manager_similarity_table(conn: Any) -> None:

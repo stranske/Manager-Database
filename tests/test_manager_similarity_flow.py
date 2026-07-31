@@ -42,6 +42,7 @@ def test_similarity_uses_union_denominator_and_latest_filings():
 def test_cosine_similarity_matches_hand_computed_vectors():
     assert cosine_similarity([1.0, 1.0], [1.0, 0.0]) == pytest.approx(1 / 2**0.5)
     assert cosine_similarity([0.0, 0.0], [1.0, 0.0]) is None
+    assert cosine_similarity([float("nan")], [1.0]) is None
 
 
 def test_similarity_rebuild_rolls_back_on_insert_failure():
@@ -131,4 +132,5 @@ def test_similar_manager_endpoint_orders_canonical_pairs_and_returns_404(tmp_pat
     cosine_response = asyncio.run(_get_similar_manager(1, 10, basis="cosine"))
     assert cosine_response.json()["items"][0]["manager_id"] == 2
     assert cosine_response.json()["items"][0]["score"] == 0.8
+    assert asyncio.run(_get_similar_manager(1, 10, basis="invalid")).status_code == 400
     assert asyncio.run(_get_similar_manager(999, 10)).status_code == 404

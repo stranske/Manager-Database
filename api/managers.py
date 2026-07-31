@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import logging
+import math
 import os
 import re
 import sqlite3
@@ -1385,10 +1386,16 @@ async def get_similar_managers(
             + score_column
             + " IS NOT NULL ORDER BY "
             + score_column
-            + " DESC, overlap_count DESC LIMIT "
-            + ph,
-            (id, id, id, limit),
+            + " DESC, overlap_count DESC",
+            (id, id, id),
         ).fetchall()
+        finite_rows = [
+            row
+            for row in rows
+            if all(
+                value is None or math.isfinite(float(value)) for value in (row[1], row[2], row[3])
+            )
+        ]
         return {
             "items": [
                 {
@@ -1400,7 +1407,7 @@ async def get_similar_managers(
                     "overlap_count": int(row[4]),
                     "union_count": int(row[5]),
                 }
-                for row in rows
+                for row in finite_rows[:limit]
             ]
         }
     except DB_ERROR_TYPES as exc:

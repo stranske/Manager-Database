@@ -362,6 +362,9 @@ def test_dispatch_conviction_alerts_emits_events_for_detected_rows(tmp_path, mon
         "crowded_trade_change",
         "contrarian_signal",
     ]
+    assert events[0].payload["similar_manager_ids"] == [1, 2, 3, 4, 5]
+    assert events[0].payload["similar_manager_count"] == 5
+    assert events[0].payload["similarity_floor"] == 0.5
 
 
 def test_detect_contrarian_signals_skips_split_consensus(tmp_path):
