@@ -482,11 +482,30 @@ def test_conviction_flow_runs_scoring_then_crowded_then_contrarian_then_alerts(m
     }
 
 
-def test_conviction_flow_deployment_uses_nightly_defaults(monkeypatch):
+@pytest.fixture
+def reload_conviction_module(monkeypatch):
+    """Reload ``etl.conviction_flow``, then restore the module for later tests.
+
+    The module resolves its deployment cron/timezone from the environment at
+    import time, so a reload under patched env vars would otherwise leave the
+    overridden schedule on the shared module object for the rest of the session.
+    """
+
+    def _reload():
+        return importlib.reload(conviction_module)
+
+    yield _reload
+
+    monkeypatch.delenv("CONVICTION_FLOW_CRON", raising=False)
+    monkeypatch.delenv("CONVICTION_FLOW_TIMEZONE", raising=False)
+    importlib.reload(conviction_module)
+
+
+def test_conviction_flow_deployment_uses_nightly_defaults(monkeypatch, reload_conviction_module):
     monkeypatch.delenv("CONVICTION_FLOW_CRON", raising=False)
     monkeypatch.delenv("CONVICTION_FLOW_TIMEZONE", raising=False)
     monkeypatch.setenv("TZ", "UTC")
-    module = importlib.reload(conviction_module)
+    module = reload_conviction_module()
 
     assert module.CONVICTION_FLOW_NIGHTLY_CRON == "0 2 * * *"
     assert module.CONVICTION_FLOW_TIMEZONE == "UTC"
@@ -495,13 +514,22 @@ def test_conviction_flow_deployment_uses_nightly_defaults(monkeypatch):
     assert schedule.timezone == "UTC"
 
 
-def test_conviction_flow_deployment_allows_env_overrides(monkeypatch):
+def test_conviction_flow_deployment_allows_env_overrides(monkeypatch, reload_conviction_module):
     monkeypatch.setenv("CONVICTION_FLOW_CRON", "15 3 * * *")
     monkeypatch.setenv("CONVICTION_FLOW_TIMEZONE", "America/New_York")
-    module = importlib.reload(conviction_module)
+    module = reload_conviction_module()
 
     assert module.CONVICTION_FLOW_NIGHTLY_CRON == "15 3 * * *"
     assert module.CONVICTION_FLOW_TIMEZONE == "America/New_York"
     schedule = module.conviction_flow_deployment.schedules[0].schedule
     assert schedule.cron == "15 3 * * *"
     assert schedule.timezone == "America/New_York"
+
+
+def test_conviction_module_schedule_restored_after_env_override_reload():
+    """Guards ``tests/test_conviction_flow.py`` against leaked reload state."""
+    assert conviction_module.CONVICTION_FLOW_NIGHTLY_CRON == "0 2 * * *"
+    assert conviction_module.CONVICTION_FLOW_TIMEZONE != "America/New_York"
+    schedule = conviction_module.conviction_deployment.schedules[0].schedule
+    assert schedule.cron == "0 2 * * *"
+    assert schedule.timezone != "America/New_York"
