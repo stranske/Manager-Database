@@ -139,8 +139,25 @@ def _load_slot_config() -> list[SlotDefinition]:
             continue
         provider = _normalize_provider(str(entry.get("provider", "")))
         model = str(entry.get("model", "")).strip()
+        profile = str(entry.get("profile") or "").strip()
         tier = str(entry.get("quality_tier") or entry.get("tier") or "").strip()
-        if provider and not model and tier:
+        if provider and not model and profile:
+            # A profile slot resolves to the single reviewed selection for that
+            # profile/provider, mirroring tools/llm_registry.load_slot_config.
+            # Without this, a profile-driven slot file (the form Workflows now
+            # ships) resolves to nothing here and the chat path serves no model.
+            model = (
+                _llm_registry.select_model_for_profile(
+                    provider=provider, profile=profile, registry=registry
+                )
+                or ""
+            )
+            if not model:
+                logger.warning(
+                    "Skipping slot with unresolved reviewed profile: %s/%s", profile, provider
+                )
+                continue
+        elif provider and not model and tier:
             model = select_model_for_tier(provider=provider, tier=tier, registry=registry) or ""
         if not provider or not model:
             continue
