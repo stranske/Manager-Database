@@ -407,11 +407,14 @@ def run_backtest(
             if position.position_return is not None:
                 realized.append(position.position_return)
 
-        if not realized:
+        # Excess return is meaningful only when the portfolio and benchmark
+        # compound over the identical decision periods. Keep the individual
+        # positions for auditability, but exclude an unbenchmarked period from
+        # aggregate comparison metrics.
+        if not realized or benchmark_return is None:
             continue
         period_returns.append(sum(realized) / len(realized))
-        if benchmark_return is not None:
-            benchmark_returns.append(benchmark_return)
+        benchmark_returns.append(benchmark_return)
 
     report.periods = len(period_returns)
     report.period_returns = period_returns

@@ -289,6 +289,28 @@ def test_backtest_persists_run_and_position_rows(tmp_path):
     assert runs[0]["sharpe"] == pytest.approx(4.2426406871, rel=1e-9)
 
 
+def test_backtest_pairs_portfolio_and_benchmark_periods(tmp_path):
+    conn = _two_quarter_fixture(tmp_path)
+    prices = {ticker: dict(series) for ticker, series in PRICES.items()}
+    del prices["SPY"][date(2024, 11, 1)]
+    report = run_backtest(
+        conn,
+        manager_id=1,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 12, 31),
+        price_adapter=_adapter(conn, prices),
+        decision_dates=DECISION_DATES,
+        entry_lag_days=1,
+        holding_period_days=91,
+        benchmark_ticker="SPY",
+    )
+
+    assert [position.ticker for position in report.filled] == ["AAA", "BBB"]
+    assert report.period_returns == pytest.approx([0.20])
+    assert report.benchmark_total_return == pytest.approx(0.05)
+    assert report.excess_return == pytest.approx(0.15)
+
+
 def test_backtest_persistence_rolls_back_the_header_when_a_result_insert_fails(tmp_path):
     conn = _connect(tmp_path)
     report = BacktestReport(
