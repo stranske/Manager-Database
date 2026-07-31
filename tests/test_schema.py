@@ -22,6 +22,7 @@ EXPECTED_TABLES = {
     "activism_events",
     "activism_campaigns",
     "activism_campaign_timeline",
+    "activism_documents",
     "alert_rules",
     "alert_history",
     "chat_feedback",
@@ -157,7 +158,7 @@ def test_activism_campaign_definitions_stay_in_sync(monkeypatch, tmp_path):
     db_path = tmp_path / "migrated.db"
     command.upgrade(_alembic_config(f"sqlite:///{db_path}"), "head")
 
-    tables = {"activism_campaigns", "activism_campaign_timeline"}
+    tables = {"activism_campaigns", "activism_campaign_timeline", "activism_documents"}
     with sqlite3.connect(db_path) as migrated, sqlite3.connect(":memory:") as runtime:
         ensure_activism_campaign_tables(runtime)
         migrated_columns = {

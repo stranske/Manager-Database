@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Protocol
 
-from adapters.base import get_placeholder, is_postgres, is_sqlite, table_exists
+from adapters.base import get_placeholder, get_table_columns, is_postgres, is_sqlite, table_exists
 from adapters.prices import PriceAdapter
 
 
@@ -84,6 +84,16 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
                 source_url TEXT,
                 UNIQUE(campaign_id, filing_id, event_id)
             )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS activism_documents (
+                document_id INTEGER PRIMARY KEY,
+                campaign_id INTEGER NOT NULL REFERENCES activism_campaigns(campaign_id),
+                filing_id INTEGER NOT NULL REFERENCES activism_filings(filing_id),
+                doc_type TEXT NOT NULL,
+                source_url TEXT,
+                raw_key TEXT,
+                filed_date TEXT NOT NULL,
+                UNIQUE(campaign_id, filing_id, doc_type, source_url)
+            )""")
     elif is_postgres(conn):
         conn.execute("""CREATE TABLE IF NOT EXISTS activism_campaigns (
                 campaign_id BIGSERIAL PRIMARY KEY,
@@ -121,10 +131,24 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
                 source_url TEXT,
                 UNIQUE(campaign_id, filing_id, event_id)
             )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS activism_documents (
+                document_id BIGSERIAL PRIMARY KEY,
+                campaign_id BIGINT NOT NULL REFERENCES activism_campaigns(campaign_id),
+                filing_id BIGINT NOT NULL REFERENCES activism_filings(filing_id),
+                doc_type TEXT NOT NULL,
+                source_url TEXT,
+                raw_key TEXT,
+                filed_date DATE NOT NULL,
+                UNIQUE(campaign_id, filing_id, doc_type, source_url)
+            )""")
     else:
         raise TypeError(f"Unsupported database connection type: {type(conn)!r}")
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_activism_campaigns_manager ON activism_campaigns(manager_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_activism_documents_campaign "
+        "ON activism_documents(campaign_id, filed_date)"
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_activism_campaigns_status ON activism_campaigns(status)"
@@ -275,6 +299,37 @@ def _campaign_return(
     return value if math.isfinite(value) else None
 
 
+def _document_references(row: tuple[Any, ...]) -> list[tuple[str, str | None, str | None]]:
+    """Return safe document-reference metadata without ingesting document contents."""
+    url = str(row[7]) if row[7] else None
+    raw_key = str(row[8]) if len(row) > 8 and row[8] else None
+    references: list[tuple[str, str | None, str | None]] = [("filing", url, raw_key)]
+    if len(row) <= 9 or not row[9]:
+        return references
+    try:
+        metadata = json.loads(str(row[9]))
+    except (TypeError, ValueError):
+        return references
+    if not isinstance(metadata, list):
+        return references
+    for item in metadata:
+        if not isinstance(item, dict):
+            continue
+        reference_url = item.get("url") or item.get("href")
+        reference_key = item.get("raw_key") or item.get("key")
+        if not reference_url and not reference_key:
+            continue
+        doc_type = str(item.get("doc_type") or item.get("type") or "exhibit").strip() or "exhibit"
+        references.append(
+            (
+                doc_type,
+                str(reference_url) if reference_url else None,
+                str(reference_key) if reference_key else None,
+            )
+        )
+    return references
+
+
 def materialize_activism_campaigns(
     conn: Any, since: date | None = None, *, price_adapter: PriceLookup | None = None
 ) -> CampaignRunSummary:
@@ -288,9 +343,14 @@ def materialize_activism_campaigns(
     if price_adapter is None and table_exists(conn, "identifier_resolution_cache"):
         price_adapter = PriceAdapter(conn)
     ph = get_placeholder(conn)
+    filing_columns = get_table_columns(conn, "activism_filings")
+    raw_key_sql = "af.raw_key" if "raw_key" in filing_columns else "NULL"
+    document_metadata_sql = (
+        "af.document_references" if "document_references" in filing_columns else "NULL"
+    )
     rows = conn.execute(
         "SELECT af.filing_id, af.manager_id, af.filing_type, af.subject_company, af.subject_cusip, "
-        "af.ownership_pct, af.filed_date, af.url FROM activism_filings af "
+        f"af.ownership_pct, af.filed_date, af.url, {raw_key_sql}, {document_metadata_sql} FROM activism_filings af "
         "ORDER BY af.manager_id, af.filed_date, af.filing_id"
     ).fetchall()
     events_by_filing: dict[int, list[tuple[Any, ...]]] = defaultdict(list)
@@ -397,6 +457,16 @@ def materialize_activism_campaigns(
                     ),
                 )
                 timeline_count += 1
+            conn.execute(
+                f"DELETE FROM activism_documents WHERE campaign_id = {ph} AND filing_id = {ph}",
+                (campaign_id, filing_id),
+            )
+            for doc_type, source_url, raw_key in _document_references(filing):
+                conn.execute(
+                    "INSERT INTO activism_documents(campaign_id, filing_id, doc_type, source_url, raw_key, filed_date) "
+                    f"VALUES ({', '.join([ph] * 6)})",
+                    (campaign_id, filing_id, doc_type, source_url, raw_key, str(filing[6])),
+                )
     conn.commit()
     return CampaignRunSummary(
         len(rows), len(grouped), timeline_count, sum(skipped.values()), dict(skipped)

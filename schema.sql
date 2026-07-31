@@ -168,6 +168,19 @@ CREATE INDEX IF NOT EXISTS idx_activism_campaign_timeline_campaign
 CREATE UNIQUE INDEX IF NOT EXISTS uq_activism_campaign_timeline_filing_only
     ON activism_campaign_timeline (campaign_id, filing_id) WHERE event_id IS NULL;
 
+CREATE TABLE IF NOT EXISTS activism_documents (
+    document_id bigserial PRIMARY KEY,
+    campaign_id bigint NOT NULL REFERENCES activism_campaigns(campaign_id),
+    filing_id bigint NOT NULL REFERENCES activism_filings(filing_id),
+    doc_type text NOT NULL,
+    source_url text,
+    raw_key text,
+    filed_date date NOT NULL,
+    UNIQUE (campaign_id, filing_id, doc_type, source_url)
+);
+CREATE INDEX IF NOT EXISTS idx_activism_documents_campaign
+    ON activism_documents(campaign_id, filed_date);
+
 CREATE TABLE IF NOT EXISTS holdings (
     holding_id bigserial PRIMARY KEY,
     filing_id bigint NOT NULL REFERENCES filings(filing_id),
