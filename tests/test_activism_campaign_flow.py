@@ -195,9 +195,12 @@ def test_materialize_campaigns_computes_window_return_and_holding_period() -> No
         price_adapter=_Prices({date(2024, 5, 1): 100.0, date(2024, 5, 10): 120.0}),
     )
 
-    assert conn.execute(
-        "SELECT target_ticker, window_return, holding_period_days FROM activism_campaigns"
-    ).fetchone() == ("ACME", 0.2, 10)
+    campaign = conn.execute(
+        "SELECT target_ticker, window_return, holding_period_days, return_computed_at "
+        "FROM activism_campaigns"
+    ).fetchone()
+    assert campaign[:3] == ("ACME", 0.2, 10)
+    assert campaign[3] is not None
 
 
 def test_materialize_campaigns_missing_price_keeps_campaign_without_return() -> None:
@@ -217,3 +220,25 @@ def test_materialize_campaigns_missing_price_keeps_campaign_without_return() -> 
         None,
         0,
     )
+
+
+def test_materialize_campaigns_invalid_filing_date_keeps_campaign_without_metrics() -> None:
+    conn = _conn()
+    conn.execute("CREATE TABLE identifier_resolution_cache (cusip TEXT PRIMARY KEY, ticker TEXT)")
+    conn.execute("INSERT INTO identifier_resolution_cache VALUES ('123456789', 'ACME')")
+    conn.executemany(
+        "INSERT INTO activism_filings VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (1, 1, "SC 13D", "Example Corp", "123456789", 5.1, "not-a-date", "https://sec/1"),
+            (2, 1, "SC 13D/A", "Example Corp", "123456789", 6.2, "2024-05-11", "https://sec/2"),
+        ],
+    )
+
+    summary = materialize_activism_campaigns(
+        conn, price_adapter=_Prices({date(2024, 5, 10): 120.0})
+    )
+
+    assert summary.campaigns_written == 1
+    assert conn.execute(
+        "SELECT window_return, holding_period_days FROM activism_campaigns"
+    ).fetchone() == (None, None)

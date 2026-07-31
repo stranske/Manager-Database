@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS activism_campaigns (
     event_count integer NOT NULL DEFAULT 0,
     latest_event_type text,
     target_ticker text,
-    window_return numeric,
+    window_return numeric(18,8),
     holding_period_days integer,
     return_computed_at timestamptz,
     source_forms text NOT NULL DEFAULT '[]',

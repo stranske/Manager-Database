@@ -7,7 +7,7 @@ import math
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Protocol
 
 from adapters.base import get_placeholder, is_postgres, is_sqlite, table_exists
 from adapters.prices import PriceAdapter
@@ -20,6 +20,12 @@ class CampaignRunSummary:
     timeline_rows_written: int = 0
     skipped_filings: int = 0
     skip_reasons: dict[str, int] | None = None
+
+
+class PriceLookup(Protocol):
+    """Minimal price dependency required to compute a campaign return."""
+
+    def close_on_or_before(self, ticker: str | None, on: date) -> float | None: ...
 
 
 def _add_sqlite_column_if_missing(conn: Any, table: str, column: str) -> None:
@@ -93,7 +99,7 @@ def ensure_activism_campaign_tables(conn: Any) -> None:
                 event_count INTEGER NOT NULL DEFAULT 0,
                 latest_event_type TEXT,
                 target_ticker TEXT,
-                window_return DOUBLE PRECISION,
+                window_return NUMERIC(18,8),
                 holding_period_days INTEGER,
                 return_computed_at TIMESTAMPTZ,
                 source_forms TEXT NOT NULL DEFAULT '[]',
@@ -180,7 +186,7 @@ def _upsert_campaign(
     latest_event_type: str | None,
     target_ticker: str | None,
     window_return: float | None,
-    holding_period_days: int,
+    holding_period_days: int | None,
     forms: list[str],
     flags: list[str],
 ) -> int:
@@ -245,16 +251,22 @@ def _ticker_for_cusip(conn: Any, cusip: Any) -> str | None:
     return ticker or None
 
 
+def _campaign_window_dates(first_filed: Any, last_filed: Any) -> tuple[date, date] | None:
+    """Parse the filing window once so malformed source dates stay non-fatal."""
+    try:
+        return date.fromisoformat(str(first_filed)[:10]), date.fromisoformat(str(last_filed)[:10])
+    except ValueError:
+        return None
+
+
 def _campaign_return(
-    adapter: PriceAdapter | None, ticker: str | None, first_filed: Any, last_filed: Any
+    adapter: PriceLookup | None, ticker: str | None, filing_dates: tuple[date, date] | None
 ) -> float | None:
     if adapter is None or not ticker:
         return None
-    try:
-        entry_date = date.fromisoformat(str(first_filed)[:10])
-        exit_date = date.fromisoformat(str(last_filed)[:10])
-    except ValueError:
+    if filing_dates is None:
         return None
+    entry_date, exit_date = filing_dates
     entry = adapter.close_on_or_before(ticker, entry_date)
     exit_price = adapter.close_on_or_before(ticker, exit_date)
     if entry is None or exit_price is None or entry <= 0:
@@ -264,7 +276,7 @@ def _campaign_return(
 
 
 def materialize_activism_campaigns(
-    conn: Any, since: date | None = None, *, price_adapter: PriceAdapter | None = None
+    conn: Any, since: date | None = None, *, price_adapter: PriceLookup | None = None
 ) -> CampaignRunSummary:
     """Build campaign summaries and deterministic filing timelines from source rows."""
     if not table_exists(conn, "activism_filings"):
@@ -323,9 +335,9 @@ def materialize_activism_campaigns(
             key=lambda event: (str(event[3]), int(event[0])),
         )
         ticker = _ticker_for_cusip(conn, latest[4])
-        holding_days = max(
-            0,
-            (date.fromisoformat(str(latest[6])[:10]) - date.fromisoformat(str(first[6])[:10])).days,
+        filing_dates = _campaign_window_dates(first[6], latest[6])
+        holding_days = (
+            max(0, (filing_dates[1] - filing_dates[0]).days) if filing_dates is not None else None
         )
         campaign_id = _upsert_campaign(
             conn,
@@ -341,7 +353,7 @@ def materialize_activism_campaigns(
             event_count=len(events),
             latest_event_type=str(events[-1][2]) if events else None,
             target_ticker=ticker,
-            window_return=_campaign_return(price_adapter, ticker, first[6], latest[6]),
+            window_return=_campaign_return(price_adapter, ticker, filing_dates),
             holding_period_days=holding_days,
             forms=sorted({str(row[2]) for row in filings}),
             flags=_target_identifier(latest[4], latest[3])[1],

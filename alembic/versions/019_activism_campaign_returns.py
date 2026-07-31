@@ -14,7 +14,9 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("activism_campaigns", sa.Column("target_ticker", sa.Text(), nullable=True))
-    op.add_column("activism_campaigns", sa.Column("window_return", sa.Float(), nullable=True))
+    op.add_column(
+        "activism_campaigns", sa.Column("window_return", sa.Numeric(18, 8), nullable=True)
+    )
     op.add_column(
         "activism_campaigns", sa.Column("holding_period_days", sa.Integer(), nullable=True)
     )
