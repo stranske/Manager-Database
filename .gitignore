@@ -25,6 +25,7 @@ autofix_report_enriched.json
 
 # LangSmith fleet NDJSON artifacts (regenerated per run; uploaded by CI)
 artifacts/langsmith/
+langsmith-fleet-*.json
 artifacts/daily_diff/
 artifacts/digest/
 web/adapters/
