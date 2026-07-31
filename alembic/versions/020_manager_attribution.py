@@ -1,7 +1,7 @@
 """Add manager_attribution for position-level performance (#1465).
 
-Revision ID: 019
-Revises: 018
+Revision ID: 020
+Revises: 019
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from sqlalchemy import text
 
 from alembic import op
 
-revision = "019"
-down_revision = "018"
+revision = "020"
+down_revision = "019"
 branch_labels = None
 depends_on = None
 
