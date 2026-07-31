@@ -9,6 +9,7 @@ import httpx
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from api.chat import app
+from etl.activism_campaign_flow import materialize_activism_campaigns
 from tests.route_helpers import route_paths
 
 
@@ -174,6 +175,7 @@ def _seed_db(db_path: Path) -> None:
                 ),
             ],
         )
+        materialize_activism_campaigns(conn)
         conn.commit()
     finally:
         conn.close()
@@ -189,6 +191,9 @@ def test_activism_router_is_registered(tmp_path, monkeypatch):
         "/api/activism/events",
         "/api/activism/timeline/{manager_id}",
         "/api/activism/active-campaigns",
+        "/api/activism/campaigns",
+        "/api/activism/campaigns/{campaign_id}",
+        "/api/activism/campaigns/{campaign_id}/timeline",
     }
     assert expected_paths.issubset(route_paths(app.routes))
 
@@ -279,3 +284,29 @@ def test_active_campaigns_applies_threshold(tmp_path, monkeypatch):
     assert payload[0]["subject_company"] == "Apple Inc."
     assert payload[0]["event_count"] == 3
     assert payload[0]["latest_event_type"] == "stake_increase"
+
+
+def test_campaign_endpoints_return_grouped_timeline(tmp_path, monkeypatch):
+    db_path = tmp_path / "activism.db"
+    _seed_db(db_path)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    response = asyncio.run(
+        _request("/api/activism/campaigns", params={"manager_id": 1, "status": "active"})
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 1
+    campaign = payload[0]
+    assert campaign["target_identifier"] == "037833100"
+    assert campaign["filing_count"] == 2
+    assert campaign["first_filed"] == "2024-05-01"
+    assert campaign["last_filed"] == "2024-05-03"
+
+    detail = asyncio.run(_request(f"/api/activism/campaigns/{campaign['campaign_id']}"))
+    assert detail.status_code == 200
+    assert detail.json()["target_company"] == "Apple Inc."
+
+    timeline = asyncio.run(_request(f"/api/activism/campaigns/{campaign['campaign_id']}/timeline"))
+    assert timeline.status_code == 200
+    assert [entry["form_type"] for entry in timeline.json()] == ["SC 13D", "SC 13D/A", "SC 13D/A"]

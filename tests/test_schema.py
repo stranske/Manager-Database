@@ -19,6 +19,8 @@ EXPECTED_TABLES = {
     "filings",
     "activism_filings",
     "activism_events",
+    "activism_campaigns",
+    "activism_campaign_timeline",
     "alert_rules",
     "alert_history",
     "chat_feedback",

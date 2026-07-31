@@ -20,6 +20,7 @@ from adapters.base import (
     resolve_manager_id_column,
 )
 from alerts.integration import fire_alerts_for_event
+from etl.activism_campaign_flow import materialize_activism_campaigns
 from etl.activism_detection import (
     ALERT_EVENT_TYPE,
     AlertEvent,
@@ -326,6 +327,7 @@ async def fetch_activism_filings(manager_id: int, since: str) -> list[dict[str, 
         )
 
     conn.commit()
+    materialize_activism_campaigns(conn)
     conn.close()
     return inserted
 
