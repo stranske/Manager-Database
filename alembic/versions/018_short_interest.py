@@ -15,9 +15,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    sqlite_autoincrement_id = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
     op.create_table(
         "short_interest",
-        sa.Column("metric_id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("metric_id", sqlite_autoincrement_id, primary_key=True, autoincrement=True),
         sa.Column("ticker", sa.Text(), nullable=False),
         sa.Column("cusip", sa.Text(), nullable=True),
         sa.Column("short_interest", sa.Numeric(), nullable=True),

@@ -27,6 +27,15 @@ def _text(value: Any) -> str | None:
     return text or None
 
 
+def _first_present(raw: Mapping[str, Any], *keys: str) -> Any:
+    """Return the first key whose value is present, keeping numeric zero."""
+    for key in keys:
+        value = raw.get(key)
+        if value is not None and value != "":
+            return value
+    return None
+
+
 def _finite_float(value: Any) -> float | None:
     if value is None or value == "":
         return None
@@ -46,9 +55,19 @@ def _date_value(value: Any) -> str | None:
     if text is None:
         return None
     if len(text) >= 10 and text[4] == "-" and text[7] == "-":
-        return text[:10]
+        return _calendar_date(text[:10])
     digits = "".join(char for char in text if char.isdigit())
-    return f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}" if len(digits) >= 8 else None
+    if len(digits) < 8:
+        return None
+    return _calendar_date(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
+
+
+def _calendar_date(text: str) -> str | None:
+    """Return ``text`` only when it is a real calendar date; ``report_date`` is NOT NULL."""
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        return None
 
 
 def normalize_short_interest_row(
@@ -60,16 +79,17 @@ def normalize_short_interest_row(
     )
     if ticker is None:
         return None
+    report_date = _date_value(_first_present(raw, "report_date", "settlementDate", "date"))
+    if report_date is None:
+        return None
     short_interest = _finite_float(
-        raw.get("short_interest") or raw.get("shortInterest") or raw.get("shortInterestQuantity")
+        _first_present(raw, "short_interest", "shortInterest", "shortInterestQuantity")
     )
     float_shares = _finite_float(
-        raw.get("float_shares") or raw.get("floatShares") or raw.get("sharesOutstanding")
+        _first_present(raw, "float_shares", "floatShares", "sharesOutstanding")
     )
     short_interest_pct = _finite_float(
-        raw.get("short_interest_pct")
-        or raw.get("shortInterestPct")
-        or raw.get("shortInterestPercent")
+        _first_present(raw, "short_interest_pct", "shortInterestPct", "shortInterestPercent")
     )
     if (
         short_interest_pct is None
@@ -86,9 +106,7 @@ def normalize_short_interest_row(
         "short_interest": short_interest,
         "float_shares": float_shares,
         "short_interest_pct": short_interest_pct,
-        "report_date": _date_value(
-            raw.get("report_date") or raw.get("settlementDate") or raw.get("date")
-        ),
+        "report_date": report_date,
         "source": _text(raw.get("source")) or "finra",
     }
 
@@ -119,8 +137,13 @@ def _decode_payload(payload: str) -> list[Mapping[str, Any]]:
     raise ShortInterestFetchError("short-interest response did not contain rows")
 
 
+def short_interest_url() -> str:
+    """Resolve the feed URL, treating a blank override as unset."""
+    return os.getenv("FINRA_SHORT_INTEREST_URL", "").strip() or DEFAULT_FINRA_SHORT_INTEREST_URL
+
+
 def _default_fetcher(ticker: str) -> list[Mapping[str, Any]]:
-    url = os.getenv("FINRA_SHORT_INTEREST_URL", DEFAULT_FINRA_SHORT_INTEREST_URL)
+    url = short_interest_url()
     request = Request(
         url, headers={"Accept": "application/json", "User-Agent": "Manager-Database/1.0"}
     )

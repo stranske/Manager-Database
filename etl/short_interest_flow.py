@@ -108,16 +108,17 @@ def ingest_short_interest_for_issuers(
             continue
         try:
             rows = fetch_short_interest(ticker, fetcher=fetcher)
-            for row in rows:
-                if not row.get("cusip") and issuer.get("cusip"):
-                    row["cusip"] = issuer["cusip"]
-            inserted += upsert_short_interest(conn, rows)
         except Exception as exc:
             message = f"{ticker}: {exc}"
             errors.append(message)
             logger.warning("short-interest fetch failed for %s: %s", ticker, exc)
             if raise_on_fetch_error:
                 raise ShortInterestFetchError(message) from exc
+            continue
+        for row in rows:
+            if not row.get("cusip") and issuer.get("cusip"):
+                row["cusip"] = issuer["cusip"]
+        inserted += upsert_short_interest(conn, rows)
     return {"inserted": inserted, "errors": errors, "issuer_count": len(issuers)}
 
 
@@ -139,24 +140,29 @@ def ingest_short_interest_for_manager(
 def short_interest_annotation(
     conn: Any, ticker: str | None, *, cusip: str | None = None
 ) -> dict[str, Any] | None:
-    """Return the latest short-interest context for a holding, or ``None`` when absent."""
-    ensure_short_interest_table(conn)
+    """Return the latest short-interest context for a holding, or ``None`` when absent.
+
+    This is a read path: schema initialization belongs to the migration or the
+    ingest flow, so a read-only database role can serve annotations.
+    """
     if not ticker and not cusip:
         return None
     ph = "?" if is_sqlite(conn) else "%s"
-    clauses: list[str] = []
-    params: list[Any] = []
-    if ticker:
-        clauses.append(f"UPPER(ticker) = UPPER({ph})")
-        params.append(ticker)
+    sql = (
+        "SELECT short_interest, float_shares, short_interest_pct, report_date, source "
+        "FROM short_interest WHERE {clause} ORDER BY report_date DESC, metric_id DESC LIMIT 1"
+    )
+    # CUSIP is the issuer identity; a ticker can be reassigned to another issuer.
+    lookups: list[tuple[str, Any]] = []
     if cusip:
-        clauses.append(f"cusip = {ph}")
-        params.append(cusip)
-    row = conn.execute(
-        "SELECT short_interest, float_shares, short_interest_pct, report_date, source FROM short_interest "
-        f"WHERE {' OR '.join(clauses)} ORDER BY report_date DESC, metric_id DESC LIMIT 1",
-        tuple(params),
-    ).fetchone()
+        lookups.append((f"cusip = {ph}", cusip))
+    if ticker:
+        lookups.append((f"UPPER(ticker) = UPPER({ph})", ticker))
+    row = None
+    for clause, param in lookups:
+        row = conn.execute(sql.format(clause=clause), (param,)).fetchone()
+        if row:
+            break
     if not row:
         return None
     return {

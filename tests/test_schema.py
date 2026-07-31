@@ -223,6 +223,21 @@ def test_backtest_migration_uses_sqlite_autoincrement_primary_keys(monkeypatch, 
         assert result.lastrowid is not None
 
 
+def test_short_interest_migration_uses_sqlite_autoincrement_primary_key(monkeypatch, tmp_path):
+    """Migration 018 must generate metric_id without callers supplying SQLite BIGINT keys."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema.db"
+    command.upgrade(_alembic_config(f"sqlite:///{db_path}"), "head")
+
+    with sqlite3.connect(db_path) as conn:
+        inserted = conn.execute(
+            "INSERT INTO short_interest(ticker, report_date, source) VALUES (?, ?, ?)",
+            ("AAPL", "2026-07-15", "finra"),
+        )
+        assert inserted.lastrowid is not None
+        assert conn.execute("SELECT metric_id FROM short_interest").fetchone()[0] is not None
+
+
 def test_backtest_schema_contract_stays_in_sync_across_all_three_definitions(monkeypatch, tmp_path):
     """Keep migration, runtime SQLite DDL, and canonical schema.sql column contracts aligned."""
     monkeypatch.delenv("DB_URL", raising=False)
