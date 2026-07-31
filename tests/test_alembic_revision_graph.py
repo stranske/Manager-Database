@@ -27,22 +27,42 @@ def _script_directory() -> ScriptDirectory:
     return ScriptDirectory.from_config(config)
 
 
+def _migration_files() -> list[Path]:
+    """Every migration script, regardless of naming convention.
+
+    Alembic does not require numeric filenames, so this must not glob `[0-9]*`.
+    """
+    return sorted(
+        path
+        for path in VERSIONS.glob("*.py")
+        if path.name != "__init__.py" and not path.name.startswith("_")
+    )
+
+
 def _declared_revision(path: Path) -> str | None:
-    """Read the module-level `revision` literal without importing the migration."""
+    """Read the module-level `revision` literal without importing the migration.
+
+    Handles the annotated form (`revision: str = "021"`) that Alembic's newer
+    script template emits as well as the plain assignment.
+    """
     for node in ast.parse(path.read_text(encoding="utf-8")).body:
-        if not isinstance(node, ast.Assign):
+        if isinstance(node, ast.Assign):
+            targets: tuple[ast.expr, ...] = tuple(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+        else:
             continue
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id == "revision":
-                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                    return node.value.value
+        if not any(isinstance(target, ast.Name) and target.id == "revision" for target in targets):
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            return node.value.value
     return None
 
 
 def test_revision_identifiers_are_unique():
     """Parse the files rather than the revision map, which keys by id and hides collisions."""
     by_revision: dict[str, list[str]] = defaultdict(list)
-    for path in sorted(VERSIONS.glob("[0-9]*.py")):
+    for path in _migration_files():
         revision = _declared_revision(path)
         assert revision is not None, f"{path.name} declares no module-level revision id"
         by_revision[revision].append(path.name)
@@ -68,7 +88,11 @@ def test_migration_graph_has_exactly_one_head():
 
 def test_every_migration_reaches_the_base():
     script_directory = _script_directory()
-    (head,) = script_directory.get_heads()
+    heads = script_directory.get_heads()
+    # Assert before indexing so a multi-head graph reports the violation rather
+    # than raising an unpacking ValueError from this test's own setup.
+    assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
+    head = heads[0]
 
     walked = {script.revision for script in script_directory.walk_revisions("base", head)}
     orphans = sorted(
