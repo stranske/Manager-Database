@@ -195,6 +195,8 @@ def test_activism_router_is_registered(tmp_path, monkeypatch):
         "/api/activism/campaigns",
         "/api/activism/campaigns/{campaign_id}",
         "/api/activism/campaigns/{campaign_id}/timeline",
+        "/api/activism/campaigns/{campaign_id}/documents",
+        "/api/activism/managers/{manager_id}/profile",
     }
     assert expected_paths.issubset(route_paths(app.routes))
 
@@ -323,6 +325,20 @@ def test_campaign_endpoints_return_grouped_timeline(tmp_path, monkeypatch):
         "2024-05-03",
         "2024-05-03",
     ]
+
+    documents = asyncio.run(
+        _request(f"/api/activism/campaigns/{campaign['campaign_id']}/documents")
+    )
+    assert documents.status_code == 200
+    assert [(item["doc_type"], item["source_url"]) for item in documents.json()] == [
+        ("filing", "https://sec.example/10"),
+        ("filing", "https://sec.example/11"),
+    ]
+
+    profile = asyncio.run(_request("/api/activism/managers/1/profile"))
+    assert profile.status_code == 200
+    assert profile.json()["campaign_count"] == 1
+    assert profile.json()["sectors"] == []
 
 
 def test_campaign_list_applies_target_date_and_limit_filters(tmp_path, monkeypatch):

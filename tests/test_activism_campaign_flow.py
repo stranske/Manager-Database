@@ -53,6 +53,14 @@ def test_materialize_campaigns_groups_amendments_by_manager_and_target() -> None
         ("2024-05-01", "initial_filing", "SC 13D"),
         ("2024-05-03", "threshold_crossing", "SC 13D/A"),
     ]
+    documents = conn.execute(
+        "SELECT doc_type, source_url FROM activism_documents ORDER BY filing_id"
+    ).fetchall()
+    assert documents == [
+        ("filing", "https://sec/1"),
+        ("filing", "https://sec/2"),
+        ("filing", "https://sec/3"),
+    ]
 
 
 def test_materialize_campaigns_orders_group_members_by_filing_date() -> None:

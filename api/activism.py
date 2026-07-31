@@ -89,6 +89,23 @@ class ActivismCampaignTimelineResponse(BaseModel):
     source_url: str | None
 
 
+class ActivismDocumentResponse(BaseModel):
+    document_id: int
+    filing_id: int
+    doc_type: str
+    source_url: str | None
+    raw_key: str | None
+    filed_date: date
+
+
+class ManagerActivismProfileResponse(BaseModel):
+    manager_id: int
+    manager_name: str | None
+    campaign_count: int
+    average_window_return: float | None
+    sectors: list[str] = Field(default_factory=list)
+
+
 def _to_float(value: Any) -> float | None:
     if value is None:
         return None
@@ -462,6 +479,52 @@ def query_activism_campaign_timeline(
     ]
 
 
+def query_activism_documents(conn: Any, campaign_id: int) -> list[ActivismDocumentResponse]:
+    if not table_exists(conn, "activism_documents"):
+        return []
+    ph = get_placeholder(conn)
+    rows = conn.execute(
+        "SELECT document_id, filing_id, doc_type, source_url, raw_key, filed_date "
+        f"FROM activism_documents WHERE campaign_id = {ph} "
+        "ORDER BY filed_date ASC, filing_id ASC, document_id ASC",
+        (campaign_id,),
+    ).fetchall()
+    return [
+        ActivismDocumentResponse(
+            document_id=int(row[0]),
+            filing_id=int(row[1]),
+            doc_type=str(row[2]),
+            source_url=str(row[3]) if row[3] is not None else None,
+            raw_key=str(row[4]) if row[4] is not None else None,
+            filed_date=_to_date(row[5]),
+        )
+        for row in rows
+    ]
+
+
+def query_manager_activism_profile(
+    conn: Any, manager_id: int
+) -> ManagerActivismProfileResponse | None:
+    if not table_exists(conn, "activism_campaigns"):
+        return None
+    ph = get_placeholder(conn)
+    row = conn.execute(
+        "SELECT ac.manager_id, m.name, COUNT(*), AVG(ac.window_return) "
+        "FROM activism_campaigns ac LEFT JOIN managers m ON m.manager_id = ac.manager_id "
+        f"WHERE ac.manager_id = {ph} GROUP BY ac.manager_id, m.name",
+        (manager_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return ManagerActivismProfileResponse(
+        manager_id=int(row[0]),
+        manager_name=str(row[1]) if row[1] is not None else None,
+        campaign_count=int(row[2]),
+        average_window_return=_to_float(row[3]),
+        sectors=[],
+    )
+
+
 @router.get(
     "/api/activism/filings",
     response_model=list[ActivismFilingResponse],
@@ -596,5 +659,31 @@ async def get_activism_campaign_timeline(
     conn = connect_db()
     try:
         return query_activism_campaign_timeline(conn, campaign_id)
+    finally:
+        conn.close()
+
+
+@router.get(
+    "/api/activism/campaigns/{campaign_id}/documents",
+    response_model=list[ActivismDocumentResponse],
+    summary="List campaign document references",
+)
+async def get_activism_campaign_documents(campaign_id: int) -> list[ActivismDocumentResponse]:
+    conn = connect_db()
+    try:
+        return query_activism_documents(conn, campaign_id)
+    finally:
+        conn.close()
+
+
+@router.get(
+    "/api/activism/managers/{manager_id}/profile",
+    response_model=ManagerActivismProfileResponse | None,
+    summary="Get an activist manager campaign profile",
+)
+async def get_manager_activism_profile(manager_id: int) -> ManagerActivismProfileResponse | None:
+    conn = connect_db()
+    try:
+        return query_manager_activism_profile(conn, manager_id)
     finally:
         conn.close()
