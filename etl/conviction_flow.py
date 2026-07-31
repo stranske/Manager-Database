@@ -220,6 +220,32 @@ def _resolve_crowded_trade_min_managers(default: int = 3) -> int:
     return max(1, parsed)
 
 
+def _resolve_similarity_crowding_min_score(default: float = 0.5) -> float:
+    raw = os.getenv("SIMILARITY_CROWDING_MIN_SCORE")
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return parse_finite_float(raw, min_value=0.0, max_value=1.0, allow_none=False)
+    except ValueError:
+        logger.warning("Invalid SIMILARITY_CROWDING_MIN_SCORE; using default", extra={"raw": raw})
+        return default
+
+
+def _similar_manager_ids(conn: Any, manager_ids: list[int], minimum_score: float) -> list[int]:
+    """Return crowd members connected by a Jaccard similarity at the configured floor."""
+    if len(manager_ids) < 2:
+        return []
+    ph = get_placeholder(conn)
+    placeholders = ", ".join([ph] * len(manager_ids))
+    rows = conn.execute(
+        "SELECT manager_id_a, manager_id_b FROM manager_similarity "
+        f"WHERE manager_id_a IN ({placeholders}) AND manager_id_b IN ({placeholders}) "
+        f"AND jaccard >= {ph}",
+        (*manager_ids, *manager_ids, minimum_score),
+    ).fetchall()
+    return sorted({int(manager_id) for row in rows for manager_id in row})
+
+
 def _ensure_crowded_trades_table(conn: Any) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute("""CREATE TABLE IF NOT EXISTS crowded_trades (
@@ -696,12 +722,20 @@ def dispatch_conviction_alerts(
     conn = connect_db()
     total_alerts = 0
     try:
+        similarity_floor = _resolve_similarity_crowding_min_score()
         for row in _load_crowded_trade_rows(conn, report_date):
+            manager_ids = json.loads(row[3]) if isinstance(row[3], str) else list(row[3])
+            similar_manager_ids = _similar_manager_ids(
+                conn, [int(manager_id) for manager_id in manager_ids], similarity_floor
+            )
             payload = {
                 "cusip": str(row[0]),
                 "name_of_issuer": str(row[1]) if row[1] is not None else None,
                 "manager_count": int(row[2]),
-                "manager_ids": json.loads(row[3]) if isinstance(row[3], str) else list(row[3]),
+                "manager_ids": manager_ids,
+                "similar_manager_ids": similar_manager_ids,
+                "similar_manager_count": len(similar_manager_ids),
+                "similarity_floor": similarity_floor,
                 "total_value_usd": float(row[4]) if row[4] is not None else None,
                 "avg_conviction_pct": float(row[5]) if row[5] is not None else None,
                 "max_conviction_pct": float(row[6]) if row[6] is not None else None,

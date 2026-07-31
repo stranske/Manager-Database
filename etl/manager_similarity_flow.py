@@ -4,9 +4,23 @@ from __future__ import annotations
 
 import sqlite3
 from itertools import combinations
+from math import sqrt
 from typing import Any
 
 from adapters.base import get_placeholder, get_table_columns
+from embeddings import embed_text
+
+
+def cosine_similarity(left: list[float], right: list[float]) -> float | None:
+    """Return cosine similarity for two finite, equally-sized vectors."""
+    if len(left) != len(right) or not left:
+        return None
+    denominator = sqrt(sum(value * value for value in left)) * sqrt(
+        sum(value * value for value in right)
+    )
+    if denominator == 0:
+        return None
+    return sum(a * b for a, b in zip(left, right, strict=True)) / denominator
 
 
 def ensure_manager_similarity_table(conn: Any) -> None:
@@ -15,7 +29,7 @@ def ensure_manager_similarity_table(conn: Any) -> None:
         conn.execute("""CREATE TABLE IF NOT EXISTS manager_similarity (
             manager_id_a INTEGER NOT NULL REFERENCES managers(id),
             manager_id_b INTEGER NOT NULL REFERENCES managers(id),
-            jaccard REAL NOT NULL, overlap_count INTEGER NOT NULL, union_count INTEGER NOT NULL,
+            jaccard REAL NOT NULL, cosine REAL, overlap_count INTEGER NOT NULL, union_count INTEGER NOT NULL,
             computed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (manager_id_a, manager_id_b),
             CHECK (manager_id_a < manager_id_b)
@@ -26,6 +40,9 @@ def ensure_manager_similarity_table(conn: Any) -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)"
         )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(manager_similarity)")}
+        if "cosine" not in columns:
+            conn.execute("ALTER TABLE manager_similarity ADD COLUMN cosine REAL")
 
 
 def compute_manager_similarity(conn: Any) -> int:
@@ -53,6 +70,10 @@ def compute_manager_similarity(conn: Any) -> int:
         securities = holdings.setdefault(int(manager_id), set())
         if security is not None:
             securities.add(str(security))
+    vectors = {
+        manager_id: embed_text(" ".join(sorted(securities)))
+        for manager_id, securities in holdings.items()
+    }
 
     def replace_rows() -> int:
         conn.execute("DELETE FROM manager_similarity")
@@ -64,9 +85,17 @@ def compute_manager_similarity(conn: Any) -> int:
             if not union:
                 continue
             conn.execute(
-                "INSERT INTO manager_similarity (manager_id_a, manager_id_b, jaccard, overlap_count, union_count) "
-                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph})",
-                (left, right, len(overlap) / len(union), len(overlap), len(union)),
+                "INSERT INTO manager_similarity "
+                "(manager_id_a, manager_id_b, jaccard, cosine, overlap_count, union_count) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+                (
+                    left,
+                    right,
+                    len(overlap) / len(union),
+                    cosine_similarity(vectors[left], vectors[right]),
+                    len(overlap),
+                    len(union),
+                ),
             )
             count += 1
         return count
