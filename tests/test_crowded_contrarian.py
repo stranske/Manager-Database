@@ -45,6 +45,13 @@ def _setup_db(tmp_path, manager_count: int) -> str:
         "UNIQUE(cusip, report_date))"
     )
     conn.execute(
+        "CREATE TABLE manager_similarity ("
+        "manager_id_a INTEGER NOT NULL, "
+        "manager_id_b INTEGER NOT NULL, "
+        "jaccard REAL NOT NULL, "
+        "CHECK (manager_id_a < manager_id_b))"
+    )
+    conn.execute(
         "CREATE TABLE daily_diffs ("
         "diff_id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "manager_id INTEGER NOT NULL, "
@@ -310,6 +317,10 @@ def test_dispatch_conviction_alerts_emits_events_for_detected_rows(tmp_path, mon
     report_date = "2024-05-01"
 
     detect_crowded_trades.fn(report_date, min_managers=3, conn=conn)
+    conn.executemany(
+        "INSERT INTO manager_similarity(manager_id_a, manager_id_b, jaccard) VALUES (?, ?, ?)",
+        [(1, 2, 0.9), (1, 3, 0.9), (1, 4, 0.9), (1, 5, 0.9)],
+    )
     for manager_id in (1, 2, 3, 4):
         conn.execute(
             "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
