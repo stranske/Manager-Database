@@ -99,7 +99,8 @@ def _to_date(value: Any) -> date:
         return value
     if isinstance(value, datetime):
         return value.date()
-    return date.fromisoformat(str(value))
+    # Slice so ISO timestamps ("2024-05-01T12:00:00Z") parse as their date part.
+    return date.fromisoformat(str(value)[:10])
 
 
 def _resolve_latest_report_date(conn: Any, table_name: str) -> date | None:
@@ -466,7 +467,7 @@ async def get_conviction_scores(
     response_model=ManagerAttributionResponse,
     summary="List position attribution for a manager",
 )
-async def get_manager_attribution(
+def get_manager_attribution(
     manager_id: int,
     as_of_date: date | None = None,
     limit: int = Query(200, ge=1, le=1000),
@@ -493,8 +494,8 @@ async def get_manager_attribution(
         PositionAttribution(
             manager_id=int(row["manager_id"]),
             filing_id=int(row["filing_id"]) if row.get("filing_id") is not None else None,
-            disclosure_date=_coerce_date_value(row["disclosure_date"]),
-            as_of_date=_coerce_date_value(row["as_of_date"]),
+            disclosure_date=_to_date(row["disclosure_date"]),
+            as_of_date=_to_date(row["as_of_date"]),
             security_key=str(row["security_key"]),
             ticker=str(row["ticker"]) if row.get("ticker") else None,
             cusip=str(row["cusip"]) if row.get("cusip") else None,
@@ -507,9 +508,13 @@ async def get_manager_attribution(
         for row in rows
     ]
     summary = summarize_manager_attribution(positions)
+    # Unfiltered reads span every as-of window, so a single top-level value would
+    # misrepresent the rows. Only report one when the rows actually share it.
+    window_dates = {p.as_of_date for p in positions}
+    resolved_as_of = as_of_date or (window_dates.pop() if len(window_dates) == 1 else None)
     return ManagerAttributionResponse(
         manager_id=manager_id,
-        as_of_date=as_of_date or (positions[0].as_of_date if positions else None),
+        as_of_date=resolved_as_of,
         positions=int(summary["positions"]),
         positions_skipped=int(summary["positions_skipped"]),
         realized_return=summary["realized_return"],
@@ -531,11 +536,3 @@ async def get_manager_attribution(
             for p in positions
         ],
     )
-
-
-def _coerce_date_value(value: Any) -> date:
-    if isinstance(value, date) and not isinstance(value, datetime):
-        return value
-    if isinstance(value, datetime):
-        return value.date()
-    return date.fromisoformat(str(value)[:10])

@@ -320,10 +320,10 @@ CREATE TABLE IF NOT EXISTS manager_attribution (
     ticker text,
     cusip text,
     name_of_issuer text,
-    disclosure_price real,
-    as_of_price real,
-    position_return real,
-    value_usd real,
+    disclosure_price double precision,
+    as_of_price double precision,
+    position_return double precision,
+    value_usd double precision,
     status text NOT NULL DEFAULT 'filled',
     skip_reason text,
     computed_at timestamptz DEFAULT now(),
@@ -331,6 +331,9 @@ CREATE TABLE IF NOT EXISTS manager_attribution (
 );
 CREATE INDEX IF NOT EXISTS idx_manager_attribution_manager
     ON manager_attribution (manager_id, as_of_date);
+-- NULL filing_id rows escape the UNIQUE constraint above, so they need a partial index.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_manager_attribution_no_filing
+    ON manager_attribution (manager_id, security_key, as_of_date) WHERE filing_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS identifier_resolution_cache (
     cusip text PRIMARY KEY,

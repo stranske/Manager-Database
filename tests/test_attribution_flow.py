@@ -127,6 +127,180 @@ def test_two_positions_yield_hand_computed_returns(tmp_path: Path) -> None:
     assert {row["ticker"] for row in stored} == {"AAA", "BBB"}
 
 
+def test_repeated_runs_do_not_duplicate_stored_rows(tmp_path: Path) -> None:
+    """Persistence is idempotent: re-running the same window upserts, never appends."""
+    conn = _connect(tmp_path)
+    _seed_two_positions(conn)
+    adapter = _adapter(conn)
+
+    for _ in range(2):
+        run_attribution(
+            conn,
+            manager_id=1,
+            as_of_date=AS_OF,
+            price_adapter=adapter,
+            disclosure_dates=[DISCLOSURE],
+        )
+
+    stored = query_manager_attribution(conn, 1, as_of_date=AS_OF)
+    assert len(stored) == 2
+    assert {row["ticker"] for row in stored} == {"AAA", "BBB"}
+
+
+def test_repeated_runs_do_not_duplicate_rows_without_a_filing_id(tmp_path: Path) -> None:
+    """NULL filing_id rows escape the UNIQUE constraint, so they need the partial index.
+
+    Without the partial unique index plus its matching ON CONFLICT target, every run
+    inserts another copy and the manager aggregates drift.
+    """
+    conn = _connect(tmp_path)
+    _seed_two_positions(conn)
+    # No filing carries this disclosure date, so _holdings_for_disclosure yields
+    # filing_id=None for the whole visible set.
+    unfiled_disclosure = date(2024, 5, 2)
+    adapter = PriceAdapter(
+        conn,
+        source="test",
+        fetcher=_make_fetcher(
+            {
+                "AAA": {**PRICES["AAA"], unfiled_disclosure: 100.0},
+                "BBB": {**PRICES["BBB"], unfiled_disclosure: 50.0},
+            }
+        ),
+    )
+
+    for _ in range(2):
+        report = run_attribution(
+            conn,
+            manager_id=1,
+            as_of_date=AS_OF,
+            price_adapter=adapter,
+            disclosure_dates=[unfiled_disclosure],
+        )
+        assert all(p.filing_id is None for p in report.positions)
+
+    stored = query_manager_attribution(conn, 1, as_of_date=AS_OF)
+    assert len(stored) == 2
+    assert all(row["filing_id"] is None for row in stored)
+
+
+def test_skip_paths_are_recorded_and_excluded_from_metrics(tmp_path: Path) -> None:
+    """Unresolved tickers and missing prices are skipped, not folded into the aggregates."""
+    conn = _connect(tmp_path)
+    _seed_two_positions(conn)
+    # CCC has a ticker but no prices; DDD has no resolved ticker at all.
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, resolved_ticker, name_of_issuer, shares, "
+        "value_usd, knowledge_time) VALUES (10, 'CCC000000', 'CCC', 'CCC Corp', 100, "
+        "1000000.0, '2024-05-01T12:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, resolved_ticker, name_of_issuer, shares, "
+        "value_usd, knowledge_time) VALUES (10, 'DDD000000', NULL, 'DDD Corp', 100, "
+        "1000000.0, '2024-05-01T12:00:00Z')"
+    )
+    conn.commit()
+
+    report = run_attribution(
+        conn,
+        manager_id=1,
+        as_of_date=AS_OF,
+        price_adapter=_adapter(conn),
+        disclosure_dates=[DISCLOSURE],
+    )
+
+    by_key = {p.security_key: p for p in report.skipped}
+    assert by_key["CCC"].skip_reason == "missing_price"
+    assert by_key["DDD000000"].skip_reason == "unresolved_ticker"
+
+    # Metrics still reflect only the two priced positions.
+    assert report.realized_return == pytest.approx(0.05)
+    assert report.hit_rate == pytest.approx(0.5)
+    summary = summarize_manager_attribution(report.positions)
+    assert summary["positions"] == 2
+    assert summary["positions_skipped"] == 2
+
+
+def test_non_finite_price_is_skipped_rather_than_poisoning_metrics(tmp_path: Path) -> None:
+    """A NaN close passes a bare `<= 0` guard; it must not reach position_return."""
+    conn = _connect(tmp_path)
+    _seed_two_positions(conn)
+    adapter = PriceAdapter(
+        conn,
+        source="test",
+        fetcher=_make_fetcher({**PRICES, "BBB": {**PRICES["BBB"], AS_OF: float("nan")}}),
+    )
+
+    report = run_attribution(
+        conn,
+        manager_id=1,
+        as_of_date=AS_OF,
+        price_adapter=adapter,
+        disclosure_dates=[DISCLOSURE],
+        persist=False,
+    )
+
+    skipped = {p.ticker: p for p in report.skipped}
+    assert skipped["BBB"].skip_reason == "missing_price"
+    assert all(p.position_return == p.position_return for p in report.filled)  # no NaN
+    assert report.realized_return == pytest.approx(0.30)
+
+
+def test_security_disclosed_twice_is_attributed_once(tmp_path: Path) -> None:
+    """Re-disclosure in a later filing must not double-count the security."""
+    conn = _connect(tmp_path)
+    _seed_two_positions(conn)
+    later_disclosure = date(2024, 6, 3)
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source) "
+        "VALUES (12, 1, '13F-HR', '2024-04-30', '2024-06-03', 'us')"
+    )
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, resolved_ticker, name_of_issuer, shares, "
+        "value_usd, knowledge_time) VALUES (12, 'AAA000000', 'AAA', 'AAA Corp', 1000, "
+        "5000000.0, '2024-06-03T12:00:00Z')"
+    )
+    conn.commit()
+
+    report = run_attribution(
+        conn,
+        manager_id=1,
+        as_of_date=AS_OF,
+        price_adapter=_adapter(conn),
+        disclosure_dates=[DISCLOSURE, later_disclosure],
+        persist=False,
+    )
+
+    aaa = [p for p in report.positions if p.security_key == "AAA"]
+    assert len(aaa) == 1
+    # The earliest disclosure wins, so the hand-computed 100 -> 130 path is preserved.
+    assert aaa[0].disclosure_date == DISCLOSURE
+    assert aaa[0].position_return == pytest.approx(0.30)
+
+
+def test_identified_filing_without_visible_rows_yields_no_positions(tmp_path: Path) -> None:
+    """An empty period must not borrow another filing's holdings under its filing_id."""
+    conn = _connect(tmp_path)
+    _seed_two_positions(conn)
+    empty_disclosure = date(2024, 6, 3)
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source) "
+        "VALUES (13, 1, '13F-HR', '2024-04-30', '2024-06-03', 'us')"
+    )
+    conn.commit()
+
+    report = run_attribution(
+        conn,
+        manager_id=1,
+        as_of_date=AS_OF,
+        price_adapter=_adapter(conn),
+        disclosure_dates=[empty_disclosure],
+        persist=False,
+    )
+
+    assert report.positions == []
+
+
 def test_no_lookahead_excludes_future_knowledge(tmp_path: Path) -> None:
     """Returns only use holdings knowable at disclosure — never a later amendment."""
     conn = _connect(tmp_path)

@@ -36,28 +36,37 @@ def _is_missing_postgres_table_error(exc: Exception) -> bool:
 def ensure_manager_attribution_table(conn: Any) -> None:
     """Create ``manager_attribution`` on SQLite; fail fast when Postgres has no schema."""
     if isinstance(conn, sqlite3.Connection):
+        # Declared types mirror migration 019's SQLite rendering exactly; the schema
+        # parity test compares PRAGMA table_info types, not just column names.
         conn.execute("""CREATE TABLE IF NOT EXISTS manager_attribution (
                 attribution_id INTEGER PRIMARY KEY,
-                manager_id INTEGER NOT NULL,
-                filing_id INTEGER,
+                manager_id BIGINT NOT NULL,
+                filing_id BIGINT,
                 disclosure_date DATE NOT NULL,
                 as_of_date DATE NOT NULL,
                 security_key TEXT NOT NULL,
                 ticker TEXT,
                 cusip TEXT,
                 name_of_issuer TEXT,
-                disclosure_price REAL,
-                as_of_price REAL,
-                position_return REAL,
-                value_usd REAL,
+                disclosure_price FLOAT,
+                as_of_price FLOAT,
+                position_return FLOAT,
+                value_usd FLOAT,
                 status TEXT NOT NULL DEFAULT 'filled',
                 skip_reason TEXT,
-                computed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                computed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (manager_id, filing_id, security_key, as_of_date)
             )""")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_manager_attribution_manager "
             "ON manager_attribution(manager_id, as_of_date)"
+        )
+        # NULLs are distinct under UNIQUE, so filing-less rows need a partial index to
+        # stay dedupable. Keeps the runtime contract identical to migration 019.
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_manager_attribution_no_filing "
+            "ON manager_attribution(manager_id, security_key, as_of_date) "
+            "WHERE filing_id IS NULL"
         )
         return
 
@@ -187,13 +196,16 @@ def _holdings_for_disclosure(
     a future knowledge_time cannot leak into the disclosure-period decision set.
     Among the as-of snapshot, keep rows belonging to the disclosure filing when
     that filing is identifiable; otherwise keep the full visible set.
+
+    An identified filing with no visible rows yields an empty list rather than the
+    full snapshot: attributing other filings' holdings to this ``filing_id`` would
+    persist — and surface through the API — a filing reference they do not belong to.
     """
     filing_id = _filing_id_for_disclosure(conn, manager_id, disclosure_date)
     visible = visible_holdings(conn, manager_id, disclosure_date)
     if filing_id is None:
         return None, visible
-    period_rows = [row for row in visible if int(row.get("filing_id") or -1) == filing_id]
-    return filing_id, period_rows if period_rows else visible
+    return filing_id, [row for row in visible if int(row.get("filing_id") or -1) == filing_id]
 
 
 def attribute_position(
@@ -238,8 +250,10 @@ def attribute_position(
         logger.warning("Holding has no resolved ticker; skipping", extra={"cusip": cusip})
         return position
 
-    disclosure_price = price_adapter.close_on_or_before(ticker, start)
-    as_of_price = price_adapter.close_on_or_before(ticker, as_of_date)
+    # finite_float_or_none also rejects NaN/inf: NaN survives a `<= 0` guard and would
+    # poison position_return, the aggregates, and finally JSON serialization.
+    disclosure_price = finite_float_or_none(price_adapter.close_on_or_before(ticker, start))
+    as_of_price = finite_float_or_none(price_adapter.close_on_or_before(ticker, as_of_date))
     if disclosure_price is None or as_of_price is None or disclosure_price <= 0:
         position.status = "skipped"
         position.skip_reason = "missing_price"
@@ -260,18 +274,10 @@ def attribute_position(
 
 
 def _aggregate(report: AttributionReport) -> None:
-    filled = report.filled
-    if not filled:
-        report.realized_return = None
-        report.hit_rate = None
-        return
-    returns = [p.position_return for p in filled if p.position_return is not None]
-    if not returns:
-        report.realized_return = None
-        report.hit_rate = None
-        return
-    report.realized_return = sum(returns) / len(returns)
-    report.hit_rate = sum(1 for value in returns if value > 0) / len(returns)
+    """Fill the report's manager-level metrics from the single aggregation definition."""
+    summary = summarize_manager_attribution(report.positions)
+    report.realized_return = summary["realized_return"]
+    report.hit_rate = summary["hit_rate"]
 
 
 def run_attribution(
@@ -301,9 +307,11 @@ def run_attribution(
         {d for d in dates if d <= as_of_date and (start_date is None or d >= start_date)}
     )
 
-    # Deduplicate by (filing, security) so a security disclosed once is attributed once
-    # for this as-of window, even if it reappears in later as-of snapshots.
-    seen: set[tuple[int | None, str]] = set()
+    # Deduplicate by security alone so a security is attributed once for this as-of
+    # window. ``dates`` is ascending, so the earliest disclosure wins; keying by
+    # (filing, security) would attribute the same security once per filing that
+    # re-discloses it and double-count it in the manager aggregates.
+    seen: set[str] = set()
     for disclosure_date in dates:
         filing_id, holdings = _holdings_for_disclosure(conn, manager_id, disclosure_date)
         entry_date = disclosure_date + timedelta(days=int(entry_date_offset_days))
@@ -312,10 +320,9 @@ def run_attribution(
             key = _security_key(row)
             if key is None:
                 key = "UNKNOWN"
-            dedupe = (filing_id, key)
-            if dedupe in seen:
+            if key in seen:
                 continue
-            seen.add(dedupe)
+            seen.add(key)
             report.positions.append(
                 attribute_position(
                     row,
@@ -343,13 +350,8 @@ def persist_attribution(conn: Any, report: AttributionReport) -> int:
     def write_rows() -> int:
         count = 0
         excluded = "excluded" if is_sqlite(conn) else "EXCLUDED"
-        sql = (
-            "INSERT INTO manager_attribution("
-            "manager_id, filing_id, disclosure_date, as_of_date, security_key, "
-            "ticker, cusip, name_of_issuer, disclosure_price, as_of_price, "
-            "position_return, value_usd, status, skip_reason) "
-            f"VALUES ({', '.join([ph] * 14)}) "
-            "ON CONFLICT(manager_id, filing_id, security_key, as_of_date) DO UPDATE SET "
+        update_clause = (
+            "DO UPDATE SET "
             f"ticker={excluded}.ticker, cusip={excluded}.cusip, "
             f"name_of_issuer={excluded}.name_of_issuer, "
             f"disclosure_price={excluded}.disclosure_price, "
@@ -358,9 +360,27 @@ def persist_attribution(conn: Any, report: AttributionReport) -> int:
             f"value_usd={excluded}.value_usd, "
             f"status={excluded}.status, skip_reason={excluded}.skip_reason"
         )
+        insert_clause = (
+            "INSERT INTO manager_attribution("
+            "manager_id, filing_id, disclosure_date, as_of_date, security_key, "
+            "ticker, cusip, name_of_issuer, disclosure_price, as_of_price, "
+            "position_return, value_usd, status, skip_reason) "
+            f"VALUES ({', '.join([ph] * 14)}) "
+        )
+        # A NULL filing_id never matches the four-column unique constraint, so those
+        # rows must target the partial index instead or every run re-inserts them.
+        sql_with_filing = (
+            f"{insert_clause}"
+            f"ON CONFLICT(manager_id, filing_id, security_key, as_of_date) {update_clause}"
+        )
+        sql_without_filing = (
+            f"{insert_clause}"
+            "ON CONFLICT(manager_id, security_key, as_of_date) WHERE filing_id IS NULL "
+            f"{update_clause}"
+        )
         for position in report.positions:
             conn.execute(
-                sql,
+                sql_with_filing if position.filing_id is not None else sql_without_filing,
                 (
                     position.manager_id,
                     position.filing_id,

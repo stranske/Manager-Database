@@ -55,8 +55,20 @@ def upgrade() -> None:
         "manager_attribution",
         ["manager_id", "as_of_date"],
     )
+    # SQLite and PostgreSQL both treat NULLs as distinct in a UNIQUE constraint, so the
+    # composite key above cannot dedupe rows whose disclosure filing is unidentifiable.
+    # Mirrors the partial-index pattern in 016_activism_campaigns.
+    op.create_index(
+        "uq_manager_attribution_no_filing",
+        "manager_attribution",
+        ["manager_id", "security_key", "as_of_date"],
+        unique=True,
+        sqlite_where=text("filing_id IS NULL"),
+        postgresql_where=text("filing_id IS NULL"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("uq_manager_attribution_no_filing", table_name="manager_attribution")
     op.drop_index("idx_manager_attribution_manager", table_name="manager_attribution")
     op.drop_table("manager_attribution")
