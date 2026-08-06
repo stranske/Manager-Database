@@ -13,6 +13,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
 RECOMMENDED: dict[str, tuple[str, ...]] = {
     "Why": ("why", "goals", "summary", "motivation", "finding"),
     "Scope": ("scope", "background", "context", "overview"),
+    "Implementation Notes": ("implementation notes",),
     "Non-Goals": ("non-goals", "out of scope", "constraints"),
 }
 GATE = re.compile(
@@ -21,6 +22,7 @@ GATE = re.compile(
     r"|\bpytest\b|\bnpm test\b|\bmake test\b"
     r"|\bgh workflow run\b|\bgh run\b"
     r"|\bcurl\b|\bHTTP [1-5]\d\d\b"
+    r"|\b(?:API|endpoint|request|response)\s+(?:returns?|responds with)\s+[1-5]\d\d(?:\s+status)?\b"
     r"|\bsmoke\b|\bverif)",
     re.I,
 )
@@ -116,17 +118,12 @@ def validate(body: str) -> Report:
         )
 
     acceptance_at = _find(body, REQUIRED["Acceptance Criteria"])
-    if acceptance_at is None:
-        report.problems.append(
-            "No `Acceptance Criteria` section, so there is no named test gate "
-            "(format guide §2 requires at least one)."
-        )
-    else:
+    if acceptance_at is not None:
         acceptance = _section_text(body, acceptance_at)
         if not GATE.search(acceptance):
             report.problems.append(
                 "`Acceptance Criteria` names no test, runnable command or observable "
-                "verification gate — format guide §2 requires one."
+                "verification gate — Definition of Ready / Quality Bar §2 requires one."
             )
         hits = [word for word in BANNED_ADJECTIVES if re.search(rf"\b{word}\b", acceptance, re.I)]
         if hits:
