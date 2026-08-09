@@ -170,11 +170,11 @@ CHECKBOX_REGEX = re.compile(r"^\[([ xX])\]\s*(.*)$")
 VERIFY_HINT_REGEX = re.compile(r"\(verify:\s*([^\n)]+)\)", re.IGNORECASE)
 SAFE_VERIFY_COMMAND_RE = re.compile(
     r"^(?:"
-    r"(?:python(?:3)?\s+-m\s+)?pytest\b"
+    r"(?:python(?:3)?\s+-m\s+)?(?:pytest|unittest)\b"
     r"|node\s+--test\b"
     r"|(?:npm|pnpm|yarn)\s+(?:run\s+)?(?:test|vitest|jest|playwright)\b"
     r"|(?:make|just|cargo|go|dotnet)\s+(?:test|check)\b"
-    r"|gh\s+(?:workflow\s+run|run)\b"
+    r"|gh\s+(?:workflow\s+run|run)\s+\S+"
     r"|curl\s+\S+"
     r")",
     re.IGNORECASE,
@@ -477,10 +477,38 @@ def _strip_original_issue_blocks(text: str) -> str:
         kept.append(text[cursor : match.start()])
         depth = 1
         end = match.end()
+        fence: tuple[str, int] | None = None
         for tag in _DETAILS_TAG_RE.finditer(text, match.end()):
+            # Literal HTML in the verbatim Original-Issue fence is content, not
+            # structural markup.  Only count tags outside Markdown fences.
+            # Include the tag itself while deciding whether this line is a
+            # marker-only closing fence.  A same-line ``</details>`` is
+            # fenced content, so it must keep the fence open rather than be
+            # counted as structural markup.
+            before = text[end : tag.end()]
+            for line in before.splitlines():
+                fence_match = re.match(r"\s{0,3}(`{3,}|~{3,})", line)
+                if not fence_match:
+                    continue
+                marker = fence_match.group(1)
+                if fence is None:
+                    fence = (marker[0], len(marker))
+                elif (
+                    marker[0] == fence[0]
+                    and len(marker) >= fence[1]
+                    and re.fullmatch(
+                        rf"\s{{0,3}}(?:`{{{fence[1]},}}|~{{{fence[1]},}})\s*",
+                        line,
+                    )
+                ):
+                    # Closing fences are marker-only; language tags / trailing
+                    # text must not toggle the fence state.
+                    fence = None
+            end = tag.end()
+            if fence is not None:
+                continue
             depth += -1 if tag.group(0).startswith("</") else 1
             if depth == 0:
-                end = tag.end()
                 break
         else:
             # Leave malformed markup intact rather than silently discarding it.
