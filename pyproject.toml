@@ -46,7 +46,7 @@ dev = [
     "black==26.5.1",
     "ruff==0.16.3",
     "pre-commit",
-    "mypy==2.3.0",
+    "mypy==2.3.1",
     "langchain>=1.2,<2.0",
     "langchain-core>=1.2,<2.0",
     "langchain-openai>=0.3,<2.0",
