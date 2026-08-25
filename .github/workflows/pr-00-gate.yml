@@ -70,6 +70,13 @@ jobs:
       python-versions: '["3.12", "3.13"]'
       coverage: true
       coverage-min: "75"
+      # Coverage was already MEASURED here; only the reporting leg was off, because
+      # `enable-soft-gate` defaults to false. So the Gate computed a coverage number every
+      # run and then discarded it -- no trend artifact, no hotspot table, and nothing for
+      # Maint Coverage Guard to read. Report-only: the soft gate runs coverage_trend.py with
+      # --soft, which always exits 0, so this cannot fail a PR.
+      # Measured 78.01% on this repo's own 2026-08-25 Gate payload, against the floor of 75.
+      enable-soft-gate: true
       typecheck: true
       format_check: true
       pytest_markers: "not nightly"  # Skip nightly integration tests
