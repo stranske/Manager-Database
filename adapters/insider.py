@@ -49,7 +49,18 @@ def _as_date(value: Any) -> str | None:
         return text[:10]
     digits = "".join(ch for ch in text if ch.isdigit())
     if len(digits) >= 8:
-        return f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}"
+        # The digit fallback assumes YYYYMMDD, which is what EDGAR emits. A US-format value like
+        # "08/30/2026" yields the same eight digits in a different order and produced the
+        # well-formed-LOOKING string "0830-20-26" — month 20, which `date.fromisoformat` rejects.
+        # That escaped this function as a return value and raised inside
+        # `net_direction_for_rows(..., lookback_days=...)`, so one ordinary US-format cell crashed
+        # the whole direction calculation rather than being skipped as unreadable.
+        candidate = f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}"
+        try:
+            date.fromisoformat(candidate)
+        except ValueError:
+            return None
+        return candidate
     return None
 
 
