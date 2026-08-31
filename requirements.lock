@@ -104,7 +104,7 @@ colorama==0.4.6
     #   typer
 coolname==5.0.0
     # via prefect
-coverage==7.15.4
+coverage==7.16.0
     # via
     #   manager-database (pyproject.toml)
     #   pytest-cov
@@ -535,7 +535,7 @@ ruamel-yaml==0.19.1
     # via prefect
 ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
     # via prefect
-ruff==0.16.4
+ruff==0.16.5
     # via manager-database (pyproject.toml)
 s3transfer==0.19.2
     # via boto3
