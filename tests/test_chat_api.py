@@ -576,7 +576,15 @@ def test_direct_holdings_analysis_endpoint_wires_real_chain_contract(tmp_path, m
             "Manager filter did not resolve to any manager IDs",
         ),
         (
+            {"manager_ids": {}},
+            "Manager filter did not resolve to any manager IDs",
+        ),
+        (
             {"cusips": ["", None]},
+            "CUSIP filter must contain at least one non-empty value",
+        ),
+        (
+            {"cusips": {}},
             "CUSIP filter must contain at least one non-empty value",
         ),
         (
@@ -585,6 +593,14 @@ def test_direct_holdings_analysis_endpoint_wires_real_chain_contract(tmp_path, m
         ),
         (
             {"date_range": {"start": "2026-04-01", "end": "2026-03-31"}},
+            "Date range must contain valid ISO dates with start on or before end",
+        ),
+        (
+            {"date_range": {}},
+            "Date range must contain valid ISO dates with start on or before end",
+        ),
+        (
+            {"date_range": []},
             "Date range must contain valid ISO dates with start on or before end",
         ),
     ],

@@ -628,7 +628,7 @@ def _context_filter_requested(context: dict[str, Any], *keys: str) -> bool:
         if isinstance(value, str):
             if value.strip():
                 return True
-        elif isinstance(value, (list, tuple, dict)):
+        elif isinstance(value, (list, tuple)):
             if value:
                 return True
         elif value is not None:
@@ -656,7 +656,7 @@ def _validated_holdings_filters(
         )
 
     date_range = _parse_date_range(context.get("date_range"))
-    if _context_filter_requested(context, "date_range") and (
+    if context.get("date_range") is not None and (
         date_range is None or date_range[0] > date_range[1]
     ):
         raise HTTPException(
