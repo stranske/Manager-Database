@@ -621,6 +621,52 @@ def _normalize_chain_context(context: dict[str, Any] | None, conn: Any) -> dict[
     return normalized
 
 
+def _context_filter_requested(context: dict[str, Any], *keys: str) -> bool:
+    """Return whether a caller supplied a substantive value for any filter key."""
+    for key in keys:
+        value = context.get(key)
+        if isinstance(value, str):
+            if value.strip():
+                return True
+        elif isinstance(value, (list, tuple, dict)):
+            if value:
+                return True
+        elif value is not None:
+            return True
+    return False
+
+
+def _validated_holdings_filters(
+    context: dict[str, Any],
+) -> tuple[list[int] | None, list[str] | None, tuple[date, date] | None]:
+    """Normalize explicit holdings filters without silently widening their scope."""
+    manager_ids = _normalize_manager_ids(context.get("manager_ids"))
+    if _context_filter_requested(context, "manager_ids", "manager_id", "manager_name"):
+        if not manager_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="Manager filter did not resolve to any manager IDs",
+            )
+
+    cusips = _normalize_cusips(context.get("cusips"))
+    if _context_filter_requested(context, "cusips") and not cusips:
+        raise HTTPException(
+            status_code=400,
+            detail="CUSIP filter must contain at least one non-empty value",
+        )
+
+    date_range = _parse_date_range(context.get("date_range"))
+    if _context_filter_requested(context, "date_range") and (
+        date_range is None or date_range[0] > date_range[1]
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Date range must contain valid ISO dates with start on or before end",
+        )
+
+    return manager_ids or None, cusips or None, date_range
+
+
 def _classify_intent(question: str) -> str:
     """Classify user intent or use a deterministic fallback classifier."""
     try:
@@ -904,6 +950,14 @@ async def _run_chain(
     finally:
         conn.close()
 
+    holdings_manager_ids: list[int] | None = None
+    holdings_cusips: list[str] | None = None
+    holdings_date_range: tuple[date, date] | None = None
+    if chain_name == "holdings_analysis":
+        holdings_manager_ids, holdings_cusips, holdings_date_range = _validated_holdings_filters(
+            normalized_context
+        )
+
     chain = _build_chain(chain_name, client_info)
     try:
         if chain_name == "filing_summary":
@@ -921,9 +975,9 @@ async def _run_chain(
         elif chain_name == "holdings_analysis":
             result = chain.run(
                 question,
-                manager_ids=_normalize_manager_ids(normalized_context.get("manager_ids")) or None,
-                cusips=_normalize_cusips(normalized_context.get("cusips")) or None,
-                date_range=_parse_date_range(normalized_context.get("date_range")),
+                manager_ids=holdings_manager_ids,
+                cusips=holdings_cusips,
+                date_range=holdings_date_range,
             )
             result = _format_holdings_analysis_payload(result)
         elif hasattr(chain, "run"):

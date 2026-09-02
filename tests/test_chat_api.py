@@ -564,6 +564,132 @@ def test_direct_holdings_analysis_endpoint_wires_real_chain_contract(tmp_path, m
     assert tuple(value.isoformat() for value in seen["date_range"]) == ("2026-03-01", "2026-03-31")
 
 
+@pytest.mark.parametrize(
+    ("context", "expected_detail"),
+    [
+        (
+            {"manager_name": "Missing Manager"},
+            "Manager filter did not resolve to any manager IDs",
+        ),
+        (
+            {"manager_ids": ["not-an-id"]},
+            "Manager filter did not resolve to any manager IDs",
+        ),
+        (
+            {"cusips": ["", None]},
+            "CUSIP filter must contain at least one non-empty value",
+        ),
+        (
+            {"date_range": {"start": "not-a-date", "end": "2026-03-31"}},
+            "Date range must contain valid ISO dates with start on or before end",
+        ),
+        (
+            {"date_range": {"start": "2026-04-01", "end": "2026-03-31"}},
+            "Date range must contain valid ISO dates with start on or before end",
+        ),
+    ],
+)
+def test_holdings_analysis_rejects_invalid_explicit_scope_before_chain_build(
+    tmp_path, monkeypatch, context, expected_detail
+):
+    db_path = tmp_path / "chat-scope.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute("INSERT INTO managers(manager_id, name) VALUES (7, 'Known Manager')")
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+
+    def _unexpected_chain_build(*_args, **_kwargs):
+        raise AssertionError("invalid scope must be rejected before chain construction")
+
+    monkeypatch.setattr(chat_api_module, "_build_chain", _unexpected_chain_build)
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat/holdings-analysis",
+            json={"question": "Analyze this scope", "context": context},
+        )
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": expected_detail}
+
+
+@pytest.mark.parametrize(
+    ("context", "expected_filters"),
+    [
+        (None, {"manager_ids": None, "cusips": None, "date_range": None}),
+        (
+            {"manager_name": "Known Manager", "cusips": [" abc123def "]},
+            {"manager_ids": [7], "cusips": ["ABC123DEF"], "date_range": None},
+        ),
+        (
+            {"manager_id": "7"},
+            {"manager_ids": [7], "cusips": None, "date_range": None},
+        ),
+        (
+            {"manager_ids": [7, "bad"], "date_range": ["2026-03-01", "2026-03-31"]},
+            {
+                "manager_ids": [7],
+                "cusips": None,
+                "date_range": ("2026-03-01", "2026-03-31"),
+            },
+        ),
+        (
+            {"manager_ids": [], "cusips": []},
+            {"manager_ids": None, "cusips": None, "date_range": None},
+        ),
+    ],
+)
+def test_holdings_analysis_preserves_valid_and_absent_scope(
+    tmp_path, monkeypatch, context, expected_filters
+):
+    db_path = tmp_path / "chat-scope.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute("INSERT INTO managers(manager_id, name) VALUES (7, 'Known Manager')")
+    conn.commit()
+    conn.close()
+
+    seen: dict[str, Any] = {}
+
+    class CapturingChain:
+        def run(self, _question, *, manager_ids=None, cusips=None, date_range=None):
+            seen["manager_ids"] = manager_ids
+            seen["cusips"] = cusips
+            seen["date_range"] = (
+                tuple(value.isoformat() for value in date_range) if date_range is not None else None
+            )
+            return SimpleNamespace(
+                model_dump=lambda: {
+                    "thesis": "Scoped analysis",
+                    "top_positions": [],
+                    "period_changes": [],
+                    "concentration_metrics": {},
+                }
+            )
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+    monkeypatch.setattr(chat_api_module, "_build_chain", lambda *_args: CapturingChain())
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat/holdings-analysis",
+            json={"question": "Analyze this scope", "context": context},
+        )
+    )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "Scoped analysis"
+    assert seen == expected_filters
+
+
 def test_auto_filing_summary_without_filing_id_falls_back_to_rag_search(monkeypatch):
     seen: dict[str, Any] = {}
 
