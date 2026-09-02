@@ -892,8 +892,8 @@ async def create_manager(
         # Ensure schema exists before storing the record.
         _ensure_manager_table(conn)
         manager_id = _insert_manager(conn, payload)
-        row = _fetch_manager(conn, db_identity, manager_id)
         invalidate_cache_prefix("managers")
+        row = _fetch_manager(conn, db_identity, manager_id)
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
