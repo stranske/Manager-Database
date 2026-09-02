@@ -292,8 +292,8 @@ def _stub_httpx_client(
         def __enter__(self) -> _StubClient:
             return self
 
-        def __exit__(self, *exc_info: Any) -> bool:
-            return False
+        def __exit__(self, *exc_info: Any) -> None:
+            return None
 
         def request(self, method: str, url: str, *, params=None, json=None):
             calls.append((method, url, params, json))
