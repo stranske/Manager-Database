@@ -269,6 +269,120 @@ def test_detect_events_multiple_events_from_single_initial_filing(tmp_path):
         conn.close()
 
 
+# -------------------------------------------------------------------------------------------
+# group_formation must fire on the TRANSITION into a group, not on group presence alone.
+#
+# `detect_events` judges every other event type against the prior filing: stake_increase and
+# stake_decrease compare ownership deltas, form_upgrade/form_downgrade compare filing types.
+# group_formation was the odd one out - it fired whenever the CURRENT filing merely listed group
+# members, with no comparison to what the prior filing looked like. An activist campaign group
+# routinely stays intact across many amendments over months or years, and every one of those
+# amendments carries the same non-empty group_members field. Each one re-reported "a group has
+# formed" for a group that has existed since the very first filing, which would fire a spurious
+# "new group formed" alert (see ui/alerts.py's group_formation alert subtype) on every routine
+# amendment of an ongoing campaign.
+# -------------------------------------------------------------------------------------------
+
+
+def test_group_formation_does_not_refire_for_an_already_known_group(tmp_path):
+    """THE BUG: an unchanged, pre-existing group was re-reported as newly formed.
+
+    Before the fix, `group_formation` fired whenever the current filing's `group_members` was
+    non-empty, with no check on the prior filing. A years-long activist campaign amends its
+    original 13D repeatedly without ever changing its group membership, so this fired on every
+    single amendment - misreporting a stale, already-known group as brand new each time.
+    """
+    conn = _setup_db(tmp_path / "activism.db")
+    try:
+        initial = _insert_filing(
+            conn,
+            filing_type="SC 13D",
+            filed_date="2024-05-01",
+            ownership_pct=11.0,
+            group_members="Elliott|Blue Pool",
+        )
+        initial_events = detect_events(conn, initial)
+        # Sanity check: the group is genuinely new here, so formation SHOULD fire once.
+        assert "group_formation" in _event_types(initial_events)
+
+        amendment = _insert_filing(
+            conn,
+            filing_type="SC 13D/A",
+            filed_date="2024-11-01",
+            ownership_pct=11.0,
+            group_members="Elliott|Blue Pool",
+        )
+        amendment_events = detect_events(conn, amendment)
+
+        assert "group_formation" not in _event_types(amendment_events)
+        # The amendment is still correctly detected as an event - just not as a new group.
+        assert "amendment" in _event_types(amendment_events)
+    finally:
+        conn.close()
+
+
+def test_group_formation_fires_when_a_solo_filer_first_discloses_a_group(tmp_path):
+    """The transition this event type exists to catch, isolated from amendment/form churn.
+
+    Two ordinary (non-amendment) 13D filings for the same manager and company: the first files
+    alone, the second discloses a group for the first time. That is a genuine formation and must
+    still be reported.
+    """
+    conn = _setup_db(tmp_path / "activism.db")
+    try:
+        solo = _insert_filing(
+            conn, filing_type="SC 13D", filed_date="2024-05-01", ownership_pct=6.0
+        )
+        solo_events = detect_events(conn, solo)
+        assert "group_formation" not in _event_types(solo_events)
+
+        joined = _insert_filing(
+            conn,
+            filing_type="SC 13D",
+            filed_date="2024-06-01",
+            ownership_pct=6.0,
+            group_members="Elliott|Blue Pool",
+        )
+        joined_events = detect_events(conn, joined)
+
+        assert "group_formation" in _event_types(joined_events)
+    finally:
+        conn.close()
+
+
+def test_group_formation_does_not_fire_when_an_existing_groups_membership_changes(tmp_path):
+    """A deliberate scope boundary, recorded rather than left to accident.
+
+    `ACTIVISM_EVENT_TYPES` has no event for "group composition changed" - only for a group
+    coming into being. A new co-filer joining an ALREADY-formed group is therefore not (and
+    cannot cheaply be, without a new event type + schema/UI changes) distinguished from no
+    change at all. This pins that current, narrower behavior so a future reader sees it was a
+    choice, not a gap nobody noticed.
+    """
+    conn = _setup_db(tmp_path / "activism.db")
+    try:
+        _insert_filing(
+            conn,
+            filing_type="SC 13D",
+            filed_date="2024-05-01",
+            ownership_pct=6.0,
+            group_members="Elliott",
+        )
+        expanded = _insert_filing(
+            conn,
+            filing_type="SC 13D/A",
+            filed_date="2024-08-01",
+            ownership_pct=6.0,
+            group_members="Elliott|Icahn Capital",
+        )
+
+        events = detect_events(conn, expanded)
+
+        assert "group_formation" not in _event_types(events)
+    finally:
+        conn.close()
+
+
 def test_insert_activism_events_deduplicates_reruns(tmp_path):
     conn = _setup_db(tmp_path / "activism.db")
     try:

@@ -218,7 +218,8 @@ def _prior_filing_query(conn: Any, *, has_cusip: bool) -> tuple[str, tuple[Any, 
     ph = get_placeholder(conn)
     if has_cusip:
         sql = (
-            "SELECT filing_id, filing_type, ownership_pct, filed_date, subject_company, subject_cusip "
+            "SELECT filing_id, filing_type, ownership_pct, filed_date, subject_company, "
+            "subject_cusip, group_members "
             "FROM activism_filings "
             f"WHERE manager_id = {ph} AND subject_cusip = {ph} "
             f"AND ((filed_date < {ph}) OR (filed_date = {ph} AND filing_id < {ph})) "
@@ -226,7 +227,8 @@ def _prior_filing_query(conn: Any, *, has_cusip: bool) -> tuple[str, tuple[Any, 
         )
         return sql, ()
     sql = (
-        "SELECT filing_id, filing_type, ownership_pct, filed_date, subject_company, subject_cusip "
+        "SELECT filing_id, filing_type, ownership_pct, filed_date, subject_company, "
+        "subject_cusip, group_members "
         "FROM activism_filings "
         f"WHERE manager_id = {ph} AND subject_company = {ph} "
         f"AND ((filed_date < {ph}) OR (filed_date = {ph} AND filing_id < {ph})) "
@@ -259,6 +261,7 @@ def _fetch_prior_filing(conn: Any, filing: Mapping[str, Any]) -> dict[str, Any] 
         "filed_date": str(row[3] or ""),
         "subject_company": str(row[4] or ""),
         "subject_cusip": str(row[5] or "") or None,
+        "group_members": row[6],
     }
 
 
@@ -325,7 +328,14 @@ def detect_events(conn: Any, filing: Mapping[str, Any]) -> list[ActivismEvent]:
         if previous_form == "SC 13D" and current_form == "SC 13G":
             events.append(_build_event(filing, event_type="form_downgrade", previous_pct=prior_pct))
 
-    if _deserialize_group_members(filing.get("group_members")):
+    # "group_formation" means a group came into being, not "a group happens to exist
+    # in this filing" - so it must be judged against the PRIOR filing's membership,
+    # the same way stake_increase/form_upgrade are. Firing on group presence alone
+    # would re-report an already-known, unchanged activist group as newly formed on
+    # every later amendment of a multi-year campaign.
+    current_group_members = _deserialize_group_members(filing.get("group_members"))
+    prior_group_members = _deserialize_group_members(prior.get("group_members")) if prior else []
+    if current_group_members and not prior_group_members:
         events.append(_build_event(filing, event_type="group_formation", previous_pct=prior_pct))
 
     if _is_amendment(str(filing.get("filing_type") or "")):
