@@ -196,13 +196,36 @@ def score_all_latest_filings(conn: Any) -> dict[str, int]:
 
     if not rows:
         logger.warning("No latest filings found for conviction scoring")
-        return {"filings_scored": 0, "scores_computed": 0}
+        return {"filings_scored": 0, "scores_computed": 0, "filings_failed": 0}
 
     total_scores = 0
+    filings_scored = 0
+    filings_failed = 0
     for (filing_id,) in rows:
-        total_scores += compute_conviction_scores.fn(int(filing_id), conn)
+        # compute_conviction_scores deliberately rejects a single BAD filing outright
+        # (a non-finite or missing value_usd) rather than silently mis-scoring it - see
+        # test_compute_conviction_scores_rejects_missing_values/rejects_non_finite_values.
+        # That per-filing rejection must not become a per-RUN rejection: this loop covers
+        # every manager's latest filing, so one manager's incomplete data used to raise
+        # here uncaught and abort scoring for every OTHER manager in the same nightly run
+        # (conviction_flow() has no retry - the whole night's scoring was simply lost).
+        try:
+            total_scores += compute_conviction_scores.fn(int(filing_id), conn)
+        except (ValueError, TypeError):
+            filings_failed += 1
+            logger.warning(
+                "Skipping filing that failed conviction scoring; other filings continue",
+                extra={"filing_id": int(filing_id)},
+                exc_info=True,
+            )
+            continue
+        filings_scored += 1
 
-    return {"filings_scored": len(rows), "scores_computed": total_scores}
+    return {
+        "filings_scored": filings_scored,
+        "scores_computed": total_scores,
+        "filings_failed": filings_failed,
+    }
 
 
 def _resolve_crowded_trade_min_managers(default: int = 3) -> int:
