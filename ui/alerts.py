@@ -193,12 +193,19 @@ def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -
         )
         source = st.selectbox("source", source_options, index=source_index)
         return {"filing_type": filing_type, "source": source}
-    field_options = ["role", "department", "name"]
-    default_field = str(defaults.get("field") or "role")
-    field_index = field_options.index(default_field) if default_field in field_options else 0
-    field = st.selectbox("field", field_options, index=field_index)
-    changed_to = st.text_input("changed_to", value=str(defaults.get("changed_to") or ""))
-    return {"field": field, "changed_to": changed_to}
+    # Every other ALERT_EVENT_TYPES member (news_spike, crowded_trade_change,
+    # contrarian_signal, missing_filing, etl_failure) falls through to here. This used to
+    # render a "field"/"changed_to" filter and return it unconditionally -- but no event
+    # payload for any of those types has ever carried a "field" or "changed_to" key (see
+    # alerts/engine.py::_evaluate_condition, which falls back to an exact payload.get(key)
+    # match for unrecognized condition keys), so the resulting rule could never fire. An
+    # empty condition is the honest answer for an event type with no configurable filter
+    # yet: the engine treats {} as "match every occurrence" instead of silently building a
+    # filter that can never be satisfied.
+    st.caption(
+        "No configurable filters yet for this event type; the rule fires on every occurrence."
+    )
+    return {}
 
 
 def _payload_summary(payload: dict[str, Any], max_len: int = 90) -> str:
