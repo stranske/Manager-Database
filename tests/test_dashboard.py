@@ -458,8 +458,232 @@ def test_load_activism_helpers_and_campaigns(tmp_path: Path, monkeypatch):
 
     assert list(filings["filing_id"]) == [102, 101]
     assert set(events["event_type"]) == {"initial_stake", "threshold_crossing"}
+    assert set(events["subject_cusip"]) == {"AAA"}
     assert list(timeline["type"]) == ["event", "filing", "event", "filing"]
     assert set(campaigns["subject_company"]) == {"Issuer A", "Issuer Z"}
+
+
+class ActivismStreamlit:
+    def __init__(self, *, selected_subject: str | None = None):
+        self.selected_subject = selected_subject
+        self.subheaders: list[str] = []
+        self.infos: list[str] = []
+        self.tables: list[pd.DataFrame] = []
+        self.charts: list[object] = []
+        self.selectbox_calls: list[tuple[str, list[str], str | None]] = []
+
+    def subheader(self, text: str) -> None:
+        self.subheaders.append(text)
+
+    def info(self, text: str) -> None:
+        self.infos.append(text)
+
+    def dataframe(self, frame, **_kwargs) -> None:
+        self.tables.append(frame.copy())
+
+    def altair_chart(self, chart, **_kwargs) -> None:
+        self.charts.append(chart)
+
+    def selectbox(self, label: str, options, *, key: str | None = None):
+        options = list(options)
+        self.selectbox_calls.append((label, options, key))
+        return self.selected_subject if self.selected_subject is not None else options[0]
+
+
+def test_render_current_activism_stakes_counts_events_per_cusip(monkeypatch):
+    fake_st = ActivismStreamlit()
+    monkeypatch.setattr(dashboard, "st", fake_st)
+    monkeypatch.setattr(
+        dashboard,
+        "load_manager_activism_filings",
+        lambda manager_id: pd.DataFrame(
+            [
+                {
+                    "filing_id": 1,
+                    "subject_company": "Dual Class Co",
+                    "subject_cusip": "AAA111",
+                    "ownership_pct": 8.0,
+                    "filed_date": "2026-08-02",
+                    "filing_type": "SC 13D/A",
+                },
+                {
+                    "filing_id": 2,
+                    "subject_company": "Dual Class Co",
+                    "subject_cusip": "BBB222",
+                    "ownership_pct": 6.0,
+                    "filed_date": "2026-08-01",
+                    "filing_type": "SC 13D",
+                },
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "load_manager_activism_events",
+        lambda manager_id: pd.DataFrame(
+            [
+                {
+                    "event_id": 9,
+                    "subject_company": "Dual Class Co",
+                    "subject_cusip": "AAA111",
+                    "event_type": "stake_increase",
+                }
+            ]
+        ),
+    )
+
+    dashboard.render_current_activism_stakes(7, show_heading=False)
+
+    assert fake_st.tables[0].to_dict(orient="records") == [
+        {
+            "Subject Company": "Dual Class Co",
+            "CUSIP": "AAA111",
+            "Ownership %": 8.0,
+            "Filing Type": "SC 13D/A",
+            "Last Filed": "2026-08-02",
+            "Events": "1 event",
+        },
+        {
+            "Subject Company": "Dual Class Co",
+            "CUSIP": "BBB222",
+            "Ownership %": 6.0,
+            "Filing Type": "SC 13D",
+            "Last Filed": "2026-08-01",
+            "Events": "0 events",
+        },
+    ]
+
+
+def test_render_current_activism_stakes_uses_latest_filing_per_position(monkeypatch):
+    fake_st = ActivismStreamlit()
+    monkeypatch.setattr(dashboard, "st", fake_st)
+    monkeypatch.setattr(
+        dashboard,
+        "load_manager_activism_filings",
+        lambda manager_id: pd.DataFrame(
+            [
+                {
+                    "filing_id": 1,
+                    "subject_company": "Issuer A",
+                    "subject_cusip": "AAA",
+                    "ownership_pct": 5.1,
+                    "filed_date": "2026-07-01",
+                    "filing_type": "SC 13D",
+                },
+                {
+                    "filing_id": 2,
+                    "subject_company": "Issuer A",
+                    "subject_cusip": "AAA",
+                    "ownership_pct": 10.2,
+                    "filed_date": "2026-08-01",
+                    "filing_type": "SC 13D/A",
+                },
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        dashboard, "load_manager_activism_events", lambda manager_id: pd.DataFrame()
+    )
+
+    dashboard.render_current_activism_stakes(7, show_heading=False)
+
+    row = fake_st.tables[0].iloc[0]
+    assert row["Ownership %"] == 10.2
+    assert row["Filing Type"] == "SC 13D/A"
+    assert row["Last Filed"] == "2026-08-01"
+    assert row["Events"] == "0 events"
+
+
+def test_render_activism_timeline_keeps_manager_scope_and_event_semantics(monkeypatch):
+    fake_st = ActivismStreamlit()
+    requested_manager_ids: list[int] = []
+    monkeypatch.setattr(dashboard, "st", fake_st)
+
+    def _timeline(manager_id: int) -> pd.DataFrame:
+        requested_manager_ids.append(manager_id)
+        return pd.DataFrame(
+            [
+                {
+                    "date": "2026-08-02",
+                    "type": "event",
+                    "description": "threshold_crossing at 10%",
+                    "ownership_pct": 10.2,
+                    "event_types": ["threshold_crossing", "stake_increase"],
+                },
+                {
+                    "date": "not-a-date",
+                    "type": "filing",
+                    "description": "SC 13D",
+                    "ownership_pct": 5.1,
+                    "event_types": [],
+                },
+            ]
+        )
+
+    monkeypatch.setattr(dashboard, "load_manager_activism_timeline", _timeline)
+
+    dashboard.render_activism_timeline(17, show_heading=False)
+
+    assert requested_manager_ids == [17]
+    chart_data = fake_st.charts[0].data
+    assert chart_data[["type", "primary_event_type"]].to_dict(orient="records") == [
+        {"type": "event", "primary_event_type": "threshold_crossing"}
+    ]
+    assert fake_st.tables[0].iloc[0].to_dict() == {
+        "date": "2026-08-02",
+        "type": "event",
+        "description": "threshold_crossing at 10%",
+        "ownership_pct": 10.2,
+    }
+    assert pd.isna(fake_st.tables[0].iloc[1]["date"])
+
+
+def test_render_ownership_chart_scopes_series_and_widget_state_to_manager(monkeypatch):
+    fake_st = ActivismStreamlit(selected_subject="Zulu Corp")
+    monkeypatch.setattr(dashboard, "st", fake_st)
+    monkeypatch.setattr(
+        dashboard,
+        "load_manager_activism_filings",
+        lambda manager_id: pd.DataFrame(
+            [
+                {
+                    "subject_company": "Zulu Corp",
+                    "filing_type": "SC 13D/A",
+                    "filed_date": "2026-08-02",
+                    "ownership_pct": "10.2",
+                },
+                {
+                    "subject_company": "Alpha Corp",
+                    "filing_type": "SC 13D",
+                    "filed_date": "2026-08-01",
+                    "ownership_pct": 6.0,
+                },
+                {
+                    "subject_company": "Zulu Corp",
+                    "filing_type": "SC 13D",
+                    "filed_date": "2026-07-01",
+                    "ownership_pct": 5.1,
+                },
+                {
+                    "subject_company": "Zulu Corp",
+                    "filing_type": "SC 13D/A",
+                    "filed_date": "unparseable",
+                    "ownership_pct": 12.0,
+                },
+            ]
+        ),
+    )
+
+    dashboard.render_ownership_chart(23, show_heading=False)
+
+    assert fake_st.selectbox_calls == [
+        ("Ownership history subject", ["Alpha Corp", "Zulu Corp"], "activism_subject_23")
+    ]
+    chart = fake_st.charts[0]
+    series = chart.layer[0].data
+    assert series["subject_company"].tolist() == ["Zulu Corp", "Zulu Corp"]
+    assert series["ownership_pct"].tolist() == [5.1, 10.2]
+    assert chart.layer[1].data["threshold"].tolist() == [5.0, 10.0, 20.0]
 
 
 def test_load_signal_helpers(tmp_path: Path, monkeypatch):
