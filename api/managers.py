@@ -1482,8 +1482,13 @@ async def patch_manager(
         updated = _update_manager(conn, id, payload)
         if not updated:
             raise HTTPException(status_code=404, detail="Manager not found")
-        row = _fetch_manager(conn, db_identity, id)
+        # Invalidate BEFORE re-fetching: _fetch_manager is cache_query-wrapped, so fetching
+        # first can hand back the pre-update row from a still-warm cache entry (e.g. a UI
+        # that GET the manager right before editing it) and this endpoint would then return
+        # its own stale data despite the update already being committed. patch_manager_tags
+        # already does it in this order; this brings patch_manager in line with it.
         invalidate_cache_prefix("managers")
+        row = _fetch_manager(conn, db_identity, id)
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:
