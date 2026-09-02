@@ -689,6 +689,36 @@ def test_manager_patch_updates_fields(tmp_path, monkeypatch):
     assert body["tags"] == ["event-driven"]
 
 
+def test_manager_patch_response_reflects_its_own_update_not_a_warm_cache(tmp_path, monkeypatch):
+    """THE BUG: PATCH's own response body could show the value it had just overwritten.
+
+    `_fetch_manager` is cache_query-wrapped and keyed on (db_identity, manager_id) - the same
+    key `GET /managers/{id}` uses. A client that fetches a manager (e.g. to populate an edit
+    form) and then PATCHes it warms exactly the cache entry `patch_manager` re-reads to build
+    its response. Before the fix, that re-read happened BEFORE the cache was invalidated, so
+    the endpoint handed back the PRE-update row in its own 200 response even though the write
+    had already committed - a client trusting the PATCH response to confirm its own edit would
+    see the stale, un-updated name.
+    """
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    create_resp = asyncio.run(_post_manager({"name": "Original Name", "jurisdictions": ["us"]}))
+    assert create_resp.status_code == 201
+    manager_id = create_resp.json()["manager_id"]
+
+    # Warm the exact cache entry patch_manager's internal re-fetch will hit.
+    warm_resp = asyncio.run(_get_manager(manager_id))
+    assert warm_resp.json()["name"] == "Original Name"
+
+    patch_resp = asyncio.run(_patch_manager(manager_id, {"name": "Updated Name"}))
+
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["name"] == "Updated Name"
+    # And the change is durable, not merely reflected in this one response.
+    follow_up = asyncio.run(_get_manager(manager_id))
+    assert follow_up.json()["name"] == "Updated Name"
+
+
 def test_manager_patch_rejects_invalid_cik(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
