@@ -147,12 +147,13 @@ def get_cache_stats(namespace: str) -> dict[str, int | float]:
     return {"hits": stats["hits"], "misses": stats["misses"], "hit_ratio": ratio}
 
 
-def cache_get(namespace: str, key: str) -> Any | None:
+def _cache_lookup(namespace: str, key: str) -> tuple[bool, Any]:
+    """Return cache presence separately from the decoded value."""
     backend = _get_backend()
     payload = backend.get(key)
     if payload is None:
         _record_cache_metric(namespace, hit=False)
-        return None
+        return False, None
     if isinstance(payload, bytes):
         payload = payload.decode("utf-8")
     try:
@@ -160,6 +161,11 @@ def cache_get(namespace: str, key: str) -> Any | None:
     except (TypeError, json.JSONDecodeError):
         value = payload
     _record_cache_metric(namespace, hit=True)
+    return True, value
+
+
+def cache_get(namespace: str, key: str) -> Any | None:
+    _, value = _cache_lookup(namespace, key)
     return value
 
 
@@ -186,12 +192,11 @@ def cache_query(
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             cache_key = _make_cache_key(namespace, args[skip_args:], kwargs)
-            cached = cache_get(namespace, cache_key)
-            if cached is not None:
+            hit, cached = _cache_lookup(namespace, cache_key)
+            if hit:
                 return cached
             result = func(*args, **kwargs)
-            if result is not None:
-                cache_set(cache_key, result, ttl=ttl)
+            cache_set(cache_key, result, ttl=ttl)
             return result
 
         return wrapper
