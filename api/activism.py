@@ -36,6 +36,7 @@ class ActivismEventResponse(BaseModel):
     manager_name: str | None
     event_type: str
     subject_company: str
+    subject_cusip: str | None
     ownership_pct: float | None
     previous_pct: float | None
     delta_pct: float | None
@@ -248,8 +249,8 @@ def query_activism_events(
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
     params.append(limit)
     rows = conn.execute(
-        "SELECT ae.event_id, m.name, ae.event_type, ae.subject_company, ae.ownership_pct, "
-        "ae.previous_pct, ae.delta_pct, ae.threshold_crossed, ae.detected_at "
+        "SELECT ae.event_id, m.name, ae.event_type, ae.subject_company, ae.subject_cusip, "
+        "ae.ownership_pct, ae.previous_pct, ae.delta_pct, ae.threshold_crossed, ae.detected_at "
         "FROM activism_events ae "
         "LEFT JOIN managers m ON m.manager_id = ae.manager_id "
         f"{where_clause} "
@@ -263,11 +264,12 @@ def query_activism_events(
             manager_name=str(row[1]) if row[1] is not None else None,
             event_type=str(row[2]),
             subject_company=str(row[3]),
-            ownership_pct=_to_float(row[4]),
-            previous_pct=_to_float(row[5]),
-            delta_pct=_to_float(row[6]),
-            threshold_crossed=_to_float(row[7]),
-            detected_at=_to_datetime(row[8]),
+            subject_cusip=str(row[4]) if row[4] is not None else None,
+            ownership_pct=_to_float(row[5]),
+            previous_pct=_to_float(row[6]),
+            delta_pct=_to_float(row[7]),
+            threshold_crossed=_to_float(row[8]),
+            detected_at=_to_datetime(row[9]),
         )
         for row in rows
     ]

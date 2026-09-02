@@ -248,6 +248,7 @@ def test_list_activism_events_filters(tmp_path, monkeypatch):
     payload = response.json()
     assert len(payload) == 1
     assert payload[0]["event_id"] == 101
+    assert payload[0]["subject_cusip"] == "037833100"
     assert payload[0]["threshold_crossed"] == 10.0
 
 

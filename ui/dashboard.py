@@ -662,11 +662,13 @@ def render_current_activism_stakes(selected_manager_id: int, show_heading: bool 
         latest_positions["Events"] = 0
     else:
         event_counts = (
-            events.groupby(["subject_company"], dropna=False).size().reset_index(name="Events")
+            events.groupby(["subject_company", "subject_cusip"], dropna=False)
+            .size()
+            .reset_index(name="Events")
         )
         latest_positions = latest_positions.merge(
             event_counts,
-            on="subject_company",
+            on=["subject_company", "subject_cusip"],
             how="left",
         )
         latest_positions["Events"] = latest_positions["Events"].fillna(0).astype(int)
