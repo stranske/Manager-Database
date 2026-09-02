@@ -572,6 +572,14 @@ def test_direct_holdings_analysis_endpoint_wires_real_chain_contract(tmp_path, m
             "Manager filter did not resolve to any manager IDs",
         ),
         (
+            {"manager_name": "   "},
+            "Manager filter did not resolve to any manager IDs",
+        ),
+        (
+            {"manager_id": " "},
+            "Manager filter did not resolve to any manager IDs",
+        ),
+        (
             {"manager_ids": ["not-an-id"]},
             "Manager filter did not resolve to any manager IDs",
         ),
@@ -581,6 +589,10 @@ def test_direct_holdings_analysis_endpoint_wires_real_chain_contract(tmp_path, m
         ),
         (
             {"cusips": ["", None]},
+            "CUSIP filter must contain at least one non-empty value",
+        ),
+        (
+            {"cusips": " "},
             "CUSIP filter must contain at least one non-empty value",
         ),
         (

@@ -622,13 +622,10 @@ def _normalize_chain_context(context: dict[str, Any] | None, conn: Any) -> dict[
 
 
 def _context_filter_requested(context: dict[str, Any], *keys: str) -> bool:
-    """Return whether a caller supplied a substantive value for any filter key."""
+    """Return whether a caller supplied a filter beyond an empty optional list."""
     for key in keys:
         value = context.get(key)
-        if isinstance(value, str):
-            if value.strip():
-                return True
-        elif isinstance(value, (list, tuple)):
+        if isinstance(value, (list, tuple)):
             if value:
                 return True
         elif value is not None:
