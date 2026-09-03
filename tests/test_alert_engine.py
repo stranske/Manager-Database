@@ -93,10 +93,16 @@ def test_alert_engine_ignores_non_finite_numeric_rule_values(tmp_path):
     ("event_type", "condition_json", "payload"),
     [
         ("news_spike", '{"news_count_gt":5}', {"news_count": "not-a-count"}),
+        ("news_spike", '{"news_count_gt":0}', {"news_count": True}),
         (
             "crowded_trade_change",
             '{"manager_count_gte":3}',
             {"manager_count": {"unexpected": "object"}},
+        ),
+        (
+            "crowded_trade_change",
+            '{"manager_count_gte":3}',
+            {"manager_count": 3.5},
         ),
         (
             "crowded_trade_change",

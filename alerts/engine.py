@@ -15,7 +15,9 @@ def _as_float(value: Any) -> float | None:
 
 
 def _as_int(value: Any) -> int | None:
-    if value in (None, ""):
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    if isinstance(value, float) and not value.is_integer():
         return None
     try:
         return int(value)
