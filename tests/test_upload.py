@@ -6,6 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from ui import upload
 from ui.upload import _file_exceeds_limit, _get_max_upload_bytes, _store_uploaded_text
 from utils.extract import extract_text
 
@@ -144,3 +145,48 @@ def test_extract_text_corrupted_pdf_propagates_exception():
     corrupted_bytes = b"%PDF-1.4 corrupted content \x00\x01\x02"
     with pytest.raises(ValueError, match="Failed to extract PDF text"):
         extract_text(corrupted_bytes, "bad.pdf")
+
+
+def test_upload_history_lists_managers_and_recent_documents(tmp_path: Path, monkeypatch):
+    """Keep the upload page's database-backed choices and history observable."""
+    db_path = tmp_path / "upload-history.db"
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE documents (
+            doc_id INTEGER PRIMARY KEY,
+            filename TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            manager_id INTEGER
+        );
+        INSERT INTO managers (manager_id, name) VALUES (1, 'Zulu'), (2, 'Alpha');
+        INSERT INTO documents (doc_id, filename, kind, created_at, manager_id)
+        VALUES
+            (10, 'older.md', 'memo', '2026-01-01T00:00:00Z', 1),
+            (11, 'newer.txt', 'note', '2026-01-02T00:00:00Z', 2);
+        """)
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(upload, "connect_db", lambda: sqlite3.connect(db_path))
+
+    assert upload._load_managers() == [(2, "Alpha"), (1, "Zulu")]
+    recent = upload._recent_uploads(limit=1)
+    assert recent.to_dict("records") == [
+        {
+            "doc_id": 11,
+            "filename": "newer.txt",
+            "kind": "note",
+            "created_at": "2026-01-02T00:00:00Z",
+            "manager_name": "Alpha",
+        }
+    ]
+
+
+def test_load_managers_returns_empty_when_schema_is_not_initialized(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "empty-upload.db"
+    sqlite3.connect(db_path).close()
+    monkeypatch.setattr(upload, "connect_db", lambda: sqlite3.connect(db_path))
+
+    assert upload._load_managers() == []
