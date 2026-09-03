@@ -254,6 +254,22 @@ def test_pinned_edgartools_dataframe_shape_preserves_transaction_signal(monkeypa
         def obj(self):
             return _CurrentForm4()
 
+    class _ObjectForm4:
+        transactions = [
+            SimpleNamespace(
+                transaction_code="P",
+                shares=0,
+                transaction_date=current_date,
+                acquired_or_disposed="A",
+            )
+        ]
+
+    class _ObjectFiling:
+        filing_date = current_date
+
+        def obj(self):
+            return _ObjectForm4()
+
     class _OldForm4:
         def to_dataframe(self):
             raise AssertionError("an out-of-window filing must not be converted")
@@ -284,7 +300,7 @@ def test_pinned_edgartools_dataframe_shape_preserves_transaction_signal(monkeypa
 
         def get_filings(self, *, form):
             calls.append(("form", form))
-            return _Filings([_BrokenFiling(), _OldFiling(), _CurrentFiling()])
+            return _Filings([_BrokenFiling(), _OldFiling(), _CurrentFiling(), _ObjectFiling()])
 
     fake_edgar = ModuleType("edgar")
     fake_edgar.Company = _Company
@@ -306,6 +322,15 @@ def test_pinned_edgartools_dataframe_shape_preserves_transaction_signal(monkeypa
             "issuer_cik": "0000001234",
             "ticker": "ACME",
             "insider_name": "Ada Seller",
+            "txn_code": "P",
+            "shares": 0.0,
+            "txn_date": current_date,
+            "acquired_disposed": "A",
+        },
+        {
+            "issuer_cik": "0000001234",
+            "ticker": "ACME",
+            "insider_name": None,
             "txn_code": "P",
             "shares": 0.0,
             "txn_date": current_date,

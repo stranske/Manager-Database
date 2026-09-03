@@ -204,11 +204,13 @@ def _default_edgartools_fetcher(issuer: str, *, lookback_days: int) -> list[dict
                 if isinstance(txn, Mapping):
                     raw = dict(txn)
                 else:
+                    shares = getattr(txn, "shares", None)
+                    if shares is None:
+                        shares = getattr(txn, "transaction_shares", None)
                     raw = {
                         "txn_code": getattr(txn, "transaction_code", None)
                         or getattr(txn, "code", None),
-                        "shares": getattr(txn, "shares", None)
-                        or getattr(txn, "transaction_shares", None),
+                        "shares": shares,
                         "txn_date": getattr(txn, "transaction_date", None)
                         or getattr(txn, "date", None)
                         or filed,
