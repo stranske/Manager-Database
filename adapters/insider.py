@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Iterable, Mapping
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -32,9 +33,10 @@ def _as_float(value: Any) -> float | None:
     if value is None or value == "":
         return None
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _as_date(value: Any) -> str | None:
@@ -265,7 +267,9 @@ def net_direction_for_rows(
         txn_date = _as_date(row.get("txn_date"))
         if cutoff and txn_date and date.fromisoformat(txn_date) < cutoff:
             continue
-        shares = _as_float(row.get("shares")) or 0.0
+        shares = _as_float(row.get("shares"))
+        if shares is None:
+            continue
         ad = _normalize_acquired_disposed(
             row.get("acquired_disposed"), _as_str(row.get("txn_code"))
         )

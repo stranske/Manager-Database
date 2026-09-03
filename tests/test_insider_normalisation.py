@@ -169,6 +169,16 @@ def test_rows_with_no_classifiable_direction_are_unknown():
     assert net_direction_for_rows([{"shares": 10, "acquired_disposed": "?"}]) == "unknown"
 
 
+def test_unreadable_share_quantity_does_not_flatten_valid_transactions():
+    rows = [
+        {"shares": float("nan"), "acquired_disposed": "A"},
+        {"shares": 25, "acquired_disposed": "D"},
+    ]
+
+    assert net_direction_for_rows(rows) == "net sell"
+    assert net_direction_for_rows(rows[:1]) == "unknown"
+
+
 def test_the_lookback_window_excludes_older_transactions():
     """A stale filing must not keep signalling; the window is what makes the signal current."""
     rows = [
@@ -188,7 +198,9 @@ def test_numeric_values_are_coerced(value, expected):
     assert _as_float(value) == expected
 
 
-@pytest.mark.parametrize("value", [None, "", "abc", [1], {}])
+@pytest.mark.parametrize(
+    "value", [None, "", "abc", [1], {}, float("nan"), float("inf"), float("-inf")]
+)
 def test_unreadable_numbers_are_none_not_zero(value):
     """Zero shares is a real filing; unreadable is not. Coercing to 0.0 would let a broken cell
     silently balance a real transaction on the other side."""
