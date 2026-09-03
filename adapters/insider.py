@@ -46,7 +46,12 @@ def _as_date(value: Any) -> str | None:
         return value.isoformat()
     text = str(value).strip()
     if len(text) >= 10 and text[4] == "-" and text[7] == "-":
-        return text[:10]
+        candidate = text[:10]
+        try:
+            date.fromisoformat(candidate)
+        except ValueError:
+            return None
+        return candidate
     digits = "".join(ch for ch in text if ch.isdigit())
     if len(digits) >= 8:
         # The digit fallback assumes YYYYMMDD, which is what EDGAR emits. A US-format value like
@@ -92,19 +97,27 @@ def normalize_form4_row(
     )
     if issuer_cik:
         issuer_cik = issuer_cik.zfill(10) if issuer_cik.isdigit() else issuer_cik
-    ticker = _as_str(raw.get("ticker") or raw.get("symbol") or default_ticker)
+    ticker = _as_str(raw.get("ticker") or raw.get("Ticker") or raw.get("symbol") or default_ticker)
     insider_name = _as_str(
         raw.get("insider_name")
+        or raw.get("Insider")
         or raw.get("owner")
         or raw.get("reporting_owner")
         or raw.get("reportingOwner")
     )
-    txn_code = _as_str(raw.get("txn_code") or raw.get("transaction_code") or raw.get("code"))
-    shares = _as_float(
-        raw.get("shares") or raw.get("transactionShares") or raw.get("shares_traded")
+    txn_code = _as_str(
+        raw.get("txn_code") or raw.get("Code") or raw.get("transaction_code") or raw.get("code")
     )
+    shares = None
+    for key in ("shares", "Shares", "transactionShares", "shares_traded"):
+        shares = _as_float(raw.get(key))
+        if shares is not None:
+            break
     txn_date = _as_date(
-        raw.get("txn_date") or raw.get("transaction_date") or raw.get("transactionDate")
+        raw.get("txn_date")
+        or raw.get("Date")
+        or raw.get("transaction_date")
+        or raw.get("transactionDate")
     )
     acquired_disposed = _normalize_acquired_disposed(
         raw.get("acquired_disposed")
