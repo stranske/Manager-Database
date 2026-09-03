@@ -15,9 +15,14 @@ def _as_float(value: Any) -> float | None:
 
 
 def _as_int(value: Any) -> int | None:
-    if value in (None, ""):
+    if isinstance(value, bool) or value in (None, ""):
         return None
-    return int(value)
+    if isinstance(value, float) and not value.is_integer():
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _event_age_hours(event: AlertEvent) -> float:

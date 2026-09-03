@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -56,6 +57,34 @@ def _create_rule_payload(
         "enabled": enabled,
         "manager_id": None,
     }
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "request_kwargs"),
+    [
+        ("POST", "/api/alerts/rules", {"json": _create_rule_payload()}),
+        ("GET", "/api/alerts/rules", {}),
+        ("GET", "/api/alerts/rules/1", {}),
+        ("PUT", "/api/alerts/rules/1", {"json": {"enabled": False}}),
+        ("DELETE", "/api/alerts/rules/1", {}),
+        ("GET", "/api/alerts/history", {}),
+        ("GET", "/api/alerts/unacknowledged/count", {}),
+        ("POST", "/api/alerts/history/1/acknowledge", {}),
+        ("POST", "/api/alerts/history/acknowledge-all", {}),
+    ],
+)
+def test_alert_endpoints_return_503_when_database_is_unavailable(
+    monkeypatch, method, path, request_kwargs
+):
+    def _database_unavailable():
+        raise sqlite3.OperationalError("database offline")
+
+    monkeypatch.setattr("api.alerts.connect_db", _database_unavailable)
+
+    response = asyncio.run(_request(method, path, **request_kwargs))
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Database unavailable"}
 
 
 def _seed_alert_history(db_path: Path) -> None:
