@@ -151,8 +151,7 @@ def test_upload_history_lists_managers_and_recent_documents(tmp_path: Path, monk
     """Keep the upload page's database-backed choices and history observable."""
     db_path = tmp_path / "upload-history.db"
     conn = sqlite3.connect(db_path)
-    conn.executescript(
-        """
+    conn.executescript("""
         CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT NOT NULL);
         CREATE TABLE documents (
             doc_id INTEGER PRIMARY KEY,
@@ -166,8 +165,7 @@ def test_upload_history_lists_managers_and_recent_documents(tmp_path: Path, monk
         VALUES
             (10, 'older.md', 'memo', '2026-01-01T00:00:00Z', 2),
             (11, 'newer.txt', 'note', '2026-01-02T00:00:00Z', 1);
-        """
-    )
+        """)
     conn.commit()
     conn.close()
 
