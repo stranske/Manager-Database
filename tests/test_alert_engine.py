@@ -89,6 +89,49 @@ def test_alert_engine_ignores_non_finite_numeric_rule_values(tmp_path):
         conn.close()
 
 
+@pytest.mark.parametrize(
+    ("event_type", "condition_json", "payload"),
+    [
+        ("news_spike", '{"news_count_gt":5}', {"news_count": "not-a-count"}),
+        (
+            "crowded_trade_change",
+            '{"manager_count_gte":3}',
+            {"manager_count": {"unexpected": "object"}},
+        ),
+        (
+            "crowded_trade_change",
+            '{"similar_manager_count_gte":3}',
+            {"similar_manager_count": float("inf")},
+        ),
+    ],
+)
+def test_alert_engine_malformed_count_does_not_block_later_rules(
+    tmp_path, event_type, condition_json, payload
+):
+    conn = _setup_db(tmp_path / "alerts.db")
+    try:
+        _insert_rule(
+            conn,
+            name="Malformed Count Rule",
+            event_type=event_type,
+            condition_json=condition_json,
+        )
+        _insert_rule(
+            conn,
+            name="Catch All Rule",
+            event_type=event_type,
+            condition_json="{}",
+        )
+
+        fired = AlertEngine(conn).evaluate(
+            AlertEvent(event_type=event_type, manager_id=1, payload=payload)
+        )
+
+        assert [alert.rule.name for alert in fired] == ["Catch All Rule"]
+    finally:
+        conn.close()
+
+
 def test_alert_engine_manager_filter_and_disabled_rules(tmp_path):
     conn = _setup_db(tmp_path / "alerts.db")
     try:

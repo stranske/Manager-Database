@@ -17,7 +17,10 @@ def _as_float(value: Any) -> float | None:
 def _as_int(value: Any) -> int | None:
     if value in (None, ""):
         return None
-    return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _event_age_hours(event: AlertEvent) -> float:
