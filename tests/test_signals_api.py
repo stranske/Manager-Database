@@ -9,7 +9,13 @@ import httpx
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from api.chat import app
-from api.signals import query_crowded_trades
+from api.signals import (
+    get_manager_attribution,
+    query_contrarian_signals,
+    query_conviction_scores,
+    query_crowded_trades,
+)
+from etl.attribution_flow import ensure_manager_attribution_table
 from tests.route_helpers import route_paths
 
 
@@ -188,6 +194,7 @@ def test_signals_router_is_registered(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(db_path))
 
     expected_paths = {
+        "/api/signals/attribution/{manager_id}",
         "/api/signals/crowded",
         "/api/signals/contrarian",
         "/api/signals/conviction/{manager_id}",
@@ -230,7 +237,7 @@ def test_crowded_trades_drops_non_finite_values(tmp_path, monkeypatch):
                 4,
                 "[1, 2, 3]",
                 float("inf"),
-                10.0,
+                float("-inf"),
                 20.0,
                 "2024-05-01",
                 "2024-05-01T08:00:00",
@@ -241,6 +248,7 @@ def test_crowded_trades_drops_non_finite_values(tmp_path, monkeypatch):
         rows = query_crowded_trades(conn, report_date=None)
         infinite_row = next(row for row in rows if row.cusip == "INF000001")
         assert infinite_row.total_value_usd is None
+        assert infinite_row.avg_conviction_pct is None
     finally:
         conn.close()
 
@@ -250,6 +258,7 @@ def test_crowded_trades_drops_non_finite_values(tmp_path, monkeypatch):
     assert response.status_code == 200
     payload = next(item for item in response.json() if item["cusip"] == "INF000001")
     assert payload["total_value_usd"] is None
+    assert payload["avg_conviction_pct"] is None
 
 
 def test_get_contrarian_signals_filters_by_manager(tmp_path, monkeypatch):
@@ -268,6 +277,31 @@ def test_get_contrarian_signals_filters_by_manager(tmp_path, monkeypatch):
     assert len(payload) == 1
     assert payload[0]["manager_name"] == "Alpha Partners"
     assert payload[0]["consensus_direction"] == "BUY"
+
+
+def test_contrarian_signals_drops_non_finite_values(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals.db"
+    _seed_db(db_path)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE contrarian_signals SET manager_delta_value = ? WHERE signal_id = 301",
+            (float("inf"),),
+        )
+        conn.commit()
+
+        rows = query_contrarian_signals(conn, report_date=None)
+        infinite_row = next(row for row in rows if row.cusip == "AAA111111")
+        assert infinite_row.delta_value is None
+    finally:
+        conn.close()
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    response = asyncio.run(_request("/api/signals/contrarian"))
+
+    assert response.status_code == 200
+    payload = next(item for item in response.json() if item["cusip"] == "AAA111111")
+    assert payload["delta_value"] is None
 
 
 def test_get_conviction_scores_defaults_to_latest_filing(tmp_path, monkeypatch):
@@ -307,6 +341,84 @@ def test_get_conviction_scores_exposes_optional_short_interest_context(tmp_path,
     assert payload[0]["short_interest_pct"] == 20.0
     assert payload[0]["short_interest_report_date"] == "2024-05-01"
     assert payload[0]["short_interest_source"] == "finra"
+
+
+def test_conviction_scores_drop_non_finite_values(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals.db"
+    _seed_db(db_path)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE conviction_scores "
+            "SET value_usd = ?, conviction_pct = ?, portfolio_weight = ? "
+            "WHERE score_id = 101",
+            (float("inf"), float("inf"), float("inf")),
+        )
+        conn.execute(
+            "CREATE TABLE short_interest (metric_id INTEGER PRIMARY KEY, ticker TEXT, "
+            "cusip TEXT, short_interest REAL, float_shares REAL, short_interest_pct REAL, "
+            "report_date TEXT, source TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO short_interest VALUES "
+            "(1, 'EXM', 'AAA111111', 200, 1000, ?, '2024-05-01', 'finra')",
+            (float("inf"),),
+        )
+        conn.commit()
+
+        rows = query_conviction_scores(conn, 1)
+        infinite_row = next(row for row in rows if row.cusip == "AAA111111")
+        assert infinite_row.value_usd is None
+        assert infinite_row.conviction_pct is None
+        assert infinite_row.portfolio_weight is None
+        assert infinite_row.short_interest_pct is None
+    finally:
+        conn.close()
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    response = asyncio.run(_request("/api/signals/conviction/1"))
+
+    assert response.status_code == 200
+    payload = next(item for item in response.json() if item["cusip"] == "AAA111111")
+    assert payload["value_usd"] is None
+    assert payload["conviction_pct"] is None
+    assert payload["portfolio_weight"] is None
+    assert payload["short_interest_pct"] is None
+
+
+def test_manager_attribution_drops_non_finite_rows_and_overflow(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        ensure_manager_attribution_table(conn)
+        conn.executemany(
+            "INSERT INTO manager_attribution(manager_id, disclosure_date, as_of_date, "
+            "security_key, position_return, value_usd, status) "
+            "VALUES (1, '2024-05-01', '2024-08-01', ?, ?, ?, 'filled')",
+            [
+                ("AAA", 1e308, 100.0),
+                ("BBB", 1e308, 200.0),
+                ("INF", float("inf"), float("inf")),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    response_model = get_manager_attribution(1, limit=200)
+    assert response_model.realized_return is None
+    assert response_model.hit_rate == 1.0
+
+    response = asyncio.run(_request("/api/signals/attribution/1"))
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["realized_return"] is None
+    assert payload["hit_rate"] == 1.0
+    infinite_row = next(item for item in payload["rows"] if item["security_key"] == "INF")
+    assert infinite_row["position_return"] is None
+    assert infinite_row["value_usd"] is None
 
 
 def test_signals_endpoints_return_empty_arrays_for_missing_data(tmp_path, monkeypatch):

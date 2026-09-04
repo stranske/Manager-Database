@@ -511,8 +511,8 @@ def get_manager_attribution(
         as_of_date=resolved_as_of,
         positions=int(summary["positions"]),
         positions_skipped=int(summary["positions_skipped"]),
-        realized_return=summary["realized_return"],
-        hit_rate=summary["hit_rate"],
+        realized_return=finite_float_or_none(summary["realized_return"]),
+        hit_rate=finite_float_or_none(summary["hit_rate"]),
         rows=[
             AttributionPositionResponse(
                 filing_id=p.filing_id,
