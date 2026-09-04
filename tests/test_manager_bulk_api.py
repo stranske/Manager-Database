@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from api.chat import app
 
 
-async def _post_bulk_json(payload: list[dict] | None):
+async def _post_bulk_json(payload: object | None):
     # Use ASGI transport to avoid spinning up a server for bulk import tests.
     await cast(Any, app.router).startup()
     try:
@@ -23,6 +23,27 @@ async def _post_bulk_json(payload: list[dict] | None):
             if payload is None:
                 return await client.post("/api/managers/bulk")
             return await client.post("/api/managers/bulk", json=payload)
+    finally:
+        await cast(Any, app.router).shutdown()
+
+
+async def _post_bulk_raw(
+    contents: bytes,
+    *,
+    content_type: str,
+    headers: dict[str, str] | None = None,
+):
+    """Post exact request bytes so malformed-input boundaries stay observable."""
+    await cast(Any, app.router).startup()
+    try:
+        transport = httpx.ASGITransport(app=cast(Any, app))
+        request_headers = {"content-type": content_type, **(headers or {})}
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", timeout=5.0
+        ) as client:
+            return await client.post(
+                "/api/managers/bulk", content=contents, headers=request_headers
+            )
     finally:
         await cast(Any, app.router).shutdown()
 
@@ -233,3 +254,97 @@ def test_bulk_import_requires_payload(tmp_path, monkeypatch):
     assert resp.status_code == 400
     payload = resp.json()
     assert payload["errors"][0]["field"] == "body"
+
+
+def test_bulk_json_rejects_invalid_utf8_as_bad_request(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+
+    resp = asyncio.run(_post_bulk_raw(b"\xff", content_type="application/json"))
+
+    assert resp.status_code == 400
+    assert resp.json()["errors"] == [
+        {"field": "body", "message": "Request body must be valid JSON."}
+    ]
+
+
+def test_bulk_json_reports_non_object_and_invalid_records(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    resp = asyncio.run(
+        _post_bulk_json(
+            [
+                "not-an-object",
+                {"name": "Bad Types", "aliases": "not-a-list"},
+                {"name": "Valid Manager", "jurisdictions": ["us"]},
+            ]
+        )
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3
+    assert body["succeeded"] == 1
+    assert body["failed"] == 2
+    assert [item["index"] for item in body["failures"]] == [0, 1]
+    assert body["failures"][0]["errors"] == [
+        {"field": "record", "message": "Record must be an object."}
+    ]
+    assert body["failures"][1]["errors"][0]["field"] == "aliases"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute("SELECT name FROM managers").fetchall()
+    finally:
+        conn.close()
+    assert rows == [("Valid Manager",)]
+
+
+def test_bulk_import_checks_actual_body_size_after_declared_length(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+    monkeypatch.setenv("BULK_IMPORT_MAX_BYTES", "50")
+    contents = b'[{"name":"' + (b"X" * 100) + b'"}]'
+
+    resp = asyncio.run(
+        _post_bulk_raw(
+            contents,
+            content_type="application/json",
+            headers={"content-length": "1"},
+        )
+    )
+
+    assert resp.status_code == 413
+    assert "payload exceeds 50 bytes" in resp.json()["errors"][0]["message"].lower()
+
+
+def test_bulk_csv_rejects_invalid_utf8(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+
+    resp = asyncio.run(_post_bulk_raw(b"\xff", content_type="text/csv"))
+
+    assert resp.status_code == 400
+    assert resp.json()["errors"] == [
+        {"field": "body", "message": "CSV payload must be UTF-8 encoded."}
+    ]
+
+
+def test_bulk_json_requires_an_array_body(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+
+    resp = asyncio.run(_post_bulk_json({"name": "not-an-array"}))
+
+    assert resp.status_code == 400
+    assert resp.json()["errors"] == [
+        {"field": "body", "message": "Request body must be a JSON array."}
+    ]
+
+
+def test_bulk_csv_with_only_empty_records_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+
+    resp = asyncio.run(_post_bulk_csv("name,cik,tags\n,,\n"))
+
+    assert resp.status_code == 400
+    assert resp.json()["errors"] == [
+        {"field": "body", "message": "No manager records were provided."}
+    ]

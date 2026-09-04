@@ -1116,7 +1116,7 @@ async def bulk_import_managers(
     else:
         try:
             body = json.loads(raw_bytes)
-        except json.JSONDecodeError:
+        except (UnicodeDecodeError, json.JSONDecodeError):
             return _bulk_request_error("body", "Request body must be valid JSON.")
         if not isinstance(body, list):
             return _bulk_request_error("body", "Request body must be a JSON array.")
