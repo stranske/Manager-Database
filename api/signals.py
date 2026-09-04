@@ -24,6 +24,7 @@ from adapters.base import (
 from adapters.base import (
     manager_id_column as shared_manager_id_column,
 )
+from utils.numeric import finite_float_or_none
 
 router = APIRouter()
 
@@ -83,15 +84,6 @@ class ManagerAttributionResponse(BaseModel):
     realized_return: float | None
     hit_rate: float | None
     rows: list[AttributionPositionResponse]
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _to_date(value: Any) -> date:
@@ -243,8 +235,8 @@ def query_crowded_trades(
                 for manager_ref in _parse_manager_ids(row[3])
                 if manager_ref in manager_names
             ],
-            total_value_usd=_to_float(row[4]),
-            avg_conviction_pct=_to_float(row[5]),
+            total_value_usd=finite_float_or_none(row[4]),
+            avg_conviction_pct=finite_float_or_none(row[5]),
             report_date=_to_date(row[6]),
         )
         for row in rows
@@ -295,7 +287,7 @@ def query_contrarian_signals(
             name_of_issuer=str(row[2]) if row[2] is not None else None,
             direction=str(row[3]),
             consensus_direction=str(row[4]),
-            delta_value=_to_float(row[5]),
+            delta_value=finite_float_or_none(row[5]),
             consensus_count=int(row[6]) if row[6] is not None else None,
             report_date=_to_date(row[7]),
         )
@@ -372,12 +364,14 @@ def query_conviction_scores(
             ConvictionScoreResponse(
                 cusip=cusip,
                 name_of_issuer=str(row[1]) if row[1] is not None else None,
-                value_usd=_to_float(row[2]),
-                conviction_pct=_to_float(row[3]),
-                portfolio_weight=_to_float(row[4]),
+                value_usd=finite_float_or_none(row[2]),
+                conviction_pct=finite_float_or_none(row[3]),
+                portfolio_weight=finite_float_or_none(row[4]),
                 insider_net_direction=direction,
                 short_interest_pct=(
-                    _to_float(short_interest.get("short_interest_pct")) if short_interest else None
+                    finite_float_or_none(short_interest.get("short_interest_pct"))
+                    if short_interest
+                    else None
                 ),
                 short_interest_report_date=(
                     _to_date(short_interest["short_interest_report_date"])
@@ -500,8 +494,8 @@ def get_manager_attribution(
             ticker=str(row["ticker"]) if row.get("ticker") else None,
             cusip=str(row["cusip"]) if row.get("cusip") else None,
             name_of_issuer=str(row["name_of_issuer"]) if row.get("name_of_issuer") else None,
-            value_usd=_to_float(row.get("value_usd")),
-            position_return=_to_float(row.get("position_return")),
+            value_usd=finite_float_or_none(row.get("value_usd")),
+            position_return=finite_float_or_none(row.get("position_return")),
             status=str(row.get("status") or "filled"),
             skip_reason=str(row["skip_reason"]) if row.get("skip_reason") else None,
         )
@@ -517,8 +511,8 @@ def get_manager_attribution(
         as_of_date=resolved_as_of,
         positions=int(summary["positions"]),
         positions_skipped=int(summary["positions_skipped"]),
-        realized_return=summary["realized_return"],
-        hit_rate=summary["hit_rate"],
+        realized_return=finite_float_or_none(summary["realized_return"]),
+        hit_rate=finite_float_or_none(summary["hit_rate"]),
         rows=[
             AttributionPositionResponse(
                 filing_id=p.filing_id,
