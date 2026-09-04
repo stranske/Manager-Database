@@ -281,10 +281,10 @@ async def tracked_call(
     finally:
         resp = container.get("resp")
         latency = int((time.perf_counter() - start) * 1000)
-        status = getattr(resp, "status_code", 0)
-        size = len(getattr(resp, "content", b""))
         conn: Any | None = None
         try:
+            status = getattr(resp, "status_code", 0)
+            size = len(getattr(resp, "content", b""))
             if callable(cost_usd):
                 computed_cost = float(cost_usd(resp)) if resp is not None else 0.0
             elif cost_usd is not None:
