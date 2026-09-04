@@ -9,6 +9,7 @@ import httpx
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from api.chat import app
+from api.signals import query_crowded_trades
 from tests.route_helpers import route_paths
 
 
@@ -213,6 +214,42 @@ def test_get_crowded_trades_filters_by_report_date_and_threshold(tmp_path, monke
     payload = response.json()
     assert [item["cusip"] for item in payload] == ["AAA111111"]
     assert payload[0]["manager_names"] == ["Alpha Partners", "Zulu Capital", "Gamma Capital"]
+
+
+def test_crowded_trades_drops_non_finite_values(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals.db"
+    _seed_db(db_path)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "INSERT INTO crowded_trades(crowd_id, cusip, name_of_issuer, manager_count, manager_ids, total_value_usd, avg_conviction_pct, max_conviction_pct, report_date, computed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                204,
+                "INF000001",
+                "Infinite Corp",
+                4,
+                "[1, 2, 3]",
+                float("inf"),
+                10.0,
+                20.0,
+                "2024-05-01",
+                "2024-05-01T08:00:00",
+            ),
+        )
+        conn.commit()
+
+        rows = query_crowded_trades(conn, report_date=None)
+        infinite_row = next(row for row in rows if row.cusip == "INF000001")
+        assert infinite_row.total_value_usd is None
+    finally:
+        conn.close()
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    response = asyncio.run(_request("/api/signals/crowded"))
+
+    assert response.status_code == 200
+    payload = next(item for item in response.json() if item["cusip"] == "INF000001")
+    assert payload["total_value_usd"] is None
 
 
 def test_get_contrarian_signals_filters_by_manager(tmp_path, monkeypatch):
