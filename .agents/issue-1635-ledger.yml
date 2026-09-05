@@ -1,0 +1,99 @@
+version: 1
+issue: 1635
+base: main
+branch: codex/issue-1635
+tasks:
+  - id: task-01
+    title: Test `tests/test_adapter_registry.py` with `python -m pytest tests/test_adapter_registry.py
+      --cov=adapters/base.py --cov-report=term-missing` and record the baseline in
+      the PR body.
+    status: doing
+    started_at: '2026-09-05T05:54:31Z'
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-02
+    title: Add a regression in `tests/test_adapter_registry.py` for an uncovered non-trivial
+      branch in `adapters/base.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-03
+    title: Document the deliberate-break result and before/after coverage in the PR
+      body.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-04
+    title: '`python -m pytest tests/test_adapter_registry.py --cov=adapters/base.py
+      --cov-report=term-missing` exits 0 with before/after coverage recorded in the
+      PR body.'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-05
+    title: The new regression fails when its selected branch is deliberately broken
+      and passes after revert, with both results recorded in the PR body.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-06
+    title: Run `python -m pytest tests/test_adapter_registry.py --cov=adapters/base.py
+      --cov-report=term-missing` and record baseline in the PR body.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-07
+    title: Add a regression in `tests/test_adapter_registry.py` for an uncovered non-trivial
+      branch in `adapters/base.py`.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-08
+    title: Document deliberate-break result and before/after coverage in the PR body.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-09
+    title: python -m pytest tests/test_adapter_registry.py --cov=adapters/base.py
+      --cov-report=term-missing exits 0 with before/after coverage recorded in the
+      PR body.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-10
+    title: The new regression fails when its selected branch is deliberately broken,
+      then passes after revert; both recorded in the PR body.
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
+  - id: task-11
+    title: 'Add a discriminating regression in `tests/test_adapter_registry.py` for
+      an uncovered branch in `adapters/base.py`. (Agent cannot guarantee specific
+      coverage percentages or determine which branches are ''non-trivial'' without
+      subjective judgment about code importance. | Rephrase to: ''Add a test in tests/test_adapter_registry.py
+      that exercises an uncovered conditional branch in adapters/base.py (if/else,
+      try/except, or match/case statement)'')'
+    status: todo
+    started_at: null
+    finished_at: null
+    commit: ''
+    notes: []
