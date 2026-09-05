@@ -7,10 +7,10 @@ tasks:
     title: Test `tests/test_adapter_registry.py` with `python -m pytest tests/test_adapter_registry.py
       --cov=adapters/base.py --cov-report=term-missing` and record the baseline in
       the PR body.
-    status: doing
+    status: done
     started_at: '2026-09-05T05:54:31Z'
-    finished_at: null
-    commit: ''
+    finished_at: '2026-09-05T05:54:42Z'
+    commit: ec35289863c7975a8be575179e1db19b1de1f4ee
     notes: []
   - id: task-02
     title: Add a regression in `tests/test_adapter_registry.py` for an uncovered non-trivial
