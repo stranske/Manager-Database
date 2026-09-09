@@ -14,6 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import chains.filing_summary as filing_summary_module
 from chains.filing_summary import FilingSummary, FilingSummaryChain
+from chains.utils import format_delta_summary, format_holdings_table
 from tools.langchain_client import ClientInfo
 
 
@@ -181,6 +182,21 @@ def test_load_filing_data_with_mock_database_data() -> None:
         (queries["manager"], (7,)),
         (queries["diffs"], (7, "2025-12-31")),
     ]
+
+
+@pytest.mark.parametrize("holdings_count,include_diffs", [(2, True), (25, True), (0, False)])
+def test_load_filing_data_uses_shared_formatters(holdings_count: int, include_diffs: bool) -> None:
+    db, _, holdings_rows = _build_db_for_filing(
+        holdings_count=holdings_count, include_diffs=include_diffs
+    )
+
+    result = _make_chain(db)._load_filing_data(1001)
+
+    assert result["top_holdings_table"] == format_holdings_table(holdings_rows, max_rows=20)
+    assert result["delta_summary"] == format_delta_summary(result["diffs"])
+    if holdings_count > 20:
+        assert len(result["top_holdings_table"].splitlines()) == 22
+        assert "ISSUER-20" not in result["top_holdings_table"]
 
 
 def test_run_uses_structured_output_when_available() -> None:
