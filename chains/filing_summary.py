@@ -15,7 +15,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, ValidationError
 
 from adapters.base import ensure_api_usage_schema, get_placeholder
-from chains.utils import extract_json_text, rows_to_dicts
+from chains.utils import (
+    extract_json_text,
+    format_delta_summary,
+    format_holdings_table,
+    rows_to_dicts,
+)
 from scripts.langchain.injection_guard import check_prompt_injection
 from tools.langchain_client import ClientInfo
 from tools.llm_provider import build_langsmith_metadata
@@ -139,54 +144,6 @@ class FilingSummaryChain:
                 result.append(item)
         return result
 
-    @staticmethod
-    def _format_holdings_table(holdings: list[dict[str, Any]]) -> str:
-        if not holdings:
-            return "(no holdings found)"
-
-        header = "rank | issuer | cusip | shares | value_usd"
-        divider = "-----|--------|-------|--------|----------"
-        lines = [header, divider]
-        for idx, item in enumerate(holdings[:20], start=1):
-            issuer = str(item.get("name_of_issuer") or "").strip() or "UNKNOWN"
-            cusip = str(item.get("cusip") or "").strip() or "N/A"
-            shares = int(item.get("shares") or 0)
-            value = float(item.get("value_usd") or 0)
-            lines.append(f"{idx} | {issuer} | {cusip} | {shares:,} | {value:,.2f}")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _format_delta_summary(diffs: list[dict[str, Any]]) -> str:
-        if not diffs:
-            return "No prior-period changes available."
-
-        buckets: dict[str, list[str]] = {
-            "ADD": [],
-            "EXIT": [],
-            "INCREASE": [],
-            "DECREASE": [],
-            "OTHER": [],
-        }
-
-        for diff in diffs:
-            delta_type = str(diff.get("delta_type") or "OTHER").upper()
-            key = delta_type if delta_type in buckets else "OTHER"
-            issuer = str(diff.get("name_of_issuer") or diff.get("cusip") or "UNKNOWN")
-            prev_value = float(diff.get("value_prev") or 0)
-            curr_value = float(diff.get("value_curr") or 0)
-            buckets[key].append(f"{issuer} (${prev_value:,.0f} -> ${curr_value:,.0f})")
-
-        lines: list[str] = []
-        for key in ("ADD", "EXIT", "INCREASE", "DECREASE", "OTHER"):
-            entries = buckets[key]
-            if not entries:
-                continue
-            sample = "; ".join(entries[:10])
-            suffix = "" if len(entries) <= 10 else f"; ... (+{len(entries) - 10} more)"
-            lines.append(f"{key}: {sample}{suffix}")
-
-        return "\n".join(lines) if lines else "No prior-period changes available."
-
     def _execute_fetchall(self, query: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
         cursor = self.db.cursor()
         cursor.execute(query, params)
@@ -265,8 +222,8 @@ class FilingSummaryChain:
         if total_value_usd is None:
             total_value_usd = sum(float(item.get("value_usd") or 0) for item in top_holdings)
 
-        top_holdings_table = self._format_holdings_table(top_holdings)
-        delta_summary = self._format_delta_summary(diffs)
+        top_holdings_table = format_holdings_table(top_holdings, max_rows=20)
+        delta_summary = format_delta_summary(diffs)
 
         return {
             "filing_id": filing_id,
