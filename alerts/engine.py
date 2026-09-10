@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from adapters.base import get_placeholder
+from adapters.base import get_placeholder, is_sqlite
 from alerts.db import deserialize_json_object, ensure_alert_tables, rule_from_row
 from alerts.models import AlertEvent, AlertRule, FiredAlert, parse_count_threshold
 from utils.numeric import finite_float_or_none
@@ -42,7 +42,7 @@ class AlertEngine:
 
     def _load_rules(self, event_type: str) -> list[AlertRule]:
         ph = get_placeholder(self.db)
-        enabled_value = 1 if ph == "?" else True
+        enabled_value = 1 if is_sqlite(self.db) else True
         cursor = self.db.execute(
             f"""SELECT rule_id, name, description, event_type, condition_json, channels, enabled,
                        manager_id, created_by, created_at, updated_at
