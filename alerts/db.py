@@ -7,22 +7,13 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
+from adapters.base import get_placeholder, get_table_columns, is_sqlite
 from alerts.models import AlertRule, FiredAlert
-
-SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
 
 try:  # pragma: no cover - optional dependency
     import psycopg as psycopg
 except ImportError:  # pragma: no cover - psycopg not installed for SQLite-only tests
     psycopg = None  # type: ignore[assignment]
-
-
-def is_sqlite(conn: Any) -> bool:
-    return isinstance(conn, sqlite3.Connection)
-
-
-def placeholder(conn: Any) -> str:
-    return "?" if is_sqlite(conn) else "%s"
 
 
 def serialize_json(value: Any) -> str:
@@ -75,18 +66,13 @@ def parse_timestamp(raw: Any) -> datetime:
     raise ValueError(f"Invalid timestamp value: {raw!r}")
 
 
-def _sqlite_columns(conn: sqlite3.Connection, table: str) -> set[str]:
-    rows = conn.execute(SQLITE_TABLE_INFO_SQL, (table,)).fetchall()
-    return {str(row[0]) for row in rows}
-
-
 def _sqlite_add_column_if_missing(
     conn: sqlite3.Connection,
     table: str,
     column: str,
     definition: str,
 ) -> bool:
-    if column in _sqlite_columns(conn, table):
+    if column in get_table_columns(conn, table):
         return False
     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
     return True
@@ -210,7 +196,7 @@ def rule_from_row(row: tuple[Any, ...]) -> AlertRule:
 
 
 def fetch_rule_by_id(conn: Any, rule_id: int) -> tuple[Any, ...] | None:
-    ph = placeholder(conn)
+    ph = get_placeholder(conn)
     cursor = conn.execute(
         f"""SELECT rule_id, name, description, event_type, condition_json, channels, enabled,
                    manager_id, created_by, created_at, updated_at
@@ -222,7 +208,7 @@ def fetch_rule_by_id(conn: Any, rule_id: int) -> tuple[Any, ...] | None:
 
 
 def fetch_alert_by_id(conn: Any, alert_id: int) -> tuple[Any, ...] | None:
-    ph = placeholder(conn)
+    ph = get_placeholder(conn)
     cursor = conn.execute(
         f"""SELECT ah.alert_id, ar.name AS rule_name, ah.event_type, ah.payload_json, ah.fired_at,
                    ah.delivered_channels, ah.acknowledged
@@ -240,7 +226,7 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
 
     ensure_alert_tables(conn)
     alert_ids: list[int] = []
-    ph = placeholder(conn)
+    ph = get_placeholder(conn)
     for fired in fired_alerts:
         params = (
             fired.rule.rule_id,
@@ -276,7 +262,7 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
 def insert_pending_alert(conn: Any, fired_alert: FiredAlert) -> int:
     """Insert one alert_history row with no delivered channels recorded yet."""
     ensure_alert_tables(conn)
-    ph = placeholder(conn)
+    ph = get_placeholder(conn)
     params = (
         fired_alert.rule.rule_id,
         fired_alert.event.event_type,
@@ -305,7 +291,7 @@ def insert_pending_alert(conn: Any, fired_alert: FiredAlert) -> int:
 
 
 def _fetch_delivery_state(conn: Any, alert_id: int) -> tuple[list[str], dict[str, str]]:
-    ph = placeholder(conn)
+    ph = get_placeholder(conn)
     row = conn.execute(
         f"""SELECT delivered_channels, delivery_errors
               FROM alert_history
@@ -323,7 +309,7 @@ def record_delivery_success(conn: Any, alert_id: int, channel: str) -> None:
     if channel not in channels:
         channels.append(channel)
 
-    ph = placeholder(conn)
+    ph = get_placeholder(conn)
     if is_sqlite(conn):
         conn.execute(
             """UPDATE alert_history
@@ -348,7 +334,7 @@ def record_delivery_error(conn: Any, alert_id: int, channel: str, error_message:
     channels, errors = _fetch_delivery_state(conn, alert_id)
     errors[channel] = error_message
 
-    ph = placeholder(conn)
+    ph = get_placeholder(conn)
     if is_sqlite(conn):
         conn.execute(
             """UPDATE alert_history

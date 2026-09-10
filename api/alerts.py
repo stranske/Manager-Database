@@ -10,16 +10,14 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Body, HTTPException, Path, Query
 from pydantic import BaseModel
 
-from adapters.base import connect_db
+from adapters.base import connect_db, get_placeholder, is_sqlite
 from alerts.db import (
     deserialize_json_array,
     deserialize_json_object,
     ensure_alert_tables,
     fetch_alert_by_id,
     fetch_rule_by_id,
-    is_sqlite,
     parse_timestamp,
-    placeholder,
     rule_from_row,
     serialize_channels,
     serialize_json,
@@ -150,7 +148,7 @@ async def list_rules(
         ensure_alert_tables(conn)
         where_clauses: list[str] = []
         params: list[Any] = []
-        ph = placeholder(conn)
+        ph = get_placeholder(conn)
         if event_type is not None:
             where_clauses.append(f"event_type = {ph}")
             params.append(event_type)
@@ -219,7 +217,7 @@ async def update_rule(
         if existing is None:
             raise HTTPException(status_code=404, detail="Alert rule not found")
 
-        ph = placeholder(conn)
+        ph = get_placeholder(conn)
         set_clauses: list[str] = []
         params: list[Any] = []
         if update.name is not None:
@@ -274,7 +272,7 @@ async def delete_rule(rule_id: int = Path(..., ge=1, description="Alert rule ide
     try:
         conn = connect_db()
         ensure_alert_tables(conn)
-        ph = placeholder(conn)
+        ph = get_placeholder(conn)
         cursor = conn.execute(
             f"UPDATE alert_rules SET enabled = {ph}, updated_at = CURRENT_TIMESTAMP WHERE rule_id = {ph}",
             (0 if is_sqlite(conn) else False, rule_id),
@@ -309,7 +307,7 @@ async def list_alerts(
     try:
         conn = connect_db()
         ensure_alert_tables(conn)
-        ph = placeholder(conn)
+        ph = get_placeholder(conn)
         where_clauses: list[str] = []
         params: list[Any] = []
         if since is not None:
@@ -351,7 +349,7 @@ async def unacknowledged_count() -> dict[str, int]:
     try:
         conn = connect_db()
         ensure_alert_tables(conn)
-        ph = placeholder(conn)
+        ph = get_placeholder(conn)
         cursor = conn.execute(
             f"SELECT COUNT(*) FROM alert_history WHERE acknowledged = {ph}",
             (0 if is_sqlite(conn) else False,),
@@ -377,7 +375,7 @@ async def acknowledge_alert(
     try:
         conn = connect_db()
         ensure_alert_tables(conn)
-        ph = placeholder(conn)
+        ph = get_placeholder(conn)
         now = datetime.now(UTC).isoformat(sep=" ")
         conn.execute(
             f"""UPDATE alert_history
@@ -406,7 +404,7 @@ async def acknowledge_all(by: str = Query("user", min_length=1, max_length=120))
     try:
         conn = connect_db()
         ensure_alert_tables(conn)
-        ph = placeholder(conn)
+        ph = get_placeholder(conn)
         now = datetime.now(UTC).isoformat(sep=" ")
         cursor = conn.execute(
             f"""UPDATE alert_history
