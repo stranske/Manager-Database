@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -301,5 +302,87 @@ def test_alert_engine_ensures_schema_once_at_init(tmp_path, monkeypatch):
         engine.evaluate(AlertEvent(event_type="new_filing", manager_id=1, payload={}))
 
         assert calls == ["ensure"]
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    ("key", "event_type", "payload_key"),
+    [
+        ("news_count_gt", "news_spike", "news_count"),
+        ("manager_count_gte", "crowded_trade_change", "manager_count"),
+    ],
+)
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "nan",
+        "inf",
+        "-inf",
+        "1.5",
+        "1.0",
+        "no-count",
+        "",
+        1.5,
+        0,
+        -1,
+        True,
+        None,
+        [],
+        {},
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_alert_engine_invalid_stored_threshold_does_not_block_later_rules(
+    tmp_path, key, event_type, payload_key, invalid
+):
+    conn = _setup_db(tmp_path / "alerts.db")
+    try:
+        _insert_rule(
+            conn,
+            name="Invalid threshold",
+            event_type=event_type,
+            condition_json=json.dumps({key: invalid}),
+        )
+        _insert_rule(
+            conn,
+            name="Valid later rule",
+            event_type=event_type,
+            condition_json=json.dumps({key: 1}),
+        )
+        fired = AlertEngine(conn).evaluate(
+            AlertEvent(event_type=event_type, payload={payload_key: 2})
+        )
+        assert [alert.rule.name for alert in fired] == ["Valid later rule"]
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("threshold", [1, "1", 1.0, 9007199254740993])
+@pytest.mark.parametrize("offset", [-1, 0, 1])
+@pytest.mark.parametrize(
+    ("key", "event_type", "payload_key", "inclusive"),
+    [
+        ("news_count_gt", "news_spike", "news_count", False),
+        ("manager_count_gte", "crowded_trade_change", "manager_count", True),
+    ],
+)
+def test_alert_engine_integer_threshold_boundaries(
+    tmp_path, threshold, offset, key, event_type, payload_key, inclusive
+):
+    conn = _setup_db(tmp_path / "alerts.db")
+    try:
+        _insert_rule(
+            conn,
+            name="Count rule",
+            event_type=event_type,
+            condition_json=json.dumps({key: threshold}),
+        )
+        fired = AlertEngine(conn).evaluate(
+            AlertEvent(event_type=event_type, payload={payload_key: int(threshold) + offset})
+        )
+        assert bool(fired) == (offset >= 0 if inclusive else offset > 0)
     finally:
         conn.close()

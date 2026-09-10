@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from alerts.db import deserialize_json_object, ensure_alert_tables, placeholder, rule_from_row
-from alerts.models import AlertEvent, AlertRule, FiredAlert
+from alerts.models import AlertEvent, AlertRule, FiredAlert, parse_count_threshold
 from utils.numeric import finite_float_or_none
 
 
@@ -80,12 +80,20 @@ class AlertEngine:
                 continue
             if key == "news_count_gt":
                 count = _as_int(payload.get("news_count"))
-                if count is None or count <= int(expected):
+                try:
+                    threshold = parse_count_threshold(expected)
+                except (TypeError, ValueError):
+                    return False
+                if count is None or count <= threshold:
                     return False
                 continue
             if key == "manager_count_gte":
                 count = _as_int(payload.get("manager_count"))
-                if count is None or count < int(expected):
+                try:
+                    threshold = parse_count_threshold(expected)
+                except (TypeError, ValueError):
+                    return False
+                if count is None or count < threshold:
                     return False
                 continue
             if key == "similar_manager_count_gte":

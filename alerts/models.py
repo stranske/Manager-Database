@@ -32,6 +32,19 @@ _NUMERIC_CONDITION_BOUNDS: dict[str, tuple[float | None, float | None]] = {
     "threshold_crossed": (0.0, 100.0),
     "similar_manager_count_gte": (1.0, None),
 }
+_INTEGER_CONDITION_KEYS = ("news_count_gt", "manager_count_gte")
+
+
+def parse_count_threshold(value: Any) -> int:
+    """Parse a positive integer threshold without rounding fractional values."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError("count threshold must be a positive integer")
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError("count threshold must be a positive integer")
+    parsed = int(value)
+    if parsed < 1:
+        raise ValueError("count threshold must be a positive integer")
+    return parsed
 
 
 def normalize_event_type(value: str) -> str:
@@ -59,6 +72,15 @@ def normalize_channels(channels: list[str]) -> list[str]:
 
 def validate_condition_json(condition: dict[str, Any]) -> dict[str, Any]:
     """Reject invalid numeric alert-rule definitions before persistence."""
+    for key in _INTEGER_CONDITION_KEYS:
+        if key not in condition:
+            continue
+        try:
+            parse_count_threshold(condition[key])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid numeric alert condition for {key}: {condition[key]!r}"
+            ) from exc
     for key, bounds in _NUMERIC_CONDITION_BOUNDS.items():
         if key not in condition:
             continue
