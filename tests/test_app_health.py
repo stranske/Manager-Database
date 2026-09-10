@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -6,6 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
 from api import chat
 from api.chat import health_app, health_live, health_livez, healthz
@@ -125,6 +128,95 @@ def test_health_livez_ok():
     payload = health_livez()
     assert payload["healthy"] is True
     assert payload["uptime_s"] >= 0
+
+
+@pytest.mark.parametrize("configured", ["nan", "inf", "-inf", "0", "-1", "invalid", "", "1e999"])
+@pytest.mark.asyncio
+async def test_health_app_invalid_summary_timeout_uses_default(tmp_path, monkeypatch, configured):
+    _configure_health_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", configured)
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    for variable in ("DB_HEALTH_TIMEOUT_S", "MINIO_HEALTH_TIMEOUT_S", "REDIS_HEALTH_TIMEOUT_S"):
+        monkeypatch.delenv(variable, raising=False)
+    for name in ("_MINIO_CIRCUIT", "_REDIS_CIRCUIT"):
+        monkeypatch.setattr(chat, name, chat.CircuitBreaker())
+    observed = {}
+    monkeypatch.setattr(chat, "_ping_db", lambda timeout: observed.update(database=timeout))
+    monkeypatch.setattr(chat, "_ping_minio", lambda timeout: observed.update(minio=timeout))
+    monkeypatch.setattr(chat, "_ping_redis", lambda url, timeout: observed.update(redis=timeout))
+
+    async def capture_wait(tasks, *, timeout):
+        observed["deadline"] = timeout
+        await chat.asyncio.gather(*tasks)
+        return set(tasks), set()
+
+    monkeypatch.setattr(chat.asyncio, "wait", capture_wait)
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=chat.app), base_url="http://test"
+        ) as client:
+            response = await client.get("/health")
+        assert response.status_code == 200
+        assert response.json()["healthy"] is True
+        assert observed == {"database": 0.2, "minio": 0.2, "redis": 0.2, "deadline": 0.2}
+    finally:
+        _shutdown_health_executor()
+
+
+@pytest.mark.parametrize("configured", ["nan", "inf", "-inf", "0", "-1", "invalid", "", "1e999"])
+def test_circuit_breaker_invalid_reset_configuration_uses_default(monkeypatch, configured):
+    monkeypatch.setenv("HEALTH_CIRCUIT_RESET_S", configured)
+    clock = _FakeClock()
+    circuit = chat.CircuitBreaker(
+        failure_threshold=1,
+        reset_timeout_s=chat._circuit_breaker_reset_seconds(),
+        monotonic_fn=clock.monotonic,
+    )
+    circuit.record_failure()
+    clock.advance(29.9)
+    assert circuit.is_open() is True
+    clock.advance(0.1)
+    assert circuit.is_open() is False
+
+
+def test_health_app_import_with_invalid_circuit_reset():
+    # This setting is consumed while constructing the module's global breakers.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from api.chat import _MINIO_CIRCUIT, _REDIS_CIRCUIT; "
+            "assert _MINIO_CIRCUIT._reset_timeout_s == _REDIS_CIRCUIT._reset_timeout_s == 30.0",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env={**os.environ, "HEALTH_CIRCUIT_RESET_S": "invalid"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    ("env_name", "helper", "configured", "expected"),
+    [
+        ("DB_HEALTH_TIMEOUT_S", chat._db_timeout_seconds, "0.1", 0.1),
+        ("MINIO_HEALTH_TIMEOUT_S", chat._minio_timeout_seconds, "0.1", 0.1),
+        ("MINIO_HEALTH_TIMEOUT_S", chat._minio_timeout_seconds, "10", 5.0),
+        ("REDIS_HEALTH_TIMEOUT_S", chat._redis_timeout_seconds, "0.1", 0.1),
+        ("REDIS_HEALTH_TIMEOUT_S", chat._redis_timeout_seconds, "10", 5.0),
+        ("HEALTH_SUMMARY_TIMEOUT_S", chat._health_summary_timeout_seconds, "0.1", 0.1),
+        ("HEALTH_SUMMARY_TIMEOUT_S", chat._health_summary_timeout_seconds, "0.01", 0.05),
+        ("HEALTH_SUMMARY_TIMEOUT_S", chat._health_summary_timeout_seconds, "10", 0.2),
+        ("HEALTH_CIRCUIT_RESET_S", chat._circuit_breaker_reset_seconds, "0.1", 1.0),
+        ("HEALTH_CIRCUIT_RESET_S", chat._circuit_breaker_reset_seconds, "60", 60.0),
+    ],
+)
+def test_health_timeout_valid_configuration_preserves_bounds(
+    monkeypatch, env_name, helper, configured, expected
+):
+    monkeypatch.setenv(env_name, configured)
+    assert helper() == expected
 
 
 @pytest.mark.asyncio

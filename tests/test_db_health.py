@@ -3,6 +3,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from api.chat import health_db
@@ -76,6 +78,21 @@ def test_health_db_timeout_cap(monkeypatch):
     from api.chat import _db_timeout_seconds
 
     assert _db_timeout_seconds() == 5.0
+
+
+@pytest.mark.parametrize("configured", ["nan", "inf", "-inf", "0", "-1", "invalid", "", "1e999"])
+def test_health_db_invalid_timeout_configuration_uses_default(monkeypatch, configured):
+    monkeypatch.setenv("DB_HEALTH_TIMEOUT_S", configured)
+    observed = []
+
+    def ping(timeout_seconds):
+        observed.append(timeout_seconds)
+
+    monkeypatch.setattr("api.chat._ping_db", ping)
+    response = asyncio.run(health_db())
+    assert response.status_code == 200
+    assert _payload_from_response(response)["healthy"] is True
+    assert observed == [5.0]
 
 
 # Commit-message checklist:
