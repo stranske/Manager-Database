@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 from pathlib import Path
+from unittest.mock import Mock
 
 import httpx
 import pytest
@@ -208,6 +209,7 @@ async def test_parse_dispatches_activism_forms():
 @pytest.mark.asyncio
 async def test_fetch_activism_filings_stores_rows_and_raw_documents(monkeypatch, tmp_path):
     reset_logging()
+
     import etl.activism_flow as activism_flow
 
     db_path = tmp_path / "activism.db"
@@ -292,3 +294,74 @@ async def test_fetch_activism_filings_stores_rows_and_raw_documents(monkeypatch,
         ("Activism Watch", "activism_event"),
     ]
     reset_logging()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entrypoint", ["fetch_all_managers", "activism_flow"])
+async def test_fetch_all_managers_propagates_campaign_materialization_failure(
+    monkeypatch, tmp_path, entrypoint
+):
+    import etl.activism_flow as activism_flow
+
+    db_path = tmp_path / "materialization-failure.db"
+    _seed_managers(db_path)
+    _seed_alert_rule(db_path)
+    monkeypatch.setattr(activism_flow, "DB_PATH", str(db_path))
+    raw = Path("tests/data/sample_13d.txt").read_text()
+
+    async def fake_list_new_filings(*args, **kwargs):
+        return [{"accession": "campaign-failure", "filed": "2024-05-03", "form": "SC 13D"}]
+
+    async def fake_download(filing):
+        return raw
+
+    monkeypatch.setattr(activism_flow.edgar, "list_new_filings", fake_list_new_filings)
+    monkeypatch.setattr(activism_flow.edgar, "download", fake_download)
+    monkeypatch.setattr(activism_flow.S3, "put_object", lambda **kwargs: None)
+    outcome = Mock()
+    monkeypatch.setattr(activism_flow, "log_outcome", outcome)
+    materialization_connections = []
+    failure = RuntimeError("campaign rebuild failed")
+
+    def fail_materialization(conn):
+        materialization_connections.append(conn)
+        # Filings must already be committed on their independent ingest connection.
+        assert conn.execute("SELECT COUNT(*) FROM activism_filings").fetchone()[0] == 1
+        raise failure
+
+    monkeypatch.setattr(activism_flow, "materialize_activism_campaigns", fail_materialization)
+    run = getattr(activism_flow, entrypoint).fn
+    with pytest.raises(RuntimeError, match="campaign rebuild failed") as exc_info:
+        await run("2024-04-01")
+    assert exc_info.value is failure
+    outcome.assert_not_called()
+    assert len(materialization_connections) == 1
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        materialization_connections[0].execute("SELECT 1")
+
+    with sqlite3.connect(db_path) as persisted:
+        assert persisted.execute(
+            "SELECT manager_id, subject_cusip, filed_date FROM activism_filings"
+        ).fetchall() == [(1, "037833100", "2024-05-03")]
+
+    # A later retry can rebuild the derived data without duplicating source filings.
+    def successful_materialization(conn):
+        materialization_connections.append(conn)
+        assert conn.execute("SELECT COUNT(*) FROM activism_filings").fetchone()[0] == 1
+
+    monkeypatch.setattr(activism_flow, "materialize_activism_campaigns", successful_materialization)
+    rows = await run("2024-04-01")
+    assert len(rows) == 1
+    assert rows[0]["cusip"] == "037833100"
+    assert len(materialization_connections) == 2
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        materialization_connections[1].execute("SELECT 1")
+    if entrypoint == "activism_flow":
+        outcome.assert_called_once_with(
+            activism_flow.logger,
+            "Activism flow finished",
+            has_data=True,
+            extra={"rows": 1},
+        )
+    else:
+        outcome.assert_not_called()
