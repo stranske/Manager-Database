@@ -81,6 +81,28 @@ def test_health_detailed_ok(tmp_path, monkeypatch):
     assert payload["components"]["redis"]["latency_ms"] == 0
 
 
+@pytest.mark.parametrize("configured", ["nan", "inf", "-inf", "0", "-1", "invalid", "", "1e999"])
+@pytest.mark.parametrize(
+    ("env_name", "component", "expected"),
+    [("MINIO_HEALTH_TIMEOUT_S", "minio", 5.0), ("REDIS_HEALTH_TIMEOUT_S", "redis", 2.0)],
+)
+def test_health_detailed_invalid_timeout_configuration_uses_default(
+    monkeypatch, configured, env_name, component, expected
+):
+    monkeypatch.setenv(env_name, configured)
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    observed = {}
+    monkeypatch.setattr(chat, "_ping_db", lambda timeout: None)
+    monkeypatch.setattr(chat, "_ping_minio", lambda timeout: observed.update(minio=timeout))
+    monkeypatch.setattr(chat, "_ping_redis", lambda url, timeout: observed.update(redis=timeout))
+    response = asyncio.run(chat.health_detailed())
+    assert response.status_code == 200
+    payload = _payload_from_response(response)
+    assert payload["healthy"] is True
+    assert payload["components"][component]["healthy"] is True
+    assert observed[component] == expected
+
+
 def test_health_detailed_db_unreachable(tmp_path, monkeypatch):
     bad_path = tmp_path / "missing" / "dev.db"
     # Ensure we do not attempt a Postgres connection during tests.

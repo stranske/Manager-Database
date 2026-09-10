@@ -43,6 +43,7 @@ from llm.langsmith_fleet import (
     record_feedback_event,
 )
 from llm.tracing import maybe_enable_langsmith_tracing
+from utils.numeric import finite_float_or_none
 
 app = FastAPI()
 # Tag manager endpoints so they group clearly in the Swagger UI.
@@ -126,9 +127,15 @@ class CircuitBreaker:
                     self._opened_at = self._monotonic()
 
 
+def _health_timeout_seconds(env_name: str, default: float) -> float:
+    """Read a finite positive timeout, using the default for invalid configuration."""
+    timeout = finite_float_or_none(os.getenv(env_name))
+    return timeout if timeout is not None and timeout > 0 else default
+
+
 def _circuit_breaker_reset_seconds() -> float:
-    """Return the circuit breaker reset timeout in seconds."""
-    return max(float(os.getenv("HEALTH_CIRCUIT_RESET_S", "30")), 1.0)
+    """Return the reset timeout (default 30s), retaining the 1s minimum."""
+    return max(_health_timeout_seconds("HEALTH_CIRCUIT_RESET_S", 30.0), 1.0)
 
 
 _MINIO_CIRCUIT = CircuitBreaker(reset_timeout_s=_circuit_breaker_reset_seconds())
@@ -1281,8 +1288,8 @@ def _format_dependency_error(exc: Exception) -> str:
 
 
 def _health_summary_timeout_seconds() -> float:
-    """Return the timeout budget for /health dependency checks."""
-    timeout = float(os.getenv("HEALTH_SUMMARY_TIMEOUT_S", "0.2"))
+    """Return the /health budget (default 0.2s), bounded to 0.05–0.2s."""
+    timeout = _health_timeout_seconds("HEALTH_SUMMARY_TIMEOUT_S", 0.2)
     return max(min(timeout, 0.2), 0.05)
 
 
@@ -1499,9 +1506,9 @@ async def _configure_default_executor() -> None:
 
 
 def _db_timeout_seconds() -> float:
-    """Return the DB health timeout in seconds."""
+    """Return the DB health timeout, defaulting to 5s for invalid configuration."""
     # Cap health checks to 5s so monitoring calls never stall longer.
-    return min(float(os.getenv("DB_HEALTH_TIMEOUT_S", "5")), 5.0)
+    return min(_health_timeout_seconds("DB_HEALTH_TIMEOUT_S", 5.0), 5.0)
 
 
 def _ping_db(timeout_seconds: float) -> None:
@@ -1515,8 +1522,8 @@ def _ping_db(timeout_seconds: float) -> None:
 
 
 def _minio_timeout_seconds() -> float:
-    """Return the MinIO health timeout in seconds."""
-    return min(float(os.getenv("MINIO_HEALTH_TIMEOUT_S", "5")), 5.0)
+    """Return the MinIO timeout (default 5s), capped at 5s."""
+    return min(_health_timeout_seconds("MINIO_HEALTH_TIMEOUT_S", 5.0), 5.0)
 
 
 def _minio_client(timeout_seconds: float):
@@ -1537,8 +1544,8 @@ def _minio_client(timeout_seconds: float):
 
 
 def _redis_timeout_seconds() -> float:
-    """Return the Redis health timeout in seconds."""
-    return min(float(os.getenv("REDIS_HEALTH_TIMEOUT_S", "2")), 5.0)
+    """Return the Redis timeout (default 2s), capped at 5s."""
+    return min(_health_timeout_seconds("REDIS_HEALTH_TIMEOUT_S", 2.0), 5.0)
 
 
 def _ping_redis(redis_url: str, timeout_seconds: float) -> None:
