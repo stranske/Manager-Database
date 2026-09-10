@@ -350,6 +350,8 @@ async def fetch_all_managers(since: str) -> list[dict[str, object]]:
         materialize_activism_campaigns(conn)
     except Exception:
         logger.exception("Activism campaign materialization failed", extra={"since": since})
+        # Fail the ingest so it can be retried; source filings are already committed.
+        raise
     finally:
         conn.close()
     return rows
