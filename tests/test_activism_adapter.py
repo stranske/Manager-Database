@@ -335,6 +335,7 @@ async def test_fetch_all_managers_propagates_campaign_materialization_failure(
         await run("2024-04-01")
     assert exc_info.value is failure
     outcome.assert_not_called()
+    assert len(materialization_connections) == 1
     with pytest.raises(sqlite3.ProgrammingError, match="closed"):
         materialization_connections[0].execute("SELECT 1")
 
