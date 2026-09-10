@@ -106,6 +106,8 @@ def store_document(
     manager_id: int | None = None,
     kind: str = "note",
     filename: str | None = None,
+    *,
+    connection: Any | None = None,
 ) -> int:
     """Store text and its embedding in the documents table.
 
@@ -115,22 +117,37 @@ def store_document(
         manager_id: FK to managers table (optional)
         kind: Document type ('memo', 'note', 'pdf', 'filing_text')
         filename: Original filename (optional)
+        connection: Existing connection; caller owns commit, rollback and close.
+            When supplied, db_path is not used to open another connection.
 
     Returns:
         doc_id of the inserted/existing document
     """
+    if connection is not None:
+        return _store_document_on_connection(text, connection, manager_id, kind, filename)
     conn = connect_db(db_path)
+    try:
+        doc_id = _store_document_on_connection(text, conn, manager_id, kind, filename)
+        conn.commit()
+        return doc_id
+    finally:
+        conn.close()
+
+
+def _store_document_on_connection(
+    text: str,
+    conn: Any,
+    manager_id: int | None,
+    kind: str,
+    filename: str | None,
+) -> int:
     is_pg = _is_postgres_connection(conn)
     sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
     if is_pg:
         if register_vector:
             register_vector(conn)
         columns = _postgres_columns(conn, "documents")
-        try:
-            id_col, text_col = _postgres_documents_contract(columns)
-        except RuntimeError:
-            conn.close()
-            raise
+        id_col, text_col = _postgres_documents_contract(columns)
         emb_vec = _pgvector_embedding(text)
         emb = Vector(emb_vec) if register_vector else emb_vec
         insert_cols: list[str] = []
@@ -232,8 +249,6 @@ def store_document(
             doc_id = int(existing[0])
         else:
             doc_id = int(cur.lastrowid)
-    conn.commit()
-    conn.close()
     return doc_id
 
 
@@ -323,7 +338,7 @@ def search_documents(
     )
     qvec = embed_text(query)
     # Use a max heap (negate distances for heapq which is a min heap)
-    heap: list[tuple[float, dict[str, Any]]] = []
+    heap: list[tuple[float, int, dict[str, Any]]] = []
     for doc_id, content, kind, filename, manager_name, emb_json in cur:
         if not emb_json:
             continue
@@ -337,13 +352,15 @@ def search_documents(
             "manager_name": manager_name,
             "distance": dist,
         }
-        # Keep only k smallest distances using a max heap
+        # Break equal-distance ties by ID, never by comparing result dictionaries.
+        # Negating both keys keeps the worst retained document at the root.
+        entry = (-dist, -int(doc_id), result)
         if len(heap) < k:
-            heapq.heappush(heap, (-dist, result))
-        elif dist < -heap[0][0]:  # If this distance is smaller than the largest in heap
-            heapq.heapreplace(heap, (-dist, result))
+            heapq.heappush(heap, entry)
+        elif entry[:2] > heap[0][:2]:
+            heapq.heapreplace(heap, entry)
     conn.close()
     # Extract results and sort by distance (ascending)
-    results = [item[1] for item in heap]
-    results.sort(key=lambda r: r["distance"])
+    results = [item[2] for item in heap]
+    results.sort(key=lambda r: (r["distance"], r["doc_id"]))
     return results

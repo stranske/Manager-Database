@@ -33,18 +33,19 @@ def store_document(
     manager_id: int | None = None,
     kind: str = "note",
     filename: str | None = None,
+    *,
+    connection: Any | None = None,
 ) -> int:
-    try:
-        from embeddings import store_document as _store_document
-    except Exception:
-        _ = (text, db_path, manager_id, kind, filename)
-        return 0
+    # Indexing failures must reach fetch_and_store's transaction rollback.
+    from embeddings import store_document as _store_document
+
     return _store_document(
         text,
         db_path=db_path,
         manager_id=manager_id,
         kind=kind,
         filename=filename,
+        connection=connection,
     )
 
 
@@ -648,9 +649,16 @@ async def fetch_and_store(
     adapter: Any | None = None,
     db_path: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Store a filing batch and index text in the same database transaction.
+
+    Indexing/import failures fail ingestion and roll back database writes. Raw
+    S3 objects retain their existing independent retention behavior. Binary
+    downloads and filings without a known manager are not text-indexed.
+    """
     adapter = adapter or get_adapter(_ADAPTER_MAP.get(jurisdiction, "edgar"))
     filings = await adapter.list_new_filings(identifier, since)
-    conn = connect_db(db_path or DB_PATH)
+    active_db_path = db_path or DB_PATH
+    conn = connect_db(active_db_path)
     original_autocommit: bool | None = None
     try:
         original_autocommit = _enable_transactional_writes(conn)
@@ -671,9 +679,6 @@ async def fetch_and_store(
                 ServerSideEncryption="AES256",
             )
             parsed_rows = await adapter.parse(raw)
-            if isinstance(raw, str):
-                store_document(raw)
-
             manager_id = _lookup_manager_id(conn, jurisdiction, identifier)
             if manager_id is None:
                 logger.warning(
@@ -685,6 +690,17 @@ async def fetch_and_store(
                     },
                 )
                 continue
+            if isinstance(raw, str):
+                # Share the ingestion transaction: a second connection can lock
+                # SQLite and commit an index entry even if filing writes fail.
+                store_document(
+                    raw,
+                    db_path=active_db_path,
+                    manager_id=manager_id,
+                    kind="filing_text",
+                    filename=f"{external_id}.{ext}",
+                    connection=conn,
+                )
             filing_id = _insert_filing(
                 conn,
                 manager_id=manager_id,

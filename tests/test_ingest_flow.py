@@ -186,7 +186,7 @@ async def test_fetch_and_store_us_uses_manager_cik_and_inserts_holdings(tmp_path
 
     monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: _USAdapter())
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
-    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     rows = await ingest_flow.fetch_and_store.fn(
         "0000000001",
@@ -222,7 +222,7 @@ async def test_fetch_and_store_caps_single_large_filing_return_rows(tmp_path, mo
     max_results = 3
     monkeypatch.setenv("MAX_RESULTS_IN_MEMORY", str(max_results))
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
-    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     rows = await ingest_flow.fetch_and_store.fn(
         "0000000001",
@@ -253,7 +253,7 @@ async def test_fetch_and_store_ignores_invalid_max_results_env(tmp_path, monkeyp
 
     monkeypatch.setenv("MAX_RESULTS_IN_MEMORY", "not-an-int")
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
-    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     rows = await ingest_flow.fetch_and_store.fn(
         "0000000001",
@@ -313,6 +313,11 @@ async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(mon
         states.append(("lookup", db_conn.autocommit))
         return 1
 
+    def record_document(_raw, **kwargs):
+        assert kwargs["connection"] is conn
+        assert kwargs["manager_id"] == 1
+        states.append(("document", conn.autocommit))
+
     def record_insert_filing(db_conn, **_kwargs):
         states.append(("filing", db_conn.autocommit))
         return 10
@@ -325,6 +330,7 @@ async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(mon
     monkeypatch.setattr(ingest_flow, "_ensure_filing_tables", record_ensure_tables)
     monkeypatch.setattr(ingest_flow, "_lookup_manager_id", record_lookup)
     monkeypatch.setattr(ingest_flow, "_insert_filing", record_insert_filing)
+    monkeypatch.setattr(ingest_flow, "store_document", record_document)
     monkeypatch.setattr(ingest_flow, "_replace_holdings_rows", record_replace_holdings)
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
 
@@ -339,6 +345,7 @@ async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(mon
     assert states == [
         ("ensure", False),
         ("lookup", False),
+        ("document", False),
         ("filing", False),
         ("holdings", False),
     ]
@@ -383,7 +390,7 @@ async def test_fetch_and_store_us_replaces_existing_holdings_for_same_filing(tmp
 
     monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: _USAdapter())
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
-    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     await ingest_flow.fetch_and_store.fn(
         "0000000001",
@@ -507,7 +514,7 @@ async def test_fetch_and_store_uk_uses_registry_id_and_stores_payload(tmp_path, 
 
     monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: _UKAdapter())
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
-    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     rows = await ingest_flow.fetch_and_store.fn(
         "12345678",
@@ -548,7 +555,7 @@ async def test_fetch_and_store_uk_uses_form_type_and_never_inserts_holdings(tmp_
 
     monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: _UKAdapterWithFormType())
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
-    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     rows = await ingest_flow.fetch_and_store.fn(
         "12345678",
@@ -672,7 +679,7 @@ async def test_fetch_and_store_metadata_jurisdictions_store_payload_without_hold
         ),
     )
     monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
-    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw: None)
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     rows = await ingest_flow.fetch_and_store.fn(
         identifier,
@@ -745,3 +752,155 @@ async def test_uk_flow_is_uk_wrapper(monkeypatch):
     assert captured["identifiers"] == ["12345678"]
     assert captured["since"] == "2024-01-01"
     assert captured["fetcher"] is None
+
+
+@pytest.fixture
+def filing_index_db(tmp_path, monkeypatch):
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    db_path = tmp_path / "filings.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT, cik TEXT, registry_ids TEXT)"
+        )
+        conn.execute("INSERT INTO managers VALUES (7, 'Example Manager', '0000000001', '{}')")
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    return db_path
+
+
+class _TwoTextFilingsAdapter(_USAdapter):
+    async def list_new_filings(self, _cik, _since):
+        return [
+            {"accession": "0001-24-000001", "filed": "2024-01-05"},
+            {"accession": "0001-24-000002", "filed": "2024-01-06"},
+        ]
+
+    async def download(self, filing):
+        return f"<xml>portfolio {filing['accession']}</xml>"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("explicit_path", [True, False])
+async def test_fetch_and_store_indexes_raw_filing_in_active_db_with_manager_metadata(
+    filing_index_db, tmp_path, monkeypatch, explicit_path
+):
+    from embeddings import search_documents
+
+    default_db = tmp_path / "unused-default.db"
+    monkeypatch.setenv("DB_PATH", str(default_db))
+    monkeypatch.setattr(
+        ingest_flow, "DB_PATH", str(default_db if explicit_path else filing_index_db)
+    )
+    captured = []
+    store = ingest_flow.store_document
+
+    def record_document(raw, **kwargs):
+        captured.append((raw, kwargs))
+        return store(raw, **kwargs)
+
+    monkeypatch.setattr(ingest_flow, "store_document", record_document)
+    # Two filings exercise indexing while the first filing's writes are pending.
+    # Re-ingesting also preserves the existing content-hash deduplication contract.
+    for _ in range(2):
+        rows = await ingest_flow.fetch_and_store.fn(
+            "0000000001",
+            "2024-01-01",
+            jurisdiction="us",
+            adapter=_TwoTextFilingsAdapter(),
+            db_path=str(filing_index_db) if explicit_path else None,
+        )
+        assert len(rows) == 2
+    assert len(captured) == 4
+    assert not default_db.exists()
+    with sqlite3.connect(filing_index_db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM filings WHERE manager_id=7").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM holdings WHERE manager_id=7").fetchone()[0] == 2
+    results = search_documents("portfolio", str(filing_index_db), manager_id=7)
+    assert {doc["content"] for doc in results} == {raw for raw, _ in captured}
+    assert {doc["filename"] for doc in results} == {
+        "0001-24-000001.xml",
+        "0001-24-000002.xml",
+    }
+    assert all(doc["kind"] == "filing_text" for doc in results)
+    assert all(doc["manager_name"] == "Example Manager" for doc in results)
+    assert search_documents("portfolio", str(filing_index_db), manager_id=8) == []
+    for i, (raw, kwargs) in enumerate(captured):
+        external_id = f"0001-24-00000{i % 2 + 1}"
+        assert raw == f"<xml>portfolio {external_id}</xml>"
+        assert kwargs["db_path"] == str(filing_index_db)
+        assert kwargs["manager_id"] == 7
+        assert kwargs["kind"] == "filing_text"
+        assert kwargs["filename"] == f"{external_id}.xml"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_stage", ["embedding", "filing"])
+async def test_fetch_and_store_index_failure_rolls_back_filing_batch(
+    filing_index_db, monkeypatch, failure_stage
+):
+    import embeddings
+
+    if failure_stage == "embedding":
+        original_embed = embeddings.embed_text
+
+        def fail_second_embedding(text):
+            if "0001-24-000002" in text:
+                raise RuntimeError("index unavailable")
+            return original_embed(text)
+
+        monkeypatch.setattr(embeddings, "embed_text", fail_second_embedding)
+    else:
+        original_insert = ingest_flow._insert_filing
+
+        def fail_second_filing(conn, **kwargs):
+            if kwargs["external_id"] == "0001-24-000002":
+                raise RuntimeError("filing unavailable")
+            return original_insert(conn, **kwargs)
+
+        monkeypatch.setattr(ingest_flow, "_insert_filing", fail_second_filing)
+
+    with pytest.raises(RuntimeError, match="unavailable"):
+        await ingest_flow.fetch_and_store.fn(
+            "0000000001",
+            "2024-01-01",
+            jurisdiction="us",
+            adapter=_TwoTextFilingsAdapter(),
+            db_path=str(filing_index_db),
+        )
+    with sqlite3.connect(filing_index_db) as conn:
+        for table in ["documents", "filings", "holdings"]:
+            assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+        # A subsequent writer is not left locked out after the failure.
+        conn.execute("INSERT INTO managers VALUES (8, 'Next Manager', '0000000002', '{}')")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("binary", [True, False])
+async def test_fetch_and_store_does_not_index_binary_or_unknown_manager(
+    filing_index_db, monkeypatch, binary
+):
+    class Adapter(_USAdapter):
+        async def download(self, _filing):
+            return b"binary filing" if binary else "text for unknown manager"
+
+    def unexpected_index(*_args, **_kwargs):
+        pytest.fail("Binary or unknown-manager filing must not be indexed")
+
+    monkeypatch.setattr(ingest_flow, "store_document", unexpected_index)
+    rows = await ingest_flow.fetch_and_store.fn(
+        "0000000001" if binary else "unknown",
+        "2024-01-01",
+        jurisdiction="us",
+        adapter=Adapter(),
+        db_path=str(filing_index_db),
+    )
+    assert len(rows) == (1 if binary else 0)
+
+
+def test_ingest_document_import_failure_is_not_silently_ignored(monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "embeddings", None)
+    with pytest.raises(ModuleNotFoundError):
+        ingest_flow.store_document("raw filing")
