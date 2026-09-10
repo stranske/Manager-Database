@@ -393,13 +393,16 @@ def test_store_and_search_pgvector(monkeypatch):
     assert any("d.embedding <=> %s::vector AS dist" in sql for sql, _params in conn.executed)
 
 
-def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeypatch):
+@pytest.mark.parametrize("borrowed", [True, False])
+def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeypatch, borrowed):
     ddl_prefixes = ("CREATE EXTENSION", "CREATE TABLE", "CREATE UNIQUE INDEX")
 
     class Connection:
         def __init__(self):
             self.info = object()
             self.executed = []
+            self.committed = False
+            self.closed = False
 
         def execute(self, sql, params=None):
             _assert_postgres_safe(sql)
@@ -426,17 +429,21 @@ def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeyp
             return type("Result", (), {"fetchall": lambda self: []})()
 
         def commit(self):
-            pass
+            self.committed = True
 
         def close(self):
-            pass
+            self.closed = True
 
     conn = Connection()
     monkeypatch.setattr("embeddings.connect_db", lambda _path=None: conn)
     monkeypatch.setattr("embeddings.register_vector", None)
     monkeypatch.setattr("embeddings.embed_text", lambda _text: [0.4, 0.6])
 
-    assert store_document("dialect branch", "ignored.db") == 9
+    assert (
+        store_document("dialect branch", "ignored.db", connection=conn if borrowed else None) == 9
+    )
+    assert conn.committed is (not borrowed)
+    assert conn.closed is (not borrowed)
 
     executed_sql = "\n".join(sql for sql, _params in conn.executed)
     assert "information_schema.columns" in executed_sql
@@ -449,7 +456,8 @@ def test_store_document_postgres_uses_dialect_specific_schema_and_insert(monkeyp
     assert "INSERT OR IGNORE" not in executed_sql
 
 
-def test_store_document_postgres_requires_migrated_documents_schema(monkeypatch):
+@pytest.mark.parametrize("borrowed", [True, False])
+def test_store_document_postgres_requires_migrated_documents_schema(monkeypatch, borrowed):
     class Connection:
         def __init__(self):
             self.info = object()
@@ -472,8 +480,8 @@ def test_store_document_postgres_requires_migrated_documents_schema(monkeypatch)
     monkeypatch.setattr("embeddings.register_vector", None)
 
     with pytest.raises(RuntimeError, match="Postgres documents schema is not migrated"):
-        store_document("dialect branch", "ignored.db")
-    assert conn.closed is True
+        store_document("dialect branch", "ignored.db", connection=conn if borrowed else None)
+    assert conn.closed is (not borrowed)
 
 
 def test_store_document_pgvector_conflict_returns_existing(monkeypatch):
@@ -586,3 +594,50 @@ def test_embeddings_pass_dialect_gate_without_allowlist() -> None:
     findings = scan([repo_root / "embeddings.py"], repo_root=repo_root, allowlist={})
 
     assert findings == []
+
+
+def test_store_document_borrowed_connection_leaves_transaction_to_caller(tmp_path, monkeypatch):
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    db_path = tmp_path / "borrowed.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT)")
+        conn.execute("INSERT INTO managers VALUES (7, 'Filing Manager')")
+        conn.commit()
+        conn.execute("BEGIN")
+        store_document(
+            "ingested filing text",
+            str(db_path),
+            manager_id=7,
+            kind="filing_text",
+            filename="accession.xml",
+            connection=conn,
+        )
+        assert conn.in_transaction  # storage neither committed nor closed our connection
+        conn.commit()
+        results = search_documents("filing", str(db_path), manager_id=7)
+        assert len(results) == 1
+        assert results[0]["content"] == "ingested filing text"
+        assert results[0]["filename"] == "accession.xml"
+        assert results[0]["kind"] == "filing_text"
+        assert results[0]["manager_name"] == "Filing Manager"
+        assert search_documents("filing", str(db_path), manager_id=8) == []
+        store_document("rolled back filing", manager_id=7, connection=conn)
+        conn.rollback()
+        assert conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("k", [1, 2, 3])
+def test_search_documents_equal_distance_filings_use_stable_id_order(tmp_path, monkeypatch, k):
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    db_path = str(tmp_path / "ties.db")
+    ids = [
+        store_document(f"filing {n}", db_path, manager_id=7, kind="filing_text") for n in range(3)
+    ]
+    results = search_documents("filing", db_path, k=k, manager_id=7)
+    assert [row["doc_id"] for row in results] == ids[:k]
+    assert all(row["distance"] == 0 for row in results)
