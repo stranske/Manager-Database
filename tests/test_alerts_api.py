@@ -220,6 +220,55 @@ def test_alert_rule_create_rejects_non_finite_numeric_condition(tmp_path, monkey
     assert "Invalid numeric alert condition" in response.text
 
 
+def test_alert_rule_create_rejects_invalid_news_count_gt(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "alerts.db"))
+    payload = _create_rule_payload(event_type="news_spike")
+    payload["condition_json"] = {"news_count_gt": "nan"}
+
+    response = asyncio.run(_request("POST", "/api/alerts/rules", json=payload))
+
+    assert response.status_code == 400
+    assert "Invalid numeric alert condition" in response.text
+
+
+@pytest.mark.parametrize("key", ["news_count_gt", "manager_count_gte"])
+@pytest.mark.parametrize(
+    "invalid", ["nan", "inf", "-inf", "1.5", "1.0", "no-count", "", 1.5, 0, -1, True, None, [], {}]
+)
+def test_alert_rule_rejects_invalid_count_on_create_and_update(tmp_path, monkeypatch, key, invalid):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "alerts.db"))
+    payload = _create_rule_payload()
+    payload["condition_json"] = {key: invalid}
+    rejected = asyncio.run(_request("POST", "/api/alerts/rules", json=payload))
+    assert rejected.status_code == 400
+    assert f"Invalid numeric alert condition for {key}" in rejected.text
+    assert asyncio.run(_request("GET", "/api/alerts/rules")).json() == []
+
+    payload["condition_json"] = {key: 2}
+    created = asyncio.run(_request("POST", "/api/alerts/rules", json=payload))
+    assert created.status_code == 201
+    path = f"/api/alerts/rules/{created.json()['rule_id']}"
+    rejected = asyncio.run(_request("PUT", path, json={"condition_json": {key: invalid}}))
+    assert rejected.status_code == 400
+    assert f"Invalid numeric alert condition for {key}" in rejected.text
+    assert asyncio.run(_request("GET", path)).json()["condition_json"] == {key: 2}
+
+
+@pytest.mark.parametrize("key", ["news_count_gt", "manager_count_gte"])
+@pytest.mark.parametrize("value", [1, "2", 3.0, 9007199254740993])
+def test_alert_rule_accepts_integer_count_on_create_and_update(tmp_path, monkeypatch, key, value):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "alerts.db"))
+    payload = _create_rule_payload()
+    payload["condition_json"] = {key: value}
+    created = asyncio.run(_request("POST", "/api/alerts/rules", json=payload))
+    assert created.status_code == 201
+    assert created.json()["condition_json"] == {key: value}
+    path = f"/api/alerts/rules/{created.json()['rule_id']}"
+    updated = asyncio.run(_request("PUT", path, json={"condition_json": {key: value}}))
+    assert updated.status_code == 200
+    assert asyncio.run(_request("GET", path)).json()["condition_json"] == {key: value}
+
+
 def test_alert_rule_update_rejects_out_of_range_numeric_condition(tmp_path, monkeypatch):
     db_path = tmp_path / "alerts.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
