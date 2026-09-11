@@ -46,7 +46,8 @@ def setup_db(tmp_path: Path) -> str:
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
     conn.execute(
-        "CREATE TABLE holdings (cik TEXT, accession TEXT, filed DATE, nameOfIssuer TEXT, "
+        # No `filed` column: schema.sql keeps filing dates on filings.filed_date.
+        "CREATE TABLE holdings (cik TEXT, accession TEXT, nameOfIssuer TEXT, "
         "cusip TEXT, value INTEGER, sshPrnamt INTEGER, filing_id INTEGER, "
         "name_of_issuer TEXT, shares INTEGER, value_usd REAL)"
     )
@@ -104,9 +105,9 @@ def setup_db(tmp_path: Path) -> str:
         (1, "Alpha Partners"),
     ]
     rows = [
-        ("0", "a", "2024-01-01", "CorpA", "AAA", 1, 1, 1, "Issuer A", 100, 1500),
-        ("0", "b", "2024-01-02", "CorpB", "BBB", 1, 1, 1, "Issuer B", 200, 3000),
-        ("0", "c", "2024-01-02", "CorpC", "CCC", 1, 1, 2, "Issuer C", 50, 700),
+        ("0", "a", "CorpA", "AAA", 1, 1, 1, "Issuer A", 100, 1500),
+        ("0", "b", "CorpB", "BBB", 1, 1, 1, "Issuer B", 200, 3000),
+        ("0", "c", "CorpC", "CCC", 1, 1, 2, "Issuer C", 50, 700),
     ]
     filing_rows = [
         (1, 1, "13F-HR", "2024-03-15", "2023-12-31", "sec", "raw/1"),
@@ -286,7 +287,7 @@ def setup_db(tmp_path: Path) -> str:
         )
     ]
     conn.executemany("INSERT INTO managers VALUES (?,?)", manager_rows)
-    conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+    conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
     conn.executemany("INSERT INTO filings VALUES (?,?,?,?,?,?,?)", filing_rows)
     conn.executemany("INSERT INTO daily_diffs VALUES (?,?,?,?,?,?,?,?,?)", delta_rows)
     conn.executemany("INSERT INTO news_items VALUES (?,?,?,?,?,?,?)", news_rows)
@@ -316,7 +317,8 @@ def setup_performance_db(tmp_path: Path, manager_count: int = 10) -> str:
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
     conn.execute(
-        "CREATE TABLE holdings (cik TEXT, accession TEXT, filed DATE, nameOfIssuer TEXT, "
+        # No `filed` column: schema.sql keeps filing dates on filings.filed_date.
+        "CREATE TABLE holdings (cik TEXT, accession TEXT, nameOfIssuer TEXT, "
         "cusip TEXT, value INTEGER, sshPrnamt INTEGER, filing_id INTEGER, "
         "name_of_issuer TEXT, shares INTEGER, value_usd REAL)"
     )
@@ -374,7 +376,6 @@ def setup_performance_db(tmp_path: Path, manager_count: int = 10) -> str:
                 (
                     str(manager_id),
                     f"a{filing_id}-{idx}",
-                    "2026-02-14",
                     f"Corp {manager_id}-{idx}",
                     f"{manager_id:02d}{idx:04d}",
                     idx * 100,
@@ -385,7 +386,7 @@ def setup_performance_db(tmp_path: Path, manager_count: int = 10) -> str:
                     float(idx * 100000),
                 )
             )
-        conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?,?)", holdings_rows)
+        conn.executemany("INSERT INTO holdings VALUES (?,?,?,?,?,?,?,?,?,?)", holdings_rows)
 
         diff_rows = []
         for idx in range(1, 11):
@@ -442,8 +443,57 @@ def test_load_delta_counts(tmp_path: Path, monkeypatch):
     db_path = setup_db(tmp_path)
     monkeypatch.setenv("DB_PATH", db_path)
     df = load_delta()
-    assert list(df["date"]) == ["2024-01-01", "2024-01-02"]
-    assert list(df["filings"]) == [1, 2]
+    # filing_rows above: 2024-01-15 x1, 2024-02-15 x1, 2024-03-15 x1.
+    assert list(df.columns) == ["date", "filings"]
+    assert list(df["date"]) == ["2024-01-15", "2024-02-15", "2024-03-15"]
+    assert list(df["filings"]) == [1, 1, 1]
+
+
+def test_load_delta_groups_repeated_filing_dates(tmp_path: Path, monkeypatch):
+    """load_delta must run against the production column set and group by filing date.
+
+    The `holdings` table has no `filed` column (schema.sql), so the previous
+    `GROUP BY filed FROM holdings` query raised
+    `DatabaseError: ... no such column: filed` and crashed the dashboard's
+    Historical Filing Trend section at runtime.
+    """
+
+    db_path = setup_db(tmp_path)
+    conn = sqlite3.connect(db_path)
+    conn.executemany(
+        "INSERT INTO filings VALUES (?,?,?,?,?,?,?)",
+        [
+            (4, 2, "13F-HR", "2024-03-15", "2023-12-31", "sec", "raw/4"),
+            (5, 2, "13F-HR", "2024-04-15", "2023-12-31", "sec", "raw/5"),
+            (6, 1, "13F-HR", None, "2023-12-31", "sec", "raw/6"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv("DB_PATH", db_path)
+
+    df = load_delta()
+
+    assert list(df.columns) == ["date", "filings"]
+    # 2024-03-15 now has two filings; the NULL filed_date is excluded, not grouped.
+    assert list(df["date"]) == ["2024-01-15", "2024-02-15", "2024-03-15", "2024-04-15"]
+    assert list(df["filings"]) == [1, 1, 2, 1]
+
+
+def test_holdings_fixture_matches_production_schema(tmp_path: Path):
+    """Guard the fixture that hid this crash.
+
+    `setup_db` used to declare a `filed` column on `holdings` that `schema.sql`
+    does not have, so a query against `holdings.filed` passed in tests and
+    failed in production.
+    """
+
+    db_path = setup_db(tmp_path)
+    conn = sqlite3.connect(db_path)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(holdings)")}
+    conn.close()
+    assert "filed" not in columns
+    assert "filing_id" in columns
 
 
 def test_load_activism_helpers_and_campaigns(tmp_path: Path, monkeypatch):

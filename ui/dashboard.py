@@ -46,9 +46,18 @@ def load_unacknowledged_alert_count() -> int:
 
 
 def load_delta() -> pd.DataFrame:
+    """Return one row per filing date with the number of filings received that day.
+
+    Filing dates live on ``filings.filed_date``; ``holdings`` carries no filing
+    date of its own (see ``schema.sql``), so grouping ``holdings`` by ``filed``
+    raised ``no such column: filed`` and crashed the Historical Filing Trend
+    section.
+    """
+
     conn = connect_db()
     df = pd.read_sql_query(
-        "SELECT filed as date, COUNT(*) AS filings FROM holdings GROUP BY filed ORDER BY filed",
+        "SELECT filed_date AS date, COUNT(*) AS filings FROM filings "
+        "WHERE filed_date IS NOT NULL GROUP BY filed_date ORDER BY filed_date",
         conn,
     )
     conn.close()
