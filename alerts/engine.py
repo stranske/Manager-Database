@@ -99,8 +99,11 @@ class AlertEngine:
                 continue
             if key == "similar_manager_count_gte":
                 count = _as_int(payload.get("similar_manager_count"))
-                threshold = _as_float(expected)
-                if count is None or threshold is None or count < threshold:
+                try:
+                    threshold = parse_count_threshold(expected)
+                except (TypeError, ValueError):
+                    return False
+                if count is None or count < threshold:
                     return False
                 continue
             if key == "any_new_filing":

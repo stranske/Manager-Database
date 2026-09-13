@@ -30,9 +30,8 @@ _NUMERIC_CONDITION_BOUNDS: dict[str, tuple[float | None, float | None]] = {
     "min_ownership_pct": (0.0, 100.0),
     "min_delta_pct": (0.0, 100.0),
     "threshold_crossed": (0.0, 100.0),
-    "similar_manager_count_gte": (1.0, None),
 }
-_INTEGER_CONDITION_KEYS = ("news_count_gt", "manager_count_gte")
+_INTEGER_CONDITION_KEYS = ("news_count_gt", "manager_count_gte", "similar_manager_count_gte")
 
 
 def parse_count_threshold(value: Any) -> int:
