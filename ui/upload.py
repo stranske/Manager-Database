@@ -72,10 +72,11 @@ def _store_uploaded_text(text: str, filename: str, manager_id: int | None = None
 def _recent_uploads(limit: int = 10) -> pd.DataFrame:
     conn = connect_db()
     try:
+        id_column = resolve_manager_id_column(conn)
         query = (
             "SELECT d.doc_id, d.filename, d.kind, d.created_at, m.name AS manager_name "
             "FROM documents d "
-            "LEFT JOIN managers m ON m.manager_id = d.manager_id "
+            f"LEFT JOIN managers m ON m.{id_column} = d.manager_id "
             "ORDER BY d.created_at DESC "
             "LIMIT ?"
         )
