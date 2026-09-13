@@ -72,11 +72,13 @@ def _load_managers() -> list[tuple[int, str]]:
         if not page_items or offset >= total:
             break
 
-    managers = [
-        (int(item["id"]), str(item["name"]))
-        for item in items
-        if item.get("id") is not None and item.get("name")
-    ]
+    managers = []
+    for item in items:
+        manager_id = item.get("manager_id")
+        if manager_id is None:
+            manager_id = item.get("id")
+        if manager_id is not None and item.get("name"):
+            managers.append((int(manager_id), str(item["name"])))
     return sorted(set(managers), key=lambda manager: manager[1].lower())
 
 

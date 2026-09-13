@@ -34,10 +34,10 @@ def test_load_managers_pages_and_sorts_results(monkeypatch):
         offset = int((params or {}).get("offset", 0))
         if offset == 0:
             return True, {
-                "items": [{"id": 2, "name": "Zed"}, {"id": 1, "name": "Amy"}],
+                "items": [{"manager_id": 2, "name": "Zed"}, {"manager_id": 1, "name": "Amy"}],
                 "total": 3,
             }
-        return True, {"items": [{"id": 3, "name": "Bob"}], "total": 3}
+        return True, {"items": [{"manager_id": 3, "name": "Bob"}], "total": 3}
 
     monkeypatch.setattr(alerts_ui, "_api_request", _fake_api_request)
     alerts_ui._load_managers.clear()
@@ -49,6 +49,43 @@ def test_load_managers_pages_and_sorts_results(monkeypatch):
         ("GET", "/managers", {"limit": 100, "offset": 0}),
         ("GET", "/managers", {"limit": 100, "offset": 2}),
     ]
+
+
+@pytest.mark.parametrize("paginated", [False, True])
+@pytest.mark.parametrize(
+    ("identifiers", "expected_id"),
+    [
+        ({"manager_id": 1}, 1),
+        ({"manager_id": "1"}, 1),
+        ({"id": 1}, 1),
+        ({"id": "1"}, 1),
+        ({"manager_id": 1, "id": 99}, 1),
+        ({"manager_id": 0, "id": 99}, 0),
+        ({"manager_id": None, "id": 1}, 1),
+    ],
+)
+def test_load_managers_accepts_api_and_legacy_identifiers(
+    monkeypatch, paginated, identifiers, expected_id
+):
+    items = [{**identifiers, "name": "Elliott"}]
+    payload = {"items": items, "total": 1} if paginated else items
+    monkeypatch.setattr(alerts_ui, "_api_request", lambda *args, **kwargs: (True, payload))
+
+    assert alerts_ui._load_managers() == [(expected_id, "Elliott")]
+
+
+def test_load_managers_filters_incomplete_entries_and_deduplicates(monkeypatch):
+    items = [
+        {"manager_id": 1, "name": "Elliott"},
+        {"id": "1", "name": "Elliott"},
+        {"name": "No identifier"},
+        {"manager_id": None, "name": "Null identifier"},
+        {"manager_id": 2, "name": ""},
+        {"manager_id": 3},
+    ]
+    monkeypatch.setattr(alerts_ui, "_api_request", lambda *args, **kwargs: (True, items))
+
+    assert alerts_ui._load_managers() == [(1, "Elliott")]
 
 
 def test_load_managers_returns_empty_on_api_error(monkeypatch):
