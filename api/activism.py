@@ -14,7 +14,13 @@ except ModuleNotFoundError:
 
     APIRouter, BaseModel, Field, Query = offline_api_imports()
 
-from adapters.base import connect_db, get_placeholder, is_sqlite, table_exists
+from adapters.base import (
+    connect_db,
+    get_placeholder,
+    is_sqlite,
+    resolve_manager_id_column,
+    table_exists,
+)
 
 router = APIRouter()
 
@@ -170,6 +176,7 @@ def query_activism_filings(
         return []
 
     ph = get_placeholder(conn)
+    manager_col = resolve_manager_id_column(conn)
     filters: list[str] = []
     params: list[Any] = []
 
@@ -192,7 +199,7 @@ def query_activism_filings(
         "SELECT af.filing_id, m.name, af.filing_type, af.subject_company, af.subject_cusip, "
         "af.ownership_pct, af.shares, af.filed_date, af.url "
         "FROM activism_filings af "
-        "LEFT JOIN managers m ON m.manager_id = af.manager_id "
+        f"LEFT JOIN managers m ON m.{manager_col} = af.manager_id "
         f"{where_clause} "
         "ORDER BY af.filed_date DESC, af.filing_id DESC "
         f"LIMIT {ph}",
@@ -227,6 +234,7 @@ def query_activism_events(
         return []
 
     ph = get_placeholder(conn)
+    manager_col = resolve_manager_id_column(conn)
     filters: list[str] = []
     params: list[Any] = []
 
@@ -252,7 +260,7 @@ def query_activism_events(
         "SELECT ae.event_id, m.name, ae.event_type, ae.subject_company, ae.subject_cusip, "
         "ae.ownership_pct, ae.previous_pct, ae.delta_pct, ae.threshold_crossed, ae.detected_at "
         "FROM activism_events ae "
-        "LEFT JOIN managers m ON m.manager_id = ae.manager_id "
+        f"LEFT JOIN managers m ON m.{manager_col} = ae.manager_id "
         f"{where_clause} "
         "ORDER BY ae.detected_at DESC, ae.event_id DESC "
         f"LIMIT {ph}",
@@ -336,6 +344,7 @@ def query_active_campaigns(
         return []
 
     ph = get_placeholder(conn)
+    manager_col = resolve_manager_id_column(conn)
     if table_exists(conn, "activism_events"):
         event_count_sql = (
             "COALESCE((SELECT COUNT(*) FROM activism_events ae "
@@ -362,7 +371,7 @@ def query_active_campaigns(
         "               ORDER BY af.filed_date DESC, af.filing_id DESC"
         "           ) AS row_number "
         "    FROM activism_filings af "
-        "    LEFT JOIN managers m ON m.manager_id = af.manager_id"
+        f"    LEFT JOIN managers m ON m.{manager_col} = af.manager_id"
         ") "
         "SELECT ranked.manager_name, ranked.subject_company, ranked.subject_cusip, "
         "       ranked.ownership_pct, ranked.filed_date, "
@@ -403,6 +412,7 @@ def query_activism_campaigns(
     if not table_exists(conn, "activism_campaigns"):
         return []
     ph = get_placeholder(conn)
+    manager_col = resolve_manager_id_column(conn)
     filters: list[str] = []
     params: list[Any] = []
     if campaign_id is not None:
@@ -429,7 +439,7 @@ def query_activism_campaigns(
         "SELECT ac.campaign_id, ac.manager_id, m.name, ac.target_identifier, ac.target_company, "
         "ac.first_filed, ac.last_filed, ac.status, ac.peak_ownership_pct, ac.latest_ownership_pct, "
         "ac.filing_count, ac.event_count, ac.latest_event_type, ac.data_quality_flags "
-        "FROM activism_campaigns ac LEFT JOIN managers m ON m.manager_id = ac.manager_id "
+        f"FROM activism_campaigns ac LEFT JOIN managers m ON m.{manager_col} = ac.manager_id "
         f"{where} ORDER BY ac.last_filed DESC, ac.campaign_id DESC LIMIT {ph}",
         tuple(params),
     ).fetchall()
@@ -510,9 +520,10 @@ def query_manager_activism_profile(
     if not table_exists(conn, "activism_campaigns"):
         return None
     ph = get_placeholder(conn)
+    manager_col = resolve_manager_id_column(conn)
     row = conn.execute(
         "SELECT ac.manager_id, m.name, COUNT(*), AVG(ac.window_return) "
-        "FROM activism_campaigns ac LEFT JOIN managers m ON m.manager_id = ac.manager_id "
+        f"FROM activism_campaigns ac LEFT JOIN managers m ON m.{manager_col} = ac.manager_id "
         f"WHERE ac.manager_id = {ph} GROUP BY ac.manager_id, m.name",
         (manager_id,),
     ).fetchone()
