@@ -147,12 +147,13 @@ def test_extract_text_corrupted_pdf_propagates_exception():
         extract_text(corrupted_bytes, "bad.pdf")
 
 
-def test_upload_history_lists_managers_and_recent_documents(tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("id_column", ["id", "manager_id"])
+def test_upload_history_lists_managers_and_recent_documents(tmp_path: Path, monkeypatch, id_column):
     """Keep the upload page's database-backed choices and history observable."""
     db_path = tmp_path / "upload-history.db"
     conn = sqlite3.connect(db_path)
-    conn.executescript("""
-        CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+    conn.executescript(f"""
+        CREATE TABLE managers ({id_column} INTEGER PRIMARY KEY, name TEXT NOT NULL);
         CREATE TABLE documents (
             doc_id INTEGER PRIMARY KEY,
             filename TEXT NOT NULL,
@@ -160,7 +161,7 @@ def test_upload_history_lists_managers_and_recent_documents(tmp_path: Path, monk
             created_at TEXT NOT NULL,
             manager_id INTEGER
         );
-        INSERT INTO managers (manager_id, name) VALUES (1, 'Zulu'), (2, 'Alpha');
+        INSERT INTO managers ({id_column}, name) VALUES (1, 'Zulu'), (2, 'Alpha');
         INSERT INTO documents (doc_id, filename, kind, created_at, manager_id)
         VALUES
             (10, 'older.md', 'memo', '2026-01-01T00:00:00Z', 1),
@@ -182,6 +183,18 @@ def test_upload_history_lists_managers_and_recent_documents(tmp_path: Path, monk
             "manager_name": "Alpha",
         }
     ]
+
+
+def test_recent_uploads_uninitialized_schema_returns_empty_and_closes_connection(monkeypatch):
+    conn = sqlite3.connect(":memory:")
+    monkeypatch.setattr(upload, "connect_db", lambda: conn)
+
+    recent = upload._recent_uploads()
+
+    assert recent.empty
+    assert list(recent.columns) == ["doc_id", "filename", "kind", "created_at", "manager_name"]
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        conn.execute("SELECT 1")
 
 
 def test_load_managers_returns_empty_when_schema_is_not_initialized(tmp_path: Path, monkeypatch):
