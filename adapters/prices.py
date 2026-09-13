@@ -240,7 +240,7 @@ class PriceAdapter:
                 window.update(fetched_window)
                 # An empty, failed or out-of-window response must not freeze
                 # an older cached quote and prevent a later successful retry.
-                if fetched_window:
+                if self.use_cache and fetched_window:
                     self._checked_dates.add((symbol, on))
 
         if not window:

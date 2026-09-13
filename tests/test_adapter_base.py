@@ -50,6 +50,7 @@ def test_price_adapter_without_cache_keeps_fetching_available_prices():
         fetcher.return_value = {friday: 105.0}
         assert adapter.close_on_or_before("AAPL", saturday) == 105.0
         assert fetcher.call_count == 2
+        assert adapter._checked_dates == set()
     finally:
         conn.close()
 
