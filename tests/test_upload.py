@@ -190,3 +190,32 @@ def test_load_managers_returns_empty_when_schema_is_not_initialized(tmp_path: Pa
     monkeypatch.setattr(upload, "connect_db", lambda: sqlite3.connect(db_path))
 
     assert upload._load_managers() == []
+
+
+@pytest.mark.parametrize("id_column", ["id", "manager_id"])
+@pytest.mark.parametrize("populated", [False, True])
+def test_load_managers_resolves_schema_and_closes_connection(monkeypatch, id_column, populated):
+    conn = sqlite3.connect(":memory:")
+    conn.execute(f"CREATE TABLE managers ({id_column} INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+    if populated:
+        conn.executemany(
+            f"INSERT INTO managers ({id_column}, name) VALUES (?, ?)",
+            [(1, "Zulu"), (2, "Alpha")],
+        )
+    monkeypatch.setattr(upload, "connect_db", lambda: conn)
+
+    assert upload._load_managers() == ([(2, "Alpha"), (1, "Zulu")] if populated else [])
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        conn.execute("SELECT 1")
+
+
+def test_load_managers_logs_unexpected_schema_error_and_closes_connection(monkeypatch, caplog):
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY)")
+    monkeypatch.setattr(upload, "connect_db", lambda: conn)
+
+    assert upload._load_managers() == []
+    assert "Failed to load managers from database" in caplog.text
+    assert "sqlite3.OperationalError: no such column:" in caplog.text
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        conn.execute("SELECT 1")

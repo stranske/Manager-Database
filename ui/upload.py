@@ -7,7 +7,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from adapters.base import connect_db
+from adapters.base import connect_db, resolve_manager_id_column
 from embeddings import store_document
 from utils.extract import extract_text
 
@@ -40,7 +40,8 @@ def _load_managers() -> list[tuple[int, str]]:
             ).fetchall()
             if not tables:
                 return []
-        rows = conn.execute("SELECT manager_id, name FROM managers ORDER BY name ASC").fetchall()
+        id_column = resolve_manager_id_column(conn)
+        rows = conn.execute(f"SELECT {id_column}, name FROM managers ORDER BY name ASC").fetchall()
         return [(int(row[0]), str(row[1])) for row in rows]
     except Exception as exc:
         logger.exception("Failed to load managers from database", exc_info=exc)
