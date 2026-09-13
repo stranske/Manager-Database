@@ -1,10 +1,76 @@
 import sqlite3
+from datetime import date, timedelta
+from unittest.mock import Mock
 
 import pytest
 
 from adapters import base
 from adapters.base import _db_retry_config, connect_db, get_adapter
+from adapters.prices import PriceAdapter
 from tests._pg_fakes import StrictPostgresConn
+
+
+@pytest.mark.parametrize("on", [date(2024, 5, 25), date(2024, 5, 26), date(2024, 5, 27)])
+@pytest.mark.parametrize("preloaded", [False, True])
+def test_price_adapter_reuses_checked_non_trading_date(on, preloaded):
+    friday = date(2024, 5, 24)
+    fetcher = Mock(return_value={friday: 100.0})
+    conn = sqlite3.connect(":memory:")
+    try:
+        adapter = PriceAdapter(conn, source="test", fetcher=fetcher)
+        if preloaded:
+            conn.execute(
+                "INSERT INTO price_cache(ticker, price_date, source, close_usd) "
+                "VALUES (?, ?, ?, ?)",
+                ("AAPL", friday.isoformat(), "test", 100.0),
+            )
+        for symbol in ("AAPL", " aapl ", "AAPL"):
+            assert adapter.close_on_or_before(symbol, on) == 100.0
+        fetcher.assert_called_once_with("AAPL", on - timedelta(days=7), on)
+
+        # Checking one symbol/date must not suppress another symbol or date.
+        assert adapter.close_on_or_before("MSFT", on) == 100.0
+        fetcher.assert_called_with("MSFT", on - timedelta(days=7), on)
+        trading_day = date(2024, 5, 28)
+        fetcher.return_value = {trading_day: 110.0}
+        assert adapter.close_on_or_before("AAPL", trading_day) == 110.0
+        assert adapter.close_on_or_before("AAPL", trading_day) == 110.0
+        assert fetcher.call_count == 3
+    finally:
+        conn.close()
+
+
+def test_price_adapter_without_cache_keeps_fetching_available_prices():
+    friday, saturday = date(2024, 5, 24), date(2024, 5, 25)
+    fetcher = Mock(return_value={friday: 100.0})
+    conn = sqlite3.connect(":memory:")
+    try:
+        adapter = PriceAdapter(conn, source="test", fetcher=fetcher, use_cache=False)
+        assert adapter.close_on_or_before("AAPL", saturday) == 100.0
+        fetcher.return_value = {friday: 105.0}
+        assert adapter.close_on_or_before("AAPL", saturday) == 105.0
+        assert fetcher.call_count == 2
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("first_result", [RuntimeError("offline"), {}, {date(2024, 6, 1): 120.0}])
+def test_price_adapter_retries_unusable_refresh_with_cached_quote(first_result):
+    friday, saturday = date(2024, 5, 24), date(2024, 5, 25)
+    fetcher = Mock(side_effect=[first_result, {friday: 105.0}])
+    conn = sqlite3.connect(":memory:")
+    try:
+        adapter = PriceAdapter(conn, source="test", fetcher=fetcher)
+        conn.execute(
+            "INSERT INTO price_cache(ticker, price_date, source, close_usd) " "VALUES (?, ?, ?, ?)",
+            ("AAPL", friday.isoformat(), "test", 100.0),
+        )
+        assert adapter.close_on_or_before("AAPL", saturday) == 100.0
+        assert adapter.close_on_or_before("AAPL", saturday) == 105.0
+        assert adapter.close_on_or_before("AAPL", saturday) == 105.0
+        assert fetcher.call_count == 2
+    finally:
+        conn.close()
 
 
 def test_connect_db_respects_timeout(tmp_path):

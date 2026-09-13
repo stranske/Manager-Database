@@ -175,6 +175,7 @@ class PriceAdapter:
         self.use_cache = use_cache
         self._fetcher = fetcher if fetcher is not None else _FETCHERS.get(source)
         self._missing: set[tuple[str, date]] = set()
+        self._checked_dates: set[tuple[str, date]] = set()
         if self.use_cache:
             ensure_price_cache_table(conn)
 
@@ -228,12 +229,19 @@ class PriceAdapter:
         # suppress a provider refresh when a newer requested trading day is
         # absent. Otherwise a prior lookup can permanently pin later requests
         # to an older close for the lifetime of this adapter.
-        needs_refresh = not window or max(window) < on
+        # Reuse a successfully checked holiday/weekend window for this date,
+        # while still fetching if caching is disabled or the cache was cleared.
+        needs_refresh = not window or (max(window) < on and (symbol, on) not in self._checked_dates)
         if needs_refresh and (symbol, on) not in self._missing:
             fetched = self._fetch(symbol, start, on)
             if fetched:
                 self._store(symbol, fetched)
-                window.update({d: p for d, p in fetched.items() if start <= d <= on})
+                fetched_window = {d: p for d, p in fetched.items() if start <= d <= on}
+                window.update(fetched_window)
+                # An empty, failed or out-of-window response must not freeze
+                # an older cached quote and prevent a later successful retry.
+                if fetched_window:
+                    self._checked_dates.add((symbol, on))
 
         if not window:
             self._missing.add((symbol, on))
