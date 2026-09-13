@@ -9,7 +9,7 @@ import pytest
 
 from alerts.db import ensure_alert_tables
 from alerts.engine import AlertEngine
-from alerts.models import AlertEvent, AlertRuleCreate
+from alerts.models import AlertEvent, AlertRuleCreate, AlertRuleUpdate
 
 
 def _setup_db(db_path: Path) -> sqlite3.Connection:
@@ -311,6 +311,7 @@ def test_alert_engine_ensures_schema_once_at_init(tmp_path, monkeypatch):
     [
         ("news_count_gt", "news_spike", "news_count"),
         ("manager_count_gte", "crowded_trade_change", "manager_count"),
+        ("similar_manager_count_gte", "crowded_trade_change", "similar_manager_count"),
     ],
 )
 @pytest.mark.parametrize(
@@ -367,6 +368,7 @@ def test_alert_engine_invalid_stored_threshold_does_not_block_later_rules(
     [
         ("news_count_gt", "news_spike", "news_count", False),
         ("manager_count_gte", "crowded_trade_change", "manager_count", True),
+        ("similar_manager_count_gte", "crowded_trade_change", "similar_manager_count", True),
     ],
 )
 def test_alert_engine_integer_threshold_boundaries(
@@ -386,3 +388,24 @@ def test_alert_engine_integer_threshold_boundaries(
         assert bool(fired) == (offset >= 0 if inclusive else offset > 0)
     finally:
         conn.close()
+
+
+@pytest.mark.parametrize("model", [AlertRuleCreate, AlertRuleUpdate])
+@pytest.mark.parametrize(
+    "invalid", [2.5, "2.5", "2.0", 0, -1, True, False, None, float("nan"), float("inf")]
+)
+def test_alert_models_reject_invalid_similar_manager_counts(model, invalid):
+    fields = {"condition_json": {"similar_manager_count_gte": invalid}}
+    if model is AlertRuleCreate:
+        fields.update(name="Similar managers", event_type="crowded_trade_change")
+    with pytest.raises(ValueError, match="similar_manager_count_gte"):
+        model(**fields)
+
+
+@pytest.mark.parametrize("model", [AlertRuleCreate, AlertRuleUpdate])
+@pytest.mark.parametrize("threshold", [1, "1", 2.0, 9007199254740993])
+def test_alert_models_accept_positive_integer_similar_manager_counts(model, threshold):
+    fields = {"condition_json": {"similar_manager_count_gte": threshold}}
+    if model is AlertRuleCreate:
+        fields.update(name="Similar managers", event_type="crowded_trade_change")
+    assert model(**fields).condition_json == {"similar_manager_count_gte": threshold}
