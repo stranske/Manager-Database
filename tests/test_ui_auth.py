@@ -1,6 +1,5 @@
 import importlib
 import os
-from types import SimpleNamespace
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -96,21 +95,24 @@ def test_configured_login_does_not_trust_cached_dev_auth(configured_app, authent
     assert _button(app, "Login")
 
 
-def test_require_login_fails_closed_without_dependency(monkeypatch):
-    ui = importlib.reload(importlib.import_module("ui"))
-    monkeypatch.setenv("UI_USERNAME", "analyst")
-    monkeypatch.setenv("UI_PASSWORD", "synthetic-test-password")
-    errors = []
+def test_require_login_fails_closed_without_dependency(configured_app, monkeypatch):
+    app = configured_app.run()
+    _submit(app)
+    assert app.session_state["auth"] is True
+    assert app.markdown[-1].value == "Protected content"
 
-    fake_st = SimpleNamespace(session_state={"auth": True}, error=errors.append)
-    monkeypatch.setattr(ui, "st", fake_st)
+    ui = importlib.import_module("ui")
     monkeypatch.setattr(ui, "stauth", None)
 
-    assert ui.require_login() is False
-    assert fake_st.session_state["auth"] is False
-    assert errors == [
-        "streamlit_authenticator is required when UI auth credentials are configured."
-    ]
+    for _ in range(2):
+        app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+        assert app.error[0].value == (
+            "streamlit_authenticator is required when UI auth credentials are configured."
+        )
+        assert all(button.label != "Logout" for button in app.button)
 
 
 @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
