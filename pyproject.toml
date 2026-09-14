@@ -18,9 +18,9 @@ dependencies = [
     "boto3",
     "python-json-logger",
     "psycopg[binary]",
-    "streamlit",
+    "streamlit==1.60.0",
     "pandas",
-    "streamlit-authenticator",
+    "streamlit-authenticator==0.4.2",
     "altair",
     # Prefect requires newer FastAPI; avoid conflicting pin.
     "fastapi",
@@ -92,6 +92,7 @@ markers = [
 
 [tool.black]
 line-length = 100
+target-version = ["py312"]
 workers = 1
 force-exclude = "(^|.*/)(\\.git|\\.hg|\\.mypy_cache|\\.nox|\\.tox|\\.venv|_build|buck-out|build|dist|node_modules|\\.workflows-lib)(/|$)"
 

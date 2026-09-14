@@ -83,8 +83,10 @@ def test_valid_login_rerun_and_logout(configured_app):
     assert _button(app, "Login")
 
 
-def test_configured_login_does_not_trust_cached_dev_auth(configured_app):
+@pytest.mark.parametrize("authentication_status", [None, False])
+def test_configured_login_does_not_trust_cached_dev_auth(configured_app, authentication_status):
     configured_app.session_state["auth"] = True
+    configured_app.session_state["authentication_status"] = authentication_status
     app = configured_app.run()
 
     assert not app.exception
@@ -110,7 +112,7 @@ def test_require_login_fails_closed_without_dependency(monkeypatch):
     ]
 
 
-@pytest.mark.parametrize("password", [None, "   "])
+@pytest.mark.parametrize("password", [None, "", "   "])
 def test_require_login_preserves_blank_credential_dev_mode(monkeypatch, password):
     ui = importlib.reload(importlib.import_module("ui"))
 

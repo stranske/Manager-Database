@@ -14,9 +14,9 @@ black
 ruff
 pre-commit
 psycopg[binary]
-streamlit
+streamlit==1.60.0
 pandas
-streamlit-authenticator
+streamlit-authenticator==0.4.2
 altair
 mypy
 coverage
