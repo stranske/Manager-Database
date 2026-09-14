@@ -1,135 +1,126 @@
 import importlib
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+import pytest
+from streamlit.testing.v1 import AppTest
 
 
-class FakeStreamlit:
-    def __init__(self, session_state=None):
-        self.session_state = session_state or {}
-        self.success_messages = []
-        self.error_messages = []
-        self.warning_messages = []
-
-    def success(self, message: str) -> None:
-        self.success_messages.append(message)
-
-    def error(self, message: str) -> None:
-        self.error_messages.append(message)
-
-    def warning(self, message: str) -> None:
-        self.warning_messages.append(message)
-
-
-class FakeHasher:
-    def __init__(self, _passwords):
-        pass
-
-    def generate(self):
-        return ["hashed-pass"]
-
-
-class FakeAuthenticator:
-    def __init__(self, auth_status: bool | None, name: str = "Analyst"):
-        self.auth_status = auth_status
-        self.name = name
-        self.logout_called = False
-
-    def login(self, _label: str, _location: str):
-        return self.name, self.auth_status, None
-
-    def logout(self, _label: str, _location: str) -> None:
-        self.logout_called = True
-
-
-def _load_ui_module():
-    # Reload to ensure each test starts with a clean module state.
-    return importlib.reload(importlib.import_module("ui"))
-
-
-def test_require_login_short_circuits_when_authenticated(monkeypatch):
-    ui = _load_ui_module()
-    fake_st = FakeStreamlit(session_state={"auth": True})
-
-    # Ensure no auth UI is invoked when already authenticated.
-    def exploding_auth(*_args, **_kwargs):
-        raise AssertionError("Authenticate should not be called")
-
-    monkeypatch.setattr(ui, "st", fake_st)
-    monkeypatch.setattr(
-        ui,
-        "stauth",
-        SimpleNamespace(Authenticate=exploding_auth, Hasher=FakeHasher),
-    )
-
-    assert ui.require_login() is True
-    assert fake_st.success_messages == []
-    assert fake_st.error_messages == []
-
-
-def test_require_login_sets_session_on_success(monkeypatch):
-    ui = _load_ui_module()
-    fake_st = FakeStreamlit()
-    authenticator = FakeAuthenticator(auth_status=True, name="Avery")
+@pytest.fixture
+def configured_app(monkeypatch):
     monkeypatch.setenv("UI_USERNAME", "analyst")
-    monkeypatch.setenv("UI_PASSWORD", "pass")
-    monkeypatch.setattr(ui, "st", fake_st)
-    monkeypatch.setattr(
-        ui,
-        "stauth",
-        SimpleNamespace(
-            Authenticate=lambda *args, **kwargs: authenticator,
-            Hasher=FakeHasher,
-        ),
+    monkeypatch.setenv("UI_PASSWORD", "synthetic-test-password")
+    # Other UI tests replace module globals; restore the real dependency boundary.
+    importlib.reload(importlib.import_module("ui"))
+    return AppTest.from_string(
+        "import streamlit as st\n"
+        "from ui import require_login\n"
+        "if require_login():\n"
+        "    st.write('Protected content')\n"
+        "else:\n"
+        "    st.write('Access denied')\n",
+        default_timeout=15,
     )
 
-    assert ui.require_login() is True
-    assert fake_st.session_state["auth"] is True
-    assert authenticator.logout_called is True
-    assert fake_st.success_messages == ["Welcome Avery!"]
+
+def _button(app, label):
+    return next(button for button in app.button if button.label == label)
 
 
-def test_require_login_handles_invalid_credentials(monkeypatch):
-    ui = _load_ui_module()
-    fake_st = FakeStreamlit()
-    authenticator = FakeAuthenticator(auth_status=False)
+def _submit(app, username="analyst", password="synthetic-test-password"):
+    app.text_input[0].set_value(username)
+    app.text_input[1].set_value(password)
+    _button(app, "Login").click().run()
+    assert not app.exception
+
+
+def test_configured_login_renders_with_real_authenticator(configured_app):
+    app = configured_app.run()
+
+    assert not app.exception
+    assert [field.label for field in app.text_input] == ["Username", "Password"]
+    assert _button(app, "Login")
+    assert app.session_state["auth"] is False
+    assert app.markdown[-1].value == "Access denied"
+
+
+@pytest.mark.parametrize(
+    ("username", "password"),
+    [("analyst", "wrong-password"), ("unknown", "synthetic-test-password")],
+)
+def test_configured_login_rejects_invalid_credentials(configured_app, username, password):
+    app = configured_app.run()
+    _submit(app, username, password)
+
+    assert app.session_state["auth"] is False
+    assert app.session_state["authentication_status"] is False
+    assert app.error[0].value == "Invalid credentials"
+    assert app.markdown[-1].value == "Access denied"
+    assert all(button.label != "Logout" for button in app.button)
+
+
+def test_valid_login_rerun_and_logout(configured_app):
+    app = configured_app.run()
+    _submit(app)
+
+    assert app.session_state["auth"] is True
+    assert app.session_state["authentication_status"] is True
+    assert app.markdown[-1].value == "Protected content"
+    assert _button(app, "Logout")
+
+    app.run()
+    assert not app.exception
+    assert app.markdown[-1].value == "Protected content"
+    assert len(app.text_input) == 0
+    _button(app, "Logout").click().run()
+
+    assert not app.exception
+    assert app.session_state["auth"] is False
+    assert app.session_state["authentication_status"] is None
+    assert app.markdown[-1].value == "Access denied"
+    app.run()
+    assert not app.exception
+    assert app.markdown[-1].value == "Access denied"
+    assert _button(app, "Login")
+
+
+def test_configured_login_does_not_trust_cached_dev_auth(configured_app):
+    configured_app.session_state["auth"] = True
+    app = configured_app.run()
+
+    assert not app.exception
+    assert app.session_state["auth"] is False
+    assert app.markdown[-1].value == "Access denied"
+    assert _button(app, "Login")
+
+
+def test_require_login_fails_closed_without_dependency(monkeypatch):
+    ui = importlib.reload(importlib.import_module("ui"))
     monkeypatch.setenv("UI_USERNAME", "analyst")
-    monkeypatch.setenv("UI_PASSWORD", "pass")
+    monkeypatch.setenv("UI_PASSWORD", "synthetic-test-password")
+    errors = []
+
+    fake_st = SimpleNamespace(session_state={"auth": True}, error=errors.append)
     monkeypatch.setattr(ui, "st", fake_st)
-    monkeypatch.setattr(
-        ui,
-        "stauth",
-        SimpleNamespace(
-            Authenticate=lambda *args, **kwargs: authenticator,
-            Hasher=FakeHasher,
-        ),
-    )
+    monkeypatch.setattr(ui, "stauth", None)
 
     assert ui.require_login() is False
-    assert fake_st.error_messages == ["Invalid credentials"]
+    assert fake_st.session_state["auth"] is False
+    assert errors == [
+        "streamlit_authenticator is required when UI auth credentials are configured."
+    ]
 
 
-def test_require_login_skips_auth_when_credentials_missing(monkeypatch):
-    ui = _load_ui_module()
-    fake_st = FakeStreamlit()
-    monkeypatch.delenv("UI_USERNAME", raising=False)
-    monkeypatch.delenv("UI_PASSWORD", raising=False)
+@pytest.mark.parametrize("password", [None, "   "])
+def test_require_login_preserves_blank_credential_dev_mode(monkeypatch, password):
+    ui = importlib.reload(importlib.import_module("ui"))
+
+    fake_st = SimpleNamespace(session_state={})
     monkeypatch.setattr(ui, "st", fake_st)
-
-    assert ui.require_login() is True
-    assert fake_st.session_state["auth"] is True
-    assert fake_st.warning_messages == []
-
-
-def test_require_login_skips_auth_when_password_blank(monkeypatch):
-    ui = _load_ui_module()
-    fake_st = FakeStreamlit()
     monkeypatch.setenv("UI_USERNAME", "analyst")
-    monkeypatch.setenv("UI_PASSWORD", "   ")
-    monkeypatch.setattr(ui, "st", fake_st)
+    if password is None:
+        monkeypatch.delenv("UI_PASSWORD", raising=False)
+    else:
+        monkeypatch.setenv("UI_PASSWORD", password)
 
     assert ui.require_login() is True
     assert fake_st.session_state["auth"] is True
-    assert fake_st.warning_messages == []
