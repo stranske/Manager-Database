@@ -248,3 +248,41 @@ def test_deliberate_break_mutate_breaks_as_of(tmp_path):
     before = point_in_time.holdings_as_of(conn, 1, datetime(2025, 2, 15, tzinfo=UTC))
     # Under mutate semantics the historical v1 row is gone, so as-of cannot reconstruct it.
     assert before == [] or all(int(row["shares"]) != 1 for row in before)
+
+
+def test_same_day_amendment_respects_knowledge_cutoff(same_day_amendment_db):
+    """Same-day amendment authority must not depend on insertion order."""
+    conn = same_day_amendment_db
+    before = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 1, 11, 59, 59, tzinfo=UTC))
+    assert {row["cusip"] for row in before} == {"PRIOR", "ORIGINAL"}
+    after = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 1, 12, tzinfo=UTC))
+    assert {row["cusip"] for row in after} == {"PRIOR", "AMENDED"}
+    assert {row["filing_id"] for row in after} == {1, 3}
+
+
+def test_same_day_amendment_normalizes_filing_type(same_day_amendment_db):
+    conn = same_day_amendment_db
+    conn.execute("UPDATE filings SET type = ' 13f-hr/a ' WHERE filing_id = 1")
+    rows = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 2, tzinfo=UTC))
+    assert {row["cusip"] for row in rows} == {"PRIOR", "AMENDED"}
+
+
+def test_same_day_authority_without_type_column_retains_id_tie(same_day_amendment_db):
+    conn = same_day_amendment_db
+    conn.execute("ALTER TABLE filings DROP COLUMN type")
+    rows = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 2, tzinfo=UTC))
+    assert {row["cusip"] for row in rows} == {"PRIOR", "ORIGINAL"}
+
+
+def test_same_day_authority_with_equal_type_retains_id_tie(same_day_amendment_db):
+    conn = same_day_amendment_db
+    conn.execute("UPDATE filings SET type = '13F-HR/A' WHERE filing_id = 2")
+    rows = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 2, tzinfo=UTC))
+    assert {row["cusip"] for row in rows} == {"PRIOR", "ORIGINAL"}
+
+
+def test_later_filed_original_outranks_earlier_amendment(same_day_amendment_db):
+    conn = same_day_amendment_db
+    conn.execute("UPDATE filings SET filed_date = '2024-05-16' WHERE filing_id = 2")
+    rows = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 2, tzinfo=UTC))
+    assert {row["cusip"] for row in rows} == {"PRIOR", "ORIGINAL"}
