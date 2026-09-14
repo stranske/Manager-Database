@@ -12,7 +12,7 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from adapters.base import connect_db
+from adapters.base import connect_db, resolve_manager_id_column
 from api.activism import (
     query_active_campaigns,
     query_activism_events,
@@ -133,6 +133,7 @@ def load_top_deltas(manager_id: int) -> pd.DataFrame:
 def load_news_stream(manager_id: int | None, limit: int = 10) -> pd.DataFrame:
     conn = connect_db()
     try:
+        id_column = resolve_manager_id_column(conn)
         if isinstance(conn, sqlite3.Connection):
             params: list[Any] = [limit]
             where_clause = ""
@@ -143,7 +144,7 @@ def load_news_stream(manager_id: int | None, limit: int = 10) -> pd.DataFrame:
                 "SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, "
                 "m.name AS manager_name "
                 "FROM news_items n "
-                "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+                f"LEFT JOIN managers m ON m.{id_column} = n.manager_id "
                 f"{where_clause}"
                 "ORDER BY n.published_at DESC "
                 "LIMIT ?"
