@@ -1,4 +1,5 @@
 import importlib
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -112,17 +113,28 @@ def test_require_login_fails_closed_without_dependency(monkeypatch):
     ]
 
 
-@pytest.mark.parametrize("password", [None, "", "   "])
-def test_require_login_preserves_blank_credential_dev_mode(monkeypatch, password):
-    ui = importlib.reload(importlib.import_module("ui"))
-
-    fake_st = SimpleNamespace(session_state={})
-    monkeypatch.setattr(ui, "st", fake_st)
-    monkeypatch.setenv("UI_USERNAME", "analyst")
-    if password is None:
-        monkeypatch.delenv("UI_PASSWORD", raising=False)
+@pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_require_login_preserves_blank_credential_dev_mode(
+    configured_app, monkeypatch, field, value
+):
+    configured_value = os.environ[field]
+    if value is None:
+        monkeypatch.delenv(field, raising=False)
     else:
-        monkeypatch.setenv("UI_PASSWORD", password)
+        monkeypatch.setenv(field, value)
 
-    assert ui.require_login() is True
-    assert fake_st.session_state["auth"] is True
+    app = configured_app.run()
+    assert not app.exception
+    assert app.session_state["auth"] is True
+    assert app.markdown[-1].value == "Protected content"
+    assert len(app.text_input) == 0
+
+    # Reconfiguring credentials must revoke the dev-mode flag on the next run.
+    monkeypatch.setenv(field, configured_value)
+    app.run()
+    assert not app.exception
+    assert app.session_state["auth"] is False
+    assert app.markdown[-1].value == "Access denied"
+    assert [widget.label for widget in app.text_input] == ["Username", "Password"]
+    assert _button(app, "Login")
