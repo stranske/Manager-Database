@@ -249,6 +249,29 @@ def _store_document_on_connection(
             doc_id = int(existing[0])
         else:
             doc_id = int(cur.lastrowid)
+        has_associations = bool(_sqlite_columns(conn, "document_managers"))
+        conn.execute(
+            f"CREATE TABLE IF NOT EXISTS document_managers ("
+            f"doc_id INTEGER NOT NULL REFERENCES documents({id_col}) ON DELETE CASCADE, "
+            "manager_id INTEGER NOT NULL, PRIMARY KEY (doc_id, manager_id))"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_document_managers_manager "
+            "ON document_managers (manager_id, doc_id)"
+        )
+        if not has_associations and "manager_id" in columns:
+            conn.execute(
+                f"INSERT INTO document_managers (doc_id, manager_id) "
+                f"SELECT {id_col}, manager_id FROM documents WHERE manager_id IS NOT NULL "
+                "ON CONFLICT (doc_id, manager_id) DO NOTHING"
+            )
+    if manager_id is not None:
+        marker = "%s" if is_pg else "?"
+        conn.execute(
+            f"INSERT INTO document_managers (doc_id, manager_id) VALUES ({marker}, {marker}) "
+            "ON CONFLICT (doc_id, manager_id) DO NOTHING",
+            (doc_id, manager_id),
+        )
     return doc_id
 
 
@@ -272,13 +295,17 @@ def search_documents(
         where_clause = ""
         params: list[Any] = [qvec]
         if manager_id is not None:
-            where_clause = "WHERE d.manager_id = %s"
+            where_clause = (
+                "WHERE EXISTS (SELECT 1 FROM document_managers dm "
+                "WHERE dm.doc_id = d.doc_id AND dm.manager_id = %s)"
+            )
             params.append(manager_id)
+        manager_join = str(int(manager_id)) if manager_id is not None else "d.manager_id"
         params.append(k)
         rows = conn.execute(
             (
                 "SELECT d.doc_id, d.text, d.kind, d.filename, m.name, d.embedding <=> %s::vector AS dist "
-                "FROM documents d LEFT JOIN managers m ON d.manager_id = m.manager_id "
+                f"FROM documents d LEFT JOIN managers m ON {manager_join} = m.manager_id "
                 f"{where_clause} "
                 "ORDER BY dist LIMIT %s"
             ),
@@ -307,25 +334,32 @@ def search_documents(
     has_manager_id = "manager_id" in columns
     manager_pk_col = None
     manager_columns: set[str] = set()
-    if has_manager_id:
+    has_associations = bool(_sqlite_columns(conn, "document_managers"))
+    if has_manager_id or (has_associations and manager_id is not None):
         manager_columns = _sqlite_columns(conn, "managers")
         if "manager_id" in manager_columns:
             manager_pk_col = "manager_id"
         elif "id" in manager_columns:
             manager_pk_col = "id"
-    if manager_id is not None and not has_manager_id:
+    if manager_id is not None and not (has_manager_id or has_associations):
         conn.close()
         return []
     where_clause = ""
     sqlite_params: list[Any] = []
     if manager_id is not None:
-        where_clause = "WHERE d.manager_id = ?"
+        where_clause = (
+            f"WHERE EXISTS (SELECT 1 FROM document_managers dm "
+            f"WHERE dm.doc_id = d.{id_col} AND dm.manager_id = ?)"
+            if has_associations
+            else "WHERE d.manager_id = ?"
+        )
         sqlite_params.append(manager_id)
     kind_expr = "COALESCE(d.kind, 'note')" if "kind" in columns else "'note'"
     filename_expr = "d.filename" if "filename" in columns else "NULL"
     manager_name_expr = "m.name" if manager_pk_col and "name" in manager_columns else "NULL"
+    manager_join = str(int(manager_id)) if manager_id is not None else "d.manager_id"
     join_clause = (
-        f"LEFT JOIN managers m ON d.manager_id = m.{manager_pk_col}" if manager_pk_col else ""
+        f"LEFT JOIN managers m ON {manager_join} = m.{manager_pk_col}" if manager_pk_col else ""
     )
     cur = conn.execute(
         (

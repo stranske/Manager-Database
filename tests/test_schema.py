@@ -30,6 +30,7 @@ EXPECTED_TABLES = {
     "holdings",
     "news_items",
     "documents",
+    "document_managers",
     "daily_diffs",
     "api_usage",
     "conviction_scores",
