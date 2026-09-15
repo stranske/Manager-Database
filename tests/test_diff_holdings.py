@@ -518,3 +518,19 @@ def test_diff_holdings_uses_default_connect_db_when_conn_missing(monkeypatch):
 
     assert rows == []
     assert calls == [None, "closed"]
+
+
+def test_same_day_amendment_agrees_with_point_in_time(same_day_amendment_db):
+    """Both selectors choose the same restatement once its holdings are known."""
+    from datetime import UTC, datetime
+
+    from etl.point_in_time import holdings_as_of
+
+    conn = same_day_amendment_db
+    current, prior = _fetch_latest_sets(1, conn)
+    assert set(current) == {"AMENDED"}
+    assert set(prior) == {"PRIOR"}
+    as_of = holdings_as_of(conn, 1, datetime(2024, 6, 1, 12, tzinfo=UTC))
+    assert {row["cusip"] for row in as_of if row["filing_id"] != 3} == set(current)
+    before = holdings_as_of(conn, 1, datetime(2024, 6, 1, 11, 59, 59, tzinfo=UTC))
+    assert {row["cusip"] for row in before if row["filing_id"] != 3} == {"ORIGINAL"}
