@@ -1,5 +1,6 @@
 .env
 __pycache__/
+.mypy_cache/
 *.pyc
 *.egg-info/
 pgdata/

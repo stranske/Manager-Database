@@ -429,6 +429,9 @@ async def fetch_and_store(cik: str, since: str):
                     payload={"accession": accession, "source": "edgar"},
                 ),
             )
+            # PostgreSQL alert helpers leave history and delivery outcomes in
+            # this transaction. Persist them before final cleanup rolls back.
+            conn.commit()
             all_rows.extend(parsed_rows)
         return all_rows
     finally:

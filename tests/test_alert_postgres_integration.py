@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+import etl.edgar_flow as flow
 from alerts.channels import DeliveryResult, NotificationChannel
 from alerts.db import (
     ensure_alert_tables,
@@ -284,3 +285,74 @@ async def test_fire_alerts_for_event_records_streamlit_channel(pg_conn: PgAlertF
 
     assert row is not None
     assert "streamlit" in row[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("callback_fails", [False, True], ids=["success", "callback-failure"])
+async def test_scheduled_edgar_alert_transaction(
+    pg_conn: PgAlertFixture, pg_url, psycopg_module, monkeypatch, callback_fails
+):
+    """Cleanup retains successful alert delivery, or rolls back a failed callback."""
+    pg_conn.conn.commit()
+    accession = f"scheduled-alert-{callback_fails}"
+
+    class Adapter:
+        async def list_new_filings(self, cik, since):
+            return [{"accession": accession, "filed": "2026-04-15", "form": "13F-HR"}]
+
+        async def download(self, filing):
+            # Binary input bypasses unrelated document embedding in this alert test.
+            return accession.encode()
+
+        async def parse(self, raw):
+            return []
+
+    conn = psycopg_module.connect(pg_url, autocommit=True)
+    monkeypatch.setattr(flow, "connect_db", lambda _: conn)
+    monkeypatch.setattr(flow, "ADAPTER", Adapter())
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
+    observed_filings = []
+
+    async def dispatch(db_conn, event):
+        assert db_conn is conn
+        assert not conn.autocommit
+        with psycopg_module.connect(pg_url, autocommit=True) as reader:
+            assert (
+                reader.execute(
+                    "SELECT COUNT(*) FROM filings WHERE filing_id = %s",
+                    (event.payload["filing_id"],),
+                ).fetchone()[0]
+                == 1
+            )
+        observed_filings.append(event.payload["filing_id"])
+        ids = await fire_alerts_for_event(
+            db_conn, event, channels={"streamlit": MockStreamlitChannel()}
+        )
+        assert ids
+        assert db_conn.execute(
+            "SELECT delivered_channels FROM alert_history WHERE alert_id = %s", (ids[0],)
+        ).fetchone()[0] == ["streamlit"]
+        if callback_fails:
+            raise RuntimeError("injected callback failure after alert write")
+        return ids
+
+    monkeypatch.setattr(flow, "fire_alerts_for_event", dispatch)
+    if callback_fails:
+        with pytest.raises(RuntimeError, match="injected callback failure"):
+            await flow.fetch_and_store.fn("0001791786", "2026-01-01")
+    else:
+        assert await flow.fetch_and_store.fn("0001791786", "2026-01-01") == []
+    assert conn.closed
+    assert len(observed_filings) == 1
+    with psycopg_module.connect(pg_url, autocommit=True) as reader:
+        assert (
+            reader.execute(
+                "SELECT COUNT(*) FROM filings WHERE filing_id = %s", (observed_filings[0],)
+            ).fetchone()[0]
+            == 1
+        )
+        alerts = reader.execute(
+            "SELECT delivered_channels FROM alert_history WHERE payload_json->>'accession' = %s",
+            (accession,),
+        ).fetchall()
+        assert alerts == ([] if callback_fails else [(["streamlit"],)])
