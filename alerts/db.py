@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from datetime import UTC, datetime
@@ -259,35 +260,78 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
     return alert_ids
 
 
-def insert_pending_alert(conn: Any, fired_alert: FiredAlert) -> int:
-    """Insert one alert_history row with no delivered channels recorded yet."""
-    ensure_alert_tables(conn)
-    ph = get_placeholder(conn)
-    params = (
-        fired_alert.rule.rule_id,
-        fired_alert.event.event_type,
-        serialize_json(fired_alert.event.payload),
-        serialize_channels(conn, []),
-    )
-    if is_sqlite(conn):
-        cursor = conn.execute(
-            """INSERT INTO alert_history(
-                rule_id, event_type, payload_json, delivered_channels
-            ) VALUES (?, ?, ?, ?)""",
-            params,
-        )
-        conn.commit()
-        return int(cursor.lastrowid or 0)
+def _delivery_event_key(fired: FiredAlert) -> str:
+    """Identify filing replays independently of their newly generated timestamp.
 
-    cursor = conn.execute(
-        f"""INSERT INTO alert_history(
-            rule_id, event_type, payload_json, delivered_channels
-        ) VALUES ({ph}, {ph}, {ph}::jsonb, {ph})
-        RETURNING alert_id""",
-        params,
+    Other event producers must preserve occurred_at and payload on retry.
+    """
+    event = fired.event
+    identity: dict[str, Any] = {
+        "rule_id": fired.rule.rule_id,
+        "type": event.event_type,
+        "manager_id": event.manager_id,
+    }
+    if event.event_type == "new_filing":
+        if event.payload.get("filing_id") is not None:
+            identity["filing_id"] = event.payload["filing_id"]
+        else:
+            identity["payload"] = event.payload
+    else:
+        identity["payload"] = event.payload
+        identity["occurred_at"] = event.occurred_at.isoformat()
+    return hashlib.sha256(serialize_json(identity).encode()).hexdigest()
+
+
+def insert_pending_alert(conn: Any, fired_alert: FiredAlert) -> int:
+    """Get or create the durable history/outbox record for a rule/event pair."""
+    ensure_alert_tables(conn)
+    if is_sqlite(conn):
+        _sqlite_add_column_if_missing(conn, "alert_history", "event_key", "TEXT")
+    else:
+        conn.execute("ALTER TABLE alert_history ADD COLUMN IF NOT EXISTS event_key text")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_history_event_key ON alert_history(event_key)"
     )
-    row = cursor.fetchone()
-    return int(row[0]) if row and row[0] is not None else 0
+    conn.execute("""CREATE TABLE IF NOT EXISTS alert_delivery_attempts (
+        alert_id bigint NOT NULL REFERENCES alert_history(alert_id) ON DELETE CASCADE,
+        channel text NOT NULL,
+        claimed_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (alert_id, channel)
+    )""")
+    ph = get_placeholder(conn)
+    payload_placeholder = ph if is_sqlite(conn) else f"{ph}::jsonb"
+    row = conn.execute(
+        f"""INSERT INTO alert_history(
+            rule_id, event_type, payload_json, delivered_channels, event_key
+        ) VALUES ({ph}, {ph}, {payload_placeholder}, {ph}, {ph})
+        ON CONFLICT(event_key) DO UPDATE SET event_key = excluded.event_key
+        RETURNING alert_id""",
+        (
+            fired_alert.rule.rule_id,
+            fired_alert.event.event_type,
+            serialize_json(fired_alert.event.payload),
+            serialize_channels(conn, []),
+            _delivery_event_key(fired_alert),
+        ),
+    ).fetchone()
+    conn.commit()
+    return int(row[0])
+
+
+def claim_delivery(conn: Any, alert_id: int, channel: str) -> bool:
+    """Commit an at-most-once attempt before calling an external service.
+
+    Claims are never automatically released: a failed request or process can
+    have delivered externally even when its local outcome is unknown.
+    """
+    ph = get_placeholder(conn)
+    row = conn.execute(
+        f"""INSERT INTO alert_delivery_attempts(alert_id, channel)
+        VALUES ({ph}, {ph}) ON CONFLICT DO NOTHING RETURNING alert_id""",
+        (alert_id, channel),
+    ).fetchone()
+    conn.commit()
+    return row is not None
 
 
 def _fetch_delivery_state(conn: Any, alert_id: int) -> tuple[list[str], dict[str, str]]:

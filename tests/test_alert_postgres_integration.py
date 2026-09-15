@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+import etl.edgar_flow as flow
 from alerts.channels import DeliveryResult, NotificationChannel
 from alerts.db import (
     ensure_alert_tables,
@@ -194,6 +195,7 @@ def _fired_alert(pg_conn: PgAlertFixture) -> FiredAlert:
 def test_ensure_alert_tables_creates_postgres_tables(pg_conn: PgAlertFixture):
     with pg_conn.conn.cursor() as cur:
         cur.execute("SAVEPOINT alert_table_contract")
+        cur.execute("DROP TABLE IF EXISTS alert_delivery_attempts")
         cur.execute("DROP TABLE IF EXISTS alert_history")
         cur.execute("DROP TABLE IF EXISTS alert_rules")
 
@@ -284,3 +286,187 @@ async def test_fire_alerts_for_event_records_streamlit_channel(pg_conn: PgAlertF
 
     assert row is not None
     assert "streamlit" in row[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("callback_fails", [False, True], ids=["success", "callback-failure"])
+async def test_scheduled_edgar_alert_transaction(
+    pg_conn: PgAlertFixture, pg_url, psycopg_module, monkeypatch, callback_fails
+):
+    """Callback failure cannot erase already committed delivery records."""
+    pg_conn.conn.commit()
+    accession = f"scheduled-alert-{callback_fails}"
+
+    class Adapter:
+        async def list_new_filings(self, cik, since):
+            return [{"accession": accession, "filed": "2026-04-15", "form": "13F-HR"}]
+
+        async def download(self, filing):
+            # Binary input bypasses unrelated document embedding in this alert test.
+            return accession.encode()
+
+        async def parse(self, raw):
+            return []
+
+    conn = psycopg_module.connect(pg_url, autocommit=True)
+    monkeypatch.setattr(flow, "connect_db", lambda _: conn)
+    monkeypatch.setattr(flow, "ADAPTER", Adapter())
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
+    observed_filings = []
+
+    async def dispatch(db_conn, event):
+        assert db_conn is conn
+        assert not conn.autocommit
+        with psycopg_module.connect(pg_url, autocommit=True) as reader:
+            assert (
+                reader.execute(
+                    "SELECT COUNT(*) FROM filings WHERE filing_id = %s",
+                    (event.payload["filing_id"],),
+                ).fetchone()[0]
+                == 1
+            )
+        observed_filings.append(event.payload["filing_id"])
+        ids = await fire_alerts_for_event(
+            db_conn, event, channels={"streamlit": MockStreamlitChannel()}
+        )
+        assert ids
+        assert db_conn.execute(
+            "SELECT delivered_channels FROM alert_history WHERE alert_id = %s", (ids[0],)
+        ).fetchone()[0] == ["streamlit"]
+        if callback_fails:
+            raise RuntimeError("injected callback failure after alert write")
+        return ids
+
+    monkeypatch.setattr(flow, "fire_alerts_for_event", dispatch)
+    if callback_fails:
+        with pytest.raises(RuntimeError, match="injected callback failure"):
+            await flow.fetch_and_store.fn("0001791786", "2026-01-01")
+    else:
+        assert await flow.fetch_and_store.fn("0001791786", "2026-01-01") == []
+    assert conn.closed
+    assert len(observed_filings) == 1
+    with psycopg_module.connect(pg_url, autocommit=True) as reader:
+        assert (
+            reader.execute(
+                "SELECT COUNT(*) FROM filings WHERE filing_id = %s", (observed_filings[0],)
+            ).fetchone()[0]
+            == 1
+        )
+        alerts = reader.execute(
+            "SELECT delivered_channels FROM alert_history WHERE payload_json->>'accession' = %s",
+            (accession,),
+        ).fetchall()
+        assert alerts == [(["streamlit"],)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("commit_reached_server", [False, True])
+async def test_external_delivery_commit_failure_retry(
+    pg_conn, pg_url, psycopg_module, monkeypatch, commit_reached_server
+):
+    """A real PostgreSQL claim survives an ambiguous post-send commit and ETL retry."""
+    pg_conn.conn.execute(
+        "UPDATE alert_rules SET channels = %s WHERE rule_id = %s",
+        (["email", "slack"], pg_conn.rule_id),
+    )
+    pg_conn.conn.commit()
+    accession = f"outbox-commit-failure-{commit_reached_server}"
+    deliveries = []
+    connections = []
+    fail_next_commit = False
+    injected = False
+
+    class FailingConnection:
+        def __init__(self):
+            self.connection = psycopg_module.connect(pg_url, autocommit=True)
+
+        def __getattr__(self, name):
+            return getattr(self.connection, name)
+
+        @property
+        def autocommit(self):
+            return self.connection.autocommit
+
+        @autocommit.setter
+        def autocommit(self, value):
+            self.connection.autocommit = value
+
+        def commit(self):
+            nonlocal fail_next_commit
+            if fail_next_commit:
+                fail_next_commit = False
+                if commit_reached_server:
+                    self.connection.commit()
+                raise RuntimeError("injected post-delivery commit failure")
+            self.connection.commit()
+
+    def connect(_):
+        conn = FailingConnection()
+        connections.append(conn)
+        return conn
+
+    class Adapter:
+        async def list_new_filings(self, cik, since):
+            return [{"accession": accession, "filed": "2026-04-15", "form": "13F-HR"}]
+
+        async def download(self, filing):
+            return accession.encode()
+
+        async def parse(self, raw):
+            return []
+
+    class ExternalChannel(NotificationChannel):
+        def __init__(self, name):
+            self.channel_name = name
+
+        async def deliver(self, alert):
+            nonlocal fail_next_commit, injected
+            with psycopg_module.connect(pg_url, autocommit=True) as reader:
+                assert reader.execute(
+                    "SELECT COUNT(*) FROM filings WHERE filing_id = %s",
+                    (alert.event.payload["filing_id"],),
+                ).fetchone() == (1,)
+                assert (
+                    reader.execute(
+                        """SELECT COUNT(*) FROM alert_delivery_attempts a
+                    JOIN alert_history h USING (alert_id)
+                    WHERE h.payload_json->>'accession' = %s AND a.channel = %s""",
+                        (accession, self.channel_name),
+                    ).fetchone()
+                    == (1,)
+                )
+            deliveries.append(self.channel_name)
+            if not injected:
+                injected = True
+                fail_next_commit = True
+            return DeliveryResult(success=True, channel=self.channel_name)
+
+    async def dispatch(conn, event):
+        return await fire_alerts_for_event(
+            conn, event, channels={name: ExternalChannel(name) for name in ["email", "slack"]}
+        )
+
+    monkeypatch.setattr(flow, "connect_db", connect)
+    monkeypatch.setattr(flow, "ADAPTER", Adapter())
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
+    monkeypatch.setattr(flow, "fire_alerts_for_event", dispatch)
+    try:
+        with pytest.raises(RuntimeError, match="injected post-delivery commit failure"):
+            await flow.fetch_and_store.fn("0001791786", "2026-01-01")
+        assert connections[0].closed
+        assert deliveries == ["email"]
+        await flow.fetch_and_store.fn("0001791786", "2026-01-01")
+        assert connections[1].closed
+        assert deliveries == ["email", "slack"]
+        with psycopg_module.connect(pg_url, autocommit=True) as reader:
+            rows = reader.execute(
+                "SELECT delivered_channels FROM alert_history WHERE payload_json->>'accession' = %s",
+                (accession,),
+            ).fetchall()
+            assert rows == [(["email", "slack"] if commit_reached_server else ["slack"],)]
+    finally:
+        pg_conn.conn.execute(
+            "UPDATE alert_rules SET channels = %s WHERE rule_id = %s",
+            (["streamlit"], pg_conn.rule_id),
+        )
+        pg_conn.conn.commit()

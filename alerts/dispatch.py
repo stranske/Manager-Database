@@ -6,7 +6,12 @@ import logging
 from typing import Any
 
 from alerts.channels import DeliveryResult, NotificationChannel
-from alerts.db import insert_pending_alert, record_delivery_error, record_delivery_success
+from alerts.db import (
+    claim_delivery,
+    insert_pending_alert,
+    record_delivery_error,
+    record_delivery_success,
+)
 from alerts.models import FiredAlert
 
 logger = logging.getLogger(__name__)
@@ -25,7 +30,12 @@ class AlertDispatcher:
         return alert_ids
 
     async def dispatch_single(self, alert: FiredAlert) -> int:
-        """Insert one alert_history row, deliver channels, and persist outcomes."""
+        """Persist an outbox record and attempt each channel at most once.
+
+        This method commits the supplied connection. Callers must commit domain
+        writes first. A claim without a recorded outcome means delivery is
+        unknown and requires reconciliation, never an automatic resend.
+        """
         alert_id = insert_pending_alert(self.db, alert)
 
         # The streamlit channel uses the persisted alert row as the in-app inbox record.
@@ -38,8 +48,11 @@ class AlertDispatcher:
                 )
                 continue
 
+            if not claim_delivery(self.db, alert_id, channel_name):
+                continue
             result = await channel.deliver(alert)
             self._record_result(alert_id, result)
+            self.db.commit()
         return alert_id
 
     def _record_result(self, alert_id: int, result: DeliveryResult) -> None:

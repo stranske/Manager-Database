@@ -165,6 +165,15 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
     monkeypatch.setattr(flow, "ADAPTER", edgar)
 
     stored = []
+    connections = []
+    real_connect = flow.connect_db
+
+    def connect(db_path):
+        conn = real_connect(db_path)
+        connections.append(conn)
+        return conn
+
+    monkeypatch.setattr(flow, "connect_db", connect)
 
     def record_document(raw, **kwargs):
         stored.append((raw, kwargs))
@@ -192,6 +201,7 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
     rows = await flow.fetch_and_store.fn("0000000000", "2024-01-01")
 
     assert rows
+    assert len(connections) == 1
     assert stored == [
         (
             sample_xml(),
@@ -200,6 +210,7 @@ async def test_store_step_with_mocked_storage(monkeypatch, tmp_path):
                 "manager_id": 1,
                 "kind": "filing_text",
                 "filename": "0000000000-24-000001.xml",
+                "connection": connections[0],
             },
         )
     ]

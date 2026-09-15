@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from alerts.db import ensure_alert_tables
+from alerts.db import ensure_alert_tables, fetch_rule_by_id, insert_pending_alert, rule_from_row
 from alerts.integration import (
     build_new_filing_event,
     evaluate_and_record_alerts,
     evaluate_and_record_new_filing_alerts,
     fire_alerts_for_event,
 )
+from alerts.models import AlertEvent, FiredAlert
 
 
 def _setup_db(db_path: Path) -> sqlite3.Connection:
@@ -141,3 +143,41 @@ async def test_fire_alerts_for_event_dispatches_matching_channels(tmp_path):
 
     assert len(alert_ids) == 1
     assert row == ('["streamlit"]',)
+
+
+def test_insert_pending_alert_dedupes_edgar_accession_without_filing_id(tmp_path):
+    """Legacy no-filing_id EDGAR replays must not duplicate on a fresh occurred_at."""
+    conn = _setup_db(tmp_path / "dedupe.db")
+    try:
+        rule_id = _insert_rule(conn)
+        row = fetch_rule_by_id(conn, rule_id)
+        assert row is not None
+        rule = rule_from_row(row)
+        payload = {"accession": "0000000000-24-000001", "source": "edgar"}
+        first = FiredAlert(
+            rule=rule,
+            event=AlertEvent(
+                event_type="new_filing",
+                manager_id=1,
+                payload=payload,
+                occurred_at=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+            ),
+            channels=["streamlit"],
+        )
+        second = FiredAlert(
+            rule=rule,
+            event=AlertEvent(
+                event_type="new_filing",
+                manager_id=1,
+                payload=payload,
+                occurred_at=datetime(2026, 4, 15, 12, 0, tzinfo=UTC) + timedelta(hours=1),
+            ),
+            channels=["streamlit"],
+        )
+        first_id = insert_pending_alert(conn, first)
+        second_id = insert_pending_alert(conn, second)
+        assert first_id == second_id
+        count = conn.execute("SELECT COUNT(*) FROM alert_history").fetchone()
+        assert count == (1,)
+    finally:
+        conn.close()
