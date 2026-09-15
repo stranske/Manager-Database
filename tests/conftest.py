@@ -75,3 +75,36 @@ def pytest_addoption(parser):
         default=False,
         help="Run nightly tests",
     )
+
+
+@pytest.fixture(params=[False, True], ids=["tuple-rows", "mapping-rows"])
+def same_day_amendment_db(request):
+    """Seed an amendment with a lower ID that becomes known after its original."""
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    if request.param:
+        conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE filings (
+            filing_id INTEGER PRIMARY KEY, manager_id INTEGER, type TEXT,
+            period_end TEXT, filed_date TEXT
+        );
+        CREATE TABLE holdings (
+            holding_id INTEGER PRIMARY KEY, filing_id INTEGER, cusip TEXT,
+            name_of_issuer TEXT, shares INTEGER, value_usd REAL,
+            knowledge_time TEXT, superseded_at TEXT
+        );
+        INSERT INTO filings VALUES
+            (1, 1, '13F-HR/A', '2024-03-31', '2024-05-15'),
+            (2, 1, '13F-HR', '2024-03-31', '2024-05-15'),
+            (3, 1, '13F-HR', '2023-12-31', '2024-02-15');
+        INSERT INTO holdings VALUES
+            (1, 1, 'AMENDED', 'Amended', 20, 200, '2024-06-01T12:00:00Z', NULL),
+            (2, 2, 'ORIGINAL', 'Original', 10, 100, '2024-05-15T12:00:00Z', NULL),
+            (3, 3, 'PRIOR', 'Prior', 5, 50, '2024-02-15T12:00:00Z', NULL);
+    """)
+    try:
+        yield conn
+    finally:
+        conn.close()

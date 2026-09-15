@@ -75,6 +75,8 @@ def holdings_as_of(
     (``superseded_at`` is null or ``superseded_at > as_of``). Among filings with
     ``filed_date <= as_of``, the latest filing per ``period_end`` (else
     ``filed_date``) is selected, then that filing's visible holdings are returned.
+    Same-day ties prefer amendments, then the largest filing ID, matching the
+    holdings-diff selector. Schemas without a filing type retain the ID tie-break.
     """
     holdings_columns = get_table_columns(conn, "holdings")
     filing_columns = get_table_columns(conn, "filings")
@@ -98,8 +100,10 @@ def holdings_as_of(
 
     # Load candidate filings for the manager filed by as_of, then pick latest
     # per period in Python so SQLite/Postgres stay aligned without dialect SQL.
+    type_expr = "f.type" if "type" in filing_columns else "NULL"
     filing_sql = (
-        f"SELECT f.filing_id, f.filed_date, {period_expr} AS event_time "
+        f"SELECT f.filing_id, f.filed_date, {period_expr} AS event_time, "
+        f"{type_expr} AS filing_type "
         f"FROM filings f "
         f"WHERE f.manager_id = {marker} "
         f"AND f.filed_date IS NOT NULL "
@@ -116,24 +120,23 @@ def holdings_as_of(
     if not filing_rows:
         return []
 
-    latest_by_period: dict[str, tuple[Any, ...]] = {}
+    latest_by_period: dict[str, tuple[int, str, bool]] = {}
     for row in filing_rows:
         if hasattr(row, "keys"):
             filing_id = row["filing_id"]
             filed_date = row["filed_date"]
             event_time = row["event_time"]
+            filing_type = row["filing_type"]
         else:
-            filing_id, filed_date, event_time = row[0], row[1], row[2]
+            filing_id, filed_date, event_time, filing_type = row[0], row[1], row[2], row[3]
         period_key = str(event_time)
         filed_key = str(filed_date)
+        # Match diff_holdings: filed date, amendment status, then numeric ID.
+        amendment = str(filing_type or "").strip().upper().endswith("/A")
+        candidate = (int(filing_id), filed_key, amendment)
         prev = latest_by_period.get(period_key)
-        if prev is None:
-            latest_by_period[period_key] = (filing_id, filed_key, event_time)
-            continue
-        prev_filed = prev[1]
-        prev_fid = int(prev[0])
-        if filed_key > prev_filed or (filed_key == prev_filed and int(filing_id) > prev_fid):
-            latest_by_period[period_key] = (filing_id, filed_key, event_time)
+        if prev is None or (filed_key, amendment, candidate[0]) > (prev[1], prev[2], prev[0]):
+            latest_by_period[period_key] = candidate
 
     selected_ids = [int(item[0]) for item in latest_by_period.values()]
     if not selected_ids:
