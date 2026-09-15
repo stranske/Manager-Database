@@ -1,8 +1,18 @@
 import importlib
 import os
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from streamlit.testing.v1 import AppTest
+
+APP_SOURCE = (
+    "import streamlit as st\n"
+    "from ui import require_login\n"
+    "if require_login():\n"
+    "    st.write('Protected content')\n"
+    "else:\n"
+    "    st.write('Access denied')\n"
+)
 
 
 @pytest.fixture
@@ -12,15 +22,7 @@ def configured_app(monkeypatch):
     monkeypatch.setenv("UI_COOKIE_KEY", "synthetic-independent-cookie-key-for-tests")
     # Other UI tests replace module globals; restore the real dependency boundary.
     importlib.reload(importlib.import_module("ui"))
-    return AppTest.from_string(
-        "import streamlit as st\n"
-        "from ui import require_login\n"
-        "if require_login():\n"
-        "    st.write('Protected content')\n"
-        "else:\n"
-        "    st.write('Access denied')\n",
-        default_timeout=15,
-    )
+    return AppTest.from_string(APP_SOURCE, default_timeout=15)
 
 
 def _button(app, label):
@@ -141,8 +143,6 @@ def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, ke
 
 
 def test_authenticator_receives_independent_secret_and_cached_hash(configured_app, monkeypatch):
-    from unittest.mock import patch
-
     ui = importlib.import_module("ui")
     ui._password_hash.cache_clear()
     with (
@@ -166,6 +166,41 @@ def test_authenticator_receives_independent_secret_and_cached_hash(configured_ap
         assert authenticate.call_args.args[0]["usernames"]["analyst"]["password"] != first_hash
         assert authenticate.call_args.args[2] == "rotated-independent-cookie-secret-for-tests"
         assert authenticate.call_args.kwargs["auto_hash"] is False
+
+
+def test_cookie_reauthentication_rejects_rotated_key(configured_app, monkeypatch):
+    from extra_streamlit_components import CookieManager
+
+    ui = importlib.import_module("ui")
+    # Simulate browser transport only; signing and verification use the real library.
+    with patch.object(CookieManager, "set") as set_cookie:
+        app = configured_app.run()
+        _submit(app)
+        assert app.session_state["auth"] is True
+        cookie_name, signed_cookie = set_cookie.call_args.args
+        assert cookie_name == "mi_cookie"
+
+    with patch.object(
+        type(ui.st.context),
+        "cookies",
+        new_callable=PropertyMock,
+        return_value={cookie_name: signed_cookie},
+    ):
+        returning_app = AppTest.from_string(APP_SOURCE, default_timeout=15).run()
+        assert not returning_app.exception
+        assert returning_app.session_state["auth"] is True
+        assert returning_app.markdown[-1].value == "Protected content"
+        assert not returning_app.text_input
+
+        monkeypatch.setenv("UI_COOKIE_KEY", "rotated-independent-cookie-key-for-tests")
+        fresh_app = AppTest.from_string(APP_SOURCE, default_timeout=15).run()
+        assert not fresh_app.exception
+        assert fresh_app.session_state["auth"] is False
+        assert fresh_app.markdown[-1].value == "Access denied"
+        assert _button(fresh_app, "Login")
+        _submit(fresh_app)
+        assert fresh_app.session_state["auth"] is True
+        assert fresh_app.markdown[-1].value == "Protected content"
 
 
 @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
