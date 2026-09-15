@@ -60,7 +60,15 @@ host environment variables into the `ui` container:
 ```bash
 export UI_USERNAME="<analyst-username>"
 export UI_PASSWORD="<strong-password>"
+export UI_COOKIE_KEY="<independent-random-secret-at-least-32-characters>"
 ```
+
+Generate `UI_COOKIE_KEY` from cryptographically secure random bytes and keep it
+independent of the login password and `CHAT_SESSION_COOKIE_SECRET`. Configured
+login fails closed if it is missing or shorter than 32 characters. Rotate it
+alongside `UI_PASSWORD` when existing UI reauthentication cookies must be
+invalidated. The password hash is cached across reruns and replaced when the
+configured password changes.
 
 ## LLM boundary: the `LLM_ZONE` switch
 

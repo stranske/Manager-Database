@@ -84,6 +84,7 @@ services:
       <<: [*shared-db-env, *shared-minio-env]
       UI_USERNAME: ${UI_USERNAME:-}
       UI_PASSWORD: ${UI_PASSWORD:-}
+      UI_COOKIE_KEY: ${UI_COOKIE_KEY:-}
     ports:
       - "8501:8501"
     depends_on:
