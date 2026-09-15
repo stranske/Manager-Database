@@ -333,6 +333,10 @@ async def test_fetch_and_store_inserts_multiple_rows(monkeypatch, tmp_path):
     results = await flow.fetch_and_store.fn("0", "2024-01-01")
 
     assert len(results) == 2
+    borrowed = stored[0][1].pop("connection")
+    assert isinstance(borrowed, sqlite3.Connection)
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        borrowed.execute("SELECT 1")
     assert stored == [
         (
             "<xml></xml>",
@@ -384,6 +388,7 @@ async def test_fetch_and_store_uses_postgres_safe_persistence(monkeypatch):
             "<xml></xml>",
             {
                 "db_path": "postgres://manager-db",
+                "connection": conn,
                 "manager_id": 321,
                 "kind": "filing_text",
                 "filename": "1.xml",
@@ -498,7 +503,7 @@ async def test_fetch_and_store_idempotent_rerun(monkeypatch, tmp_path):
 
     stored = []
 
-    def record_document(raw):
+    def record_document(raw, **kwargs):
         stored.append(raw)
 
     monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
@@ -607,3 +612,136 @@ async def test_edgar_flow_logs_missing_filings(monkeypatch, tmp_path):
     monkeypatch.setattr(flow, "RAW_DIR", tmp_path)
 
     await flow.edgar_flow.fn(cik_list=["bad"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [None, "parse", "filing", "holdings"])
+async def test_scheduled_index_and_filing_share_transaction(tmp_path, monkeypatch, failure):
+    import embeddings
+
+    db_path = tmp_path / "atomic.db"
+    _setup_relational_schema(db_path)
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    monkeypatch.delenv("DB_URL", raising=False)
+    # Establish the real document schema independently of the tested filing.
+    embeddings.store_document("existing", str(db_path), manager_id=100)
+    with sqlite3.connect(db_path) as setup:
+        setup.execute("DELETE FROM documents")
+
+    class ObservedConnection(sqlite3.Connection):
+        closed = False
+
+        def close(self):
+            self.closed = True
+            super().close()
+
+    conn = sqlite3.connect(db_path, factory=ObservedConnection)
+    monkeypatch.setattr(flow, "connect_db", lambda _: conn)
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    adapter = DummyAdapter()
+    monkeypatch.setattr(flow, "ADAPTER", adapter)
+    objects, events = [], []
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: objects.append(kwargs))
+    monkeypatch.setattr(flow, "resolve_holding_identifiers", lambda *args, **kwargs: None)
+
+    def counts():
+        with sqlite3.connect(db_path) as read:
+            return tuple(
+                read.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                for table in ("documents", "filings", "holdings")
+            )
+
+    async def event_after_commit(db_conn, event):
+        assert db_conn is conn
+        assert counts() == (1, 1, 1)
+        events.append(event)
+
+    monkeypatch.setattr(flow, "fire_alerts_for_event", event_after_commit)
+
+    def assert_index_then_fail():
+        assert conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1
+        raise RuntimeError("injected post-index failure")
+
+    if failure == "parse":
+
+        async def fail_parse(raw):
+            assert_index_then_fail()
+
+        monkeypatch.setattr(adapter, "parse", fail_parse)
+    elif failure in ("filing", "holdings"):
+        name = "_upsert_filing_legacy" if failure == "filing" else "_insert_holding_legacy"
+        real_write = getattr(flow, name)
+
+        def fail_after_write(*args, **kwargs):
+            real_write(*args, **kwargs)
+            assert_index_then_fail()
+
+        monkeypatch.setattr(flow, name, fail_after_write)
+
+    if failure:
+        with pytest.raises(RuntimeError, match="injected post-index failure"):
+            await flow.fetch_and_store.fn("0", "2024-01-01")
+        assert counts() == (0, 0, 0)
+        assert not events
+    else:
+        assert len(await flow.fetch_and_store.fn("0", "2024-01-01")) == 1
+        assert counts() == (1, 1, 1)
+        assert len(events) == 1
+    assert conn.closed
+    assert len(objects) == 1
+
+
+@pytest.mark.asyncio
+async def test_scheduled_second_filing_failure_preserves_committed_first(tmp_path, monkeypatch):
+    import embeddings
+
+    db_path = tmp_path / "batch.db"
+    _setup_relational_schema(db_path)
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
+    monkeypatch.setattr(flow, "resolve_holding_identifiers", lambda *args, **kwargs: None)
+    adapter = MultiFilingAdapter()
+    real_parse = adapter.parse
+
+    async def parse(raw):
+        if "'2'" in raw:
+            raise RuntimeError("second filing failed")
+        return await real_parse(raw)
+
+    monkeypatch.setattr(adapter, "parse", parse)
+    monkeypatch.setattr(flow, "ADAPTER", adapter)
+    events = []
+
+    async def event(db_conn, event):
+        events.append(event)
+
+    monkeypatch.setattr(flow, "fire_alerts_for_event", event)
+    with pytest.raises(RuntimeError, match="second filing failed"):
+        await flow.fetch_and_store.fn("0", "2024-01-01")
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT filename FROM documents").fetchall() == [("1.xml",)]
+        assert conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0] == 1
+    assert len(events) == 1
+    assert len(embeddings.search_documents("xml", str(db_path))) == 1
+
+
+@pytest.mark.asyncio
+async def test_scheduled_setup_failure_closes_connection(monkeypatch):
+    conn = StrictPostgresConnection()
+    conn.autocommit = True
+    conn.rollback = lambda: None
+    monkeypatch.setattr(flow, "connect_db", lambda _: conn)
+    monkeypatch.setattr(flow, "ADAPTER", EmptyFilingAdapter())
+
+    def fail_setup(db_conn):
+        assert not db_conn.autocommit
+        raise RuntimeError("setup failed")
+
+    monkeypatch.setattr(flow, "_ensure_legacy_tables", fail_setup)
+    with pytest.raises(RuntimeError, match="setup failed"):
+        await flow.fetch_and_store.fn("0", "2024-01-01")
+    assert conn.closed
+    assert conn.autocommit

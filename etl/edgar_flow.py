@@ -31,18 +31,17 @@ def store_document(
     manager_id: int | None = None,
     kind: str = "note",
     filename: str | None = None,
+    *,
+    connection: Any | None = None,
 ) -> int:
-    try:
-        _store_document = importlib.import_module("embeddings").store_document
-    except (ImportError, AttributeError):
-        _ = (text, db_path, manager_id, kind, filename)
-        return 0
+    _store_document = importlib.import_module("embeddings").store_document
     return _store_document(
         text,
         db_path=db_path,
         manager_id=manager_id,
         kind=kind,
         filename=filename,
+        connection=connection,
     )
 
 
@@ -372,67 +371,72 @@ def _latest_filed_date_for_cik(cik: str) -> str | None:
 async def fetch_and_store(cik: str, since: str):
     filings = await ADAPTER.list_new_filings(cik, since)
     conn = connect_db(DB_PATH)
-    _ensure_legacy_tables(conn)
+    original_autocommit: bool | None = None
+    try:
+        original_autocommit = ingest_module._enable_transactional_writes(conn)
+        _ensure_legacy_tables(conn)
 
-    manager_cols = get_table_columns(conn, "managers")
-    manager_id = _manager_id_for_cik(conn, cik)
-    if manager_cols and manager_id is None:
-        logger.warning("Manager not found; skipping filings", extra={"cik": cik})
-        conn.close()
-        return []
+        manager_cols = get_table_columns(conn, "managers")
+        manager_id = _manager_id_for_cik(conn, cik)
+        if manager_cols and manager_id is None:
+            logger.warning("Manager not found; skipping filings", extra={"cik": cik})
+            return []
 
-    all_rows: list[dict[str, Any]] = []
-    for filing in filings:
-        raw = await ADAPTER.download(filing)
-        raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
-        raw_hash = hashlib.sha256(raw_bytes).hexdigest()[:16]
-        accession = str(filing.get("accession") or "unknown")
-        raw_key = f"raw/edgar/{raw_hash}_{accession}.xml"
+        all_rows: list[dict[str, Any]] = []
+        for filing in filings:
+            raw = await ADAPTER.download(filing)
+            raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()[:16]
+            accession = str(filing.get("accession") or "unknown")
+            raw_key = f"raw/edgar/{raw_hash}_{accession}.xml"
 
-        S3.put_object(Bucket=BUCKET, Key=raw_key, Body=raw, ServerSideEncryption="AES256")
-        if isinstance(raw, str):
-            try:
+            S3.put_object(Bucket=BUCKET, Key=raw_key, Body=raw, ServerSideEncryption="AES256")
+            if isinstance(raw, str):
                 store_document(
                     raw,
                     db_path=DB_PATH,
                     manager_id=manager_id,
                     kind="filing_text",
                     filename=f"{accession}.xml",
+                    connection=conn,
                 )
-            except TypeError:
-                store_document(raw)
 
-        parsed_rows = await ADAPTER.parse(raw)
-        filing_id = _upsert_filing_legacy(
-            conn,
-            manager_id=manager_id,
-            filing_type=str(filing.get("form") or "13F-HR"),
-            filed_date=filing.get("filed"),
-            raw_key=raw_key,
-        )
-        _replace_holdings_for_filing(
-            conn,
-            filing_id=filing_id,
-            rows=parsed_rows,
-            manager_id=manager_id,
-            cik=cik,
-            accession=accession,
-            filed_date=filing.get("filed"),
-        )
-        conn.commit()
-        await fire_alerts_for_event(
-            conn,
-            build_new_filing_event(
-                filing_id=filing_id if filing_id > 0 else None,
+            parsed_rows = await ADAPTER.parse(raw)
+            filing_id = _upsert_filing_legacy(
+                conn,
                 manager_id=manager_id,
                 filing_type=str(filing.get("form") or "13F-HR"),
                 filed_date=filing.get("filed"),
-                payload={"accession": accession, "source": "edgar"},
-            ),
-        )
-        all_rows.extend(parsed_rows)
-    conn.close()
-    return all_rows
+                raw_key=raw_key,
+            )
+            _replace_holdings_for_filing(
+                conn,
+                filing_id=filing_id,
+                rows=parsed_rows,
+                manager_id=manager_id,
+                cik=cik,
+                accession=accession,
+                filed_date=filing.get("filed"),
+            )
+            conn.commit()
+            await fire_alerts_for_event(
+                conn,
+                build_new_filing_event(
+                    filing_id=filing_id if filing_id > 0 else None,
+                    manager_id=manager_id,
+                    filing_type=str(filing.get("form") or "13F-HR"),
+                    filed_date=filing.get("filed"),
+                    payload={"accession": accession, "source": "edgar"},
+                ),
+            )
+            all_rows.extend(parsed_rows)
+        return all_rows
+    finally:
+        # Each successful filing was committed above; only pending writes are
+        # rolled back, including on cancellation. Raw S3 objects are retained.
+        ingest_module._rollback_quietly(conn)
+        ingest_module._restore_autocommit_quietly(conn, original_autocommit)
+        conn.close()
 
 
 @flow
