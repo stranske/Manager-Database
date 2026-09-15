@@ -5,6 +5,7 @@ from pathlib import Path
 from time import perf_counter
 
 import pandas as pd
+import pytest
 import streamlit as st
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -41,10 +42,10 @@ from ui.dashboard import (
 )
 
 
-def setup_db(tmp_path: Path) -> str:
+def setup_db(tmp_path: Path, manager_pk: str = "manager_id") -> str:
     db_path = tmp_path / "dev.db"
     conn = sqlite3.connect(db_path)
-    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute(f"CREATE TABLE managers ({manager_pk} INTEGER PRIMARY KEY, name TEXT)")
     conn.execute(
         # No `filed` column: schema.sql keeps filing dates on filings.filed_date.
         "CREATE TABLE holdings (cik TEXT, accession TEXT, nameOfIssuer TEXT, "
@@ -785,6 +786,26 @@ def test_load_managers_sorted(tmp_path: Path, monkeypatch):
     df = load_managers()
     assert list(df["name"]) == ["Alpha Partners", "Zulu Capital"]
     assert list(df["manager_id"]) == [1, 2]
+
+
+@pytest.mark.parametrize("manager_pk", ["manager_id", "id"])
+def test_load_managers_and_qc_summary_resolve_manager_primary_key(
+    tmp_path: Path, monkeypatch, manager_pk: str
+):
+    db_path = setup_db(tmp_path, manager_pk=manager_pk)
+    monkeypatch.setenv("DB_PATH", db_path)
+    st.cache_data.clear()
+
+    managers = load_managers()
+    assert list(managers["manager_id"]) == [1, 2]
+    assert list(managers["name"]) == ["Alpha Partners", "Zulu Capital"]
+
+    summary = load_all_managers_summary()
+    assert summary["total_managers"] == 2
+    stale = summary["stale_managers"]
+    assert not stale.empty
+    assert set(stale["manager_id"]) == {1, 2}
+    assert set(stale["name"]) == {"Alpha Partners", "Zulu Capital"}
 
 
 class FakeStreamlit:
