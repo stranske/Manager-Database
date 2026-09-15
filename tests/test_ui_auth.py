@@ -116,17 +116,28 @@ def test_require_login_fails_closed_without_dependency(configured_app, monkeypat
         assert all(button.label != "Logout" for button in app.button)
 
 
-@pytest.mark.parametrize("key", [None, "", "short-key"])
-def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key):
+@pytest.mark.parametrize("authenticated", [False, True])
+@pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+    app = configured_app.run()
+    if authenticated:
+        _submit(app)
+        assert app.session_state["auth"] is True
+        assert app.markdown[-1].value == "Protected content"
+
     if key is None:
         monkeypatch.delenv("UI_COOKIE_KEY", raising=False)
     else:
         monkeypatch.setenv("UI_COOKIE_KEY", key)
-    app = configured_app.run()
-    assert not app.exception
-    assert app.session_state["auth"] is False
-    assert not app.text_input
-    assert "UI_COOKIE_KEY" in app.error[0].value
+    # Invalid signing configuration must also revoke an already logged-in session.
+    for _ in range(2):
+        app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+        assert not app.text_input
+        assert all(button.label != "Logout" for button in app.button)
+        assert "UI_COOKIE_KEY" in app.error[0].value
 
 
 def test_authenticator_receives_independent_secret_and_cached_hash(configured_app, monkeypatch):
