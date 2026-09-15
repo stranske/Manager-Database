@@ -40,6 +40,7 @@ mgrdb-app = "ui.launch:main"
 [project.optional-dependencies]
 app = []
 dev = [
+    "extra-streamlit-components==0.1.81",
     "pytest==9.1.1",
     "pytest-asyncio",
     "pytest-cov==7.1.0",
