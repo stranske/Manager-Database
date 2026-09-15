@@ -213,3 +213,83 @@ def test_build_configured_channels_reads_env(monkeypatch):
     assert isinstance(channels["email"], EmailChannel)
     assert isinstance(channels["slack"], SlackChannel)
     assert isinstance(channels["streamlit"], StreamlitChannel)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["claim", "outcome", "accepted-outcome", "channel"])
+async def test_dispatch_retry_preserves_durable_claim(tmp_path, failure):
+    path = tmp_path / "outbox.db"
+    setup = _setup_db(path)
+    setup.close()
+    sends = []
+
+    class FailingConnection(sqlite3.Connection):
+        armed = False
+
+        def commit(self):
+            if self.armed:
+                self.armed = False
+                if failure == "accepted-outcome":
+                    super().commit()
+                raise RuntimeError("injected commit failure")
+            super().commit()
+
+    conn = sqlite3.connect(path, factory=FailingConnection)
+
+    class ExternalChannel(NotificationChannel):
+        channel_name = "email"
+
+        async def deliver(self, alert):
+            with sqlite3.connect(path) as reader:
+                assert reader.execute("SELECT COUNT(*) FROM alert_history").fetchone() == (1,)
+                assert reader.execute(
+                    "SELECT COUNT(*) FROM alert_delivery_attempts"
+                ).fetchone() == (1,)
+            sends.append(alert.event.payload["filing_id"])
+            if failure == "channel":
+                raise RuntimeError("injected channel failure")
+            conn.armed = True
+            return DeliveryResult("email", success=True)
+
+    def fired():
+        # Rebuilding the event changes occurred_at but preserves filing identity.
+        return FiredAlert(
+            rule=_build_rule(channels=["email"]),
+            event=AlertEvent(event_type="new_filing", manager_id=1, payload={"filing_id": 42}),
+            channels=["email"],
+        )
+
+    dispatcher = AlertDispatcher(conn, {"email": ExternalChannel()})
+    if failure == "claim":
+        from alerts.db import insert_pending_alert
+
+        insert_pending_alert(conn, fired())
+        # Arm specifically at the attempt insert, before any external call.
+        conn.set_trace_callback(
+            lambda sql: (
+                setattr(conn, "armed", True)
+                if sql.startswith("INSERT INTO alert_delivery_attempts")
+                else None
+            )
+        )
+    try:
+        with pytest.raises(RuntimeError, match="injected"):
+            await dispatcher.dispatch_single(fired())
+        conn.rollback()
+    finally:
+        conn.close()
+    assert sends == ([] if failure == "claim" else [42])
+
+    class RetryChannel(NotificationChannel):
+        channel_name = "email"
+
+        async def deliver(self, alert):
+            sends.append(alert.event.payload["filing_id"])
+            return DeliveryResult("email", success=True)
+
+    with sqlite3.connect(path) as retry:
+        dispatcher = AlertDispatcher(retry, {"email": RetryChannel()})
+        first_id = await dispatcher.dispatch_single(fired())
+        assert await dispatcher.dispatch_single(fired()) == first_id
+        assert retry.execute("SELECT COUNT(*) FROM alert_history").fetchone() == (1,)
+    assert sends == [42]

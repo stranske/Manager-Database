@@ -418,6 +418,9 @@ async def fetch_and_store(cik: str, since: str):
                 accession=accession,
                 filed_date=filing.get("filed"),
             )
+            # Filing, holdings and document durability precedes all external
+            # delivery. The dispatcher commits its outbox and channel claims
+            # before sending; a later failure must not erase those claims.
             conn.commit()
             await fire_alerts_for_event(
                 conn,
@@ -429,8 +432,7 @@ async def fetch_and_store(cik: str, since: str):
                     payload={"accession": accession, "source": "edgar"},
                 ),
             )
-            # PostgreSQL alert helpers leave history and delivery outcomes in
-            # this transaction. Persist them before final cleanup rolls back.
+            # Persist any remaining callback writes before final cleanup.
             conn.commit()
             all_rows.extend(parsed_rows)
         return all_rows
