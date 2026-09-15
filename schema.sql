@@ -405,6 +405,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_sha256_unique
     ON documents (sha256)
     WHERE sha256 IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS document_managers (
+    doc_id bigint NOT NULL REFERENCES documents(doc_id) ON DELETE CASCADE,
+    manager_id bigint NOT NULL REFERENCES managers(manager_id) ON DELETE CASCADE,
+    PRIMARY KEY (doc_id, manager_id)
+);
+CREATE INDEX IF NOT EXISTS idx_document_managers_manager
+    ON document_managers (manager_id, doc_id);
+INSERT INTO document_managers (doc_id, manager_id)
+    SELECT doc_id, manager_id FROM documents WHERE manager_id IS NOT NULL
+    ON CONFLICT (doc_id, manager_id) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS daily_diffs (
     diff_id bigserial PRIMARY KEY,
     manager_id bigint NOT NULL REFERENCES managers(manager_id),

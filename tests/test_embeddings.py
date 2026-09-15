@@ -90,6 +90,39 @@ def test_store_document_deduplicates_by_sha256(tmp_path, monkeypatch):
     assert count == 1
 
 
+@pytest.mark.parametrize("initial_manager", [None, 1])
+def test_shared_document_preserves_each_manager(tmp_path, monkeypatch, initial_manager):
+    from api.search import universal_search
+
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    db_path = str(tmp_path / "shared.db")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+        conn.executemany(
+            "INSERT INTO managers VALUES (?, ?)", [(1, "First"), (2, "Second"), (3, "Other")]
+        )
+    first = store_document("shared memo", db_path, manager_id=initial_manager)
+    assert store_document("shared memo", db_path, manager_id=1) == first
+    assert store_document("shared memo", db_path, manager_id=2) == first
+    assert store_document("shared memo", db_path, manager_id=2) == first
+    for manager_id, name in [(1, "First"), (2, "Second")]:
+        hits = search_documents("shared memo", db_path, manager_id=manager_id)
+        assert len(hits) == 1
+        assert hits[0]["doc_id"] == first
+        assert hits[0]["content"] == "shared memo"
+        assert hits[0]["manager_name"] == name
+    assert search_documents("shared memo", db_path, manager_id=3) == []
+    assert len(search_documents("shared memo", db_path)) == 1
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM document_managers").fetchone()[0] == 2
+        # The compatibility owner remains the original explicitly supplied value.
+        assert conn.execute("SELECT manager_id FROM documents").fetchone()[0] == initial_manager
+        hits = universal_search("shared memo", conn, entity_type="document")
+        assert len(hits) == 1
+        assert hits[0].entity_id == first
+        assert hits[0].manager_name == "First, Second"
+
+
 def test_store_document_creates_sha256_unique_index_sqlite(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")

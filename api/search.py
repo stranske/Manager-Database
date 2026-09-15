@@ -421,11 +421,18 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
             )
 
     if table_exists(conn, "documents"):
+        manager_names = "m.name"
+        if table_exists(conn, "document_managers"):
+            manager_names = (
+                "(SELECT string_agg(am.name, ', ' ORDER BY am.manager_id) "
+                "FROM document_managers dm JOIN managers am ON am.manager_id = dm.manager_id "
+                "WHERE dm.doc_id = d.doc_id)"
+            )
         rows = conn.execute(
-            """
+            f"""
             SELECT
                 d.doc_id,
-                m.name,
+                {manager_names},
                 d.filename,
                 d.text,
                 d.created_at,
@@ -545,6 +552,16 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
 
     doc_columns = get_table_columns(conn, "documents")
     if doc_columns:
+        document_names: dict[int, str] = {}
+        if table_exists(conn, "document_managers"):
+            names_by_doc: dict[int, list[str]] = {}
+            for doc_id, associated_manager in conn.execute(
+                "SELECT doc_id, manager_id FROM document_managers ORDER BY doc_id, manager_id"
+            ).fetchall():
+                name = manager_name_by_id.get(int(associated_manager))
+                if name:
+                    names_by_doc.setdefault(int(doc_id), []).append(name)
+            document_names = {doc_id: ", ".join(names) for doc_id, names in names_by_doc.items()}
         doc_id_col = "doc_id" if "doc_id" in doc_columns else "id"
         doc_text_col = (
             "text" if "text" in doc_columns else ("content" if "content" in doc_columns else None)
@@ -566,7 +583,8 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                     SearchResult(
                         entity_type="document",
                         entity_id=int(entity_id),
-                        manager_name=(
+                        manager_name=document_names.get(int(entity_id))
+                        or (
                             manager_name_by_id.get(int(manager_id))
                             if manager_id is not None
                             else None
@@ -615,7 +633,8 @@ def _search_sqlite(query: str, conn: Any, limit: int) -> list[SearchResult]:
                         SearchResult(
                             entity_type="document",
                             entity_id=int(entity_id),
-                            manager_name=(
+                            manager_name=document_names.get(int(entity_id))
+                            or (
                                 manager_name_by_id.get(int(manager_id))
                                 if manager_id is not None
                                 else None
