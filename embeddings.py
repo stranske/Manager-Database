@@ -249,6 +249,7 @@ def _store_document_on_connection(
             doc_id = int(existing[0])
         else:
             doc_id = int(cur.lastrowid)
+        has_associations = bool(_sqlite_columns(conn, "document_managers"))
         conn.execute(
             f"CREATE TABLE IF NOT EXISTS document_managers ("
             f"doc_id INTEGER NOT NULL REFERENCES documents({id_col}) ON DELETE CASCADE, "
@@ -258,7 +259,7 @@ def _store_document_on_connection(
             "CREATE INDEX IF NOT EXISTS idx_document_managers_manager "
             "ON document_managers (manager_id, doc_id)"
         )
-        if "manager_id" in columns:
+        if not has_associations and "manager_id" in columns:
             conn.execute(
                 f"INSERT INTO document_managers (doc_id, manager_id) "
                 f"SELECT {id_col}, manager_id FROM documents WHERE manager_id IS NOT NULL "
@@ -333,13 +334,13 @@ def search_documents(
     has_manager_id = "manager_id" in columns
     manager_pk_col = None
     manager_columns: set[str] = set()
-    if has_manager_id:
+    has_associations = bool(_sqlite_columns(conn, "document_managers"))
+    if has_manager_id or (has_associations and manager_id is not None):
         manager_columns = _sqlite_columns(conn, "managers")
         if "manager_id" in manager_columns:
             manager_pk_col = "manager_id"
         elif "id" in manager_columns:
             manager_pk_col = "id"
-    has_associations = bool(_sqlite_columns(conn, "document_managers"))
     if manager_id is not None and not (has_manager_id or has_associations):
         conn.close()
         return []

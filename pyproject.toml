@@ -64,6 +64,7 @@ dev = [
     # Transitive dep of app-baseline-kit; declared explicitly so the lock-presence
     # test (tests/test_dependency_version_alignment.py) is satisfied.
     "pytest-regressions>=2.8",
+    "sqlalchemy",
 ]
 
 [build-system]

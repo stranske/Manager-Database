@@ -80,6 +80,14 @@ def test_document_association_migration_and_search(backend, tmp_path, monkeypatc
             spec.loader.exec_module(migration)
             with Operations.context(MigrationContext.configure(conn)):
                 migration.upgrade()
+            inspector = sa.inspect(conn)
+            assert (
+                inspector.get_pk_constraint("document_managers")["name"] == "pk_document_managers"
+            )
+            assert {fk["name"] for fk in inspector.get_foreign_keys("document_managers")} == {
+                "fk_document_managers_doc_id_documents",
+                "fk_document_managers_manager_id_managers",
+            }
             assert conn.exec_driver_sql(
                 "SELECT doc_id, manager_id FROM document_managers"
             ).fetchall() == [(1, 1)]

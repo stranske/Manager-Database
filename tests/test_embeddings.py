@@ -674,3 +674,49 @@ def test_search_documents_equal_distance_filings_use_stable_id_order(tmp_path, m
     results = search_documents("filing", db_path, k=k, manager_id=7)
     assert [row["doc_id"] for row in results] == ids[:k]
     assert all(row["distance"] == 0 for row in results)
+
+
+def test_legacy_association_backfill_runs_once(tmp_path, monkeypatch):
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    db_path = str(tmp_path / "backfill.db")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE documents (doc_id INTEGER PRIMARY KEY, manager_id INTEGER, text TEXT, embedding TEXT)"
+        )
+        conn.execute("INSERT INTO documents VALUES (1, 7, 'legacy', NULL)")
+    statements = []
+    original_connect = sqlite3.connect
+
+    def connect(path):
+        conn = original_connect(path)
+        conn.set_trace_callback(statements.append)
+        return conn
+
+    monkeypatch.setattr("embeddings.connect_db", connect)
+    store_document("first", db_path, manager_id=8)
+    store_document("second", db_path)
+    store_document("third", db_path, manager_id=9)
+    backfills = [sql for sql in statements if "SELECT doc_id, manager_id FROM documents" in sql]
+    assert len(backfills) == 1
+    with original_connect(db_path) as conn:
+        assert conn.execute("SELECT * FROM document_managers ORDER BY doc_id").fetchall() == [
+            (1, 7),
+            (2, 8),
+            (4, 9),
+        ]
+
+
+def test_association_only_legacy_schema_retains_manager_name(tmp_path, monkeypatch):
+    monkeypatch.setenv("USE_SIMPLE_EMBED", "1")
+    db_path = str(tmp_path / "legacy_associations.db")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE documents (id INTEGER PRIMARY KEY, content TEXT, embedding TEXT)"
+        )
+        conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT)")
+        conn.execute("INSERT INTO managers VALUES (1, 'Legacy Manager')")
+    doc_id = store_document("legacy memo", db_path, manager_id=1)
+    hits = search_documents("memo", db_path, manager_id=1)
+    assert hits[0]["doc_id"] == doc_id
+    assert hits[0]["manager_name"] == "Legacy Manager"
+    assert search_documents("memo", db_path)[0]["manager_name"] is None

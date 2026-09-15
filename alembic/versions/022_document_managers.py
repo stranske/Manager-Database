@@ -15,18 +15,21 @@ def upgrade() -> None:
     if not inspector.has_table("document_managers"):
         op.create_table(
             "document_managers",
-            sa.Column(
-                "doc_id",
-                sa.BigInteger(),
-                sa.ForeignKey("documents.doc_id", ondelete="CASCADE"),
-                primary_key=True,
+            sa.Column("doc_id", sa.BigInteger(), nullable=False),
+            sa.Column("manager_id", sa.BigInteger(), nullable=False),
+            sa.ForeignKeyConstraint(
+                ["doc_id"],
+                ["documents.doc_id"],
+                name=op.f("fk_document_managers_doc_id_documents"),
+                ondelete="CASCADE",
             ),
-            sa.Column(
-                "manager_id",
-                sa.BigInteger(),
-                sa.ForeignKey("managers.manager_id", ondelete="CASCADE"),
-                primary_key=True,
+            sa.ForeignKeyConstraint(
+                ["manager_id"],
+                ["managers.manager_id"],
+                name=op.f("fk_document_managers_manager_id_managers"),
+                ondelete="CASCADE",
             ),
+            sa.PrimaryKeyConstraint("doc_id", "manager_id", name=op.f("pk_document_managers")),
         )
     indexes = {index["name"] for index in inspector.get_indexes("document_managers")}
     if "idx_document_managers_manager" not in indexes:
