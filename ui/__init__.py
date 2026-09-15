@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
+from functools import lru_cache
 
 import streamlit as st
 
@@ -19,6 +19,12 @@ logger = logging.getLogger(__name__)
 def _get_env_credential(key: str) -> str | None:
     value = os.getenv(key, "").strip()
     return value or None
+
+
+@lru_cache(maxsize=1)
+def _password_hash(password: str) -> str:
+    """Reuse bcrypt work across reruns, replacing it when the password changes."""
+    return str(stauth.Hasher.hash(password))
 
 
 def require_login() -> bool:
@@ -36,13 +42,20 @@ def require_login() -> bool:
         st.error("streamlit_authenticator is required when UI auth credentials are configured.")
         return False
 
-    credentials = {"usernames": {username: {"name": username, "password": password}}}
+    cookie_key = _get_env_credential("UI_COOKIE_KEY")
+    if not cookie_key or len(cookie_key) < 32:
+        st.error("UI_COOKIE_KEY must be an independent random secret of at least 32 characters.")
+        return False
+
+    credentials = {
+        "usernames": {username: {"name": username, "password": _password_hash(password)}}
+    }
     authenticator = stauth.Authenticate(
         credentials,
         "mi_cookie",
-        # Sign cookies with the configured secret, not a public constant.
-        hashlib.sha256(password.encode()).hexdigest(),
+        cookie_key,
         cookie_expiry_days=1,
+        auto_hash=False,
     )
     # Rendered login returns None in 0.4.x; status lives in session_state.
     authenticator.login(location="main")

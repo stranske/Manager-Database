@@ -9,6 +9,7 @@ from streamlit.testing.v1 import AppTest
 def configured_app(monkeypatch):
     monkeypatch.setenv("UI_USERNAME", "analyst")
     monkeypatch.setenv("UI_PASSWORD", "synthetic-test-password")
+    monkeypatch.setenv("UI_COOKIE_KEY", "synthetic-independent-cookie-key-for-tests")
     # Other UI tests replace module globals; restore the real dependency boundary.
     importlib.reload(importlib.import_module("ui"))
     return AppTest.from_string(
@@ -113,6 +114,47 @@ def test_require_login_fails_closed_without_dependency(configured_app, monkeypat
             "streamlit_authenticator is required when UI auth credentials are configured."
         )
         assert all(button.label != "Logout" for button in app.button)
+
+
+@pytest.mark.parametrize("key", [None, "", "short-key"])
+def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key):
+    if key is None:
+        monkeypatch.delenv("UI_COOKIE_KEY", raising=False)
+    else:
+        monkeypatch.setenv("UI_COOKIE_KEY", key)
+    app = configured_app.run()
+    assert not app.exception
+    assert app.session_state["auth"] is False
+    assert not app.text_input
+    assert "UI_COOKIE_KEY" in app.error[0].value
+
+
+def test_authenticator_receives_independent_secret_and_cached_hash(configured_app, monkeypatch):
+    from unittest.mock import patch
+
+    ui = importlib.import_module("ui")
+    ui._password_hash.cache_clear()
+    with (
+        patch.object(ui.stauth.Hasher, "hash", wraps=ui.stauth.Hasher.hash) as hasher,
+        patch.object(ui.stauth, "Authenticate", wraps=ui.stauth.Authenticate) as authenticate,
+    ):
+        app = configured_app.run()
+        app.run()
+        assert not app.exception
+        assert hasher.call_count == 1
+        first_hash = authenticate.call_args.args[0]["usernames"]["analyst"]["password"]
+        assert first_hash.startswith("$2")
+        assert authenticate.call_args.args[2] == "synthetic-independent-cookie-key-for-tests"
+        assert authenticate.call_args.kwargs["auto_hash"] is False
+
+        monkeypatch.setenv("UI_PASSWORD", "changed-synthetic-password")
+        monkeypatch.setenv("UI_COOKIE_KEY", "rotated-independent-cookie-secret-for-tests")
+        app.run()
+        assert not app.exception
+        assert hasher.call_count == 2
+        assert authenticate.call_args.args[0]["usernames"]["analyst"]["password"] != first_hash
+        assert authenticate.call_args.args[2] == "rotated-independent-cookie-secret-for-tests"
+        assert authenticate.call_args.kwargs["auto_hash"] is False
 
 
 @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
