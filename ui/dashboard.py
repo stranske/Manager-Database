@@ -360,8 +360,9 @@ def load_qc_flags(manager_id: int) -> dict[str, Any]:
 def load_managers() -> pd.DataFrame:
     conn = connect_db()
     try:
+        id_column = resolve_manager_id_column(conn)
         df = pd.read_sql_query(
-            "SELECT manager_id, name FROM managers ORDER BY name",
+            f"SELECT {id_column} AS manager_id, name FROM managers ORDER BY name",
             conn,
         )
     except Exception:
@@ -1020,7 +1021,11 @@ def load_all_managers_summary() -> dict[str, Any]:
             )
             summary["recent_activity"] = activity_df.sort_values("activity_date")
 
-        managers_df = pd.read_sql_query("SELECT manager_id, name FROM managers", conn)
+        id_column = resolve_manager_id_column(conn)
+        managers_df = pd.read_sql_query(
+            f"SELECT {id_column} AS manager_id, name FROM managers",
+            conn,
+        )
         filings_df = pd.read_sql_query(
             "SELECT manager_id, filing_id, type, filed_date FROM filings", conn
         )

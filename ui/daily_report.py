@@ -7,7 +7,7 @@ import time
 import pandas as pd
 import streamlit as st
 
-from adapters.base import connect_db
+from adapters.base import connect_db, resolve_manager_id_column
 from api.signals import query_contrarian_signals, query_crowded_trades
 
 from . import require_login
@@ -26,10 +26,11 @@ def load_diffs(date: str) -> pd.DataFrame:
   FROM mv_daily_report
   WHERE report_date = {placeholder}
   ORDER BY manager_name, delta_type"""
+    id_column = resolve_manager_id_column(conn)
     fallback_query = f"""SELECT m.name AS manager_name, d.cusip, d.name_of_issuer, d.delta_type,
          d.shares_prev, d.shares_curr, d.value_prev, d.value_curr
   FROM daily_diffs d
-  JOIN managers m ON m.manager_id = d.manager_id
+  JOIN managers m ON m.{id_column} = d.manager_id
   WHERE d.report_date = {placeholder}
   ORDER BY manager_name, d.delta_type"""
     try:
@@ -51,11 +52,12 @@ def load_news(date: str) -> pd.DataFrame:
     conn = connect_db()
     try:
         if isinstance(conn, sqlite3.Connection):
+            id_column = resolve_manager_id_column(conn)
             query = (
                 "SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, "
                 "m.name AS manager_name "
                 "FROM news_items n "
-                "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+                f"LEFT JOIN managers m ON m.{id_column} = n.manager_id "
                 "WHERE date(n.published_at) = ? "
                 "ORDER BY n.published_at DESC "
                 "LIMIT 50"
@@ -94,12 +96,13 @@ def load_activism_events(date: str) -> pd.DataFrame:
     is_sqlite = isinstance(conn, sqlite3.Connection)
     placeholder = "?" if is_sqlite else "%s"
     try:
+        id_column = resolve_manager_id_column(conn)
         query = (
             "SELECT m.name AS manager_name, ae.event_type, ae.subject_company, "
             "ae.ownership_pct, ae.previous_pct, ae.delta_pct, af.filed_date "
             "FROM activism_events ae "
             "JOIN activism_filings af ON af.filing_id = ae.filing_id "
-            "LEFT JOIN managers m ON m.manager_id = ae.manager_id "
+            f"LEFT JOIN managers m ON m.{id_column} = ae.manager_id "
             f"WHERE af.filed_date = {placeholder} "
             "ORDER BY af.filed_date DESC, ae.detected_at DESC"
         )

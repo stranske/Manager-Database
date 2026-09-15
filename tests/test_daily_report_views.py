@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import pandas as pd
+import pytest
 import streamlit as st
 
 from ui import daily_report
@@ -110,6 +111,77 @@ def test_daily_report_page_renders_from_mv_daily_report(tmp_path, monkeypatch):
     assert "+60.0%" in html_table
     assert any(call[0] == "Managers w/ changes" and call[1] == "1" for call in metric_calls)
     assert any(call[0] == "Increased" and call[1] == "1" for call in metric_calls)
+
+
+def _setup_fallback_diff_db(tmp_path: Path, manager_pk: str = "manager_id") -> str:
+    db_path = tmp_path / f"daily_report_fallback_{manager_pk}.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(f"CREATE TABLE managers ({manager_pk} INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+    conn.execute(
+        "CREATE TABLE daily_diffs ("
+        "manager_id INTEGER NOT NULL, report_date TEXT NOT NULL, cusip TEXT NOT NULL, "
+        "name_of_issuer TEXT, delta_type TEXT NOT NULL, shares_prev INTEGER, shares_curr INTEGER, "
+        "value_prev REAL, value_curr REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE news_items ("
+        "manager_id INTEGER, headline TEXT, url TEXT, published_at DATETIME, "
+        "source TEXT, topics TEXT, confidence REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE activism_filings ("
+        "filing_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_type TEXT, "
+        "subject_company TEXT, filed_date DATE)"
+    )
+    conn.execute(
+        "CREATE TABLE activism_events ("
+        "event_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_id INTEGER, event_type TEXT, "
+        "subject_company TEXT, ownership_pct REAL, previous_pct REAL, delta_pct REAL, "
+        "detected_at DATETIME)"
+    )
+    conn.execute(f"INSERT INTO managers({manager_pk}, name) VALUES (1, 'Fallback Manager')")
+    conn.execute(
+        "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        "VALUES (1, '2024-05-01', 'AAA', 'Issuer Alpha', 'INCREASE', 1000, 2500, 10000, 16000)"
+    )
+    conn.execute(
+        "INSERT INTO news_items(manager_id, headline, url, published_at, source, topics, confidence) "
+        "VALUES (1, 'Headline', 'https://example.com', '2024-05-01 10:00:00', 'Wire', 'topic', 0.9)"
+    )
+    conn.execute(
+        "INSERT INTO activism_filings(filing_id, manager_id, filing_type, subject_company, filed_date) "
+        "VALUES (10, 1, 'SC 13D', 'Target Co', '2024-05-01')"
+    )
+    conn.execute(
+        "INSERT INTO activism_events(event_id, manager_id, filing_id, event_type, subject_company, "
+        "ownership_pct, previous_pct, delta_pct, detected_at) "
+        "VALUES (20, 1, 10, 'initial_stake', 'Target Co', 5.0, 0.0, 5.0, '2024-05-01 12:00:00')"
+    )
+    conn.commit()
+    conn.close()
+    return str(db_path)
+
+
+@pytest.mark.parametrize("manager_pk", ["manager_id", "id"])
+def test_daily_report_fallback_queries_resolve_manager_primary_key(
+    tmp_path, monkeypatch, manager_pk: str
+):
+    db_path = _setup_fallback_diff_db(tmp_path, manager_pk=manager_pk)
+    monkeypatch.setenv("DB_PATH", db_path)
+    st.cache_data.clear()
+
+    diffs = daily_report.load_diffs("2024-05-01")
+    assert len(diffs) == 1
+    assert diffs.iloc[0]["manager_name"] == "Fallback Manager"
+
+    news = daily_report.load_news("2024-05-01")
+    assert len(news) == 1
+    assert news.iloc[0]["manager_name"] == "Fallback Manager"
+
+    activism = daily_report.load_activism_events("2024-05-01")
+    assert len(activism) == 1
+    assert activism.iloc[0]["manager_name"] == "Fallback Manager"
 
 
 def test_daily_report_page_renders_under_500ms_with_ten_managers(monkeypatch):
