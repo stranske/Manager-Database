@@ -118,6 +118,28 @@ def test_require_login_fails_closed_without_dependency(configured_app, monkeypat
         assert all(button.label != "Logout" for button in app.button)
 
 
+def test_dev_mode_discards_previous_authenticated_session(configured_app, monkeypatch):
+    app = configured_app.run()
+    _submit(app)
+    assert app.session_state["authentication_status"] is True
+
+    username = os.environ["UI_USERNAME"]
+    monkeypatch.delenv("UI_USERNAME")
+    app.run()
+    assert not app.exception
+    assert app.markdown[-1].value == "Protected content"
+    assert app.session_state["authentication_status"] is None
+    assert app.session_state["username"] is None
+    assert app.session_state["name"] is None
+
+    monkeypatch.setenv("UI_USERNAME", username)
+    app.run()
+    assert not app.exception
+    assert app.session_state["auth"] is False
+    assert app.markdown[-1].value == "Access denied"
+    assert _button(app, "Login")
+
+
 @pytest.mark.parametrize("authenticated", [False, True])
 @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
 def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):

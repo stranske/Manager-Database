@@ -33,6 +33,10 @@ def require_login() -> bool:
     password = _get_env_credential("UI_PASSWORD")
     if not username or not password:
         logger.info("UI_USERNAME/UI_PASSWORD not set; skipping authentication in dev mode.")
+        # Development access must not preserve a previous configured identity.
+        # Restoring credentials requires authentication again on the next rerun.
+        for field in ("authentication_status", "username", "name"):
+            st.session_state[field] = None
         st.session_state["auth"] = True
         return True
     # The library owns configured authentication; a previous dev-mode flag is
