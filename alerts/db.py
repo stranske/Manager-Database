@@ -271,8 +271,11 @@ def _delivery_event_key(fired: FiredAlert) -> str:
         "type": event.event_type,
         "manager_id": event.manager_id,
     }
-    if event.event_type == "new_filing" and event.payload.get("filing_id") is not None:
-        identity["filing_id"] = event.payload["filing_id"]
+    if event.event_type == "new_filing":
+        if event.payload.get("filing_id") is not None:
+            identity["filing_id"] = event.payload["filing_id"]
+        else:
+            identity["payload"] = event.payload
     else:
         identity["payload"] = event.payload
         identity["occurred_at"] = event.occurred_at.isoformat()
