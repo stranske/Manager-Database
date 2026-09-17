@@ -436,10 +436,12 @@ async def fetch_and_store(cik: str, since: str):
             conn.commit()
             all_rows.extend(parsed_rows)
         return all_rows
-    finally:
-        # Each successful filing was committed above; only pending writes are
-        # rolled back, including on cancellation. Raw S3 objects are retained.
+    except Exception:
+        # Filing/alert durability commits above are already isolated; roll back
+        # only the still-open transaction for the failing iteration.
         ingest_module._rollback_quietly(conn)
+        raise
+    finally:
         ingest_module._restore_autocommit_quietly(conn, original_autocommit)
         conn.close()
 
