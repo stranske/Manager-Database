@@ -360,6 +360,100 @@ async def test_scheduled_edgar_alert_transaction(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("callback_fails", [False, True], ids=["success", "callback-failure"])
+async def test_fetch_and_store_rollback_boundary_calls_quietly_only_on_exception(
+    pg_conn: PgAlertFixture, pg_url, psycopg_module, monkeypatch, callback_fails
+):
+    """Distinguish exception-only rollback from success-path cleanup."""
+    import etl.ingest_flow as ingest_module
+
+    pg_conn.conn.commit()
+    accession = f"rollback-boundary-{callback_fails}"
+    rollback_calls: list[Any] = []
+    original_rollback = ingest_module._rollback_quietly
+
+    def spy_rollback(conn):
+        rollback_calls.append(conn)
+        original_rollback(conn)
+
+    monkeypatch.setattr(ingest_module, "_rollback_quietly", spy_rollback)
+
+    class Adapter:
+        async def list_new_filings(self, cik, since):
+            return [{"accession": accession, "filed": "2026-04-15", "form": "13F-HR"}]
+
+        async def download(self, filing):
+            return accession.encode()
+
+        async def parse(self, raw):
+            return []
+
+    conn = psycopg_module.connect(pg_url, autocommit=True)
+    monkeypatch.setattr(flow, "connect_db", lambda _: conn)
+    monkeypatch.setattr(flow, "ADAPTER", Adapter())
+    monkeypatch.setattr(flow.S3, "put_object", lambda **kwargs: None)
+    observed_filings: list[int] = []
+
+    async def dispatch(db_conn, event):
+        assert db_conn is conn
+        assert not conn.autocommit
+        observed_filings.append(event.payload["filing_id"])
+        ids = await fire_alerts_for_event(
+            db_conn, event, channels={"streamlit": MockStreamlitChannel()}
+        )
+        assert ids
+        # Uncommitted marker write: must disappear on exception rollback only.
+        db_conn.execute(
+            "CREATE TABLE IF NOT EXISTS rollback_boundary_probe (marker text NOT NULL)"
+        )
+        db_conn.execute(
+            "INSERT INTO rollback_boundary_probe (marker) VALUES (%s)",
+            (f"uncommitted-{accession}",),
+        )
+        if callback_fails:
+            raise RuntimeError("injected failure after uncommitted probe write")
+        return ids
+
+    monkeypatch.setattr(flow, "fire_alerts_for_event", dispatch)
+    if callback_fails:
+        with pytest.raises(RuntimeError, match="injected failure"):
+            await flow.fetch_and_store.fn("0001791786", "2026-01-01")
+        assert rollback_calls == [conn]
+    else:
+        assert await flow.fetch_and_store.fn("0001791786", "2026-01-01") == []
+        assert rollback_calls == []
+
+    assert conn.closed
+    assert len(observed_filings) == 1
+    with psycopg_module.connect(pg_url, autocommit=True) as reader:
+        assert (
+            reader.execute(
+                "SELECT COUNT(*) FROM filings WHERE filing_id = %s", (observed_filings[0],)
+            ).fetchone()[0]
+            == 1
+        )
+        alerts = reader.execute(
+            "SELECT delivered_channels FROM alert_history WHERE payload_json->>'accession' = %s",
+            (accession,),
+        ).fetchall()
+        assert alerts == [(["streamlit"],)]
+        probe_exists = (
+            reader.execute(
+                "SELECT COUNT(*) FROM information_schema.tables"
+                " WHERE table_schema = 'public' AND table_name = 'rollback_boundary_probe'"
+            ).fetchone()[0]
+            == 1
+        )
+        if callback_fails:
+            assert not probe_exists
+        else:
+            assert probe_exists
+            assert (
+                reader.execute("SELECT COUNT(*) FROM rollback_boundary_probe").fetchone()[0] == 1
+            )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("commit_reached_server", [False, True])
 async def test_external_delivery_commit_failure_retry(
     pg_conn, pg_url, psycopg_module, monkeypatch, commit_reached_server
