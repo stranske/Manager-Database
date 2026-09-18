@@ -403,9 +403,7 @@ async def test_fetch_and_store_rollback_boundary_calls_quietly_only_on_exception
         )
         assert ids
         # Uncommitted marker write: must disappear on exception rollback only.
-        db_conn.execute(
-            "CREATE TABLE IF NOT EXISTS rollback_boundary_probe (marker text NOT NULL)"
-        )
+        db_conn.execute("CREATE TABLE IF NOT EXISTS rollback_boundary_probe (marker text NOT NULL)")
         db_conn.execute(
             "INSERT INTO rollback_boundary_probe (marker) VALUES (%s)",
             (f"uncommitted-{accession}",),
@@ -448,9 +446,7 @@ async def test_fetch_and_store_rollback_boundary_calls_quietly_only_on_exception
             assert not probe_exists
         else:
             assert probe_exists
-            assert (
-                reader.execute("SELECT COUNT(*) FROM rollback_boundary_probe").fetchone()[0] == 1
-            )
+            assert reader.execute("SELECT COUNT(*) FROM rollback_boundary_probe").fetchone()[0] == 1
 
 
 @pytest.mark.asyncio
