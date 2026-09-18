@@ -368,6 +368,10 @@ async def test_fetch_and_store_rollback_boundary_calls_quietly_only_on_exception
     import etl.ingest_flow as ingest_module
 
     pg_conn.conn.commit()
+    # Module-scoped pg_conn shares one database; drop probe table so parametrized
+    # success/failure cases do not leak CREATE TABLE state across runs.
+    with psycopg_module.connect(pg_url, autocommit=True) as cleanup:
+        cleanup.execute("DROP TABLE IF EXISTS rollback_boundary_probe")
     accession = f"rollback-boundary-{callback_fails}"
     rollback_calls: list[Any] = []
     original_rollback = ingest_module._rollback_quietly
