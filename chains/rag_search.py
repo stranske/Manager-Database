@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from adapters.base import get_placeholder, is_sqlite, table_exists
+from adapters.base import get_placeholder, is_sqlite, resolve_manager_id_column, table_exists
 from chains.evidence import Evidence
 from chains.utils import acquire_connection, guard_context_values
 from embeddings import search_documents
@@ -190,11 +190,12 @@ class RAGSearchChain:
         cusips = [str(cusip) for cusip in entities.get("cusips", [])]
         date_range = self._parse_date_range(entities.get("date_range"))
         ph = get_placeholder(conn)
+        id_column = resolve_manager_id_column(conn)
         try:
             if manager_ids:
                 placeholders = ",".join(ph for _ in manager_ids)
                 manager_rows = conn.execute(
-                    f"SELECT manager_id, name, cik FROM managers WHERE manager_id IN ({placeholders})",
+                    f"SELECT {id_column}, name, cik FROM managers WHERE {id_column} IN ({placeholders})",
                     tuple(manager_ids),
                 ).fetchall()
                 if manager_rows:
