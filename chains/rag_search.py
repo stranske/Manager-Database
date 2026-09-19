@@ -84,7 +84,8 @@ class RAGSearchChain:
     def _manager_catalog(self) -> list[dict[str, Any]]:
         conn, should_close = acquire_connection(self.db)
         try:
-            cursor = conn.execute("SELECT manager_id, name, cik FROM managers")
+            id_column = resolve_manager_id_column(conn)
+            cursor = conn.execute(f"SELECT {id_column}, name, cik FROM managers")
             rows = cursor.fetchall()
             return [
                 {
