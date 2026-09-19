@@ -2,13 +2,88 @@ import asyncio
 import sqlite3
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import Mock
 
 import httpx
 import pytest
 
 from api import managers as managers_module
 from api.chat import app
-from etl.manager_similarity_flow import compute_manager_similarity, cosine_similarity
+from etl.manager_similarity_flow import (
+    compute_manager_similarity,
+    cosine_similarity,
+    ensure_manager_similarity_table,
+)
+
+
+def test_ensure_manager_similarity_table_creates_postgres_schema():
+    conn = Mock()
+
+    ensure_manager_similarity_table(conn)
+
+    statements = [" ".join(call.args[0].split()) for call in conn.execute.call_args_list]
+    create = next(sql for sql in statements if sql.startswith("CREATE TABLE IF NOT EXISTS"))
+    assert "manager_similarity (" in create
+    assert "manager_id_a BIGINT NOT NULL REFERENCES managers(manager_id)" in create
+    assert "manager_id_b BIGINT NOT NULL REFERENCES managers(manager_id)" in create
+    assert "jaccard FLOAT(24) NOT NULL" in create
+    assert "cosine FLOAT(24)" in create
+    assert "overlap_count INTEGER NOT NULL" in create
+    assert "union_count INTEGER NOT NULL" in create
+    assert "computed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP" in create
+    assert "PRIMARY KEY (manager_id_a, manager_id_b)" in create
+    assert "CHECK (manager_id_a < manager_id_b)" in create
+    for side in ("a", "b"):
+        assert (
+            f"CREATE INDEX IF NOT EXISTS idx_manager_similarity_{side} "
+            f"ON manager_similarity(manager_id_{side})"
+        ) in statements
+    assert (
+        "ALTER TABLE manager_similarity ADD COLUMN IF NOT EXISTS cosine FLOAT(24)"
+    ) in statements
+    assert not any("PRAGMA" in sql for sql in statements)
+
+    # Repeated initialization must use guarded DDL and leave transactions to the caller.
+    conn.execute.reset_mock()
+    ensure_manager_similarity_table(conn)
+    assert [" ".join(call.args[0].split()) for call in conn.execute.call_args_list] == statements
+    assert all("IF NOT EXISTS" in sql for sql in statements)
+    conn.commit.assert_not_called()
+
+
+def test_ensure_manager_similarity_table_propagates_postgres_errors():
+    conn = Mock()
+    conn.execute.side_effect = RuntimeError("permission denied for schema public")
+
+    with pytest.raises(RuntimeError, match="permission denied"):
+        ensure_manager_similarity_table(conn)
+
+
+def test_ensure_manager_similarity_table_upgrades_legacy_sqlite_table():
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.executescript("""
+            CREATE TABLE managers (id INTEGER PRIMARY KEY);
+            INSERT INTO managers VALUES (1), (2);
+            CREATE TABLE manager_similarity (
+                manager_id_a INTEGER, manager_id_b INTEGER, jaccard REAL,
+                overlap_count INTEGER, union_count INTEGER, computed_at TEXT
+            );
+            INSERT INTO manager_similarity VALUES (1, 2, 0.5, 1, 2, '2026-09-01');
+        """)
+
+        ensure_manager_similarity_table(conn)
+        ensure_manager_similarity_table(conn)
+
+        assert conn.execute(
+            "SELECT manager_id_a, manager_id_b, jaccard, cosine FROM manager_similarity"
+        ).fetchall() == [(1, 2, 0.5, None)]
+        assert {row[1] for row in conn.execute("PRAGMA index_list(manager_similarity)")} == {
+            "idx_manager_similarity_a",
+            "idx_manager_similarity_b",
+        }
+    finally:
+        conn.close()
 
 
 def test_similarity_uses_union_denominator_and_latest_filings():

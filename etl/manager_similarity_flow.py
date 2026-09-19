@@ -25,6 +25,7 @@ def cosine_similarity(left: list[float], right: list[float]) -> float | None:
 
 
 def ensure_manager_similarity_table(conn: Any) -> None:
+    """Ensure dialect-specific similarity storage without committing caller work."""
     if isinstance(conn, sqlite3.Connection):
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("""CREATE TABLE IF NOT EXISTS manager_similarity (
@@ -44,6 +45,26 @@ def ensure_manager_similarity_table(conn: Any) -> None:
         columns = {row[1] for row in conn.execute("PRAGMA table_info(manager_similarity)")}
         if "cosine" not in columns:
             conn.execute("ALTER TABLE manager_similarity ADD COLUMN cosine REAL")
+        return
+
+    # PostgreSQL's canonical manager key differs from SQLite's local schema.
+    # FLOAT(24) is equivalent to the REAL columns in schema.sql and migrations.
+    conn.execute("""CREATE TABLE IF NOT EXISTS manager_similarity (
+        manager_id_a BIGINT NOT NULL REFERENCES managers(manager_id),
+        manager_id_b BIGINT NOT NULL REFERENCES managers(manager_id),
+        jaccard FLOAT(24) NOT NULL, cosine FLOAT(24),
+        overlap_count INTEGER NOT NULL, union_count INTEGER NOT NULL,
+        computed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (manager_id_a, manager_id_b),
+        CHECK (manager_id_a < manager_id_b)
+    )""")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_manager_similarity_a ON manager_similarity(manager_id_a)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)"
+    )
+    conn.execute("ALTER TABLE manager_similarity ADD COLUMN IF NOT EXISTS cosine FLOAT(24)")
 
 
 def compute_manager_similarity(conn: Any) -> int:
