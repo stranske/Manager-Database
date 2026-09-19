@@ -18,6 +18,7 @@ from etl.manager_similarity_flow import (
 
 def test_ensure_manager_similarity_table_creates_postgres_schema():
     conn = Mock()
+    conn.execute.return_value.fetchone.return_value = (False, False, False, False)
 
     ensure_manager_similarity_table(conn)
 
@@ -43,11 +44,54 @@ def test_ensure_manager_similarity_table_creates_postgres_schema():
     ) in statements
     assert not any("PRAGMA" in sql for sql in statements)
 
-    # Repeated initialization must use guarded DDL and leave transactions to the caller.
+    # Once initialized, subsequent requests must not acquire DDL locks.
     conn.execute.reset_mock()
+    conn.execute.return_value.fetchone.return_value = (True, True, True, True)
     ensure_manager_similarity_table(conn)
-    assert [" ".join(call.args[0].split()) for call in conn.execute.call_args_list] == statements
-    assert all("IF NOT EXISTS" in sql for sql in statements)
+    conn.execute.assert_called_once()
+    assert conn.execute.call_args.args[0].lstrip().startswith("SELECT")
+    conn.commit.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("schema_state", "expected_ddl"),
+    [
+        (
+            (True, False, True, True),
+            "ALTER TABLE manager_similarity ADD COLUMN IF NOT EXISTS cosine FLOAT(24)",
+        ),
+        (
+            (True, True, False, True),
+            "CREATE INDEX IF NOT EXISTS idx_manager_similarity_a ON manager_similarity(manager_id_a)",
+        ),
+        (
+            (True, True, True, False),
+            "CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)",
+        ),
+    ],
+)
+def test_ensure_manager_similarity_table_repairs_only_missing_postgres_storage(
+    schema_state, expected_ddl
+):
+    conn = Mock()
+    conn.execute.return_value.fetchone.return_value = schema_state
+
+    ensure_manager_similarity_table(conn)
+
+    statements = [" ".join(call.args[0].split()) for call in conn.execute.call_args_list]
+    assert statements[0].startswith("SELECT")
+    assert statements[1:] == [expected_ddl]
+    conn.commit.assert_not_called()
+
+
+def test_ensure_manager_similarity_table_propagates_postgres_ddl_errors():
+    conn = Mock()
+    probe = Mock()
+    probe.fetchone.return_value = (True, False, True, True)
+    conn.execute.side_effect = [probe, RuntimeError("permission denied for table")]
+
+    with pytest.raises(RuntimeError, match="permission denied"):
+        ensure_manager_similarity_table(conn)
     conn.commit.assert_not_called()
 
 

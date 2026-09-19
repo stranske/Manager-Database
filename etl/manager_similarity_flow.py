@@ -47,24 +47,50 @@ def ensure_manager_similarity_table(conn: Any) -> None:
             conn.execute("ALTER TABLE manager_similarity ADD COLUMN cosine REAL")
         return
 
+    # This helper also runs on API reads. Even guarded ALTER TABLE takes a
+    # schema lock, so inspect the resolved relation before issuing any DDL.
+    table_exists, has_cosine, has_index_a, has_index_b = conn.execute("""
+        SELECT pg_catalog.to_regclass('manager_similarity') IS NOT NULL,
+            EXISTS (
+                SELECT 1 FROM pg_catalog.pg_attribute
+                WHERE attrelid = pg_catalog.to_regclass('manager_similarity')
+                  AND attname = 'cosine' AND attnum > 0 AND NOT attisdropped
+            ),
+            EXISTS (
+                SELECT 1 FROM pg_catalog.pg_index i
+                JOIN pg_catalog.pg_class c ON c.oid = i.indexrelid
+                WHERE i.indrelid = pg_catalog.to_regclass('manager_similarity')
+                  AND c.relname = 'idx_manager_similarity_a'
+            ),
+            EXISTS (
+                SELECT 1 FROM pg_catalog.pg_index i
+                JOIN pg_catalog.pg_class c ON c.oid = i.indexrelid
+                WHERE i.indrelid = pg_catalog.to_regclass('manager_similarity')
+                  AND c.relname = 'idx_manager_similarity_b'
+            )
+    """).fetchone()
     # PostgreSQL's canonical manager key differs from SQLite's local schema.
     # FLOAT(24) is equivalent to the REAL columns in schema.sql and migrations.
-    conn.execute("""CREATE TABLE IF NOT EXISTS manager_similarity (
-        manager_id_a BIGINT NOT NULL REFERENCES managers(manager_id),
-        manager_id_b BIGINT NOT NULL REFERENCES managers(manager_id),
-        jaccard FLOAT(24) NOT NULL, cosine FLOAT(24),
-        overlap_count INTEGER NOT NULL, union_count INTEGER NOT NULL,
-        computed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (manager_id_a, manager_id_b),
-        CHECK (manager_id_a < manager_id_b)
-    )""")
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_manager_similarity_a ON manager_similarity(manager_id_a)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)"
-    )
-    conn.execute("ALTER TABLE manager_similarity ADD COLUMN IF NOT EXISTS cosine FLOAT(24)")
+    if not table_exists:
+        conn.execute("""CREATE TABLE IF NOT EXISTS manager_similarity (
+            manager_id_a BIGINT NOT NULL REFERENCES managers(manager_id),
+            manager_id_b BIGINT NOT NULL REFERENCES managers(manager_id),
+            jaccard FLOAT(24) NOT NULL, cosine FLOAT(24),
+            overlap_count INTEGER NOT NULL, union_count INTEGER NOT NULL,
+            computed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (manager_id_a, manager_id_b),
+            CHECK (manager_id_a < manager_id_b)
+        )""")
+    if not has_index_a:
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_manager_similarity_a ON manager_similarity(manager_id_a)"
+        )
+    if not has_index_b:
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)"
+        )
+    if not has_cosine:
+        conn.execute("ALTER TABLE manager_similarity ADD COLUMN IF NOT EXISTS cosine FLOAT(24)")
 
 
 def compute_manager_similarity(conn: Any) -> int:
