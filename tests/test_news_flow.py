@@ -489,18 +489,24 @@ def test_inserted_news_items_filters_existing_rows():
     assert inserted == [new]
 
 
-def test_inserted_news_items_keeps_distinct_nullable_keys():
+def test_inserted_news_items_keeps_rows_when_either_identity_key_is_null():
     conn = sqlite3.connect(":memory:")
     try:
         _create_news_items_table(conn)
-        first = {"url": None, "published_at": "2026-01-01T00:00:00+00:00"}
-        second = dict(first)
+        null_url = {"url": None, "published_at": "2026-01-01T00:00:00+00:00"}
+        null_published_at = {"url": "https://example.com/no-date", "published_at": None}
+        items = [
+            null_url,
+            dict(null_url),
+            null_published_at,
+            dict(null_published_at),
+        ]
 
-        inserted = news_flow.inserted_news_items([first, second], conn)
+        inserted = news_flow.inserted_news_items(items, conn)
     finally:
         conn.close()
 
-    assert inserted == [first, second]
+    assert inserted == items
 
 
 @pytest.mark.asyncio
