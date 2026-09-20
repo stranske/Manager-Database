@@ -1522,7 +1522,12 @@ class _FakeStreamlit:
         return "all"
 
 
-def test_main_renders_alert_badge_and_metric(monkeypatch):
+@pytest.mark.parametrize("offline", [False, True])
+def test_main_renders_alert_badge_and_metric(monkeypatch, offline):
+    if offline:
+        monkeypatch.setenv("UI_OFFLINE", "1")
+    else:
+        monkeypatch.delenv("UI_OFFLINE", raising=False)
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(dashboard, "st", fake_st)
     monkeypatch.setattr(dashboard, "require_login", lambda: True)
@@ -1535,6 +1540,7 @@ def test_main_renders_alert_badge_and_metric(monkeypatch):
 
     assert fake_st.sidebar.markdowns[0] == "### Navigation"
     assert "Alerts" in fake_st.sidebar.markdowns[1]
+    assert ("href='/alerts'" in fake_st.sidebar.markdowns[1]) is not offline
     assert ">3<" in fake_st.sidebar.markdowns[1]
     assert fake_st.sidebar.metrics == [("Unacknowledged Alerts", 3)]
     assert fake_st.headers == ["Holdings Delta"]

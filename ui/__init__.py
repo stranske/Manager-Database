@@ -15,6 +15,8 @@ except ImportError:  # pragma: no cover - optional UI dependency
 
 logger = logging.getLogger(__name__)
 
+ALERTS_URL_PATH = "alerts"
+
 
 def _get_env_credential(key: str) -> str | None:
     value = os.getenv(key, "").strip()
