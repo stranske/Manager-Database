@@ -18,6 +18,29 @@ The workflow always runs a dry-run contract check without credentials. It only
 executes the live backup step when both `DB_SNAPSHOT_DATABASE_URL` and
 `DB_SNAPSHOT_S3_URI` are configured as repository secrets.
 
+Manual dispatch defaults to `dry_run=true`: production snapshot secrets are not
+passed to the job, and the live backup step is skipped even when secrets exist.
+The scheduled run retains its normal live-backup behavior. To request a manual
+live backup, explicitly set `dry_run=false`.
+
+The workflow installs a pinned AWS CLI v2 release from the official AWS Linux
+installer, checks its SHA-256 before execution, and adds its isolated binary
+directory to `GITHUB_PATH`. PostgreSQL clients still come from apt. Both `aws`
+and `pg_dump` versions must print before the backup dry run succeeds. Update
+`AWS_CLI_VERSION` and `AWS_CLI_SHA256` together when upgrading the installer.
+
+Validate a revised branch without production credentials:
+
+```bash
+gh workflow run database-snapshot.yml --repo stranske/Manager-Database \
+  --ref <branch> -f dry_run=true
+```
+
+Record the resulting Actions run URL in the PR. Its install, version, credential
+isolation, and dry-run steps must succeed, and `Run encrypted Postgres snapshot`
+must be skipped. Local `pytest tests/test_db_snapshot_restore.py` checks the
+installation contract but does not replace this runner evidence.
+
 ## Operator Backup Command
 
 ```bash

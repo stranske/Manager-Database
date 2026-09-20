@@ -4,14 +4,24 @@ on:
   schedule:
     - cron: "15 5 * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Validate client installation and backup plan without production credentials
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
 
 jobs:
   postgres-snapshot:
     runs-on: ubuntu-latest
     env:
-      DB_SNAPSHOT_DATABASE_URL: ${{ secrets.DB_SNAPSHOT_DATABASE_URL }}
-      DB_SNAPSHOT_S3_URI: ${{ secrets.DB_SNAPSHOT_S3_URI }}
-      DB_SNAPSHOT_KMS_KEY_ID: ${{ secrets.DB_SNAPSHOT_KMS_KEY_ID }}
+      AWS_CLI_VERSION: "2.36.49"
+      AWS_CLI_SHA256: "6b51b62d232217350e72d8f2493f47d3461239d011d1d5eef960dfcd8cb07069"
+      DB_SNAPSHOT_DATABASE_URL: ${{ (github.event_name == 'schedule' || !inputs.dry_run) && secrets.DB_SNAPSHOT_DATABASE_URL || '' }}
+      DB_SNAPSHOT_S3_URI: ${{ (github.event_name == 'schedule' || !inputs.dry_run) && secrets.DB_SNAPSHOT_S3_URI || '' }}
+      DB_SNAPSHOT_KMS_KEY_ID: ${{ (github.event_name == 'schedule' || !inputs.dry_run) && secrets.DB_SNAPSHOT_KMS_KEY_ID || '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -20,12 +30,32 @@ jobs:
       - name: Install backup clients
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client awscli
+          sudo apt-get install -y postgresql-client unzip
+          curl --fail --silent --show-error --location \
+            "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWS_CLI_VERSION}.zip" \
+            --output "$RUNNER_TEMP/awscliv2.zip"
+          printf '%s  %s\n' "$AWS_CLI_SHA256" "$RUNNER_TEMP/awscliv2.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/awscliv2.zip" -d "$RUNNER_TEMP/awscli-installer"
+          "$RUNNER_TEMP/awscli-installer/aws/install" \
+            --install-dir "$RUNNER_TEMP/aws-cli" --bin-dir "$RUNNER_TEMP/aws-cli-bin"
+          echo "$RUNNER_TEMP/aws-cli-bin" >> "$GITHUB_PATH"
+      - name: Verify backup client versions
+        run: |
+          aws_version="$(aws --version)"
+          printf '%s\n' "$aws_version"
+          [[ "$aws_version" == "aws-cli/${AWS_CLI_VERSION} "* ]]
+          pg_dump --version
+      - name: Verify dry-run credential isolation
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          test -z "$DB_SNAPSHOT_DATABASE_URL"
+          test -z "$DB_SNAPSHOT_S3_URI"
+          test -z "$DB_SNAPSHOT_KMS_KEY_ID"
       - name: Validate backup contract without production credentials
         env:
           DB_SNAPSHOT_DATABASE_URL: postgresql://snapshot:snapshot@example.invalid:5432/manager
           DB_SNAPSHOT_S3_URI: s3://manager-db-backups/dry-run
         run: python scripts/db_snapshot_restore.py backup --dry-run
       - name: Run encrypted Postgres snapshot
-        if: ${{ env.DB_SNAPSHOT_DATABASE_URL != '' && env.DB_SNAPSHOT_S3_URI != '' }}
+        if: ${{ !inputs.dry_run && env.DB_SNAPSHOT_DATABASE_URL != '' && env.DB_SNAPSHOT_S3_URI != '' }}
         run: python scripts/db_snapshot_restore.py backup
