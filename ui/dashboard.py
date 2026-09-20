@@ -21,7 +21,7 @@ from api.activism import (
 )
 from api.signals import query_contrarian_signals, query_conviction_scores, query_crowded_trades
 
-from . import require_login
+from . import ALERTS_URL_PATH, require_login
 
 
 def _api_base_url() -> str:
@@ -1210,14 +1210,22 @@ def main() -> None:
         st.stop()
     alert_count = load_unacknowledged_alert_count()
     st.sidebar.markdown("### Navigation")
+    badge = (
+        "<span style='background:#d7263d;color:white;border-radius:999px;padding:2px 8px;"
+        "font-size:12px;font-weight:700;'>"
+        f"{alert_count}</span>"
+    )
+    if os.getenv("UI_OFFLINE") == "1":
+        alerts_affordance = f"<span>Alerts</span>{badge}"
+    else:
+        alerts_affordance = (
+            f"<a href='/{ALERTS_URL_PATH}' target='_self' "
+            "style='color:inherit;text-decoration:none;' "
+            f"aria-label='Open Alerts, {alert_count} unacknowledged'>"
+            f"Alerts {badge}</a>"
+        )
     st.sidebar.markdown(
-        (
-            "<div style='display:flex;align-items:center;gap:8px;'>"
-            "<span>Alerts</span>"
-            "<span style='background:#d7263d;color:white;border-radius:999px;padding:2px 8px;"
-            "font-size:12px;font-weight:700;'>"
-            f"{alert_count}</span></div>"
-        ),
+        "<div style='display:flex;align-items:center;gap:8px;'>" f"{alerts_affordance}</div>",
         unsafe_allow_html=True,
     )
     st.sidebar.metric("Unacknowledged Alerts", alert_count)
