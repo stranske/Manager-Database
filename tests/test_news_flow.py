@@ -509,6 +509,25 @@ def test_inserted_news_items_keeps_rows_when_either_identity_key_is_null():
     assert inserted == items
 
 
+def test_inserted_news_items_queries_stored_identity_once_per_batch():
+    conn = sqlite3.connect(":memory:")
+    queries = []
+    try:
+        _create_news_items_table(conn)
+        stored = {"url": "https://example.com/stored", "published_at": "2026-01-01"}
+        conn.execute(
+            "INSERT INTO news_items (url, published_at, source, headline) VALUES (?, ?, ?, ?)",
+            (stored["url"], stored["published_at"], "rss", "Stored headline"),
+        )
+        conn.set_trace_callback(queries.append)
+        inserted = news_flow.inserted_news_items([stored, dict(stored)], conn)
+    finally:
+        conn.close()
+
+    assert inserted == []
+    assert sum("SELECT 1 FROM news_items" in query for query in queries) == 1
+
+
 @pytest.mark.asyncio
 async def test_news_flow_alert_counts_only_new_persisted_identities(monkeypatch, tmp_path):
     db_path = tmp_path / "news.db"
@@ -556,6 +575,8 @@ async def test_news_flow_alert_counts_only_new_persisted_identities(monkeypatch,
     assert len(events) == 1
     assert events[0].event_type == "news_spike"
     assert events[0].payload["news_count"] == 1
+    assert events[0].payload["headlines"] == [item["headline"]]
+    assert events[0].payload["sources"] == [item["source"]]
 
     second = await news_flow.news_flow.fn(sources=["rss"])
 

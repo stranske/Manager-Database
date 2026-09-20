@@ -332,7 +332,7 @@ def persist_news(items: list[dict[str, Any]], conn: Any) -> int:
 
 
 def inserted_news_items(items: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:
-    """Return candidates new to the table and unique within this batch."""
+    """Return new candidates, deduplicating only non-null URL/date identities."""
     ph = get_placeholder(conn)
     inserted_items: list[dict[str, Any]] = []
     pending_identities: set[tuple[Any, Any]] = set()
@@ -342,14 +342,14 @@ def inserted_news_items(items: list[dict[str, Any]], conn: Any) -> list[dict[str
         identity = (url, published_at) if url is not None and published_at is not None else None
         if identity is not None and identity in pending_identities:
             continue
+        if identity is not None:
+            pending_identities.add(identity)
         row = conn.execute(
             f"SELECT 1 FROM news_items WHERE url = {ph} AND published_at = {ph} LIMIT 1",
             (url, published_at),
         ).fetchone()
         if row is None:
             inserted_items.append(item)
-            if identity is not None:
-                pending_identities.add(identity)
     return inserted_items
 
 
