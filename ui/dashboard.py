@@ -1220,7 +1220,8 @@ def main() -> None:
     else:
         alerts_affordance = (
             f"<a href='/{ALERTS_URL_PATH}' target='_self' "
-            "style='color:inherit;text-decoration:none;' aria-label='Open Alerts'>"
+            "style='color:inherit;text-decoration:none;' "
+            f"aria-label='Open Alerts, {alert_count} unacknowledged'>"
             f"Alerts {badge}</a>"
         )
     st.sidebar.markdown(

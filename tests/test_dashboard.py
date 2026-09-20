@@ -1541,6 +1541,7 @@ def test_main_renders_alert_badge_and_metric(monkeypatch, offline):
     assert fake_st.sidebar.markdowns[0] == "### Navigation"
     assert "Alerts" in fake_st.sidebar.markdowns[1]
     assert ("href='/alerts'" in fake_st.sidebar.markdowns[1]) is not offline
+    assert ("aria-label='Open Alerts, 3 unacknowledged'" in fake_st.sidebar.markdowns[1]) is not offline
     assert ">3<" in fake_st.sidebar.markdowns[1]
     assert fake_st.sidebar.metrics == [("Unacknowledged Alerts", 3)]
     assert fake_st.headers == ["Holdings Delta"]
