@@ -95,6 +95,14 @@ def test_saved_legacy_new_filing_rule_matches_edgar_event(tmp_path):
             )
             == []
         )
+        assert (
+            AlertEngine(conn).evaluate(
+                build_new_filing_event(
+                    filing_id=44, manager_id=1, filing_type="13F-HR", payload={"source": "manual"}
+                )
+            )
+            == []
+        )
     finally:
         conn.close()
 

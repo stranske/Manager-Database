@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import date
 from typing import Any
@@ -674,6 +675,20 @@ def test_condition_inputs_new_filing_reads_saved_legacy_defaults(monkeypatch):
     assert calls["source"][0][calls["source"][1]] == "edgar"
 
 
+def test_condition_inputs_new_filing_reads_current_defaults(monkeypatch):
+    fake_st = _ConditionStreamlit()
+    monkeypatch.setattr(alerts_ui, "st", fake_st)
+
+    condition = alerts_ui._condition_inputs(
+        "new_filing", defaults={"type": "13D", "source": "manual"}
+    )
+
+    assert condition == {"type": "13D", "source": "manual"}
+    calls = {label: (options, index) for label, options, index in fake_st.selectbox_calls}
+    assert calls["filing_type"][0][calls["filing_type"][1]] == "13D"
+    assert calls["source"][0][calls["source"][1]] == "manual"
+
+
 def test_new_filing_ui_condition_matches_edgar_event(monkeypatch):
     fake_st = _ConditionStreamlit()
     monkeypatch.setattr(alerts_ui, "st", fake_st)
@@ -686,17 +701,26 @@ def test_new_filing_ui_condition_matches_edgar_event(monkeypatch):
     )
 
     assert condition == {"type": "13F-HR", "source": "edgar"}
-    engine = AlertEngine(sqlite3.connect(":memory:"))
-    assert engine._evaluate_condition(condition, event) is True
-    assert (
-        engine._evaluate_condition(
-            condition,
-            build_new_filing_event(
-                filing_id=43, manager_id=1, filing_type="13D", payload={"source": "edgar"}
-            ),
+    conn = sqlite3.connect(":memory:")
+    try:
+        engine = AlertEngine(conn)
+        conn.execute(
+            """INSERT INTO alert_rules
+               (name, event_type, condition_json, channels, enabled, manager_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            ("UI new filing", "new_filing", json.dumps(condition), '["streamlit"]', 1, 1),
         )
-        is False
-    )
+        assert len(engine.evaluate(event)) == 1
+        assert (
+            engine.evaluate(
+                build_new_filing_event(
+                    filing_id=43, manager_id=1, filing_type="13D", payload={"source": "edgar"}
+                )
+            )
+            == []
+        )
+    finally:
+        conn.close()
 
 
 @pytest.mark.parametrize(
