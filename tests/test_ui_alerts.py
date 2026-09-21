@@ -224,7 +224,7 @@ def test_render_alert_inbox_acknowledges_single_alert(monkeypatch):
 
 def test_render_alert_inbox_acknowledges_all(monkeypatch):
     fake_st = _FakeStreamlit(
-        select_values={"event_type": "all", "acknowledged": "all"},
+        select_values={"event_type": "large_delta", "acknowledged": "unacknowledged"},
         date_range=(date(2026, 3, 1), date(2026, 3, 2)),
         button_presses={("Acknowledge All", None): True},
     )
@@ -236,7 +236,7 @@ def test_render_alert_inbox_acknowledges_all(monkeypatch):
             {
                 "alert_id": 20,
                 "rule_name": "Rule 20",
-                "event_type": "new_filing",
+                "event_type": "large_delta",
                 "payload_json": {"filing_type": "13F-HR"},
                 "fired_at": "2026-03-01T09:00:00+00:00",
                 "acknowledged": False,
@@ -258,7 +258,19 @@ def test_render_alert_inbox_acknowledges_all(monkeypatch):
     with pytest.raises(_RerunTriggered):
         alerts_ui._render_alert_inbox()
 
-    assert api_calls == [("POST", "/api/alerts/history/acknowledge-all", {"by": "ui"})]
+    assert api_calls == [
+        (
+            "POST",
+            "/api/alerts/history/acknowledge-all",
+            {
+                "by": "ui",
+                "since": "2026-03-01T00:00:00",
+                "until": "2026-03-03T00:00:00",
+                "acknowledged": False,
+                "event_type": "large_delta",
+            },
+        )
+    ]
     assert fake_st.successes == ["Acknowledged 1 alerts"]
     assert cleared["value"] is True
 

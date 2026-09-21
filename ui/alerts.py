@@ -101,10 +101,13 @@ def _load_alerts(
     acknowledged: bool | None,
     event_type: str | None,
     limit: int,
+    until_iso: str | None = None,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"limit": limit}
     if since_iso is not None:
         params["since"] = since_iso
+    if until_iso is not None:
+        params["until"] = until_iso
     if acknowledged is not None:
         params["acknowledged"] = acknowledged
     if event_type:
@@ -365,11 +368,15 @@ def _render_alert_inbox() -> None:
         start_date = date.today() - timedelta(days=30)
         end_date = date.today()
 
+    since_iso = f"{start_date.isoformat()}T00:00:00"
+    until_iso = f"{(end_date + timedelta(days=1)).isoformat()}T00:00:00"
+    active_type = None if selected_type == "all" else selected_type
     alerts = _load_alerts(
-        f"{start_date.isoformat()}T00:00:00",
+        since_iso,
         selected_ack,
-        None if selected_type == "all" else selected_type,
+        active_type,
         500,
+        until_iso=until_iso,
     )
 
     filtered: list[dict[str, Any]] = []
@@ -381,9 +388,12 @@ def _render_alert_inbox() -> None:
         filtered.append(alert)
 
     if st.button("Acknowledge All"):
-        ok, payload = _api_request(
-            "POST", "/api/alerts/history/acknowledge-all", params={"by": "ui"}
-        )
+        params: dict[str, Any] = {"by": "ui", "since": since_iso, "until": until_iso}
+        if selected_ack is not None:
+            params["acknowledged"] = selected_ack
+        if active_type is not None:
+            params["event_type"] = active_type
+        ok, payload = _api_request("POST", "/api/alerts/history/acknowledge-all", params=params)
         if ok:
             st.success(f"Acknowledged {payload['acknowledged']} alerts")
             _clear_alert_caches()

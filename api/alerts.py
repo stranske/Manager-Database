@@ -73,6 +73,36 @@ def _to_alert_response(row: tuple[Any, ...]) -> AlertHistoryResponse:
     )
 
 
+def _history_where(
+    conn: Any,
+    *,
+    since: datetime | None,
+    until: datetime | None,
+    acknowledged: bool | None,
+    event_type: str | None,
+    prefix: str = "",
+) -> tuple[str, list[Any]]:
+    """Build the same history filters for listing and bulk acknowledgement."""
+    ph = get_placeholder(conn)
+    clauses: list[str] = []
+    params: list[Any] = []
+    if since is not None:
+        clauses.append(f"{prefix}fired_at >= {ph}")
+        params.append(since.isoformat(sep=" "))
+    if until is not None:
+        clauses.append(f"{prefix}fired_at < {ph}")
+        params.append(until.isoformat(sep=" "))
+    if acknowledged is not None:
+        clauses.append(f"{prefix}acknowledged = {ph}")
+        params.append(
+            1 if is_sqlite(conn) and acknowledged else 0 if is_sqlite(conn) else acknowledged
+        )
+    if event_type is not None:
+        clauses.append(f"{prefix}event_type = {ph}")
+        params.append(event_type)
+    return " AND ".join(clauses), params
+
+
 @router.post("/api/alerts/rules", response_model=AlertRule, status_code=201)
 async def create_rule(rule: AlertRuleCreate) -> AlertRule:
     """Create a new alert rule."""
@@ -292,6 +322,7 @@ async def delete_rule(rule_id: int = Path(..., ge=1, description="Alert rule ide
 @router.get("/api/alerts/history", response_model=list[AlertHistoryResponse])
 async def list_alerts(
     since: datetime | None = None,
+    until: datetime | None = None,
     acknowledged: bool | None = None,
     event_type: str | None = None,
     limit: int = Query(100, ge=1, le=1000),
@@ -308,20 +339,15 @@ async def list_alerts(
         conn = connect_db()
         ensure_alert_tables(conn)
         ph = get_placeholder(conn)
-        where_clauses: list[str] = []
-        params: list[Any] = []
-        if since is not None:
-            where_clauses.append(f"ah.fired_at >= {ph}")
-            params.append(since.isoformat(sep=" "))
-        if acknowledged is not None:
-            where_clauses.append(f"ah.acknowledged = {ph}")
-            params.append(
-                1 if is_sqlite(conn) and acknowledged else 0 if is_sqlite(conn) else acknowledged
-            )
-        if event_type is not None:
-            where_clauses.append(f"ah.event_type = {ph}")
-            params.append(event_type)
-        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        conditions, params = _history_where(
+            conn,
+            since=since,
+            until=until,
+            acknowledged=acknowledged,
+            event_type=event_type,
+            prefix="ah.",
+        )
+        where_sql = f"WHERE {conditions}" if conditions else ""
         params.append(limit)
         cursor = conn.execute(
             f"""SELECT ah.alert_id, ar.name AS rule_name, ah.event_type, ah.payload_json,
@@ -397,20 +423,43 @@ async def acknowledge_alert(
 
 
 @router.post("/api/alerts/history/acknowledge-all")
-async def acknowledge_all(by: str = Query("user", min_length=1, max_length=120)) -> dict[str, int]:
-    """Acknowledge all unacknowledged alerts. Returns {"acknowledged": N}."""
+async def acknowledge_all(
+    by: str = Query("user", min_length=1, max_length=120),
+    since: datetime | None = None,
+    until: datetime | None = None,
+    acknowledged: bool | None = None,
+    event_type: str | None = None,
+) -> dict[str, int]:
+    """Acknowledge unacknowledged alerts matching the history filters."""
     by = _normalize_actor(by)
+    if event_type is not None:
+        try:
+            event_type = normalize_event_type(event_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     conn = None
     try:
         conn = connect_db()
         ensure_alert_tables(conn)
         ph = get_placeholder(conn)
         now = datetime.now(UTC).isoformat(sep=" ")
+        conditions, filter_params = _history_where(
+            conn, since=since, until=until, acknowledged=acknowledged, event_type=event_type
+        )
+        where_sql = f"acknowledged = {ph}"
+        if conditions:
+            where_sql += f" AND {conditions}"
         cursor = conn.execute(
             f"""UPDATE alert_history
                 SET acknowledged = {ph}, acknowledged_by = {ph}, acknowledged_at = {ph}
-                WHERE acknowledged = {ph}""",
-            (1 if is_sqlite(conn) else True, by, now, 0 if is_sqlite(conn) else False),
+                WHERE {where_sql}""",
+            (
+                1 if is_sqlite(conn) else True,
+                by,
+                now,
+                0 if is_sqlite(conn) else False,
+                *filter_params,
+            ),
         )
         if is_sqlite(conn):
             conn.commit()
