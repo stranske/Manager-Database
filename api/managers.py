@@ -528,8 +528,8 @@ def _manager_filter_clauses(
         else:
             clauses.append(
                 "(LOWER(name) LIKE %s ESCAPE '\\' OR EXISTS "
-                "(SELECT 1 FROM unnest(COALESCE(aliases, ARRAY[]::text[])) AS alias "
-                "WHERE LOWER(alias) LIKE %s ESCAPE '\\'))"
+                "(SELECT 1 FROM unnest(COALESCE(aliases, ARRAY[]::text[])) AS alias(value) "
+                "WHERE LOWER(alias.value) LIKE %s ESCAPE '\\'))"
             )
         params.extend([pattern, pattern])
     if name:

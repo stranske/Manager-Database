@@ -359,6 +359,12 @@ def test_list_managers_search_and_name_filters(tmp_path, monkeypatch):
     payloads = [
         {"name": "OnlyOne Capital", "aliases": ["Singular Partners"]},
         {"name": "Other Manager", "aliases": ["Alternative Holdings"]},
+        {"name": "Percent% Capital"},
+        {"name": "PercentX Capital"},
+        {"name": "Under_score Capital"},
+        {"name": "UnderXscore Capital"},
+        {"name": r"Back\slash Capital"},
+        {"name": "BackXslash Capital"},
     ]
     for payload in payloads:
         resp = asyncio.run(_post_manager(payload))
@@ -366,7 +372,7 @@ def test_list_managers_search_and_name_filters(tmp_path, monkeypatch):
 
     unfiltered = asyncio.run(_get_managers())
     assert unfiltered.status_code == 200
-    assert unfiltered.json()["total"] == 2
+    assert unfiltered.json()["total"] == 8
 
     name_filtered = asyncio.run(_get_managers({"name": "onlyone"}))
     assert name_filtered.status_code == 200
@@ -377,6 +383,21 @@ def test_list_managers_search_and_name_filters(tmp_path, monkeypatch):
     assert search_filtered.status_code == 200
     assert search_filtered.json()["total"] == 1
     assert [item["name"] for item in search_filtered.json()["items"]] == ["OnlyOne Capital"]
+
+    direct_name_search = asyncio.run(_get_managers({"search": "other manager"}))
+    assert direct_name_search.status_code == 200
+    assert direct_name_search.json()["total"] == 1
+    assert [item["name"] for item in direct_name_search.json()["items"]] == ["Other Manager"]
+
+    for term, expected_name in [
+        ("%", "Percent% Capital"),
+        ("_", "Under_score Capital"),
+        ("\\", r"Back\slash Capital"),
+    ]:
+        literal_search = asyncio.run(_get_managers({"search": term}))
+        assert literal_search.status_code == 200
+        assert literal_search.json()["total"] == 1
+        assert [item["name"] for item in literal_search.json()["items"]] == [expected_name]
 
 
 def test_manager_list_filter_by_jurisdiction_and_tag_returns_subset(tmp_path, monkeypatch):
@@ -1229,6 +1250,8 @@ def test_manager_postgres_list_filters_use_portable_array_and_like_predicates():
 
     statement, params = conn.executed[0]
     assert "unnest(COALESCE(aliases, ARRAY[]::text[]))" in statement
+    assert "AS alias(value)" in statement
+    assert "LOWER(alias.value) LIKE %s" in statement
     assert "LOWER(name) LIKE %s" in statement
     assert params == ["%singular%", "%singular%", "only%", 25, 0]
 
