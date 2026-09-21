@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from alerts.db import ensure_alert_tables, fetch_rule_by_id, insert_pending_alert, rule_from_row
+from alerts.engine import AlertEngine
 from alerts.integration import (
     build_new_filing_event,
     evaluate_and_record_alerts,
@@ -67,6 +69,42 @@ def test_build_new_filing_event_populates_expected_payload():
 def test_build_new_filing_event_requires_type():
     with pytest.raises(ValueError, match="filing_type is required"):
         build_new_filing_event(filing_id=1, manager_id=1)
+
+
+def test_saved_legacy_new_filing_rule_matches_edgar_event(tmp_path):
+    conn = _setup_db(tmp_path / "legacy-alerts.db")
+    try:
+        rule_id = _insert_rule(conn)
+        conn.execute(
+            "UPDATE alert_rules SET condition_json = ? WHERE rule_id = ?",
+            (json.dumps({"filing_type": "13F-HR", "source": "sec"}), rule_id),
+        )
+        event = build_new_filing_event(
+            filing_id=42,
+            manager_id=1,
+            filing_type="13F-HR",
+            payload={"accession": "0000000000-24-000001", "source": "edgar"},
+        )
+
+        assert len(AlertEngine(conn).evaluate(event)) == 1
+        assert (
+            AlertEngine(conn).evaluate(
+                build_new_filing_event(
+                    filing_id=43, manager_id=1, filing_type="13D", payload={"source": "edgar"}
+                )
+            )
+            == []
+        )
+        assert (
+            AlertEngine(conn).evaluate(
+                build_new_filing_event(
+                    filing_id=44, manager_id=1, filing_type="13F-HR", payload={"source": "manual"}
+                )
+            )
+            == []
+        )
+    finally:
+        conn.close()
 
 
 def test_evaluate_and_record_alerts_persists_alert_history(tmp_path):

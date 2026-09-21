@@ -183,18 +183,20 @@ def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -
         return {"delta_type": delta_type, "value_usd_gt": value_usd_gt}
     if event_type == "new_filing":
         filing_options = ["13F-HR", "13D", "13G"]
-        default_filing = str(defaults.get("filing_type") or "13F-HR")
+        default_filing = str(defaults.get("type") or defaults.get("filing_type") or "13F-HR")
         filing_index = (
             filing_options.index(default_filing) if default_filing in filing_options else 0
         )
         filing_type = st.selectbox("filing_type", filing_options, index=filing_index)
-        source_options = ["sec", "manual"]
-        default_source = str(defaults.get("source") or "sec")
+        source_options = ["edgar", "manual"]
+        default_source = str(defaults.get("source") or "edgar")
+        if default_source == "sec":
+            default_source = "edgar"
         source_index = (
             source_options.index(default_source) if default_source in source_options else 0
         )
         source = st.selectbox("source", source_options, index=source_index)
-        return {"filing_type": filing_type, "source": source}
+        return {"type": filing_type, "source": source}
     # Every other ALERT_EVENT_TYPES member (news_spike, crowded_trade_change,
     # contrarian_signal, missing_filing, etl_failure) falls through to here. This used to
     # render a "field"/"changed_to" filter and return it unconditionally -- but no event
