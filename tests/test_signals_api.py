@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -326,7 +327,7 @@ def test_conviction_scores_rejects_non_finite_min_conviction_pct(tmp_path, monke
     _seed_db(db_path)
     monkeypatch.setenv("DB_PATH", str(db_path))
 
-    for invalid_value in ("nan", "inf", "100.01"):
+    for invalid_value in ("not-a-number", "-0.01", "nan", "inf", "100.01"):
         response = asyncio.run(
             _request(
                 "/api/signals/conviction/1",
@@ -339,13 +340,31 @@ def test_conviction_scores_rejects_non_finite_min_conviction_pct(tmp_path, monke
             error["loc"] == ["query", "min_conviction_pct"] for error in response.json()["detail"]
         )
 
-    finite_response = asyncio.run(
-        _request(
-            "/api/signals/conviction/1",
-            params={"min_conviction_pct": "0.5"},
+    for valid_value in ("0", "0.5", "100"):
+        finite_response = asyncio.run(
+            _request(
+                "/api/signals/conviction/1",
+                params={"min_conviction_pct": valid_value},
+            )
         )
+        assert finite_response.status_code == 200
+
+    parameter = next(
+        parameter
+        for parameter in app.openapi()["paths"]["/api/signals/conviction/{manager_id}"]["get"][
+            "parameters"
+        ]
+        if parameter["name"] == "min_conviction_pct"
     )
-    assert finite_response.status_code == 200
+    assert parameter["schema"]["type"] == "number"
+    assert parameter["schema"]["minimum"] == 0.0
+    assert parameter["schema"]["maximum"] == 100.0
+
+
+def test_query_conviction_scores_rejects_invalid_minimums():
+    for invalid_value in (float("nan"), float("inf"), -0.01, 100.01):
+        with pytest.raises(ValueError, match="finite and between 0 and 100"):
+            query_conviction_scores(None, 1, min_conviction_pct=invalid_value)
 
 
 def test_get_conviction_scores_exposes_optional_short_interest_context(tmp_path, monkeypatch):

@@ -474,7 +474,13 @@ async def get_contrarian_signals(
 async def get_conviction_scores(
     manager_id: int,
     filing_id: int | None = None,
-    min_conviction_pct: str = Query("0.0"),
+    # Parse explicitly so this repository's validation-error handler cannot turn
+    # a query-field failure into HTTP 400. json_schema_extra preserves the public
+    # numeric OpenAPI contract and its bounds for generated clients.
+    min_conviction_pct: str = Query(
+        "0.0",
+        json_schema_extra={"type": "number", "minimum": 0.0, "maximum": 100.0},
+    ),
     limit: int = Query(100, ge=1, le=500),
 ) -> list[ConvictionScoreResponse]:
     parsed_min_conviction_pct = _parse_min_conviction_pct(min_conviction_pct)
