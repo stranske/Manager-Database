@@ -353,6 +353,32 @@ def test_manager_list_filter_by_tag_returns_subset(tmp_path, monkeypatch):
     assert {tuple(item["tags"]) for item in body["items"]} == {("activist",)}
 
 
+def test_list_managers_search_and_name_filters(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "OnlyOne Capital", "aliases": ["Singular Partners"]},
+        {"name": "Other Manager", "aliases": ["Alternative Holdings"]},
+    ]
+    for payload in payloads:
+        resp = asyncio.run(_post_manager(payload))
+        assert resp.status_code == 201
+
+    unfiltered = asyncio.run(_get_managers())
+    assert unfiltered.status_code == 200
+    assert unfiltered.json()["total"] == 2
+
+    name_filtered = asyncio.run(_get_managers({"name": "onlyone"}))
+    assert name_filtered.status_code == 200
+    assert name_filtered.json()["total"] == 1
+    assert [item["name"] for item in name_filtered.json()["items"]] == ["OnlyOne Capital"]
+
+    search_filtered = asyncio.run(_get_managers({"search": "singular"}))
+    assert search_filtered.status_code == 200
+    assert search_filtered.json()["total"] == 1
+    assert [item["name"] for item in search_filtered.json()["items"]] == ["OnlyOne Capital"]
+
+
 def test_manager_list_filter_by_jurisdiction_and_tag_returns_subset(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -1178,13 +1204,33 @@ class _PostgresLikeConn:
 def test_manager_postgres_queries_use_canonical_manager_id_column():
     conn = _PostgresLikeConn()
 
-    managers_module._fetch_managers(conn, "postgres://test", 25, 0, None, None)
+    managers_module._fetch_managers(conn, "postgres://test", 25, 0, None, None, None, None)
     managers_module._fetch_manager(conn, "postgres://test", 123)
 
     statements = [sql for sql, _params in conn.executed]
     assert statements[0].startswith("SELECT manager_id, name")
     assert "ORDER BY manager_id" in statements[0]
     assert "WHERE manager_id = %s" in statements[1]
+
+
+def test_manager_postgres_list_filters_use_portable_array_and_like_predicates():
+    conn = _PostgresLikeConn()
+
+    managers_module._fetch_managers(
+        conn,
+        "postgres://test",
+        25,
+        0,
+        None,
+        None,
+        "singular",
+        "only",
+    )
+
+    statement, params = conn.executed[0]
+    assert "unnest(COALESCE(aliases, ARRAY[]::text[]))" in statement
+    assert "LOWER(name) LIKE %s" in statement
+    assert params == ["%singular%", "%singular%", "only%", 25, 0]
 
 
 def test_manager_postgres_writes_return_and_filter_by_manager_id():
