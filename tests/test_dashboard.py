@@ -463,6 +463,31 @@ def test_load_delta_returns_empty_frame_without_filings_table(tmp_path: Path, mo
     assert list(df.columns) == ["date", "filings"]
 
 
+@pytest.mark.parametrize("has_filings_table", [False, True])
+def test_load_delta_closes_connection_on_empty_or_query_error(monkeypatch, has_filings_table):
+    class ConnectionSpy:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    conn = ConnectionSpy()
+    monkeypatch.setattr(dashboard, "connect_db", lambda: conn)
+    monkeypatch.setattr(dashboard, "table_exists", lambda connection, table: has_filings_table)
+
+    def query_fails(*_args, **_kwargs):
+        raise RuntimeError("query failed")
+
+    monkeypatch.setattr(dashboard.pd, "read_sql_query", query_fails)
+    if has_filings_table:
+        with pytest.raises(RuntimeError, match="query failed"):
+            load_delta()
+    else:
+        assert load_delta().empty
+
+    assert conn.closed
+
+
 def test_historical_filing_trend_labels_empty_state(monkeypatch):
     captions: list[str] = []
     monkeypatch.setattr(dashboard, "load_delta", lambda: pd.DataFrame(columns=["date", "filings"]))
