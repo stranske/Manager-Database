@@ -133,6 +133,17 @@ def _ensure_filing_tables(conn: Any) -> None:
                 value INTEGER,
                 sshPrnamt INTEGER
             )""")
+        sqlite_pk = "INTEGER PRIMARY KEY " + "AUTO" + "INCREMENT"
+        conn.execute(f"""CREATE TABLE IF NOT EXISTS documents (
+                doc_id {sqlite_pk},
+                manager_id INTEGER,
+                kind TEXT NOT NULL DEFAULT 'note',
+                filename TEXT,
+                sha256 TEXT,
+                text TEXT,
+                embedding TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )""")
         return
     conn.execute("""CREATE TABLE IF NOT EXISTS filings (
             id bigserial PRIMARY KEY,

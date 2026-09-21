@@ -136,6 +136,14 @@ class _TransactionalConn:
         return []
 
 
+class _MockDbCursor:
+    def fetchall(self):
+        return []
+
+    def fetchone(self):
+        return None
+
+
 class _PostgresAutocommitConn:
     def __init__(self):
         self.autocommit = True
@@ -146,7 +154,7 @@ class _PostgresAutocommitConn:
 
     def execute(self, sql, params=()):
         self.sql.append((sql, tuple(params)))
-        return []
+        return _MockDbCursor()
 
     def commit(self):
         self.commits += 1
@@ -329,6 +337,8 @@ async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(mon
     monkeypatch.setattr(ingest_flow, "connect_db", lambda _db_path: conn)
     monkeypatch.setattr(ingest_flow, "_ensure_filing_tables", record_ensure_tables)
     monkeypatch.setattr(ingest_flow, "_lookup_manager_id", record_lookup)
+    monkeypatch.setattr(ingest_flow, "acquire_manager_ingestion_lock", lambda _conn, _mid: True)
+    monkeypatch.setattr(ingest_flow, "release_manager_ingestion_lock", lambda _conn, _mid: None)
     monkeypatch.setattr(ingest_flow, "_insert_filing", record_insert_filing)
     monkeypatch.setattr(ingest_flow, "store_document", record_document)
     monkeypatch.setattr(ingest_flow, "_replace_holdings_rows", record_replace_holdings)
