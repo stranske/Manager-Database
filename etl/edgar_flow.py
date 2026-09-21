@@ -19,6 +19,7 @@ from adapters.base import (
     get_adapter,
     get_placeholder,
     get_table_columns,
+    table_exists,
 )
 from adapters.openfigi import resolve_holding_identifiers
 from alerts.integration import build_new_filing_event, fire_alerts_for_event
@@ -88,7 +89,18 @@ def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
     ).fetchone()
     if not row or row[0] is None:
         return None
-    return int(row[0])
+    manager_id = int(row[0])
+    if table_exists(conn, "manager_deletion_operations"):
+        marker = get_placeholder(conn)
+        active = conn.execute(
+            "SELECT 1 FROM manager_deletion_operations "
+            f"WHERE manager_id = {marker} AND state IN "
+            "('blocked', 'deleting_objects', 'object_failed', 'purging_relational') LIMIT 1",
+            (manager_id,),
+        ).fetchone()
+        if active is not None:
+            return None
+    return manager_id
 
 
 def _ensure_legacy_tables(conn: Any) -> None:
@@ -102,9 +114,13 @@ def _ensure_legacy_tables(conn: Any) -> None:
                 source TEXT NOT NULL,
                 url TEXT,
                 raw_key TEXT UNIQUE,
+                storage_key TEXT,
                 parsed_payload TEXT,
                 schema_version INTEGER
             )""")
+        filing_columns = get_table_columns(conn, "filings")
+        if "storage_key" not in filing_columns:
+            conn.execute("ALTER TABLE filings ADD COLUMN storage_key TEXT")
         conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
                 holding_id INTEGER PRIMARY KEY,
                 filing_id INTEGER NOT NULL,
@@ -137,10 +153,12 @@ def _ensure_legacy_tables(conn: Any) -> None:
             source text NOT NULL,
             url text,
             raw_key text,
+            storage_key text,
             parsed_payload jsonb,
             schema_version int DEFAULT 1,
             created_at timestamptz DEFAULT now()
         )""")
+    conn.execute("ALTER TABLE filings ADD COLUMN IF NOT EXISTS storage_key text")
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_filings_raw_key_unique "
         "ON filings (raw_key) WHERE raw_key IS NOT NULL"
@@ -176,6 +194,7 @@ def _upsert_filing_legacy(
             "filed_date": filed_date,
             "source": "edgar",
             "raw_key": raw_key,
+            "storage_key": raw_key,
             "parsed_payload": payload,
         }
         insert_columns = [column for column in values if column in columns]
@@ -203,16 +222,23 @@ def _upsert_filing_legacy(
             "SELECT filing_id FROM filings WHERE raw_key = ?", (raw_key,)
         ).fetchone()
         return int(existing[0]) if existing and existing[0] is not None else 0
+    columns = get_table_columns(conn, "filings")
+    storage_columns = ", storage_key" if "storage_key" in columns else ""
+    storage_values = ", %s" if "storage_key" in columns else ""
+    storage_update = ", storage_key = EXCLUDED.storage_key" if "storage_key" in columns else ""
+    params: tuple[Any, ...] = (manager_id, filing_type, filed_date, "edgar", raw_key, payload)
+    if "storage_key" in columns:
+        params = (*params, raw_key)
     row = conn.execute(
-        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload) "
-        "VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
+        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload"
+        f"{storage_columns}) VALUES (%s, %s, %s, %s, %s, %s::jsonb{storage_values}) "
         "ON CONFLICT (raw_key) WHERE raw_key IS NOT NULL DO UPDATE SET "
         "manager_id = EXCLUDED.manager_id, "
         "type = EXCLUDED.type, "
         "filed_date = EXCLUDED.filed_date, "
-        "parsed_payload = EXCLUDED.parsed_payload "
+        f"parsed_payload = EXCLUDED.parsed_payload{storage_update} "
         "RETURNING filing_id",
-        (manager_id, filing_type, filed_date, "edgar", raw_key, payload),
+        params,
     ).fetchone()
     return int(row[0]) if row and row[0] is not None else 0
 

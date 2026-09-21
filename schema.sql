@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS filings (
     source text NOT NULL,
     url text,
     raw_key text,
+    storage_key text,
     parsed_payload jsonb,
     schema_version int DEFAULT 1,
     created_at timestamptz DEFAULT now()
@@ -415,6 +416,29 @@ CREATE INDEX IF NOT EXISTS idx_document_managers_manager
 INSERT INTO document_managers (doc_id, manager_id)
     SELECT doc_id, manager_id FROM documents WHERE manager_id IS NOT NULL
     ON CONFLICT (doc_id, manager_id) DO NOTHING;
+
+-- Durable, resumable erasure manifest. These rows intentionally do not carry a
+-- manager FK: they must survive deletion for retry/audit evidence, and manager
+-- identifiers can be reused by legacy SQLite databases.
+CREATE TABLE IF NOT EXISTS manager_deletion_operations (
+    operation_id text PRIMARY KEY,
+    manager_id bigint NOT NULL,
+    state text NOT NULL,
+    ambiguous_keys jsonb NOT NULL DEFAULT '[]'::jsonb,
+    error text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    completed_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS manager_deletion_objects (
+    operation_id text NOT NULL REFERENCES manager_deletion_operations(operation_id)
+        ON DELETE CASCADE,
+    bucket text NOT NULL,
+    object_key text NOT NULL,
+    state text NOT NULL DEFAULT 'pending',
+    error text,
+    PRIMARY KEY (operation_id, bucket, object_key)
+);
 
 CREATE TABLE IF NOT EXISTS daily_diffs (
     diff_id bigserial PRIMARY KEY,

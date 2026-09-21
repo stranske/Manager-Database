@@ -20,6 +20,7 @@ from adapters.base import (
     get_placeholder,
     get_table_columns,
     is_sqlite,
+    table_exists,
 )
 from adapters.base import (
     manager_id_column as shared_manager_id_column,
@@ -99,9 +100,13 @@ def _ensure_filing_tables(conn: Any) -> None:
                 external_id TEXT NOT NULL,
                 filed_date TEXT,
                 type TEXT,
+                storage_key TEXT,
                 parsed_payload TEXT
             )""")
         filing_columns = _table_columns(conn, "filings")
+        if "storage_key" not in filing_columns:
+            conn.execute("ALTER TABLE filings ADD COLUMN storage_key TEXT")
+            filing_columns.add("storage_key")
         if {"source", "external_id"}.issubset(filing_columns):
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS filings_source_external_idx "
@@ -109,7 +114,7 @@ def _ensure_filing_tables(conn: Any) -> None:
             )
         elif "raw_key" in filing_columns:
             conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS filings_raw_key_idx " "ON filings(raw_key)"
+                "CREATE UNIQUE INDEX IF NOT EXISTS filings_raw_key_idx ON filings(raw_key)"
             )
         conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
                 id INTEGER PRIMARY KEY,
@@ -131,8 +136,10 @@ def _ensure_filing_tables(conn: Any) -> None:
             external_id text NOT NULL,
             filed_date date,
             type text,
+            storage_key text,
             parsed_payload jsonb
         )""")
+    conn.execute("ALTER TABLE filings ADD COLUMN IF NOT EXISTS storage_key text")
     filing_columns = _table_columns(conn, "filings")
     if {"source", "external_id"}.issubset(filing_columns):
         conn.execute(
@@ -195,7 +202,21 @@ def _lookup_manager_id(conn: Any, jurisdiction: str, identifier: str) -> int | N
         return None
     if not row or row[0] is None:
         return None
-    return int(row[0])
+    manager_id = int(row[0])
+    if table_exists(conn, "manager_deletion_operations"):
+        active = conn.execute(
+            "SELECT 1 FROM manager_deletion_operations "
+            f"WHERE manager_id = {marker} AND state IN "
+            "('blocked', 'deleting_objects', 'object_failed', 'purging_relational') LIMIT 1",
+            (manager_id,),
+        ).fetchone()
+        if active is not None:
+            logger.warning(
+                "Manager deletion is active; skipping ingestion",
+                extra={"manager_id": manager_id, "jurisdiction": jurisdiction},
+            )
+            return None
+    return manager_id
 
 
 def _filing_external_id(filing: dict[str, Any], jurisdiction: str) -> str:
@@ -243,6 +264,7 @@ def _insert_filing(
     filed_date: str | None,
     filing_type: str,
     parsed_rows: list[dict[str, Any]],
+    storage_key: str | None = None,
 ) -> int:
     payload = json.dumps(parsed_rows)
     filing_columns = _table_columns(conn, "filings")
@@ -252,66 +274,93 @@ def _insert_filing(
 
     if is_sqlite(conn):
         if has_external_id:
+            storage_columns = ", storage_key" if "storage_key" in filing_columns else ""
+            storage_values = ", ?" if "storage_key" in filing_columns else ""
+            storage_update = (
+                ", storage_key = excluded.storage_key" if "storage_key" in filing_columns else ""
+            )
+            params: tuple[Any, ...] = (
+                manager_id,
+                source,
+                external_id,
+                filed_date,
+                filing_type,
+                payload,
+            )
+            if "storage_key" in filing_columns:
+                params = (*params, storage_key)
             sql = (
-                "INSERT INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
-                "VALUES (?, ?, ?, ?, ?, ?) "
+                "INSERT INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload"
+                f"{storage_columns}) VALUES (?, ?, ?, ?, ?, ?{storage_values}) "
                 "ON CONFLICT(source, external_id) DO UPDATE SET "
                 "manager_id = excluded.manager_id, "
                 "filed_date = excluded.filed_date, "
                 "type = excluded.type, "
-                "parsed_payload = excluded.parsed_payload "
+                f"parsed_payload = excluded.parsed_payload{storage_update} "
                 f"RETURNING {id_column}"
             )
-            row = conn.execute(
-                sql,
-                (manager_id, source, external_id, filed_date, filing_type, payload),
-            ).fetchone()
+            row = conn.execute(sql, params).fetchone()
             return int(row[0]) if row and row[0] is not None else 0
+        storage_columns = ", storage_key" if "storage_key" in filing_columns else ""
+        storage_values = ", ?" if "storage_key" in filing_columns else ""
+        storage_update = (
+            ", storage_key = excluded.storage_key" if "storage_key" in filing_columns else ""
+        )
+        params = (manager_id, source, filing_type, filed_date, raw_key, payload)
+        if "storage_key" in filing_columns:
+            params = (*params, storage_key)
         sql = (
-            "INSERT INTO filings(manager_id, source, type, filed_date, raw_key, parsed_payload) "
-            "VALUES (?, ?, ?, ?, ?, ?) "
+            "INSERT INTO filings(manager_id, source, type, filed_date, raw_key, parsed_payload"
+            f"{storage_columns}) VALUES (?, ?, ?, ?, ?, ?{storage_values}) "
             "ON CONFLICT(raw_key) DO UPDATE SET "
             "manager_id = excluded.manager_id, "
             "filed_date = excluded.filed_date, "
             "type = excluded.type, "
-            "parsed_payload = excluded.parsed_payload "
+            f"parsed_payload = excluded.parsed_payload{storage_update} "
             f"RETURNING {id_column}"
         )
-        row = conn.execute(
-            sql,
-            (manager_id, source, filing_type, filed_date, raw_key, payload),
-        ).fetchone()
+        row = conn.execute(sql, params).fetchone()
         return int(row[0]) if row and row[0] is not None else 0
     if has_external_id:
+        storage_columns = ", storage_key" if "storage_key" in filing_columns else ""
+        storage_values = ", %s" if "storage_key" in filing_columns else ""
+        storage_update = (
+            ", storage_key = EXCLUDED.storage_key" if "storage_key" in filing_columns else ""
+        )
+        params = (manager_id, source, external_id, filed_date, filing_type, payload)
+        if "storage_key" in filing_columns:
+            params = (*params, storage_key)
         sql = (
-            "INSERT INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload) "
-            "VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
+            "INSERT INTO filings(manager_id, source, external_id, filed_date, type, parsed_payload"
+            f"{storage_columns}) VALUES (%s, %s, %s, %s, %s, %s::jsonb{storage_values}) "
             "ON CONFLICT (source, external_id) DO UPDATE SET "
             "manager_id = EXCLUDED.manager_id, "
             "filed_date = EXCLUDED.filed_date, "
             "type = EXCLUDED.type, "
-            "parsed_payload = EXCLUDED.parsed_payload "
+            f"parsed_payload = EXCLUDED.parsed_payload{storage_update} "
             f"RETURNING {id_column}"
         )
-        row = conn.execute(
-            sql,
-            (manager_id, source, external_id, filed_date, filing_type, payload),
-        ).fetchone()
+        row = conn.execute(sql, params).fetchone()
         return int(row[0]) if row and row[0] is not None else 0
+    storage_columns = ", storage_key" if "storage_key" in filing_columns else ""
+    storage_values = ", %s" if "storage_key" in filing_columns else ""
+    storage_update = (
+        ", storage_key = EXCLUDED.storage_key" if "storage_key" in filing_columns else ""
+    )
+    params = (manager_id, filing_type, filed_date, source, raw_key, payload)
+    if "storage_key" in filing_columns:
+        params = (*params, storage_key)
     sql = (
-        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload) "
-        "VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
+        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload"
+        f"{storage_columns}) VALUES (%s, %s, %s, %s, %s, %s::jsonb{storage_values}) "
         "ON CONFLICT (raw_key) DO UPDATE SET "
         "manager_id = EXCLUDED.manager_id, "
         "filed_date = EXCLUDED.filed_date, "
         "type = EXCLUDED.type, "
-        "parsed_payload = EXCLUDED.parsed_payload "
+        f"parsed_payload = EXCLUDED.parsed_payload{storage_update} "
         f"RETURNING {id_column}"
     )
-    row = conn.execute(
-        sql,
-        (manager_id, filing_type, filed_date, source, raw_key, payload),
-    ).fetchone()
+    row = conn.execute(sql, params).fetchone()
     return int(row[0]) if row and row[0] is not None else 0
 
 
@@ -664,6 +713,14 @@ async def fetch_and_store(
         original_autocommit = _enable_transactional_writes(conn)
         _ensure_filing_tables(conn)
 
+        manager_id = _lookup_manager_id(conn, jurisdiction, identifier)
+        if manager_id is None:
+            logger.warning(
+                "Manager not found or deletion is active; skipping filings",
+                extra={"jurisdiction": jurisdiction, "identifier": identifier},
+            )
+            return []
+
         results: list[dict[str, Any]] = []
         row_count = 0
         max_results = _max_results_in_memory()
@@ -672,24 +729,14 @@ async def fetch_and_store(
             raw = await adapter.download(filing)
             external_id = _filing_external_id(filing, jurisdiction)
             ext = "xml" if isinstance(raw, str) else "pdf"
+            storage_key = f"raw/{external_id}.{ext}"
             S3.put_object(
                 Bucket=BUCKET,
-                Key=f"raw/{external_id}.{ext}",
+                Key=storage_key,
                 Body=raw,
                 ServerSideEncryption="AES256",
             )
             parsed_rows = await adapter.parse(raw)
-            manager_id = _lookup_manager_id(conn, jurisdiction, identifier)
-            if manager_id is None:
-                logger.warning(
-                    "Manager not found; skipping filing",
-                    extra={
-                        "jurisdiction": jurisdiction,
-                        "identifier": identifier,
-                        "external_id": external_id,
-                    },
-                )
-                continue
             if isinstance(raw, str):
                 # Share the ingestion transaction: a second connection can lock
                 # SQLite and commit an index entry even if filing writes fail.
@@ -709,6 +756,7 @@ async def fetch_and_store(
                 filed_date=_filing_date(filing, jurisdiction),
                 filing_type=_filing_type(parsed_rows, filing, jurisdiction),
                 parsed_rows=parsed_rows,
+                storage_key=storage_key,
             )
 
             remaining_results = max(0, max_results - len(results))

@@ -18,6 +18,7 @@ from adapters.base import (
     is_postgres,
     is_sqlite,
     resolve_manager_id_column,
+    table_exists,
 )
 from alerts.integration import fire_alerts_for_event
 from etl.activism_campaign_flow import materialize_activism_campaigns
@@ -105,6 +106,15 @@ def _ensure_activism_filings_table(conn: Any) -> None:
 
 def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
     ph = get_placeholder(conn)
+    if table_exists(conn, "manager_deletion_operations"):
+        active = conn.execute(
+            "SELECT 1 FROM manager_deletion_operations "
+            f"WHERE manager_id = {ph} AND state IN "
+            "('blocked', 'deleting_objects', 'object_failed', 'purging_relational') LIMIT 1",
+            (manager_id,),
+        ).fetchone()
+        if active is not None:
+            return None
     id_column = resolve_manager_id_column(conn)
     row = conn.execute(
         f"SELECT name, cik FROM managers WHERE {id_column} = {ph} LIMIT 1",
@@ -117,9 +127,18 @@ def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
 
 def _all_manager_ids(conn: Any) -> list[int]:
     id_column = resolve_manager_id_column(conn)
-    rows = conn.execute(
-        f"SELECT {id_column} FROM managers WHERE cik IS NOT NULL ORDER BY {id_column}"
-    ).fetchall()
+    if table_exists(conn, "manager_deletion_operations"):
+        rows = conn.execute(
+            f"SELECT {id_column} FROM managers m WHERE cik IS NOT NULL "
+            "AND NOT EXISTS (SELECT 1 FROM manager_deletion_operations d "
+            f"WHERE d.manager_id = m.{id_column} AND d.state IN "
+            "('blocked', 'deleting_objects', 'object_failed', 'purging_relational')) "
+            f"ORDER BY {id_column}"
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"SELECT {id_column} FROM managers WHERE cik IS NOT NULL ORDER BY {id_column}"
+        ).fetchall()
     return [int(row[0]) for row in rows if row and row[0] is not None]
 
 
