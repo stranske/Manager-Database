@@ -3,7 +3,7 @@
 #   python -m pip install -e ".[dev]"
 # Keep requirements.lock as the generated dependency snapshot guarded by tests.
 pytest
-edgartools>=5.44,<5.45
+edgartools>=5.58,<5.59
 httpx
 prefect
 beautifulsoup4
@@ -14,7 +14,7 @@ black
 ruff
 pre-commit
 psycopg[binary]
-streamlit==1.60.0
+streamlit==1.64.0
 pandas
 streamlit-authenticator==0.4.2
 altair
