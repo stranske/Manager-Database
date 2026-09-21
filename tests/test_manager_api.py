@@ -125,6 +125,33 @@ def test_manager_invalid_cik_returns_400(tmp_path, monkeypatch):
     assert "10-digit" in payload["errors"][0]["message"].lower()
 
 
+def test_create_manager_rejects_duplicate_cik_on_sqlite_bootstrap(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payload = {
+        "name": "Elliott Investment Management L.P.",
+        "cik": "0001791786",
+        "jurisdictions": ["us"],
+    }
+    first = asyncio.run(_post_manager(payload))
+    assert first.status_code == 201
+
+    duplicate = asyncio.run(_post_manager({**payload, "name": "Duplicate Manager Name"}))
+    assert duplicate.status_code == 409
+    body = duplicate.json()
+    assert body["errors"][0]["field"] == "cik"
+    assert body["error"] == body["errors"]
+
+    conn = sqlite3.connect(db_path)
+    try:
+        row_count = conn.execute(
+            "SELECT COUNT(*) FROM managers WHERE cik = ?", (payload["cik"],)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert row_count == 1
+
+
 def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))

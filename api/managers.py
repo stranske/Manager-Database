@@ -915,8 +915,11 @@ async def create_manager(
     conn = None
     try:
         conn = connect_db()
-        # Ensure schema exists before storing the record.
-        _ensure_manager_table(conn)
+        # Ensure CIK uniqueness constraints exist before storing the record.
+        _ensure_universe_schema(conn)
+        if payload.cik and payload.cik.strip() and _manager_exists_for_cik(conn, payload.cik):
+            errors = [{"field": "cik", "message": "A manager with this CIK already exists."}]
+            return JSONResponse(status_code=409, content={"errors": errors, "error": errors})
         manager_id = _insert_manager(conn, payload)
         invalidate_cache_prefix("managers")
         row = _fetch_manager(conn, db_identity, manager_id)
