@@ -125,6 +125,91 @@ def test_manager_invalid_cik_returns_400(tmp_path, monkeypatch):
     assert "10-digit" in payload["errors"][0]["message"].lower()
 
 
+def test_create_manager_rejects_duplicate_cik_on_sqlite_bootstrap(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payload = {
+        "name": "Elliott Investment Management L.P.",
+        "cik": "0001791786",
+        "jurisdictions": ["us"],
+    }
+    first = asyncio.run(_post_manager(payload))
+    assert first.status_code == 201
+
+    duplicate = asyncio.run(_post_manager({**payload, "name": "Duplicate Manager Name"}))
+    assert duplicate.status_code == 409
+    body = duplicate.json()
+    assert body["errors"][0]["field"] == "cik"
+    assert body["error"] == body["errors"]
+
+    conn = sqlite3.connect(db_path)
+    try:
+        row_count = conn.execute(
+            "SELECT COUNT(*) FROM managers WHERE cik = ?", (payload["cik"],)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert row_count == 1
+
+
+def test_create_manager_normalizes_cik_before_duplicate_lookup(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+    payload = {"name": "Original", "cik": "0001791786"}
+    assert asyncio.run(_post_manager(payload)).status_code == 201
+    duplicate = asyncio.run(_post_manager({"name": "Duplicate", "cik": " 0001791786 "}))
+    assert duplicate.status_code == 409
+    assert duplicate.json()["errors"][0]["field"] == "cik"
+
+
+def test_create_manager_rejects_legacy_whitespace_cik(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    conn = sqlite3.connect(db_path)
+    try:
+        managers_module._ensure_manager_table(conn)
+        conn.execute(
+            "INSERT INTO managers(name, cik) VALUES (?, ?)",
+            ("Legacy", " 0001791786 "),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    response = asyncio.run(_post_manager({"name": "Canonical", "cik": "0001791786"}))
+    assert response.status_code == 409
+
+
+def test_create_manager_reports_legacy_duplicate_ciks(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    conn = sqlite3.connect(db_path)
+    try:
+        managers_module._ensure_manager_table(conn)
+        conn.executemany(
+            "INSERT INTO managers(name, cik) VALUES (?, ?)",
+            [("First", "0001791786"), ("Second", "0001791786")],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    response = asyncio.run(_post_manager({"name": "Third", "cik": "0001434997"}))
+    assert response.status_code == 409
+    assert "clean up duplicate CIKs" in response.json()["errors"][0]["message"]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM managers").fetchone()[0] == 2
+
+
+def test_create_manager_maps_insert_race_to_cik_conflict(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+
+    def race(*_args):
+        raise sqlite3.IntegrityError("UNIQUE constraint failed: managers.cik")
+
+    monkeypatch.setattr(managers_module, "_insert_manager", race)
+    response = asyncio.run(_post_manager({"name": "Racing", "cik": "0001791786"}))
+    assert response.status_code == 409
+    assert response.json()["errors"][0]["field"] == "cik"
+
+
 def test_manager_valid_record_is_stored(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))

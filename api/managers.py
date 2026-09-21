@@ -298,7 +298,7 @@ def _ensure_universe_schema(conn: Any) -> None:
 def _manager_exists_for_cik(conn: Any, cik: str) -> bool:
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     row = conn.execute(
-        f"SELECT 1 FROM managers WHERE cik = {placeholder} LIMIT 1",
+        f"SELECT 1 FROM managers WHERE TRIM(cik) = {placeholder} LIMIT 1",
         (cik,),
     ).fetchone()
     return bool(row)
@@ -884,7 +884,34 @@ def _bulk_request_payload_too_large(max_bytes: int) -> JSONResponse:
                     }
                 }
             },
-        }
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "A manager with this CIK already exists, or legacy CIK duplicates require cleanup",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "duplicate-cik": {
+                            "summary": "Duplicate CIK",
+                            "value": {
+                                "errors": [
+                                    {
+                                        "field": "cik",
+                                        "message": "A manager with this CIK already exists.",
+                                    }
+                                ],
+                                "error": [
+                                    {
+                                        "field": "cik",
+                                        "message": "A manager with this CIK already exists.",
+                                    }
+                                ],
+                            },
+                        }
+                    }
+                }
+            },
+        },
     },
 )
 @_require_valid_manager
@@ -911,13 +938,42 @@ async def create_manager(
     ],
 ):
     """Create a manager record after validating required fields."""
+    if payload.cik is not None:
+        payload = payload.model_copy(update={"cik": payload.cik.strip()})
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
     conn = None
     try:
         conn = connect_db()
-        # Ensure schema exists before storing the record.
-        _ensure_manager_table(conn)
-        manager_id = _insert_manager(conn, payload)
+        # Ensure CIK uniqueness constraints exist before storing the record.
+        try:
+            _ensure_universe_schema(conn)
+        except sqlite3.IntegrityError as exc:
+            if "UNIQUE constraint failed: managers.cik" not in str(exc):
+                raise
+            errors = [
+                {
+                    "field": "cik",
+                    "message": "Existing manager records share a CIK; clean up duplicate CIKs before creating managers.",
+                }
+            ]
+            return JSONResponse(status_code=409, content={"errors": errors, "error": errors})
+        if payload.cik and _manager_exists_for_cik(conn, payload.cik):
+            errors = [{"field": "cik", "message": "A manager with this CIK already exists."}]
+            return JSONResponse(status_code=409, content={"errors": errors, "error": errors})
+        try:
+            manager_id = _insert_manager(conn, payload)
+        except DB_ERROR_TYPES as exc:
+            sqlite_cik_conflict = isinstance(exc, sqlite3.IntegrityError) and (
+                "UNIQUE constraint failed: managers.cik" in str(exc)
+            )
+            postgres_cik_conflict = getattr(exc, "sqlstate", None) == "23505" and (
+                getattr(getattr(exc, "diag", None), "constraint_name", None)
+                == "idx_managers_cik_unique"
+            )
+            if payload.cik and (sqlite_cik_conflict or postgres_cik_conflict):
+                errors = [{"field": "cik", "message": "A manager with this CIK already exists."}]
+                return JSONResponse(status_code=409, content={"errors": errors, "error": errors})
+            raise
         invalidate_cache_prefix("managers")
         row = _fetch_manager(conn, db_identity, manager_id)
     except DB_ERROR_TYPES as exc:
