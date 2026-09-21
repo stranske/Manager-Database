@@ -62,6 +62,16 @@ def test_openapi_managers_schema():
 
     error_examples = manager_schema["responses"]["400"]["content"]["application/json"]["examples"]
     assert error_examples["missing-name"]["value"]["errors"][0]["field"] == "name"
+    conflict_response = manager_schema["responses"]["409"]
+    assert conflict_response["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/ErrorResponse"
+    )
+    assert (
+        conflict_response["content"]["application/json"]["examples"]["duplicate-cik"]["value"][
+            "errors"
+        ][0]["field"]
+        == "cik"
+    )
 
     manager_list_schema = schema["paths"]["/managers"]["get"]
     assert manager_list_schema["summary"] == "List managers"
