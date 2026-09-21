@@ -257,6 +257,23 @@ def _filing_type(
     return str(filing.get("form") or "13F-HR")
 
 
+def _existing_storage_key(conn: Any, source: str, external_id: str) -> str | None:
+    """Return exact persisted provenance so re-ingestion never orphans an object."""
+    columns = _table_columns(conn, "filings")
+    if not {"source", "external_id", "storage_key"}.issubset(columns):
+        return None
+    marker = get_placeholder(conn)
+    row = conn.execute(
+        f"SELECT storage_key FROM filings WHERE source = {marker} "
+        f"AND external_id = {marker} LIMIT 1",
+        (source, external_id),
+    ).fetchone()
+    if not row or row[0] is None:
+        return None
+    value = str(row[0]).strip()
+    return value or None
+
+
 def _looks_like_holdings_rows(parsed_rows: list[dict[str, Any]]) -> bool:
     if not parsed_rows:
         return False
@@ -726,6 +743,9 @@ async def fetch_and_store(
     try:
         original_autocommit = _enable_transactional_writes(conn)
         _ensure_filing_tables(conn)
+        # PostgreSQL holds ALTER/CREATE locks until transaction end. Finish
+        # compatibility DDL before manager locking, downloads, or object I/O.
+        conn.commit()
 
         manager_id = _lookup_manager_id(conn, jurisdiction, identifier)
         if manager_id is None:
@@ -748,9 +768,13 @@ async def fetch_and_store(
 
         for filing in filings:
             raw = await adapter.download(filing)
-            external_id = _filing_external_id(filing, jurisdiction)
+            external_id = _filing_external_id(filing, jurisdiction).strip()
+            if not external_id:
+                raise ValueError("Filing external_id is required")
             ext = "xml" if isinstance(raw, str) else "pdf"
-            storage_key = f"raw/{external_id}.{ext}"
+            storage_key = _existing_storage_key(conn, jurisdiction, external_id)
+            if storage_key is None:
+                storage_key = f"raw/{jurisdiction}/{external_id}.{ext}"
             S3.put_object(
                 Bucket=BUCKET,
                 Key=storage_key,

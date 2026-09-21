@@ -398,6 +398,8 @@ async def fetch_and_store(cik: str, since: str):
     try:
         original_autocommit = ingest_module._enable_transactional_writes(conn)
         _ensure_legacy_tables(conn)
+        # Release compatibility-schema locks before downloads and filing work.
+        conn.commit()
 
         manager_cols = get_table_columns(conn, "managers")
         manager_id = _manager_id_for_cik(conn, cik)

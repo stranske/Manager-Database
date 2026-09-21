@@ -220,6 +220,13 @@ def _shared_exact_keys(conn: Any, manager_id: int, keys: Iterable[str]) -> set[s
     if not key_set:
         return set()
     shared: set[str] = set()
+    marker = get_placeholder(conn)
+    ordered_keys = sorted(key_set)
+
+    def batches() -> Iterable[list[str]]:
+        for start in range(0, len(ordered_keys), 500):
+            yield ordered_keys[start : start + 500]
+
     for table in ("filings", "activism_filings"):
         if not table_exists(conn, table):
             continue
@@ -228,12 +235,16 @@ def _shared_exact_keys(conn: Any, manager_id: int, keys: Iterable[str]) -> set[s
         if "manager_id" not in columns:
             continue
         for key_column in key_columns:
-            rows = _rows(conn, f"SELECT {key_column}, manager_id FROM {table}", ())
-            shared.update(
-                str(key)
-                for key, owner in rows
-                if key in key_set and owner is not None and int(owner) != manager_id
-            )
+            for batch in batches():
+                key_markers = ", ".join(marker for _ in batch)
+                rows = _rows(
+                    conn,
+                    f"SELECT DISTINCT {key_column} FROM {table} "
+                    f"WHERE {key_column} IN ({key_markers}) "
+                    f"AND manager_id IS NOT NULL AND manager_id != {marker}",
+                    (*batch, manager_id),
+                )
+                shared.update(str(row[0]) for row in rows if row[0] is not None)
     if table_exists(conn, "activism_documents") and table_exists(conn, "activism_campaigns"):
         document_columns = get_table_columns(conn, "activism_documents")
         campaign_columns = get_table_columns(conn, "activism_campaigns")
@@ -241,17 +252,17 @@ def _shared_exact_keys(conn: Any, manager_id: int, keys: Iterable[str]) -> set[s
             "campaign_id",
             "manager_id",
         }.issubset(campaign_columns):
-            rows = _rows(
-                conn,
-                "SELECT ad.raw_key, ac.manager_id FROM activism_documents ad "
-                "JOIN activism_campaigns ac ON ac.campaign_id = ad.campaign_id",
-                (),
-            )
-            shared.update(
-                str(key)
-                for key, owner in rows
-                if key in key_set and owner is not None and int(owner) != manager_id
-            )
+            for batch in batches():
+                key_markers = ", ".join(marker for _ in batch)
+                rows = _rows(
+                    conn,
+                    "SELECT DISTINCT ad.raw_key FROM activism_documents ad "
+                    "JOIN activism_campaigns ac ON ac.campaign_id = ad.campaign_id "
+                    f"WHERE ad.raw_key IN ({key_markers}) "
+                    f"AND ac.manager_id IS NOT NULL AND ac.manager_id != {marker}",
+                    (*batch, manager_id),
+                )
+                shared.update(str(row[0]) for row in rows if row[0] is not None)
     return shared
 
 
@@ -524,7 +535,7 @@ def _purge_relational(conn: Any, manager_id: int, operation_id: str) -> bool:
     if not is_sqlite(conn):
         materialized_view = conn.execute("SELECT to_regclass(%s)", ("mv_daily_report",)).fetchone()
         if materialized_view and materialized_view[0]:
-            conn.execute("REFRESH MATERIALIZED VIEW mv_daily_report")
+            conn.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_report")
     conn.execute(
         "UPDATE manager_deletion_operations SET state = 'superseded' "
         f"WHERE manager_id = {marker} AND operation_id != {marker} "

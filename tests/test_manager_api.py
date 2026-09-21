@@ -949,7 +949,12 @@ def test_delete_manager_cascades_related_records(tmp_path, monkeypatch):
             "INSERT INTO filings VALUES (?, ?, ?, ?)",
             (10, target, "us:owned-accession", "objects/owned-accession.xml"),
         )
+        conn.execute(
+            "INSERT INTO filings VALUES (?, ?, ?, ?)",
+            (11, survivor, "us:survivor-accession", "objects/survivor-accession.xml"),
+        )
         conn.execute("INSERT INTO holdings VALUES (?, ?, ?)", (20, 10, target))
+        conn.execute("INSERT INTO holdings VALUES (?, ?, ?)", (21, 11, survivor))
         conn.execute(
             "INSERT INTO documents VALUES (?, ?, ?, ?, ?)",
             (30, target, "filing_text", "owned-accession.xml", "[0.1]"),
@@ -978,6 +983,14 @@ def test_delete_manager_cascades_related_records(tmp_path, monkeypatch):
         assert conn.execute(
             "SELECT COUNT(*) FROM holdings WHERE manager_id = ?", (target,)
         ).fetchone() == (0,)
+        assert conn.execute(
+            "SELECT filing_id, raw_key, storage_key FROM filings WHERE manager_id = ?",
+            (survivor,),
+        ).fetchone() == (11, "us:survivor-accession", "objects/survivor-accession.xml")
+        assert conn.execute(
+            "SELECT holding_id, filing_id FROM holdings WHERE manager_id = ?",
+            (survivor,),
+        ).fetchone() == (21, 11)
         assert conn.execute(
             "SELECT COUNT(*) FROM documents WHERE manager_id = ?", (target,)
         ).fetchone() == (0,)

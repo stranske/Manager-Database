@@ -68,6 +68,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("manager_deletion_objects")
-    op.drop_table("manager_deletion_operations")
-    op.drop_column("filings", "storage_key")
+    inspector = sa.inspect(op.get_bind())
+    if inspector.has_table("manager_deletion_objects"):
+        op.drop_table("manager_deletion_objects")
+    inspector = sa.inspect(op.get_bind())
+    if inspector.has_table("manager_deletion_operations"):
+        op.drop_table("manager_deletion_operations")
+    # ``upgrade`` may encounter a storage_key column provisioned by schema.sql.
+    # Alembic cannot determine column ownership after the fact, so preserve this
+    # nullable provenance column rather than risk deleting pre-existing values.
