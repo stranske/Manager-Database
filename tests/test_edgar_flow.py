@@ -373,7 +373,7 @@ async def test_fetch_and_store_uses_postgres_safe_persistence(monkeypatch):
 
     async def fake_fire_alerts_for_event(db_conn, event):
         assert db_conn is conn
-        assert conn.commits == 1  # Filing is durable before alert dispatch.
+        assert conn.commits == 2  # Schema and filing are durable before alert dispatch.
         events.append(event)
         return [1]
 
@@ -410,7 +410,7 @@ async def test_fetch_and_store_uses_postgres_safe_persistence(monkeypatch):
         (9001, "AAA", "CorpA", 1, 1),
         (9001, "BBB", "CorpB", 2, 2),
     ]
-    assert conn.commits == 2  # Alert writes are committed separately.
+    assert conn.commits == 3  # Schema, filing, and alert writes are committed separately.
     assert conn.transactions == 1
     assert conn.closed is True
     assert len(events) == 1

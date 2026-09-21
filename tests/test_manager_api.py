@@ -1,6 +1,7 @@
 import asyncio
 import sqlite3
 import sys
+import threading
 from pathlib import Path
 from typing import Any, cast
 
@@ -910,6 +911,236 @@ def test_manager_delete_removes_record(tmp_path, monkeypatch):
     assert fetch_resp.status_code == 404
 
 
+def test_delete_manager_cascades_related_records(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    deleted_keys: list[str] = []
+
+    def record_object_deletion(bucket: str, keys: set[str]) -> None:
+        assert bucket == "filings"
+        deleted_keys.extend(sorted(keys))
+
+    monkeypatch.setattr(
+        "services.manager_deletion._delete_objects",
+        record_object_deletion,
+    )
+
+    target = asyncio.run(_post_manager({"name": "Delete Me"})).json()["manager_id"]
+    survivor = asyncio.run(_post_manager({"name": "Keep Me"})).json()["manager_id"]
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, "
+            "raw_key TEXT, storage_key TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE holdings (holding_id INTEGER PRIMARY KEY, filing_id INTEGER, "
+            "manager_id INTEGER)"
+        )
+        conn.execute(
+            "CREATE TABLE documents (doc_id INTEGER PRIMARY KEY, manager_id INTEGER, "
+            "kind TEXT, filename TEXT, embedding TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE document_managers (doc_id INTEGER, manager_id INTEGER, "
+            "PRIMARY KEY (doc_id, manager_id))"
+        )
+        conn.execute(
+            "INSERT INTO filings VALUES (?, ?, ?, ?)",
+            (10, target, "us:owned-accession", "objects/owned-accession.xml"),
+        )
+        conn.execute(
+            "INSERT INTO filings VALUES (?, ?, ?, ?)",
+            (11, survivor, "us:survivor-accession", "objects/survivor-accession.xml"),
+        )
+        conn.execute("INSERT INTO holdings VALUES (?, ?, ?)", (20, 10, target))
+        conn.execute("INSERT INTO holdings VALUES (?, ?, ?)", (21, 11, survivor))
+        conn.execute(
+            "INSERT INTO documents VALUES (?, ?, ?, ?, ?)",
+            (30, target, "filing_text", "owned-accession.xml", "[0.1]"),
+        )
+        conn.execute(
+            "INSERT INTO documents VALUES (?, ?, ?, ?, ?)",
+            (31, target, "filing_text", "shared.xml", "[0.2]"),
+        )
+        conn.executemany(
+            "INSERT INTO document_managers VALUES (?, ?)",
+            [(30, target), (31, target), (31, survivor)],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = asyncio.run(_delete_manager(target))
+    assert response.status_code == 204
+    assert deleted_keys == ["objects/owned-accession.xml"]
+
+    conn = sqlite3.connect(db_path)
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM filings WHERE manager_id = ?", (target,)
+        ).fetchone() == (0,)
+        assert conn.execute(
+            "SELECT COUNT(*) FROM holdings WHERE manager_id = ?", (target,)
+        ).fetchone() == (0,)
+        assert conn.execute(
+            "SELECT filing_id, raw_key, storage_key FROM filings WHERE manager_id = ?",
+            (survivor,),
+        ).fetchone() == (11, "us:survivor-accession", "objects/survivor-accession.xml")
+        assert conn.execute(
+            "SELECT holding_id, filing_id FROM holdings WHERE manager_id = ?",
+            (survivor,),
+        ).fetchone() == (21, 11)
+        assert conn.execute(
+            "SELECT COUNT(*) FROM documents WHERE manager_id = ?", (target,)
+        ).fetchone() == (0,)
+        assert conn.execute(
+            "SELECT COUNT(*) FROM document_managers WHERE manager_id = ?", (target,)
+        ).fetchone() == (0,)
+        assert conn.execute("SELECT manager_id FROM documents WHERE doc_id = 31").fetchone() == (
+            survivor,
+        )
+        assert conn.execute("SELECT COUNT(*) FROM documents WHERE doc_id = 30").fetchone() == (0,)
+        assert conn.execute(
+            "SELECT state FROM manager_deletion_operations WHERE manager_id = ?",
+            (target,),
+        ).fetchone() == ("completed",)
+    finally:
+        conn.close()
+
+
+def test_delete_manager_blocks_ambiguous_legacy_object_key(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    manager_id = asyncio.run(_post_manager({"name": "Legacy Manager"})).json()["manager_id"]
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, raw_key TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO filings VALUES (?, ?, ?)",
+            (10, manager_id, "us:legacy-accession"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = asyncio.run(_delete_manager(manager_id))
+    assert response.status_code == 409
+
+    conn = sqlite3.connect(db_path)
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM managers WHERE id = ?", (manager_id,)
+        ).fetchone() == (1,)
+        assert conn.execute(
+            "SELECT COUNT(*) FROM filings WHERE manager_id = ?", (manager_id,)
+        ).fetchone() == (1,)
+        assert conn.execute(
+            "SELECT state FROM manager_deletion_operations WHERE manager_id = ?",
+            (manager_id,),
+        ).fetchone() == ("blocked",)
+    finally:
+        conn.close()
+
+
+def test_delete_manager_retries_after_object_storage_failure(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    manager_id = asyncio.run(_post_manager({"name": "Retry Manager"})).json()["manager_id"]
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, "
+            "raw_key TEXT, storage_key TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO filings VALUES (?, ?, ?, ?)",
+            (10, manager_id, "us:retry-accession", "raw/retry-accession.xml"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    def fail_object_deletion(_bucket: str, _keys: set[str]) -> None:
+        raise OSError("storage unavailable")
+
+    monkeypatch.setattr("services.manager_deletion._delete_objects", fail_object_deletion)
+    failed = asyncio.run(_delete_manager(manager_id))
+    assert failed.status_code == 503
+
+    conn = sqlite3.connect(db_path)
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM managers WHERE id = ?", (manager_id,)
+        ).fetchone() == (1,)
+        assert conn.execute(
+            "SELECT COUNT(*) FROM filings WHERE manager_id = ?", (manager_id,)
+        ).fetchone() == (1,)
+        assert conn.execute(
+            "SELECT state FROM manager_deletion_operations WHERE manager_id = ?",
+            (manager_id,),
+        ).fetchone() == ("object_failed",)
+    finally:
+        conn.close()
+
+    monkeypatch.setattr("services.manager_deletion._delete_objects", lambda _bucket, _keys: None)
+    retried = asyncio.run(_delete_manager(manager_id))
+    assert retried.status_code == 204
+
+    conn = sqlite3.connect(db_path)
+    try:
+        states = conn.execute(
+            "SELECT state FROM manager_deletion_operations WHERE manager_id = ? ORDER BY created_at",
+            (manager_id,),
+        ).fetchall()
+        assert sorted(states) == [("completed",), ("superseded",)]
+        assert conn.execute(
+            "SELECT COUNT(*) FROM filings WHERE manager_id = ?", (manager_id,)
+        ).fetchone() == (0,)
+    finally:
+        conn.close()
+
+
+def test_delete_manager_waits_for_inflight_ingestion_fence(tmp_path, monkeypatch):
+    from services.manager_deletion import (
+        acquire_manager_ingestion_lock,
+        delete_manager_data,
+        release_manager_ingestion_lock,
+    )
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    manager_id = asyncio.run(_post_manager({"name": "Concurrent Manager"})).json()["manager_id"]
+    ingest_conn = sqlite3.connect(db_path, timeout=2)
+    assert acquire_manager_ingestion_lock(ingest_conn, manager_id)
+
+    started = threading.Event()
+    finished = threading.Event()
+    results = []
+
+    def run_delete() -> None:
+        delete_conn = sqlite3.connect(db_path, timeout=2)
+        started.set()
+        try:
+            results.append(delete_manager_data(delete_conn, manager_id))
+        finally:
+            delete_conn.close()
+            finished.set()
+
+    worker = threading.Thread(target=run_delete)
+    worker.start()
+    assert started.wait(1)
+    assert not finished.wait(0.2)
+
+    release_manager_ingestion_lock(ingest_conn, manager_id)
+    ingest_conn.close()
+    assert finished.wait(2)
+    worker.join()
+    assert results[0].deleted is True
+
+
 def test_manager_delete_returns_404_for_missing_id(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -949,13 +1180,11 @@ def test_manager_postgres_queries_use_canonical_manager_id_column():
 
     managers_module._fetch_managers(conn, "postgres://test", 25, 0, None, None)
     managers_module._fetch_manager(conn, "postgres://test", 123)
-    managers_module._delete_manager(conn, 123)
 
     statements = [sql for sql, _params in conn.executed]
     assert statements[0].startswith("SELECT manager_id, name")
     assert "ORDER BY manager_id" in statements[0]
     assert "WHERE manager_id = %s" in statements[1]
-    assert statements[2] == "DELETE FROM managers WHERE manager_id = %s"
 
 
 def test_manager_postgres_writes_return_and_filter_by_manager_id():

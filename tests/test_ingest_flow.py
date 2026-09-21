@@ -136,6 +136,14 @@ class _TransactionalConn:
         return []
 
 
+class _MockDbCursor:
+    def fetchall(self):
+        return []
+
+    def fetchone(self):
+        return None
+
+
 class _PostgresAutocommitConn:
     def __init__(self):
         self.autocommit = True
@@ -146,7 +154,7 @@ class _PostgresAutocommitConn:
 
     def execute(self, sql, params=()):
         self.sql.append((sql, tuple(params)))
-        return []
+        return _MockDbCursor()
 
     def commit(self):
         self.commits += 1
@@ -185,7 +193,8 @@ async def test_fetch_and_store_us_uses_manager_cik_and_inserts_holdings(tmp_path
     conn.close()
 
     monkeypatch.setattr(ingest_flow, "get_adapter", lambda _name: _USAdapter())
-    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    put_calls = []
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **kwargs: put_calls.append(kwargs))
     monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     rows = await ingest_flow.fetch_and_store.fn(
@@ -198,13 +207,16 @@ async def test_fetch_and_store_us_uses_manager_cik_and_inserts_holdings(tmp_path
     assert rows and rows[0]["cusip"] == "123456789"
 
     conn = sqlite3.connect(db_path)
-    filing = conn.execute("SELECT manager_id, source, external_id, type FROM filings").fetchone()
+    filing = conn.execute(
+        "SELECT manager_id, source, external_id, type, storage_key FROM filings"
+    ).fetchone()
     holding = conn.execute(
         "SELECT manager_id, cik, accession, cusip, value, sshPrnamt FROM holdings"
     ).fetchone()
     conn.close()
 
-    assert filing == (1, "us", "0001-24-000001", "13F-HR")
+    assert filing == (1, "us", "0001-24-000001", "13F-HR", "raw/us/0001-24-000001.xml")
+    assert put_calls[0]["Key"] == "raw/us/0001-24-000001.xml"
     assert holding == (1, "0000000001", "0001-24-000001", "123456789", 1000, 50)
 
 
@@ -329,6 +341,8 @@ async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(mon
     monkeypatch.setattr(ingest_flow, "connect_db", lambda _db_path: conn)
     monkeypatch.setattr(ingest_flow, "_ensure_filing_tables", record_ensure_tables)
     monkeypatch.setattr(ingest_flow, "_lookup_manager_id", record_lookup)
+    monkeypatch.setattr(ingest_flow, "acquire_manager_ingestion_lock", lambda _conn, _mid: True)
+    monkeypatch.setattr(ingest_flow, "release_manager_ingestion_lock", lambda _conn, _mid: None)
     monkeypatch.setattr(ingest_flow, "_insert_filing", record_insert_filing)
     monkeypatch.setattr(ingest_flow, "store_document", record_document)
     monkeypatch.setattr(ingest_flow, "_replace_holdings_rows", record_replace_holdings)
@@ -349,7 +363,7 @@ async def test_fetch_and_store_disables_postgres_autocommit_for_unit_of_work(mon
         ("filing", False),
         ("holdings", False),
     ]
-    assert conn.commits == 1
+    assert conn.commits == 2
     assert conn.rollbacks == 0
     assert conn.autocommit is True
     assert conn.closed is True
@@ -678,7 +692,8 @@ async def test_fetch_and_store_metadata_jurisdictions_store_payload_without_hold
             date=date,
         ),
     )
-    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **_kwargs: None)
+    put_calls = []
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **kwargs: put_calls.append(kwargs))
     monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
 
     rows = await ingest_flow.fetch_and_store.fn(
@@ -707,7 +722,73 @@ async def test_fetch_and_store_metadata_jurisdictions_store_payload_without_hold
 
     assert filing[:5] == (1, jurisdiction, filing_id, date, f"{jurisdiction}_metadata")
     assert json.loads(filing[5])[0]["status"] == "unsupported"
+    assert put_calls[0]["Key"] == f"raw/{jurisdiction}/{filing_id}.pdf"
     assert holdings_count == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_rejects_blank_external_id_before_upload(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (id INTEGER PRIMARY KEY AUTOINCREMENT, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO managers(cik, registry_ids) VALUES (?, ?)",
+        ("", json.dumps({"sg_entity_id": "MAS-123"})),
+    )
+    conn.commit()
+    conn.close()
+
+    put_calls = []
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **kwargs: put_calls.append(kwargs))
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
+
+    with pytest.raises(ValueError, match="external_id is required"):
+        await ingest_flow.fetch_and_store.fn(
+            "MAS-123",
+            "2024-01-01",
+            jurisdiction="sg",
+            adapter=_MetadataOnlyAdapter(source="sg", filing_id=" ", date="2024-03-01"),
+            db_path=str(db_path),
+        )
+
+    assert put_calls == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_store_preserves_existing_exact_storage_key(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE managers (id INTEGER PRIMARY KEY AUTOINCREMENT, cik TEXT, registry_ids TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO managers(cik, registry_ids) VALUES (?, ?)",
+        ("", json.dumps({"sg_entity_id": "MAS-123"})),
+    )
+    conn.commit()
+    conn.close()
+
+    adapter = _MetadataOnlyAdapter(source="sg", filing_id="shared-id", date="2024-03-01")
+    put_calls = []
+    monkeypatch.setattr(ingest_flow.S3, "put_object", lambda **kwargs: put_calls.append(kwargs))
+    monkeypatch.setattr(ingest_flow, "store_document", lambda _raw, **_kwargs: None)
+
+    await ingest_flow.fetch_and_store.fn(
+        "MAS-123", "2024-01-01", jurisdiction="sg", adapter=adapter, db_path=str(db_path)
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE filings SET storage_key = ?", ("raw/legacy-shared-id.pdf",))
+        conn.commit()
+    await ingest_flow.fetch_and_store.fn(
+        "MAS-123", "2024-01-01", jurisdiction="sg", adapter=adapter, db_path=str(db_path)
+    )
+
+    assert [call["Key"] for call in put_calls] == [
+        "raw/sg/shared-id.pdf",
+        "raw/legacy-shared-id.pdf",
+    ]
 
 
 @pytest.mark.asyncio

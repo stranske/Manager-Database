@@ -23,6 +23,11 @@ from adapters.base import (
 from adapters.openfigi import resolve_holding_identifiers
 from alerts.integration import build_new_filing_event, fire_alerts_for_event
 from etl.logging_setup import configure_logging, log_outcome
+from services.manager_deletion import (
+    acquire_manager_ingestion_lock,
+    manager_deletion_active,
+    release_manager_ingestion_lock,
+)
 
 
 def store_document(
@@ -88,7 +93,10 @@ def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
     ).fetchone()
     if not row or row[0] is None:
         return None
-    return int(row[0])
+    manager_id = int(row[0])
+    if manager_deletion_active(conn, manager_id):
+        return None
+    return manager_id
 
 
 def _ensure_legacy_tables(conn: Any) -> None:
@@ -102,9 +110,13 @@ def _ensure_legacy_tables(conn: Any) -> None:
                 source TEXT NOT NULL,
                 url TEXT,
                 raw_key TEXT UNIQUE,
+                storage_key TEXT,
                 parsed_payload TEXT,
                 schema_version INTEGER
             )""")
+        filing_columns = get_table_columns(conn, "filings")
+        if "storage_key" not in filing_columns:
+            conn.execute("ALTER TABLE filings ADD COLUMN storage_key TEXT")
         conn.execute("""CREATE TABLE IF NOT EXISTS holdings (
                 holding_id INTEGER PRIMARY KEY,
                 filing_id INTEGER NOT NULL,
@@ -137,10 +149,12 @@ def _ensure_legacy_tables(conn: Any) -> None:
             source text NOT NULL,
             url text,
             raw_key text,
+            storage_key text,
             parsed_payload jsonb,
             schema_version int DEFAULT 1,
             created_at timestamptz DEFAULT now()
         )""")
+    conn.execute("ALTER TABLE filings ADD COLUMN IF NOT EXISTS storage_key text")
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_filings_raw_key_unique "
         "ON filings (raw_key) WHERE raw_key IS NOT NULL"
@@ -176,6 +190,7 @@ def _upsert_filing_legacy(
             "filed_date": filed_date,
             "source": "edgar",
             "raw_key": raw_key,
+            "storage_key": raw_key,
             "parsed_payload": payload,
         }
         insert_columns = [column for column in values if column in columns]
@@ -203,16 +218,23 @@ def _upsert_filing_legacy(
             "SELECT filing_id FROM filings WHERE raw_key = ?", (raw_key,)
         ).fetchone()
         return int(existing[0]) if existing and existing[0] is not None else 0
+    columns = get_table_columns(conn, "filings")
+    storage_columns = ", storage_key" if "storage_key" in columns else ""
+    storage_values = ", %s" if "storage_key" in columns else ""
+    storage_update = ", storage_key = EXCLUDED.storage_key" if "storage_key" in columns else ""
+    params: tuple[Any, ...] = (manager_id, filing_type, filed_date, "edgar", raw_key, payload)
+    if "storage_key" in columns:
+        params = (*params, raw_key)
     row = conn.execute(
-        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload) "
-        "VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
+        "INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload"
+        f"{storage_columns}) VALUES (%s, %s, %s, %s, %s, %s::jsonb{storage_values}) "
         "ON CONFLICT (raw_key) WHERE raw_key IS NOT NULL DO UPDATE SET "
         "manager_id = EXCLUDED.manager_id, "
         "type = EXCLUDED.type, "
         "filed_date = EXCLUDED.filed_date, "
-        "parsed_payload = EXCLUDED.parsed_payload "
+        f"parsed_payload = EXCLUDED.parsed_payload{storage_update} "
         "RETURNING filing_id",
-        (manager_id, filing_type, filed_date, "edgar", raw_key, payload),
+        params,
     ).fetchone()
     return int(row[0]) if row and row[0] is not None else 0
 
@@ -372,9 +394,12 @@ async def fetch_and_store(cik: str, since: str):
     filings = await ADAPTER.list_new_filings(cik, since)
     conn = connect_db(DB_PATH)
     original_autocommit: bool | None = None
+    manager_lock_id: int | None = None
     try:
         original_autocommit = ingest_module._enable_transactional_writes(conn)
         _ensure_legacy_tables(conn)
+        # Release compatibility-schema locks before downloads and filing work.
+        conn.commit()
 
         manager_cols = get_table_columns(conn, "managers")
         manager_id = _manager_id_for_cik(conn, cik)
@@ -385,6 +410,14 @@ async def fetch_and_store(cik: str, since: str):
         all_rows: list[dict[str, Any]] = []
         for filing in filings:
             raw = await ADAPTER.download(filing)
+            if manager_id is not None:
+                if not acquire_manager_ingestion_lock(conn, manager_id):
+                    logger.warning(
+                        "Manager deletion started during EDGAR download; stopping ingestion",
+                        extra={"manager_id": manager_id, "cik": cik},
+                    )
+                    return all_rows
+                manager_lock_id = manager_id
             raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()[:16]
             accession = str(filing.get("accession") or "unknown")
@@ -434,6 +467,9 @@ async def fetch_and_store(cik: str, since: str):
             )
             # Persist any remaining callback writes before final cleanup.
             conn.commit()
+            if manager_lock_id is not None:
+                release_manager_ingestion_lock(conn, manager_lock_id)
+                manager_lock_id = None
             all_rows.extend(parsed_rows)
         return all_rows
     except Exception:
@@ -442,6 +478,8 @@ async def fetch_and_store(cik: str, since: str):
         ingest_module._rollback_quietly(conn)
         raise
     finally:
+        if manager_lock_id is not None:
+            release_manager_ingestion_lock(conn, manager_lock_id)
         ingest_module._restore_autocommit_quietly(conn, original_autocommit)
         conn.close()
 

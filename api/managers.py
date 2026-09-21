@@ -32,6 +32,11 @@ from api.models import (
     UniverseImportResponse,
 )
 from etl.manager_similarity_flow import ensure_manager_similarity_table
+from services.manager_deletion import (
+    AmbiguousManagerObjectsError,
+    ManagerObjectDeletionError,
+    delete_manager_data,
+)
 from utils.identifiers import normalize_cik
 
 router = APIRouter()
@@ -483,16 +488,6 @@ def _manager_conflict_flags(
                     )
                 )
     return flags
-
-
-def _delete_manager(conn, manager_id: int) -> bool:
-    """Delete a manager by id and return whether a row was removed."""
-    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-    id_column = _manager_id_column(conn)
-    cursor = conn.execute(f"DELETE FROM managers WHERE {id_column} = {placeholder}", (manager_id,))
-    if isinstance(conn, sqlite3.Connection):
-        conn.commit()
-    return cursor.rowcount > 0
 
 
 @cache_query("managers.count", skip_args=1)
@@ -1585,10 +1580,17 @@ async def delete_manager(
     try:
         conn = connect_db()
         _ensure_manager_table(conn)
-        deleted = _delete_manager(conn, id)
-        if not deleted:
+        result = delete_manager_data(conn, id)
+        if not result.deleted:
             raise HTTPException(status_code=404, detail="Manager not found")
         invalidate_cache_prefix("managers")
+    except AmbiguousManagerObjectsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ManagerObjectDeletionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Manager deletion could not complete object-storage cleanup; retry is safe.",
+        ) from exc
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)
     finally:

@@ -18,6 +18,7 @@ from adapters.base import (
     is_postgres,
     is_sqlite,
     resolve_manager_id_column,
+    table_exists,
 )
 from alerts.integration import fire_alerts_for_event
 from etl.activism_campaign_flow import materialize_activism_campaigns
@@ -31,6 +32,10 @@ from etl.activism_detection import (
 )
 from etl.edgar_flow import BUCKET, S3
 from etl.logging_setup import configure_logging, log_outcome
+from services.manager_deletion import (
+    acquire_manager_ingestion_lock,
+    release_manager_ingestion_lock,
+)
 
 configure_logging("activism_flow")
 logger = logging.getLogger(__name__)
@@ -105,6 +110,15 @@ def _ensure_activism_filings_table(conn: Any) -> None:
 
 def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
     ph = get_placeholder(conn)
+    if table_exists(conn, "manager_deletion_operations"):
+        active = conn.execute(
+            "SELECT 1 FROM manager_deletion_operations "
+            f"WHERE manager_id = {ph} AND state IN "
+            "('blocked', 'deleting_objects', 'object_failed', 'purging_relational') LIMIT 1",
+            (manager_id,),
+        ).fetchone()
+        if active is not None:
+            return None
     id_column = resolve_manager_id_column(conn)
     row = conn.execute(
         f"SELECT name, cik FROM managers WHERE {id_column} = {ph} LIMIT 1",
@@ -117,9 +131,18 @@ def _load_manager_row(conn: Any, manager_id: int) -> tuple[str, str] | None:
 
 def _all_manager_ids(conn: Any) -> list[int]:
     id_column = resolve_manager_id_column(conn)
-    rows = conn.execute(
-        f"SELECT {id_column} FROM managers WHERE cik IS NOT NULL ORDER BY {id_column}"
-    ).fetchall()
+    if table_exists(conn, "manager_deletion_operations"):
+        rows = conn.execute(
+            f"SELECT {id_column} FROM managers m WHERE cik IS NOT NULL "
+            "AND NOT EXISTS (SELECT 1 FROM manager_deletion_operations d "
+            f"WHERE d.manager_id = m.{id_column} AND d.state IN "
+            "('blocked', 'deleting_objects', 'object_failed', 'purging_relational')) "
+            f"ORDER BY {id_column}"
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"SELECT {id_column} FROM managers WHERE cik IS NOT NULL ORDER BY {id_column}"
+        ).fetchall()
     return [int(row[0]) for row in rows if row and row[0] is not None]
 
 
@@ -289,44 +312,58 @@ async def fetch_activism_filings(manager_id: int, since: str) -> list[dict[str, 
         raw_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()[:16]
         accession = str(filing.get("accession") or raw_hash)
         raw_key = f"raw/activism/{raw_hash}_{accession}.txt"
-        S3.put_object(Bucket=BUCKET, Key=raw_key, Body=raw_text, ServerSideEncryption="AES256")
         parsed = await edgar.parse(raw_text, form_type=form_type)
         if not isinstance(parsed, dict):
             continue
-        filing_id, is_new = _upsert_activism_filing(
-            conn,
-            manager_id=manager_id,
-            filing=filing,
-            parsed=parsed,
-            raw_key=raw_key,
-        )
-        filing_row = {
-            "filing_id": filing_id,
-            "manager_id": manager_id,
-            "filing_type": form_type,
-            "subject_company": str(parsed.get("subject_company") or ""),
-            "subject_cusip": str(parsed.get("cusip") or "") or None,
-            "ownership_pct": parsed.get("ownership_pct"),
-            "group_members": parsed.get("group_members"),
-            "filed_date": str(filing.get("filed") or ""),
-        }
-        if is_new:
-            detected_events = detect_events(conn, filing_row)
-            persisted_events = insert_activism_events(conn, detected_events)
-            for event in persisted_events:
-                await fire_alerts_for_event(
-                    conn,
-                    AlertEvent(
-                        event_type=ALERT_EVENT_TYPE,
-                        manager_id=event.manager_id,
-                        payload=event_payload(event),
-                    ),
-                )
-        inserted.append(
-            {**parsed, "filing_type": form_type, "raw_key": raw_key, "filing_id": filing_id}
-        )
+        if not acquire_manager_ingestion_lock(conn, manager_id):
+            logger.warning(
+                "Manager deletion started during activism download; stopping ingestion",
+                extra={"manager_id": manager_id},
+            )
+            break
+        try:
+            S3.put_object(
+                Bucket=BUCKET,
+                Key=raw_key,
+                Body=raw_text,
+                ServerSideEncryption="AES256",
+            )
+            filing_id, is_new = _upsert_activism_filing(
+                conn,
+                manager_id=manager_id,
+                filing=filing,
+                parsed=parsed,
+                raw_key=raw_key,
+            )
+            filing_row = {
+                "filing_id": filing_id,
+                "manager_id": manager_id,
+                "filing_type": form_type,
+                "subject_company": str(parsed.get("subject_company") or ""),
+                "subject_cusip": str(parsed.get("cusip") or "") or None,
+                "ownership_pct": parsed.get("ownership_pct"),
+                "group_members": parsed.get("group_members"),
+                "filed_date": str(filing.get("filed") or ""),
+            }
+            if is_new:
+                detected_events = detect_events(conn, filing_row)
+                persisted_events = insert_activism_events(conn, detected_events)
+                for event in persisted_events:
+                    await fire_alerts_for_event(
+                        conn,
+                        AlertEvent(
+                            event_type=ALERT_EVENT_TYPE,
+                            manager_id=event.manager_id,
+                            payload=event_payload(event),
+                        ),
+                    )
+            inserted.append(
+                {**parsed, "filing_type": form_type, "raw_key": raw_key, "filing_id": filing_id}
+            )
+            conn.commit()
+        finally:
+            release_manager_ingestion_lock(conn, manager_id)
 
-    conn.commit()
     conn.close()
     return inserted
 
