@@ -321,6 +321,33 @@ def test_get_conviction_scores_defaults_to_latest_filing(tmp_path, monkeypatch):
     assert payload[0]["conviction_pct"] == 66.67
 
 
+def test_conviction_scores_rejects_non_finite_min_conviction_pct(tmp_path, monkeypatch):
+    db_path = tmp_path / "signals.db"
+    _seed_db(db_path)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    for invalid_value in ("nan", "inf", "100.01"):
+        response = asyncio.run(
+            _request(
+                "/api/signals/conviction/1",
+                params={"min_conviction_pct": invalid_value},
+            )
+        )
+
+        assert response.status_code == 422
+        assert any(
+            error["loc"] == ["query", "min_conviction_pct"] for error in response.json()["detail"]
+        )
+
+    finite_response = asyncio.run(
+        _request(
+            "/api/signals/conviction/1",
+            params={"min_conviction_pct": "0.5"},
+        )
+    )
+    assert finite_response.status_code == 200
+
+
 def test_get_conviction_scores_exposes_optional_short_interest_context(tmp_path, monkeypatch):
     db_path = tmp_path / "signals.db"
     _seed_db(db_path)

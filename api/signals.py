@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from datetime import date, datetime
 from typing import Any
@@ -303,6 +304,9 @@ def query_conviction_scores(
     min_conviction_pct: float = 0.0,
     limit: int = 100,
 ) -> list[ConvictionScoreResponse]:
+    if not math.isfinite(min_conviction_pct) or not 0.0 <= min_conviction_pct <= 100.0:
+        raise ValueError("min_conviction_pct must be finite and between 0 and 100")
+
     if not table_exists(conn, "conviction_scores"):
         return []
 
@@ -388,6 +392,36 @@ def query_conviction_scores(
     return out
 
 
+def _min_conviction_pct_error(message: str, error_type: str) -> Exception:
+    try:
+        from fastapi import HTTPException
+    except ModuleNotFoundError:
+        return ValueError(message)
+    return HTTPException(
+        status_code=422,
+        detail=[
+            {
+                "loc": ["query", "min_conviction_pct"],
+                "msg": message,
+                "type": error_type,
+            }
+        ],
+    )
+
+
+def _parse_min_conviction_pct(value: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise _min_conviction_pct_error("Input should be a valid number", "float_parsing") from exc
+
+    if not math.isfinite(parsed) or not 0.0 <= parsed <= 100.0:
+        raise _min_conviction_pct_error(
+            "Input should be finite and between 0 and 100", "value_error"
+        )
+    return parsed
+
+
 @router.get(
     "/api/signals/crowded",
     response_model=list[CrowdedTradeResponse],
@@ -440,16 +474,17 @@ async def get_contrarian_signals(
 async def get_conviction_scores(
     manager_id: int,
     filing_id: int | None = None,
-    min_conviction_pct: float = Query(0.0, ge=0.0),
+    min_conviction_pct: str = Query("0.0"),
     limit: int = Query(100, ge=1, le=500),
 ) -> list[ConvictionScoreResponse]:
+    parsed_min_conviction_pct = _parse_min_conviction_pct(min_conviction_pct)
     conn = connect_db()
     try:
         return query_conviction_scores(
             conn,
             manager_id,
             filing_id=filing_id,
-            min_conviction_pct=min_conviction_pct,
+            min_conviction_pct=parsed_min_conviction_pct,
             limit=limit,
         )
     finally:
