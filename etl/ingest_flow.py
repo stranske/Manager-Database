@@ -26,6 +26,7 @@ from adapters.base import (
     manager_id_column as shared_manager_id_column,
 )
 from etl.logging_setup import configure_logging, log_outcome
+from services.manager_deletion import ManagerErasureFenceError, manager_ingestion_allowed
 
 
 def store_document(
@@ -203,19 +204,12 @@ def _lookup_manager_id(conn: Any, jurisdiction: str, identifier: str) -> int | N
     if not row or row[0] is None:
         return None
     manager_id = int(row[0])
-    if table_exists(conn, "manager_deletion_operations"):
-        active = conn.execute(
-            "SELECT 1 FROM manager_deletion_operations "
-            f"WHERE manager_id = {marker} AND state IN "
-            "('blocked', 'deleting_objects', 'object_failed', 'purging_relational') LIMIT 1",
-            (manager_id,),
-        ).fetchone()
-        if active is not None:
-            logger.warning(
-                "Manager deletion is active; skipping ingestion",
-                extra={"manager_id": manager_id, "jurisdiction": jurisdiction},
-            )
-            return None
+    if not manager_ingestion_allowed(conn, manager_id):
+        logger.warning(
+            "Manager not found or deletion is active; skipping ingestion",
+            extra={"manager_id": manager_id, "jurisdiction": jurisdiction},
+        )
+        return None
     return manager_id
 
 
@@ -266,6 +260,10 @@ def _insert_filing(
     parsed_rows: list[dict[str, Any]],
     storage_key: str | None = None,
 ) -> int:
+    if manager_id is not None and not manager_ingestion_allowed(conn, manager_id):
+        raise ManagerErasureFenceError(
+            "Manager erasure fence blocked ingestion write",
+        )
     payload = json.dumps(parsed_rows)
     filing_columns = _table_columns(conn, "filings")
     id_column = "filing_id" if "filing_id" in filing_columns else "id"

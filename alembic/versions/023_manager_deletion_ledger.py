@@ -1,6 +1,7 @@
 """Add exact object provenance and durable manager-erasure manifests."""
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -8,6 +9,12 @@ revision = "023"
 down_revision = "022"
 branch_labels = None
 depends_on = None
+
+
+def _ambiguous_keys_type():
+    if op.get_bind().dialect.name == "postgresql":
+        return postgresql.JSONB(astext_type=sa.Text())
+    return sa.JSON()
 
 
 def upgrade() -> None:
@@ -24,9 +31,13 @@ def upgrade() -> None:
             sa.Column("state", sa.Text(), nullable=False),
             sa.Column(
                 "ambiguous_keys",
-                sa.JSON(),
+                _ambiguous_keys_type(),
                 nullable=False,
-                server_default=sa.text("'[]'"),
+                server_default=(
+                    sa.text("'[]'::jsonb")
+                    if op.get_bind().dialect.name == "postgresql"
+                    else sa.text("'[]'")
+                ),
             ),
             sa.Column("error", sa.Text(), nullable=True),
             sa.Column(

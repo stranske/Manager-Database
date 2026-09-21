@@ -90,16 +90,10 @@ def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
     if not row or row[0] is None:
         return None
     manager_id = int(row[0])
-    if table_exists(conn, "manager_deletion_operations"):
-        marker = get_placeholder(conn)
-        active = conn.execute(
-            "SELECT 1 FROM manager_deletion_operations "
-            f"WHERE manager_id = {marker} AND state IN "
-            "('blocked', 'deleting_objects', 'object_failed', 'purging_relational') LIMIT 1",
-            (manager_id,),
-        ).fetchone()
-        if active is not None:
-            return None
+    from services.manager_deletion import manager_ingestion_allowed
+
+    if not manager_ingestion_allowed(conn, manager_id):
+        return None
     return manager_id
 
 

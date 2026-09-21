@@ -20,6 +20,18 @@ class ManagerObjectDeletionError(RuntimeError):
     """Raised when an exact object key could not be removed."""
 
 
+class ManagerErasureFenceError(RuntimeError):
+    """Raised when ingestion cannot write because erasure is active or complete."""
+
+
+ACTIVE_DELETION_STATES = (
+    "blocked",
+    "deleting_objects",
+    "object_failed",
+    "purging_relational",
+)
+
+
 @dataclass(frozen=True)
 class ManagerDeletionResult:
     deleted: bool
@@ -33,8 +45,7 @@ def _id_column(conn: Any, table: str, *candidates: str) -> str | None:
 
 def _ensure_ledger(conn: Any) -> None:
     json_default = "'[]'" if is_sqlite(conn) else "'[]'::jsonb"
-    conn.execute(
-        f"""CREATE TABLE IF NOT EXISTS manager_deletion_operations (
+    conn.execute(f"""CREATE TABLE IF NOT EXISTS manager_deletion_operations (
             operation_id text PRIMARY KEY,
             manager_id bigint NOT NULL,
             state text NOT NULL,
@@ -42,10 +53,8 @@ def _ensure_ledger(conn: Any) -> None:
             error text,
             created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
             completed_at timestamp
-        )"""
-    )
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS manager_deletion_objects (
+        )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS manager_deletion_objects (
             operation_id text NOT NULL REFERENCES manager_deletion_operations(operation_id)
                 ON DELETE CASCADE,
             bucket text NOT NULL,
@@ -53,8 +62,7 @@ def _ensure_ledger(conn: Any) -> None:
             state text NOT NULL DEFAULT 'pending',
             error text,
             PRIMARY KEY (operation_id, bucket, object_key)
-        )"""
-    )
+        )""")
 
 
 def _commit(conn: Any) -> None:
@@ -67,6 +75,38 @@ def _rollback(conn: Any) -> None:
     rollback = getattr(conn, "rollback", None)
     if callable(rollback):
         rollback()
+
+
+def manager_deletion_active(conn: Any, manager_id: int) -> bool:
+    if not table_exists(conn, "manager_deletion_operations"):
+        return False
+    marker = get_placeholder(conn)
+    active = conn.execute(
+        "SELECT 1 FROM manager_deletion_operations "
+        f"WHERE manager_id = {marker} AND state IN "
+        "('blocked', 'deleting_objects', 'object_failed', 'purging_relational') LIMIT 1",
+        (manager_id,),
+    ).fetchone()
+    return active is not None
+
+
+def manager_ingestion_allowed(conn: Any, manager_id: int) -> bool:
+    return _manager_exists(conn, manager_id) and not manager_deletion_active(conn, manager_id)
+
+
+def _acquire_manager_erasure_lock(conn: Any, manager_id: int) -> bool:
+    manager_pk = _id_column(conn, "managers", "manager_id", "id")
+    if manager_pk is None:
+        return False
+    marker = get_placeholder(conn)
+    if is_sqlite(conn):
+        conn.execute("BEGIN IMMEDIATE")
+    lock_sql = (
+        f"SELECT 1 FROM managers WHERE {manager_pk} = {marker} LIMIT 1"
+        if is_sqlite(conn)
+        else f"SELECT 1 FROM managers WHERE {manager_pk} = {marker} FOR UPDATE"
+    )
+    return conn.execute(lock_sql, (manager_id,)).fetchone() is not None
 
 
 def _manager_exists(conn: Any, manager_id: int) -> bool:
@@ -108,7 +148,7 @@ def _target_storage_references(conn: Any, manager_id: int) -> tuple[set[str], se
                 storage_key = str(values.get("storage_key") or "").strip()
                 raw_key = str(values.get("raw_key") or "").strip()
                 external_id = str(values.get("external_id") or "").strip()
-                if storage_key.startswith("raw/"):
+                if storage_key:
                     exact.add(storage_key)
                 elif raw_key.startswith("raw/"):
                     exact.add(raw_key)
@@ -214,7 +254,12 @@ def _record_manifest(
         "INSERT INTO manager_deletion_operations("
         "operation_id, manager_id, state, ambiguous_keys) "
         f"VALUES ({marker}, {marker}, {marker}, {ambiguous_placeholder})",
-        (operation_id, manager_id, "blocked" if ambiguous else "deleting_objects", ambiguous_value),
+        (
+            operation_id,
+            manager_id,
+            "blocked" if ambiguous else "deleting_objects",
+            ambiguous_value,
+        ),
     )
     for key in sorted(keys):
         conn.execute(
@@ -478,6 +523,8 @@ def _purge_relational(conn: Any, manager_id: int, operation_id: str) -> bool:
 def delete_manager_data(conn: Any, manager_id: int) -> ManagerDeletionResult:
     """Delete one manager only after exact object cleanup can be proven."""
     if not _manager_exists(conn, manager_id):
+        return ManagerDeletionResult(deleted=False)
+    if not _acquire_manager_erasure_lock(conn, manager_id):
         return ManagerDeletionResult(deleted=False)
     bucket = os.getenv("MINIO_BUCKET", "filings")
     exact, ambiguous = _target_storage_references(conn, manager_id)
