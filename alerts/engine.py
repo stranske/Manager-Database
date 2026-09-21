@@ -69,6 +69,16 @@ class AlertEngine:
 
         payload = event.payload
         for key, expected in condition.items():
+            if event.event_type == "new_filing" and key == "filing_type":
+                # Rules saved by the old UI used filing_type; ETL emits type.
+                if payload.get("type") != expected:
+                    return False
+                continue
+            if event.event_type == "new_filing" and key == "source" and expected == "sec":
+                # Preserve existing SEC rules after the UI moves to the EDGAR source name.
+                if payload.get("source") != "edgar":
+                    return False
+                continue
             if key == "value_usd_gt":
                 value = _as_float(payload.get("value_usd"))
                 threshold = _as_float(expected)
