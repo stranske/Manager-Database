@@ -12,7 +12,7 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from adapters.base import connect_db, resolve_manager_id_column
+from adapters.base import connect_db, resolve_manager_id_column, table_exists
 from api.activism import (
     query_active_campaigns,
     query_activism_events,
@@ -55,13 +55,16 @@ def load_delta() -> pd.DataFrame:
     """
 
     conn = connect_db()
-    df = pd.read_sql_query(
-        "SELECT filed_date AS date, COUNT(*) AS filings FROM filings "
-        "WHERE filed_date IS NOT NULL GROUP BY filed_date ORDER BY filed_date",
-        conn,
-    )
-    conn.close()
-    return df
+    try:
+        if not table_exists(conn, "filings"):
+            return pd.DataFrame(columns=["date", "filings"])
+        return pd.read_sql_query(
+            "SELECT filed_date AS date, COUNT(*) AS filings FROM filings "
+            "WHERE filed_date IS NOT NULL GROUP BY filed_date ORDER BY filed_date",
+            conn,
+        )
+    finally:
+        conn.close()
 
 
 def load_filing_timeline(manager_id: int) -> pd.DataFrame:
@@ -1198,7 +1201,7 @@ def render_manager_dashboard(selected_manager_id: int) -> None:
 def render_historical_filing_trend() -> None:
     df = load_delta()
     if df.empty:
-        st.info("No data available")
+        st.caption("No historical filings available yet.")
         return
     chart = alt.Chart(df).mark_line().encode(x="date:T", y="filings:Q")
     st.altair_chart(chart, use_container_width=True)

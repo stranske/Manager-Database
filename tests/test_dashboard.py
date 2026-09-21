@@ -450,6 +450,59 @@ def test_load_delta_counts(tmp_path: Path, monkeypatch):
     assert list(df["filings"]) == [1, 1, 1]
 
 
+def test_load_delta_returns_empty_frame_without_filings_table(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "managers_only.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE managers (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+        conn.execute("INSERT INTO managers (name) VALUES ('Example Manager')")
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    df = load_delta()
+
+    assert df.empty
+    assert list(df.columns) == ["date", "filings"]
+
+
+@pytest.mark.parametrize("has_filings_table", [False, True])
+def test_load_delta_closes_connection_on_empty_or_query_error(monkeypatch, has_filings_table):
+    class ConnectionSpy:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    conn = ConnectionSpy()
+    monkeypatch.setattr(dashboard, "connect_db", lambda: conn)
+    monkeypatch.setattr(dashboard, "table_exists", lambda connection, table: has_filings_table)
+
+    def query_fails(*_args, **_kwargs):
+        raise RuntimeError("query failed")
+
+    monkeypatch.setattr(dashboard.pd, "read_sql_query", query_fails)
+    if has_filings_table:
+        with pytest.raises(RuntimeError, match="query failed"):
+            load_delta()
+    else:
+        assert load_delta().empty
+
+    assert conn.closed
+
+
+def test_historical_filing_trend_labels_empty_state(monkeypatch):
+    captions: list[str] = []
+    monkeypatch.setattr(dashboard, "load_delta", lambda: pd.DataFrame(columns=["date", "filings"]))
+    monkeypatch.setattr(dashboard.st, "caption", captions.append)
+    monkeypatch.setattr(
+        dashboard.st,
+        "altair_chart",
+        lambda *_args, **_kwargs: pytest.fail("empty state must not render a chart"),
+    )
+
+    render_historical_filing_trend()
+
+    assert captions == ["No historical filings available yet."]
+
+
 def test_load_delta_groups_repeated_filing_dates(tmp_path: Path, monkeypatch):
     """load_delta must run against the production column set and group by filing date.
 
