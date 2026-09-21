@@ -490,9 +490,20 @@ def _manager_conflict_flags(
     return flags
 
 
-@cache_query("managers.count", skip_args=1)
-def _count_managers(conn, db_identity: str, jurisdiction: str | None, tag: str | None) -> int:
-    """Return the total number of managers with optional filters."""
+def _escape_like(value: str) -> str:
+    """Escape user-provided text for a literal SQL LIKE pattern."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _manager_filter_clauses(
+    conn,
+    jurisdiction: str | None,
+    tag: str | None,
+    search: str | None,
+    name: str | None,
+) -> tuple[list[str], list[object]]:
+    """Build dialect-portable manager-list predicates and parameters."""
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     params: list[object] = []
     clauses: list[str] = []
     if jurisdiction:
@@ -507,6 +518,37 @@ def _count_managers(conn, db_identity: str, jurisdiction: str | None, tag: str |
         else:
             clauses.append("%s = ANY(tags)")
         params.append(tag)
+    if search:
+        pattern = f"%{_escape_like(search.lower())}%"
+        if isinstance(conn, sqlite3.Connection):
+            clauses.append(
+                "(LOWER(name) LIKE ? ESCAPE '\\' OR EXISTS "
+                "(SELECT 1 FROM json_each(aliases) WHERE LOWER(value) LIKE ? ESCAPE '\\'))"
+            )
+        else:
+            clauses.append(
+                "(LOWER(name) LIKE %s ESCAPE '\\' OR EXISTS "
+                "(SELECT 1 FROM unnest(COALESCE(aliases, ARRAY[]::text[])) AS alias(value) "
+                "WHERE LOWER(alias.value) LIKE %s ESCAPE '\\'))"
+            )
+        params.extend([pattern, pattern])
+    if name:
+        clauses.append(f"LOWER(name) LIKE {placeholder} ESCAPE '\\'")
+        params.append(f"{_escape_like(name.lower())}%")
+    return clauses, params
+
+
+@cache_query("managers.count", skip_args=1)
+def _count_managers(
+    conn,
+    db_identity: str,
+    jurisdiction: str | None,
+    tag: str | None,
+    search: str | None,
+    name: str | None,
+) -> int:
+    """Return the total number of managers with optional filters."""
+    clauses, params = _manager_filter_clauses(conn, jurisdiction, tag, search, name)
     where_clause = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     cursor = conn.execute(f"SELECT COUNT(*) FROM managers{where_clause}", params)
     row = cursor.fetchone()
@@ -523,23 +565,12 @@ def _fetch_managers(
     offset: int,
     jurisdiction: str | None,
     tag: str | None,
+    search: str | None,
+    name: str | None,
 ) -> list[tuple[object, ...]]:
     """Return managers ordered by id with pagination applied."""
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-    params: list[object] = []
-    clauses: list[str] = []
-    if jurisdiction:
-        if isinstance(conn, sqlite3.Connection):
-            clauses.append("EXISTS (SELECT 1 FROM json_each(jurisdictions) WHERE value = ?)")
-        else:
-            clauses.append("%s = ANY(jurisdictions)")
-        params.append(jurisdiction)
-    if tag:
-        if isinstance(conn, sqlite3.Connection):
-            clauses.append("EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)")
-        else:
-            clauses.append("%s = ANY(tags)")
-        params.append(tag)
+    clauses, params = _manager_filter_clauses(conn, jurisdiction, tag, search, name)
     where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     params.extend([limit, offset])
     id_column = _manager_id_column(conn)
@@ -989,6 +1020,14 @@ async def list_managers(
     ),
     jurisdiction: str | None = Query(None, description="Filter managers by jurisdiction"),
     tag: str | None = Query(None, description="Filter managers by tag"),
+    search: str | None = Query(
+        None,
+        description="Case-insensitive substring match on manager names and aliases",
+    ),
+    name: str | None = Query(
+        None,
+        description="Case-insensitive manager-name prefix match",
+    ),
 ):
     """Return a paginated list of managers."""
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
@@ -999,7 +1038,16 @@ async def list_managers(
         _ensure_manager_table(conn)
         normalized_jurisdiction = jurisdiction.strip() or None if jurisdiction else None
         normalized_tag = tag.strip() or None if tag else None
-        total = _count_managers(conn, db_identity, normalized_jurisdiction, normalized_tag)
+        normalized_search = search.strip() or None if search else None
+        normalized_name = name.strip() or None if name else None
+        total = _count_managers(
+            conn,
+            db_identity,
+            normalized_jurisdiction,
+            normalized_tag,
+            normalized_search,
+            normalized_name,
+        )
         # Default to a 25-row page while preserving the client-requested limit in metadata.
         remaining = max(total - offset, 0)
         page_limit = min(limit, remaining)
@@ -1011,6 +1059,8 @@ async def list_managers(
                 offset,
                 normalized_jurisdiction,
                 normalized_tag,
+                normalized_search,
+                normalized_name,
             )
         else:
             rows = []
