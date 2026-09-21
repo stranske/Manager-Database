@@ -1,6 +1,7 @@
 import asyncio
 import sqlite3
 import sys
+import threading
 from pathlib import Path
 from typing import Any, cast
 
@@ -946,7 +947,7 @@ def test_delete_manager_cascades_related_records(tmp_path, monkeypatch):
         )
         conn.execute(
             "INSERT INTO filings VALUES (?, ?, ?, ?)",
-            (10, target, "us:owned-accession", "raw/owned-accession.xml"),
+            (10, target, "us:owned-accession", "objects/owned-accession.xml"),
         )
         conn.execute("INSERT INTO holdings VALUES (?, ?, ?)", (20, 10, target))
         conn.execute(
@@ -967,7 +968,7 @@ def test_delete_manager_cascades_related_records(tmp_path, monkeypatch):
 
     response = asyncio.run(_delete_manager(target))
     assert response.status_code == 204
-    assert deleted_keys == ["raw/owned-accession.xml"]
+    assert deleted_keys == ["objects/owned-accession.xml"]
 
     conn = sqlite3.connect(db_path)
     try:
@@ -1087,6 +1088,44 @@ def test_delete_manager_retries_after_object_storage_failure(tmp_path, monkeypat
         ).fetchone() == (0,)
     finally:
         conn.close()
+
+
+def test_delete_manager_waits_for_inflight_ingestion_fence(tmp_path, monkeypatch):
+    from services.manager_deletion import (
+        acquire_manager_ingestion_lock,
+        delete_manager_data,
+        release_manager_ingestion_lock,
+    )
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    manager_id = asyncio.run(_post_manager({"name": "Concurrent Manager"})).json()["manager_id"]
+    ingest_conn = sqlite3.connect(db_path, timeout=2)
+    assert acquire_manager_ingestion_lock(ingest_conn, manager_id)
+
+    started = threading.Event()
+    finished = threading.Event()
+    results = []
+
+    def run_delete() -> None:
+        delete_conn = sqlite3.connect(db_path, timeout=2)
+        started.set()
+        try:
+            results.append(delete_manager_data(delete_conn, manager_id))
+        finally:
+            delete_conn.close()
+            finished.set()
+
+    worker = threading.Thread(target=run_delete)
+    worker.start()
+    assert started.wait(1)
+    assert not finished.wait(0.2)
+
+    release_manager_ingestion_lock(ingest_conn, manager_id)
+    ingest_conn.close()
+    assert finished.wait(2)
+    worker.join()
+    assert results[0].deleted is True
 
 
 def test_manager_delete_returns_404_for_missing_id(tmp_path, monkeypatch):

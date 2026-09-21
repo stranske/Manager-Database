@@ -19,11 +19,15 @@ from adapters.base import (
     get_adapter,
     get_placeholder,
     get_table_columns,
-    table_exists,
 )
 from adapters.openfigi import resolve_holding_identifiers
 from alerts.integration import build_new_filing_event, fire_alerts_for_event
 from etl.logging_setup import configure_logging, log_outcome
+from services.manager_deletion import (
+    acquire_manager_ingestion_lock,
+    manager_deletion_active,
+    release_manager_ingestion_lock,
+)
 
 
 def store_document(
@@ -90,9 +94,7 @@ def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
     if not row or row[0] is None:
         return None
     manager_id = int(row[0])
-    from services.manager_deletion import manager_ingestion_allowed
-
-    if not manager_ingestion_allowed(conn, manager_id):
+    if manager_deletion_active(conn, manager_id):
         return None
     return manager_id
 
@@ -392,6 +394,7 @@ async def fetch_and_store(cik: str, since: str):
     filings = await ADAPTER.list_new_filings(cik, since)
     conn = connect_db(DB_PATH)
     original_autocommit: bool | None = None
+    manager_lock_id: int | None = None
     try:
         original_autocommit = ingest_module._enable_transactional_writes(conn)
         _ensure_legacy_tables(conn)
@@ -405,6 +408,14 @@ async def fetch_and_store(cik: str, since: str):
         all_rows: list[dict[str, Any]] = []
         for filing in filings:
             raw = await ADAPTER.download(filing)
+            if manager_id is not None:
+                if not acquire_manager_ingestion_lock(conn, manager_id):
+                    logger.warning(
+                        "Manager deletion started during EDGAR download; stopping ingestion",
+                        extra={"manager_id": manager_id, "cik": cik},
+                    )
+                    return all_rows
+                manager_lock_id = manager_id
             raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()[:16]
             accession = str(filing.get("accession") or "unknown")
@@ -454,6 +465,9 @@ async def fetch_and_store(cik: str, since: str):
             )
             # Persist any remaining callback writes before final cleanup.
             conn.commit()
+            if manager_lock_id is not None:
+                release_manager_ingestion_lock(conn, manager_lock_id)
+                manager_lock_id = None
             all_rows.extend(parsed_rows)
         return all_rows
     except Exception:
@@ -462,6 +476,8 @@ async def fetch_and_store(cik: str, since: str):
         ingest_module._rollback_quietly(conn)
         raise
     finally:
+        if manager_lock_id is not None:
+            release_manager_ingestion_lock(conn, manager_lock_id)
         ingest_module._restore_autocommit_quietly(conn, original_autocommit)
         conn.close()
 

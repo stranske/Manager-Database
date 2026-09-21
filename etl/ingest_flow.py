@@ -20,13 +20,17 @@ from adapters.base import (
     get_placeholder,
     get_table_columns,
     is_sqlite,
-    table_exists,
 )
 from adapters.base import (
     manager_id_column as shared_manager_id_column,
 )
 from etl.logging_setup import configure_logging, log_outcome
-from services.manager_deletion import ManagerErasureFenceError, manager_ingestion_allowed
+from services.manager_deletion import (
+    ManagerErasureFenceError,
+    acquire_manager_ingestion_lock,
+    manager_deletion_active,
+    release_manager_ingestion_lock,
+)
 
 
 def store_document(
@@ -204,7 +208,7 @@ def _lookup_manager_id(conn: Any, jurisdiction: str, identifier: str) -> int | N
     if not row or row[0] is None:
         return None
     manager_id = int(row[0])
-    if not manager_ingestion_allowed(conn, manager_id):
+    if manager_deletion_active(conn, manager_id):
         logger.warning(
             "Manager not found or deletion is active; skipping ingestion",
             extra={"manager_id": manager_id, "jurisdiction": jurisdiction},
@@ -260,7 +264,7 @@ def _insert_filing(
     parsed_rows: list[dict[str, Any]],
     storage_key: str | None = None,
 ) -> int:
-    if manager_id is not None and not manager_ingestion_allowed(conn, manager_id):
+    if manager_id is not None and manager_deletion_active(conn, manager_id):
         raise ManagerErasureFenceError(
             "Manager erasure fence blocked ingestion write",
         )
@@ -707,6 +711,7 @@ async def fetch_and_store(
     active_db_path = db_path or DB_PATH
     conn = connect_db(active_db_path)
     original_autocommit: bool | None = None
+    manager_lock_id: int | None = None
     try:
         original_autocommit = _enable_transactional_writes(conn)
         _ensure_filing_tables(conn)
@@ -718,6 +723,13 @@ async def fetch_and_store(
                 extra={"jurisdiction": jurisdiction, "identifier": identifier},
             )
             return []
+        if not acquire_manager_ingestion_lock(conn, manager_id):
+            logger.warning(
+                "Manager deletion started before ingestion acquired its write fence",
+                extra={"manager_id": manager_id, "jurisdiction": jurisdiction},
+            )
+            return []
+        manager_lock_id = manager_id
 
         results: list[dict[str, Any]] = []
         row_count = 0
@@ -784,6 +796,8 @@ async def fetch_and_store(
         _rollback_quietly(conn)
         raise
     finally:
+        if manager_lock_id is not None:
+            release_manager_ingestion_lock(conn, manager_lock_id)
         _restore_autocommit_quietly(conn, original_autocommit)
         _close_quietly(conn)
 

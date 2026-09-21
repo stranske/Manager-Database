@@ -26,10 +26,12 @@ class ManagerErasureFenceError(RuntimeError):
 
 ACTIVE_DELETION_STATES = (
     "blocked",
+    "collecting",
     "deleting_objects",
     "object_failed",
     "purging_relational",
 )
+_MANAGER_LOCK_NAMESPACE = 4_320_000_000_000_000
 
 
 @dataclass(frozen=True)
@@ -84,29 +86,49 @@ def manager_deletion_active(conn: Any, manager_id: int) -> bool:
     active = conn.execute(
         "SELECT 1 FROM manager_deletion_operations "
         f"WHERE manager_id = {marker} AND state IN "
-        "('blocked', 'deleting_objects', 'object_failed', 'purging_relational') LIMIT 1",
+        "('blocked', 'collecting', 'deleting_objects', 'object_failed', "
+        "'purging_relational') LIMIT 1",
         (manager_id,),
     ).fetchone()
     return active is not None
 
 
-def manager_ingestion_allowed(conn: Any, manager_id: int) -> bool:
-    return _manager_exists(conn, manager_id) and not manager_deletion_active(conn, manager_id)
+def _manager_lock_key(manager_id: int) -> int:
+    return _MANAGER_LOCK_NAMESPACE + int(manager_id)
 
 
-def _acquire_manager_erasure_lock(conn: Any, manager_id: int) -> bool:
-    manager_pk = _id_column(conn, "managers", "manager_id", "id")
-    if manager_pk is None:
-        return False
-    marker = get_placeholder(conn)
+def _acquire_manager_lock(conn: Any, manager_id: int) -> None:
     if is_sqlite(conn):
+        if getattr(conn, "in_transaction", False):
+            conn.commit()
         conn.execute("BEGIN IMMEDIATE")
-    lock_sql = (
-        f"SELECT 1 FROM managers WHERE {manager_pk} = {marker} LIMIT 1"
-        if is_sqlite(conn)
-        else f"SELECT 1 FROM managers WHERE {manager_pk} = {marker} FOR UPDATE"
-    )
-    return conn.execute(lock_sql, (manager_id,)).fetchone() is not None
+        return
+    conn.execute("SELECT pg_advisory_lock(%s)", (_manager_lock_key(manager_id),))
+
+
+def _release_manager_lock(conn: Any, manager_id: int) -> None:
+    if not is_sqlite(conn):
+        conn.execute("SELECT pg_advisory_unlock(%s)", (_manager_lock_key(manager_id),))
+        if getattr(conn, "autocommit", True) is False:
+            conn.commit()
+
+
+def acquire_manager_ingestion_lock(conn: Any, manager_id: int) -> bool:
+    """Lock one manager and recheck that ingestion is still allowed."""
+    _acquire_manager_lock(conn, manager_id)
+    allowed = _manager_exists(conn, manager_id) and not manager_deletion_active(conn, manager_id)
+    if not allowed:
+        if is_sqlite(conn) and getattr(conn, "in_transaction", False):
+            conn.rollback()
+        _release_manager_lock(conn, manager_id)
+    return allowed
+
+
+def release_manager_ingestion_lock(conn: Any, manager_id: int) -> None:
+    """Release a lock acquired by :func:`acquire_manager_ingestion_lock`."""
+    if is_sqlite(conn) and getattr(conn, "in_transaction", False):
+        conn.rollback()
+    _release_manager_lock(conn, manager_id)
 
 
 def _manager_exists(conn: Any, manager_id: int) -> bool:
@@ -267,7 +289,6 @@ def _record_manifest(
             f"VALUES ({marker}, {marker}, {marker})",
             (operation_id, bucket, key),
         )
-    _commit(conn)
     return operation_id
 
 
@@ -307,7 +328,6 @@ def _mark_objects_deleted(conn: Any, operation_id: str) -> None:
         f"WHERE operation_id = {marker}",
         (operation_id,),
     )
-    _commit(conn)
 
 
 def _delete_where(conn: Any, table: str, predicate: str, params: tuple[Any, ...]) -> None:
@@ -522,36 +542,35 @@ def _purge_relational(conn: Any, manager_id: int, operation_id: str) -> bool:
 
 def delete_manager_data(conn: Any, manager_id: int) -> ManagerDeletionResult:
     """Delete one manager only after exact object cleanup can be proven."""
-    if not _manager_exists(conn, manager_id):
-        return ManagerDeletionResult(deleted=False)
-    if not _acquire_manager_erasure_lock(conn, manager_id):
-        return ManagerDeletionResult(deleted=False)
-    bucket = os.getenv("MINIO_BUCKET", "filings")
-    exact, ambiguous = _target_storage_references(conn, manager_id)
-    exact -= _shared_exact_keys(conn, manager_id, exact)
-    operation_id = _record_manifest(conn, manager_id, bucket, exact, ambiguous)
-    if ambiguous:
-        raise AmbiguousManagerObjectsError(
-            "Manager deletion is blocked because legacy filings lack an exact physical object key"
-        )
+    _acquire_manager_lock(conn, manager_id)
     try:
-        _delete_objects(bucket, exact)
-    except Exception as exc:
-        marker = get_placeholder(conn)
-        conn.execute(
-            "UPDATE manager_deletion_operations SET state = 'object_failed', error = "
-            f"{marker} WHERE operation_id = {marker}",
-            (str(exc), operation_id),
-        )
-        _commit(conn)
-        if isinstance(exc, ManagerObjectDeletionError):
-            raise
-        raise ManagerObjectDeletionError("Object storage deletion failed") from exc
-    _mark_objects_deleted(conn, operation_id)
+        if not _manager_exists(conn, manager_id):
+            return ManagerDeletionResult(deleted=False)
+        bucket = os.getenv("MINIO_BUCKET", "filings")
+        exact, ambiguous = _target_storage_references(conn, manager_id)
+        exact -= _shared_exact_keys(conn, manager_id, exact)
+        operation_id = _record_manifest(conn, manager_id, bucket, exact, ambiguous)
+        if ambiguous:
+            _commit(conn)
+            raise AmbiguousManagerObjectsError(
+                "Manager deletion is blocked because legacy filings lack an exact physical object key"
+            )
+        try:
+            _delete_objects(bucket, exact)
+        except Exception as exc:
+            marker = get_placeholder(conn)
+            conn.execute(
+                "UPDATE manager_deletion_operations SET state = 'object_failed', error = "
+                f"{marker} WHERE operation_id = {marker}",
+                (str(exc), operation_id),
+            )
+            _commit(conn)
+            if isinstance(exc, ManagerObjectDeletionError):
+                raise
+            raise ManagerObjectDeletionError("Object storage deletion failed") from exc
+        _mark_objects_deleted(conn, operation_id)
 
-    try:
         if is_sqlite(conn):
-            conn.execute("BEGIN IMMEDIATE")
             deleted = _purge_relational(conn, manager_id, operation_id)
             conn.commit()
         else:
@@ -561,4 +580,8 @@ def delete_manager_data(conn: Any, manager_id: int) -> ManagerDeletionResult:
     except Exception:
         _rollback(conn)
         raise
+    finally:
+        if is_sqlite(conn) and getattr(conn, "in_transaction", False):
+            _rollback(conn)
+        _release_manager_lock(conn, manager_id)
     return ManagerDeletionResult(deleted=deleted, operation_id=operation_id)
