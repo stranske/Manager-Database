@@ -513,6 +513,61 @@ def test_alert_acknowledge_and_count_flow(tmp_path, monkeypatch):
     assert final_count.json() == {"count": 0}
 
 
+def test_acknowledge_all_respects_event_type_filter(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    assert (
+        asyncio.run(_request("POST", "/api/alerts/rules", json=_create_rule_payload())).status_code
+        == 201
+    )
+    _seed_alert_history(db_path)
+    _seed_alert_for_rule(db_path, rule_id=2, event_type="new_filing")
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/alerts/history/acknowledge-all",
+            params={"by": "tester", "event_type": "large_delta"},
+        )
+    )
+    assert response.status_code == 200
+    assert response.json() == {"acknowledged": 2}
+    remaining = asyncio.run(_request("GET", "/api/alerts/history", params={"acknowledged": False}))
+    assert [row["event_type"] for row in remaining.json()] == ["new_filing"]
+
+
+def test_acknowledge_all_respects_status_and_date_range(tmp_path, monkeypatch):
+    db_path = tmp_path / "alerts.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    assert (
+        asyncio.run(_request("POST", "/api/alerts/rules", json=_create_rule_payload())).status_code
+        == 201
+    )
+    _seed_alert_history(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE alert_history SET fired_at = '2026-03-01 12:00:00' WHERE alert_id = 1")
+        conn.execute("UPDATE alert_history SET fired_at = '2026-03-03 12:00:00' WHERE alert_id = 2")
+
+    filters = {
+        "since": "2026-03-01T00:00:00",
+        "until": "2026-03-02T00:00:00",
+        "acknowledged": False,
+    }
+    visible = asyncio.run(_request("GET", "/api/alerts/history", params=filters))
+    assert [row["alert_id"] for row in visible.json()] == [1]
+    response = asyncio.run(
+        _request("POST", "/api/alerts/history/acknowledge-all", params={"by": "tester", **filters})
+    )
+    assert response.status_code == 200
+    assert response.json() == {"acknowledged": 1}
+    remaining = asyncio.run(_request("GET", "/api/alerts/history", params={"acknowledged": False}))
+    assert [row["alert_id"] for row in remaining.json()] == [2]
+    already_acknowledged = asyncio.run(
+        _request("POST", "/api/alerts/history/acknowledge-all", params={"acknowledged": True})
+    )
+    assert already_acknowledged.json() == {"acknowledged": 0}
+
+
 def test_alert_history_invalid_event_type_rejected(tmp_path, monkeypatch):
     db_path = tmp_path / "alerts.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
