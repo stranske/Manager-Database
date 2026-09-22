@@ -336,7 +336,7 @@ def _upsert_universe_record(conn: Any, name: str, cik: str, jurisdiction: str) -
     )
 
 
-def _insert_manager(conn, payload: ManagerCreate) -> int:
+def _insert_manager(conn, payload: ManagerCreate, *, commit: bool = True) -> int:
     """Insert a manager record and return the generated id."""
     if isinstance(conn, sqlite3.Connection):
         cursor = conn.execute(
@@ -354,7 +354,8 @@ def _insert_manager(conn, payload: ManagerCreate) -> int:
                 json.dumps(payload.registry_ids),
             ),
         )
-        conn.commit()
+        if commit:
+            conn.commit()
         lastrowid = cursor.lastrowid
         return int(lastrowid) if lastrowid is not None else 0
     id_column = _manager_id_column(conn)
@@ -1231,12 +1232,16 @@ async def bulk_import_managers(
 
     conn = None
     successes: list[BulkImportSuccess] = []
+    postgres_autocommit_restored = False
     try:
         if valid_records:
             conn = connect_db()
             _ensure_manager_table(conn)
+            if not isinstance(conn, sqlite3.Connection) and getattr(conn, "autocommit", False):
+                conn.autocommit = False
+                postgres_autocommit_restored = True
             for index, payload in valid_records:
-                manager_id = _insert_manager(conn, payload)
+                manager_id = _insert_manager(conn, payload, commit=False)
                 successes.append(
                     BulkImportSuccess(
                         index=index,
@@ -1255,11 +1260,19 @@ async def bulk_import_managers(
                         ),
                     )
                 )
+            conn.commit()
             invalidate_cache_prefix("managers")
     except DB_ERROR_TYPES as exc:
+        if conn is not None:
+            try:
+                conn.rollback()
+            except DB_ERROR_TYPES:
+                pass
         _raise_db_unavailable(exc)
     finally:
         if conn is not None:
+            if postgres_autocommit_restored:
+                conn.autocommit = True
             conn.close()
 
     return BulkImportResponse(

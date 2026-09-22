@@ -348,3 +348,35 @@ def test_bulk_csv_with_only_empty_records_is_rejected(tmp_path, monkeypatch):
     assert resp.json()["errors"] == [
         {"field": "body", "message": "No manager records were provided."}
     ]
+
+
+def test_bulk_import_rolls_back_on_mid_batch_failure(tmp_path, monkeypatch):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [
+        {"name": "Manager A", "jurisdictions": ["us"]},
+        {"name": "Manager B", "jurisdictions": ["uk"]},
+    ]
+    original_insert = managers_api._insert_manager
+    calls = {"count": 0}
+
+    def fail_on_second(conn, payload, *, commit=True):
+        calls["count"] += 1
+        if calls["count"] >= 2:
+            raise sqlite3.OperationalError("simulated mid-batch failure")
+        return original_insert(conn, payload, commit=commit)
+
+    monkeypatch.setattr(managers_api, "_insert_manager", fail_on_second)
+
+    resp = asyncio.run(_post_bulk_json(payloads))
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Database unavailable"
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute("SELECT name FROM managers").fetchall()
+    finally:
+        conn.close()
+    assert row == []
