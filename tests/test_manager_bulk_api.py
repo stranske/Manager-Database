@@ -488,4 +488,41 @@ def test_bulk_import_preserves_original_error_when_postgres_cleanup_fails(monkey
     assert resp.status_code == 503
     assert resp.json()["detail"] == "Database unavailable"
     assert "original insert failure" in caplog.text
-    assert events[-1] == "close"
+    assert "Bulk import rollback failed: rollback failed" in caplog.text
+    assert "Bulk import autocommit restoration failed: transaction still active" in caplog.text
+    assert events == [("autocommit", False), "rollback", "close"]
+
+
+def test_bulk_import_reports_postgres_close_failure(monkeypatch, caplog):
+    psycopg = pytest.importorskip("psycopg")
+    import api.managers as managers_api
+
+    events = []
+
+    class FailingCloseConn:
+        autocommit = True
+
+        def __setattr__(self, name, value):
+            super().__setattr__(name, value)
+            if name == "autocommit":
+                events.append((name, value))
+
+        def commit(self):
+            events.append("commit")
+
+        def close(self):
+            events.append("close")
+            raise psycopg.OperationalError("close failed")
+
+    conn = FailingCloseConn()
+    monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
+    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+    monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
+    monkeypatch.setattr(managers_api, "_insert_manager", lambda *_args, **_kwargs: 1)
+
+    resp = asyncio.run(_post_bulk_json([{"name": "Manager A"}]))
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Database unavailable"
+    assert "Bulk import connection close failed: close failed" in caplog.text
+    assert events == [("autocommit", False), "commit", ("autocommit", True), "close"]
