@@ -86,7 +86,14 @@ class AlertEngine:
                     return False
                 continue
             if key == "delta_type":
-                if str(payload.get("delta_type") or "") != str(expected):
+                actual_delta_type = str(payload.get("delta_type") or "")
+                if (
+                    event.event_type == "large_delta"
+                    and expected == "net"
+                    and actual_delta_type in {"buy", "sell"}
+                ):
+                    continue
+                if actual_delta_type != str(expected):
                     return False
                 continue
             if key == "news_count_gt":

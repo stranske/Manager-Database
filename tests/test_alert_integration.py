@@ -107,6 +107,41 @@ def test_saved_legacy_new_filing_rule_matches_edgar_event(tmp_path):
         conn.close()
 
 
+def test_large_delta_net_rule_matches_buy_and_sell_events(tmp_path):
+    conn = _setup_db(tmp_path / "net-delta-alerts.db")
+    try:
+        conn.execute(
+            """INSERT INTO alert_rules(name, event_type, condition_json, channels, enabled)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                "Net Delta Rule",
+                "large_delta",
+                json.dumps({"delta_type": "net", "value_usd_gt": 0}),
+                '["streamlit"]',
+                1,
+            ),
+        )
+        engine = AlertEngine(conn)
+
+        for delta_type in ("buy", "sell"):
+            event = AlertEvent(
+                event_type="large_delta",
+                manager_id=1,
+                payload={"delta_type": delta_type, "value_usd": 100},
+            )
+            assert len(engine.evaluate(event)) == 1
+
+        for delta_type, value_usd in (("buy", 0), ("sell", 0), ("other", 100)):
+            event = AlertEvent(
+                event_type="large_delta",
+                manager_id=1,
+                payload={"delta_type": delta_type, "value_usd": value_usd},
+            )
+            assert engine.evaluate(event) == []
+    finally:
+        conn.close()
+
+
 def test_evaluate_and_record_alerts_persists_alert_history(tmp_path):
     conn = _setup_db(tmp_path / "alerts.db")
     try:
