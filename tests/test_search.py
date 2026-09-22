@@ -267,10 +267,10 @@ def test_universal_search_postgres_fts_queries_and_results():
 
 def test_universal_search_postgres_uses_embedding_search_for_documents(monkeypatch):
     conn = _FakePostgresConn()
-    calls: list[tuple[str, int]] = []
+    calls: list[tuple[str, int, Any]] = []
 
-    def _fake_search_documents(query: str, k: int = 3):
-        calls.append((query, k))
+    def _fake_search_documents(query: str, k: int = 3, *, connection: Any = None):
+        calls.append((query, k, connection))
         return [
             {
                 "doc_id": 42,
@@ -289,11 +289,37 @@ def test_universal_search_postgres_uses_embedding_search_for_documents(monkeypat
 
     results = universal_search("activist campaign", conn, limit=5, entity_type="document")
 
-    assert calls == [("activist campaign", 5)]
+    assert calls == [("activist campaign", 5, conn)]
     vector_result = next(item for item in results if item.entity_id == 42)
     assert vector_result.headline == "vector-only.txt"
     assert vector_result.manager_name == "Elliott Management"
     assert vector_result.relevance > 0.5
+
+
+def test_universal_search_postgres_logs_vector_database_failure(monkeypatch, caplog):
+    conn = _FakePostgresConn()
+
+    def _unavailable_search(*_args, **_kwargs):
+        raise sqlite3.OperationalError("vector index unavailable")
+
+    monkeypatch.setitem(
+        sys.modules, "embeddings", SimpleNamespace(search_documents=_unavailable_search)
+    )
+
+    results = universal_search("Elliott", conn, limit=5, entity_type="document")
+
+    assert any(result.entity_id == 5 for result in results)
+    assert "Vector document search unavailable" in caplog.text
+
+
+def test_universal_search_postgres_propagates_vector_programming_errors(monkeypatch):
+    def _broken_search(*_args, **_kwargs):
+        raise TypeError("invalid vector call")
+
+    monkeypatch.setitem(sys.modules, "embeddings", SimpleNamespace(search_documents=_broken_search))
+
+    with pytest.raises(TypeError, match="invalid vector call"):
+        universal_search("Elliott", _FakePostgresConn(), limit=5, entity_type="document")
 
 
 def test_universal_search_sqlite_uses_embedding_search_for_documents(tmp_path: Path, monkeypatch):

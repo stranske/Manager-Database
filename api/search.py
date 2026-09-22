@@ -2,10 +2,26 @@
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from typing import Any, Literal
 
 from adapters.base import get_table_columns, is_sqlite, table_exists
 from utils.numeric import finite_float_or_none
+
+try:  # pragma: no cover - optional in SQLite-only environments
+    import psycopg as psycopg
+except ImportError:  # pragma: no cover
+    psycopg = None  # type: ignore[assignment]
+
+logger = logging.getLogger(__name__)
+VECTOR_RECOVERY_ERRORS: tuple[type[BaseException], ...] = (
+    ImportError,
+    OSError,
+    sqlite3.Error,
+)
+if psycopg is not None:
+    VECTOR_RECOVERY_ERRORS += (psycopg.Error,)
 
 try:
     from pydantic import BaseModel, Field
@@ -475,8 +491,9 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
         try:
             from embeddings import search_documents
 
-            vector_hits = search_documents(query, k=limit)
-        except Exception:
+            vector_hits = search_documents(query, k=limit, connection=conn)
+        except VECTOR_RECOVERY_ERRORS:
+            logger.exception("Vector document search unavailable; returning full-text results")
             vector_hits = []
 
         for hit in vector_hits:

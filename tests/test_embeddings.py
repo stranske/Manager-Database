@@ -26,6 +26,25 @@ def _assert_postgres_safe(sql: str) -> None:
     assert "?" not in sql, sql
 
 
+def test_search_documents_uses_borrowed_uncommitted_connection(monkeypatch):
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE documents (doc_id INTEGER PRIMARY KEY, text TEXT, embedding TEXT)")
+    conn.execute(
+        "INSERT INTO documents (doc_id, text, embedding) VALUES (1, 'new note', '[0.1, 0.2]')"
+    )
+    monkeypatch.setattr(
+        "embeddings.connect_db",
+        lambda _path=None: pytest.fail("search opened a second connection"),
+    )
+    monkeypatch.setattr("embeddings.embed_text", lambda _query: [0.1, 0.2])
+
+    hits = search_documents("new", connection=conn)
+
+    assert [hit["doc_id"] for hit in hits] == [1]
+    assert conn.execute("SELECT count(*) FROM documents").fetchone() == (1,)
+    conn.close()
+
+
 def test_store_document_with_metadata_populates_columns(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("USE_SIMPLE_EMBED", "1")

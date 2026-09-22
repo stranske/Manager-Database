@@ -280,11 +280,14 @@ def search_documents(
     db_path: str | None = None,
     k: int = 3,
     manager_id: int | None = None,
+    *,
+    connection: Any | None = None,
 ) -> list[dict[str, Any]]:
     """Return top ``k`` docs similar to ``query``, optionally filtered by manager."""
     if k <= 0:
         return []
-    conn = connect_db(db_path)
+    owns_connection = connection is None
+    conn = connection if connection is not None else connect_db(db_path)
     is_pg = _is_postgres_connection(conn)
     if is_pg:
         if register_vector:
@@ -310,7 +313,8 @@ def search_documents(
             ),
             tuple(params),
         ).fetchall()
-        conn.close()
+        if owns_connection:
+            conn.close()
         return [
             {
                 "doc_id": doc_id,
@@ -326,7 +330,8 @@ def search_documents(
     # Use a heap to keep only top k results, bounding memory to O(k) instead of O(n)
     columns = _sqlite_columns(conn, "documents")
     if not columns:
-        conn.close()
+        if owns_connection:
+            conn.close()
         return []
     id_col = "doc_id" if "doc_id" in columns else "id"
     text_col = "text" if "text" in columns else "content"
@@ -341,7 +346,8 @@ def search_documents(
         elif "id" in manager_columns:
             manager_pk_col = "id"
     if manager_id is not None and not (has_manager_id or has_associations):
-        conn.close()
+        if owns_connection:
+            conn.close()
         return []
     where_clause = ""
     sqlite_params: list[Any] = []
@@ -392,7 +398,8 @@ def search_documents(
             heapq.heappush(heap, entry)
         elif entry[:2] > heap[0][:2]:
             heapq.heapreplace(heap, entry)
-    conn.close()
+    if owns_connection:
+        conn.close()
     # Extract results and sort by distance (ascending)
     results = [item[2] for item in heap]
     results.sort(key=lambda r: (r["distance"], r["doc_id"]))
