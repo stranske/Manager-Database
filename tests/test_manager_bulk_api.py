@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -380,3 +381,111 @@ def test_bulk_import_rolls_back_on_mid_batch_failure(tmp_path, monkeypatch):
     finally:
         conn.close()
     assert row == []
+
+
+@pytest.mark.parametrize("fail_insert", [False, True])
+def test_bulk_import_postgres_transaction_state(monkeypatch, fail_insert):
+    psycopg = pytest.importorskip("psycopg")
+    import api.managers as managers_api
+
+    events = []
+
+    class PostgresConn:
+        def __init__(self):
+            self._autocommit = True
+
+        @property
+        def autocommit(self):
+            return self._autocommit
+
+        @autocommit.setter
+        def autocommit(self, value):
+            events.append(("autocommit", value))
+            self._autocommit = value
+
+        def commit(self):
+            events.append(("commit",))
+
+        def rollback(self):
+            events.append(("rollback",))
+
+        def close(self):
+            events.append(("close",))
+
+    conn = PostgresConn()
+    monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
+    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+    monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
+
+    def insert(_conn, _payload, *, commit=True):
+        assert _conn is conn
+        assert commit is False
+        assert conn.autocommit is False
+        events.append(("insert",))
+        if fail_insert and events.count(("insert",)) == 2:
+            raise psycopg.OperationalError("simulated insert failure")
+        return events.count(("insert",))
+
+    monkeypatch.setattr(managers_api, "_insert_manager", insert)
+    payloads = [{"name": "Manager A"}, {"name": "Manager B"}]
+    resp = asyncio.run(_post_bulk_json(payloads))
+
+    assert resp.status_code == (503 if fail_insert else 200)
+    if fail_insert:
+        assert resp.json()["detail"] == "Database unavailable"
+        assert events == [
+            ("autocommit", False),
+            ("insert",),
+            ("insert",),
+            ("rollback",),
+            ("autocommit", True),
+            ("close",),
+        ]
+    else:
+        assert events == [
+            ("autocommit", False),
+            ("insert",),
+            ("insert",),
+            ("commit",),
+            ("autocommit", True),
+            ("close",),
+        ]
+
+
+def test_bulk_import_preserves_original_error_when_postgres_cleanup_fails(monkeypatch, caplog):
+    psycopg = pytest.importorskip("psycopg")
+    import api.managers as managers_api
+
+    events = []
+
+    class FailingCleanupConn:
+        autocommit = True
+
+        def __setattr__(self, name, value):
+            if name == "autocommit" and value is True and "rollback" in events:
+                raise psycopg.ProgrammingError("transaction still active")
+            super().__setattr__(name, value)
+            if name == "autocommit":
+                events.append((name, value))
+
+        def rollback(self):
+            events.append("rollback")
+            raise psycopg.OperationalError("rollback failed")
+
+        def close(self):
+            events.append("close")
+
+    conn = FailingCleanupConn()
+    monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
+    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+
+    def fail_insert(_conn, _payload, *, commit=True):
+        raise psycopg.OperationalError("original insert failure")
+
+    monkeypatch.setattr(managers_api, "_insert_manager", fail_insert)
+    resp = asyncio.run(_post_bulk_json([{"name": "Manager A"}]))
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Database unavailable"
+    assert "original insert failure" in caplog.text
+    assert events[-1] == "close"

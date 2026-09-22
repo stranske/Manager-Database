@@ -1233,6 +1233,7 @@ async def bulk_import_managers(
     conn = None
     successes: list[BulkImportSuccess] = []
     postgres_autocommit_restored = False
+    db_error: BaseException | None = None
     try:
         if valid_records:
             conn = connect_db()
@@ -1263,17 +1264,30 @@ async def bulk_import_managers(
             conn.commit()
             invalidate_cache_prefix("managers")
     except DB_ERROR_TYPES as exc:
+        db_error = exc
         if conn is not None:
             try:
                 conn.rollback()
-            except DB_ERROR_TYPES:
-                pass
-        _raise_db_unavailable(exc)
+            except DB_ERROR_TYPES as rollback_error:
+                logger.warning("Bulk import rollback failed: %s", rollback_error)
     finally:
         if conn is not None:
             if postgres_autocommit_restored:
-                conn.autocommit = True
-            conn.close()
+                try:
+                    conn.autocommit = True
+                except DB_ERROR_TYPES as cleanup_error:
+                    logger.warning("Bulk import autocommit restoration failed: %s", cleanup_error)
+                    if db_error is None:
+                        db_error = cleanup_error
+            try:
+                conn.close()
+            except DB_ERROR_TYPES as cleanup_error:
+                logger.warning("Bulk import connection close failed: %s", cleanup_error)
+                if db_error is None:
+                    db_error = cleanup_error
+
+    if db_error is not None:
+        _raise_db_unavailable(db_error)
 
     return BulkImportResponse(
         total=len(raw_records),
