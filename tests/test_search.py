@@ -265,6 +265,37 @@ def test_universal_search_postgres_fts_queries_and_results():
     assert any("to_tsvector" in query.lower() for query in conn.queries)
 
 
+def test_universal_search_postgres_uses_embedding_search_for_documents(monkeypatch):
+    conn = _FakePostgresConn()
+    calls: list[tuple[str, int]] = []
+
+    def _fake_search_documents(query: str, k: int = 3):
+        calls.append((query, k))
+        return [
+            {
+                "doc_id": 42,
+                "content": "A semantic match without a full text match",
+                "filename": "vector-only.txt",
+                "manager_name": "Elliott Management",
+                "distance": 0.05,
+            }
+        ]
+
+    monkeypatch.setitem(
+        sys.modules,
+        "embeddings",
+        SimpleNamespace(search_documents=_fake_search_documents),
+    )
+
+    results = universal_search("activist campaign", conn, limit=5, entity_type="document")
+
+    assert calls == [("activist campaign", 5)]
+    vector_result = next(item for item in results if item.entity_id == 42)
+    assert vector_result.headline == "vector-only.txt"
+    assert vector_result.manager_name == "Elliott Management"
+    assert vector_result.relevance > 0.5
+
+
 def test_universal_search_sqlite_uses_embedding_search_for_documents(tmp_path: Path, monkeypatch):
     db_path = tmp_path / "search.db"
     conn = sqlite3.connect(db_path)

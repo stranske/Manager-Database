@@ -472,6 +472,38 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
                 )
             )
 
+        try:
+            from embeddings import search_documents
+
+            vector_hits = search_documents(query, k=limit)
+        except Exception:
+            vector_hits = []
+
+        for hit in vector_hits:
+            doc_id = hit.get("doc_id")
+            if doc_id is None:
+                continue
+            content = str(hit.get("content") or "").strip()
+            headline = str(hit.get("filename") or "").strip() or content[:80] or "Document"
+            results.append(
+                SearchResult(
+                    entity_type="document",
+                    entity_id=int(doc_id),
+                    manager_name=hit.get("manager_name"),
+                    headline=headline,
+                    snippet=content[:180],
+                    relevance=_score_result(
+                        "document",
+                        query,
+                        headline,
+                        content[:180],
+                        vector_distance=hit.get("distance"),
+                    ),
+                    url=None,
+                    timestamp=None,
+                )
+            )
+
     return results
 
 
