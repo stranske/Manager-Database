@@ -621,6 +621,58 @@ def test_search_documents_postgres_without_registered_vector_uses_percent_placeh
     assert conn.closed is True
 
 
+def test_search_documents_postgres_manager_join_uses_document_owner(monkeypatch):
+    class Connection:
+        def __init__(self):
+            self.info = object()
+            self.executed = []
+            self.closed = False
+
+        def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
+            self.executed.append((sql, params))
+            if sql.startswith("SELECT d.doc_id"):
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "fetchall": lambda self: [
+                            (7, "alpha", "memo", "note.pdf", "Doc Owner", 0.25)
+                        ]
+                    },
+                )()
+            return type("Result", (), {"fetchall": lambda self: []})()
+
+        def close(self):
+            self.closed = True
+
+    conn = Connection()
+    monkeypatch.setattr("embeddings.connect_db", lambda _path=None: conn)
+    monkeypatch.setattr("embeddings.register_vector", None)
+    monkeypatch.setattr("embeddings.embed_text", lambda _text: [0.1, 0.9])
+
+    results = search_documents("alpha", "ignored.db", k=1, manager_id=42)
+
+    assert results == [
+        {
+            "doc_id": 7,
+            "content": "alpha",
+            "kind": "memo",
+            "filename": "note.pdf",
+            "manager_name": "Doc Owner",
+            "distance": 0.25,
+        }
+    ]
+    sql, params = conn.executed[0]
+    assert "LEFT JOIN managers m ON d.manager_id = m.manager_id" in sql
+    assert "ON 42 = m.manager_id" not in sql
+    assert "ON 42=m.manager_id" not in sql.replace(" ", "")
+    qvec, filter_manager_id, limit = params
+    assert filter_manager_id == 42
+    assert limit == 1
+    assert conn.closed is True
+
+
 def test_embeddings_pass_dialect_gate_without_allowlist() -> None:
     repo_root = Path(__file__).resolve().parents[1]
 

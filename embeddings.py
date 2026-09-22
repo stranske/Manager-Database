@@ -300,12 +300,11 @@ def search_documents(
                 "WHERE dm.doc_id = d.doc_id AND dm.manager_id = %s)"
             )
             params.append(manager_id)
-        manager_join = str(int(manager_id)) if manager_id is not None else "d.manager_id"
         params.append(k)
         rows = conn.execute(
             (
                 "SELECT d.doc_id, d.text, d.kind, d.filename, m.name, d.embedding <=> %s::vector AS dist "
-                f"FROM documents d LEFT JOIN managers m ON {manager_join} = m.manager_id "
+                "FROM documents d LEFT JOIN managers m ON d.manager_id = m.manager_id "
                 f"{where_clause} "
                 "ORDER BY dist LIMIT %s"
             ),
