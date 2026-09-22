@@ -1,6 +1,7 @@
 import asyncio
 import sqlite3
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -37,6 +38,10 @@ class _FakeCursor:
 class _FakePostgresConn:
     def __init__(self):
         self.queries: list[str] = []
+
+    @contextmanager
+    def transaction(self):
+        yield
 
     def execute(self, sql, params=()):
         sql_text = " ".join(str(sql).split())
@@ -310,6 +315,40 @@ def test_universal_search_postgres_logs_vector_database_failure(monkeypatch, cap
 
     assert any(result.entity_id == 5 for result in results)
     assert "Vector document search unavailable" in caplog.text
+
+
+def test_universal_search_postgres_vector_failure_preserves_caller_transaction(monkeypatch):
+    class ReusableConnection(_FakePostgresConn):
+        aborted = False
+        savepoint_used = False
+
+        @contextmanager
+        def transaction(self):
+            self.savepoint_used = True
+            try:
+                yield
+            except sqlite3.OperationalError:
+                self.aborted = False  # rollback to the caller's savepoint
+                raise
+
+        def execute(self, sql, params=()):
+            if self.aborted:
+                raise sqlite3.OperationalError("transaction is aborted")
+            return super().execute(sql, params)
+
+    conn = ReusableConnection()
+
+    def _failed_search(*_args, **_kwargs):
+        conn.aborted = True
+        raise sqlite3.OperationalError("vector index unavailable")
+
+    monkeypatch.setitem(sys.modules, "embeddings", SimpleNamespace(search_documents=_failed_search))
+
+    results = universal_search("Elliott", conn, limit=5, entity_type="document")
+
+    assert conn.savepoint_used
+    assert any(result.entity_id == 5 for result in results)
+    conn.execute("SELECT 1")  # the caller can continue using its transaction
 
 
 def test_universal_search_postgres_propagates_vector_programming_errors(monkeypatch):

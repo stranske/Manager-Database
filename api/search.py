@@ -491,7 +491,11 @@ def _search_postgres(query: str, conn: Any, limit: int) -> list[SearchResult]:
         try:
             from embeddings import search_documents
 
-            vector_hits = search_documents(query, k=limit, connection=conn)
+            # A caller may reuse a non-autocommit connection after search. Keep
+            # an optional vector failure inside a savepoint so fallback does not
+            # leave that caller's transaction aborted.
+            with conn.transaction():
+                vector_hits = search_documents(query, k=limit, connection=conn)
         except VECTOR_RECOVERY_ERRORS:
             logger.exception("Vector document search unavailable; returning full-text results")
             vector_hits = []
