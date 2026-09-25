@@ -60,8 +60,9 @@ jobs:
         run: python -m pip install -e ".[dev]"
       - name: Run Postgres chain and alert integration tests
         run: |
-          pytest tests/test_chain_postgres_integration.py tests/test_alert_postgres_integration.py \
-            tests/test_document_managers_migration.py -k document_association -v
+          pytest tests/test_chain_postgres_integration.py tests/test_alert_postgres_integration.py -v
+      - name: Run document manager migration association tests
+        run: pytest tests/test_document_managers_migration.py -k document_association -v
 
   golden:
     name: Golden offline gate
