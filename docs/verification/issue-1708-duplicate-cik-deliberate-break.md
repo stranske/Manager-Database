@@ -1,8 +1,9 @@
 # Issue #1708 duplicate-CIK deliberate-break evidence
 
 Issue #1721 records the missing falsification proof for the duplicate-CIK guard
-delivered by merged PR #1712. The check below ran from exact `origin/main`
-baseline `c270918e6fb668b3a48e4586eb6596abeb1727f5` on 2026-09-26.
+delivered by merged PR #1712. The check below ran from commit
+`c270918e6fb668b3a48e4586eb6596abeb1727f5`, a direct child of `origin/main`,
+on 2026-09-26.
 
 ## Named gate on the unmodified baseline
 
