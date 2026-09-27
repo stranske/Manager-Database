@@ -296,6 +296,7 @@ def search_documents(
         else:
             qvec = _pgvector_embedding(query)
         where_clause = ""
+        manager_name_expr = "m.name"
         params: list[Any] = [qvec]
         if manager_id is not None:
             where_clause = (
@@ -303,10 +304,20 @@ def search_documents(
                 "WHERE dm.doc_id = d.doc_id AND dm.manager_id = %s)"
             )
             params.append(manager_id)
+        elif _postgres_columns(conn, "document_managers"):
+            # Unfiltered document search represents every explicit association,
+            # not only the compatibility owner retained on documents.manager_id.
+            manager_name_expr = (
+                "(SELECT string_agg(am.name, ', ' ORDER BY am.manager_id) "
+                "FROM document_managers dm "
+                "JOIN managers am ON am.manager_id = dm.manager_id "
+                "WHERE dm.doc_id = d.doc_id)"
+            )
         params.append(k)
         rows = conn.execute(
             (
-                "SELECT d.doc_id, d.text, d.kind, d.filename, m.name, d.embedding <=> %s::vector AS dist "
+                "SELECT d.doc_id, d.text, d.kind, d.filename, "
+                f"{manager_name_expr}, d.embedding <=> %s::vector AS dist "
                 "FROM documents d LEFT JOIN managers m ON d.manager_id = m.manager_id "
                 f"{where_clause} "
                 "ORDER BY dist LIMIT %s"

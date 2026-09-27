@@ -692,6 +692,51 @@ def test_search_documents_postgres_manager_join_uses_document_owner(monkeypatch)
     assert conn.closed is True
 
 
+def test_search_documents_postgres_unfiltered_aggregates_manager_names(monkeypatch):
+    class Connection:
+        def __init__(self):
+            self.info = object()
+            self.executed = []
+            self.closed = False
+
+        def execute(self, sql, params=None):
+            _assert_postgres_safe(sql)
+            self.executed.append((sql, params))
+            if "information_schema.columns" in sql:
+                return type(
+                    "Result",
+                    (),
+                    {"fetchall": lambda self: [("doc_id",), ("manager_id",)]},
+                )()
+            if sql.startswith("SELECT d.doc_id"):
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "fetchall": lambda self: [
+                            (7, "alpha", "memo", "note.pdf", "First, Second", 0.25)
+                        ]
+                    },
+                )()
+            return type("Result", (), {"fetchall": lambda self: []})()
+
+        def close(self):
+            self.closed = True
+
+    conn = Connection()
+    monkeypatch.setattr("embeddings.connect_db", lambda _path=None: conn)
+    monkeypatch.setattr("embeddings.register_vector", None)
+    monkeypatch.setattr("embeddings.embed_text", lambda _text: [0.1, 0.9])
+
+    results = search_documents("alpha", "ignored.db", k=1)
+
+    assert results[0]["manager_name"] == "First, Second"
+    search_sql, search_params = conn.executed[1]
+    assert "string_agg(am.name, ', ' ORDER BY am.manager_id)" in search_sql
+    assert search_params[-1] == 1
+    assert conn.closed is True
+
+
 def test_embeddings_pass_dialect_gate_without_allowlist() -> None:
     repo_root = Path(__file__).resolve().parents[1]
 
