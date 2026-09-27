@@ -8,96 +8,73 @@ different branch tip.
 
 ## Deliberate break
 
-Commit `4f507dcd3241fa95a032369200ec4a50861ae342` temporarily changed the
+Commit `92a35c05e66fedfc59e6667a5e316d46e2bbbbf4` temporarily changed the
 `manager_id` guard in `embeddings.py` so `_store_document_on_connection()`
 skipped the `document_managers` association insert. That is the exact behavior
 the issue requires the named migration test to reject.
 
 PostgreSQL CI evidence:
 
-- Workflow run: <https://github.com/stranske/Manager-Database/actions/runs/36343416204>
-- Exact head: `4f507dcd3241fa95a032369200ec4a50861ae342`
+- Workflow run: <https://github.com/stranske/Manager-Database/actions/runs/36352304906>
+- Exact head: `92a35c05e66fedfc59e6667a5e316d46e2bbbbf4`
 - Job/step: `Postgres chain integration` / `Run document manager migration association tests`
 - Command: `pytest tests/test_document_managers_migration.py -k document_association -v`
 
-Literal pytest output from the completed job log (Postgres chain integration step):
+Literal pytest result from the completed job log:
 
 ```console
-============================= test session starts ==============================
-platform linux -- Python 3.14.7, pytest-9.1.1, pluggy-1.6.0
-collected 2 items
-
 tests/test_document_managers_migration.py FF                             [100%]
 
-=================================== FAILURES ===================================
-____________ test_document_association_migration_and_search[sqlite] ____________
->               assert {hit["doc_id"] for hit in hits} == expected
-E               assert set() == {3}
-
-___________ test_document_association_migration_and_search[postgres] ___________
-E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "document_managers" violates foreign key constraint "document_managers_doc_id_fkey"
-E           [SQL: INSERT INTO document_managers (doc_id, manager_id) SELECT doc_id, manager_id FROM documents WHERE manager_id IS NOT NULL ON CONFLICT (doc_id, manager_id) DO NOTHING]
-
-=========================== short test summary info ============================
 FAILED tests/test_document_managers_migration.py::test_document_association_migration_and_search[sqlite] - assert set() == {3}
-FAILED tests/test_document_managers_migration.py::test_document_association_migration_and_search[postgres] - sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "document_managers" violates foreign key constraint "document_managers_doc_id_fkey"
-=================== 2 failed, 6 warnings in 0.77s ====================
+FAILED tests/test_document_managers_migration.py::test_document_association_migration_and_search[postgres] - assert set() == {3}
+======================== 2 failed, 6 warnings in 0.55s =========================
 ```
 
-The SQLite failure is the deliberate-break signal: manager 1 returned no owned
-hits, so the result omitted document ID 3. Manager 3 is separately expected to
-return an empty set.
-The PostgreSQL leg failed earlier during migration `022` backfill in the isolated CI schema
-before the association-insert guard was exercised.
+Both backends reached the intended assertion and rejected the missing
+association. The workflow's broader Python jobs also failed on the intentionally
+broken production commit, as expected.
 
 ## Revert and restoration
 
-Commit `211e117c84bd2cc29cb4603be56a844fe212b221` restores the original
-association insert before this evidence document is merged.
+Commit `dbc0d633a455e473400adbdebce1ffb300f5af05` restores the association
+insert before this evidence document is merged.
 
 PostgreSQL CI evidence:
 
-- Workflow run: <https://github.com/stranske/Manager-Database/actions/runs/36343489519>
-- Exact head: `211e117c84bd2cc29cb4603be56a844fe212b221`
+- Workflow run: <https://github.com/stranske/Manager-Database/actions/runs/36352345325>
+- Exact head: `dbc0d633a455e473400adbdebce1ffb300f5af05`
 - Job/step: `Postgres chain integration` / `Run document manager migration association tests`
 - Command: `pytest tests/test_document_managers_migration.py -k document_association -v`
 
-Literal pytest output from the completed job log (Postgres chain integration step):
+Literal pytest result from the completed job log:
 
 ```console
-============================= test session starts ==============================
-platform linux -- Python 3.14.7, pytest-9.1.1, pluggy-1.6.0
-collected 2 items
-
-tests/test_document_managers_migration.py .F                             [100%]
-
-=================================== FAILURES ===================================
-___________ test_document_association_migration_and_search[postgres] ___________
-E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "document_managers" violates foreign key constraint "document_managers_doc_id_fkey"
-E           [SQL: INSERT INTO document_managers (doc_id, manager_id) SELECT doc_id, manager_id FROM documents WHERE manager_id IS NOT NULL ON CONFLICT (doc_id, manager_id) DO NOTHING]
-
-=========================== short test summary info ============================
-FAILED tests/test_document_managers_migration.py::test_document_association_migration_and_search[postgres] - sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "document_managers" violates foreign key constraint "document_managers_doc_id_fkey"
-=================== 1 failed, 1 passed, 6 warnings in 0.77s ====================
+tests/test_document_managers_migration.py ..                             [100%]
+======================== 2 passed, 6 warnings in 0.61s =========================
 ```
 
-Restoration is confirmed on the SQLite leg (`.` in `.F`). PostgreSQL acceptance is still
-blocked on the same migration-backfill FK failure in the disposable-schema CI harness, not
-on a restored production-code regression (`git diff origin/main -- embeddings.py` remains empty).
+The restored run also completed both full Python matrices successfully (`1746
+passed, 20 skipped` on Python 3.12 and 3.13). The aggregate workflow remained
+red only because its separate Docker stack smoke job failed while starting the
+MinIO container; the PostgreSQL acceptance job and the exact-head PR Gate were
+green.
 
-The same command was also run locally after restoration. The SQLite leg passed
-and the PostgreSQL leg skipped because `DOCUMENT_TEST_POSTGRES_URL` was not set:
+The same focused command was also run locally after restoration. The SQLite
+leg passed and the PostgreSQL leg skipped because
+`DOCUMENT_TEST_POSTGRES_URL` was not set:
 
 ```console
 tests/test_document_managers_migration.py .s                             [100%]
 =================== 1 passed, 1 skipped, 7 warnings in 0.62s ===================
 ```
 
-This local result is supporting cleanup evidence only; the two exact-head CI
-runs above are the acceptance evidence for PostgreSQL.
+The local result is supporting evidence only. The two exact-head CI runs above
+are the authoritative PostgreSQL falsification and restoration proof.
 
 ## Cleanup invariant
 
-The deliberate break and its restoration are both retained in branch history,
-while the final diff against `origin/main` contains no production-code change.
-Only this durable transcript remains in the pull-request diff.
+The deliberate break and its restoration are both retained in branch history.
+The final branch restores the association insert, keeps the disposable-schema
+PostgreSQL harness repair, and includes the bounded multi-manager vector-search
+fix plus its focused regression coverage. Exact-head Gate run
+<https://github.com/stranske/Manager-Database/actions/runs/36352343891> is green.
