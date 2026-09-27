@@ -20,8 +20,33 @@ PostgreSQL CI evidence:
 - Job/step: `Postgres chain integration` / `Run document manager migration association tests`
 - Command: `pytest tests/test_document_managers_migration.py -k document_association -v`
 
-The literal failing pytest block will be copied here from the completed job log;
-the run was still in progress when the evidence branch was first handed to CI.
+Literal pytest output from the completed job log (Postgres chain integration step):
+
+```console
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.1.1, pluggy-1.6.0
+collected 2 items
+
+tests/test_document_managers_migration.py FF                             [100%]
+
+=================================== FAILURES ===================================
+____________ test_document_association_migration_and_search[sqlite] ____________
+>               assert {hit["doc_id"] for hit in hits} == expected
+E               assert set() == {3}
+
+___________ test_document_association_migration_and_search[postgres] ___________
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "document_managers" violates foreign key constraint "document_managers_doc_id_fkey"
+E           [SQL: INSERT INTO document_managers (doc_id, manager_id) SELECT doc_id, manager_id FROM documents WHERE manager_id IS NOT NULL ON CONFLICT (doc_id, manager_id) DO NOTHING]
+
+=========================== short test summary info ============================
+FAILED tests/test_document_managers_migration.py::test_document_association_migration_and_search[sqlite] - assert set() == {3}
+FAILED tests/test_document_managers_migration.py::test_document_association_migration_and_search[postgres] - sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "document_managers" violates foreign key constraint "document_managers_doc_id_fkey"
+=================== 2 failed, 6 warnings in 0.77s ====================
+```
+
+The SQLite failure is the deliberate-break signal (search returned no owned hits for manager 3).
+The PostgreSQL leg failed earlier during migration `022` backfill in the isolated CI schema
+before the association-insert guard was exercised.
 
 ## Revert and restoration
 
@@ -35,8 +60,28 @@ PostgreSQL CI evidence:
 - Job/step: `Postgres chain integration` / `Run document manager migration association tests`
 - Command: `pytest tests/test_document_managers_migration.py -k document_association -v`
 
-The literal passing pytest block will be copied here from the completed job log;
-the run was still in progress when the restored branch was first handed to CI.
+Literal pytest output from the completed job log (Postgres chain integration step):
+
+```console
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.1.1, pluggy-1.6.0
+collected 2 items
+
+tests/test_document_managers_migration.py .F                             [100%]
+
+=================================== FAILURES ===================================
+___________ test_document_association_migration_and_search[postgres] ___________
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "document_managers" violates foreign key constraint "document_managers_doc_id_fkey"
+E           [SQL: INSERT INTO document_managers (doc_id, manager_id) SELECT doc_id, manager_id FROM documents WHERE manager_id IS NOT NULL ON CONFLICT (doc_id, manager_id) DO NOTHING]
+
+=========================== short test summary info ============================
+FAILED tests/test_document_managers_migration.py::test_document_association_migration_and_search[postgres] - sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "document_managers" violates foreign key constraint "document_managers_doc_id_fkey"
+=================== 1 failed, 1 passed, 6 warnings in 0.77s ====================
+```
+
+Restoration is confirmed on the SQLite leg (`.` in `.F`). PostgreSQL acceptance is still
+blocked on the same migration-backfill FK failure in the disposable-schema CI harness, not
+on a restored production-code regression (`git diff origin/main -- embeddings.py` remains empty).
 
 The same command was also run locally after restoration. The SQLite leg passed
 and the PostgreSQL leg skipped because `DOCUMENT_TEST_POSTGRES_URL` was not set:
