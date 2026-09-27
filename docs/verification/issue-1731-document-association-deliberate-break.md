@@ -44,7 +44,9 @@ FAILED tests/test_document_managers_migration.py::test_document_association_migr
 =================== 2 failed, 6 warnings in 0.77s ====================
 ```
 
-The SQLite failure is the deliberate-break signal (search returned no owned hits for manager 3).
+The SQLite failure is the deliberate-break signal: manager 1 returned no owned
+hits, so the result omitted document ID 3. Manager 3 is separately expected to
+return an empty set.
 The PostgreSQL leg failed earlier during migration `022` backfill in the isolated CI schema
 before the association-insert guard was exercised.
 

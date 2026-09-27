@@ -58,7 +58,9 @@ def test_document_association_migration_and_search(backend, tmp_path, monkeypatc
     try:
         with engine.begin() as conn:
             if backend == "postgres":
-                conn.exec_driver_sql(f"SET LOCAL search_path TO {schema}")
+                # The pgvector extension is installed in public, so keep that schema
+                # visible until the fixture tables have resolved vector(384).
+                conn.exec_driver_sql(f"SET LOCAL search_path TO {schema}, public")
             conn.exec_driver_sql(
                 f"CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT{aliases})"
             )
@@ -80,6 +82,9 @@ def test_document_association_migration_and_search(backend, tmp_path, monkeypatc
             )
             migration = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(migration)
+            if backend == "postgres":
+                # Migration 022 must inspect and mutate only this disposable schema.
+                conn.exec_driver_sql(f"SET LOCAL search_path TO {schema}")
             with Operations.context(MigrationContext.configure(conn)):
                 migration.upgrade()
             inspector = sa.inspect(conn)
