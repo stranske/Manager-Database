@@ -265,7 +265,8 @@ def _store_document_on_connection(
                 f"SELECT {id_col}, manager_id FROM documents WHERE manager_id IS NOT NULL "
                 "ON CONFLICT (doc_id, manager_id) DO NOTHING"
             )
-    if manager_id is not None:
+    # DELIBERATE BREAK for issue #1731 evidence capture: suppress ownership association.
+    if False and manager_id is not None:
         marker = "%s" if is_pg else "?"
         conn.execute(
             f"INSERT INTO document_managers (doc_id, manager_id) VALUES ({marker}, {marker}) "
