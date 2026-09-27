@@ -57,6 +57,8 @@ def test_document_association_migration_and_search(backend, tmp_path, monkeypatc
         aliases = ""
     try:
         with engine.begin() as conn:
+            if backend == "postgres":
+                conn.exec_driver_sql(f"SET LOCAL search_path TO {schema}")
             conn.exec_driver_sql(
                 f"CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT{aliases})"
             )
@@ -109,6 +111,8 @@ def test_document_association_migration_and_search(backend, tmp_path, monkeypatc
             assert len(matching) == 1
             assert matching[0].manager_name == "First, Second"
         with engine.begin() as conn:
+            if backend == "postgres":
+                conn.exec_driver_sql(f"SET LOCAL search_path TO {schema}")
             assert conn.exec_driver_sql("SELECT COUNT(*) FROM document_managers").scalar() == 4
             with Operations.context(MigrationContext.configure(conn)):
                 # A SQLite runtime/bootstrap may already have created the additive table.
