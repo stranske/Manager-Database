@@ -25,6 +25,28 @@ from scripts.langchain.injection_guard import check_prompt_injection
 from tools.langchain_client import ClientInfo
 from tools.llm_provider import build_langsmith_metadata
 
+# Models that reject a forced ``tool_choice`` (type ``tool``/``any``) with a 400.
+_FORCED_TOOL_REJECTING_PREFIXES = (
+    "claude-sonnet-5-5",
+    "claude-opus-5-5",
+    "claude-fable-5-1",
+    "claude-mythos-5-1",
+)
+
+
+def _rejects_forced_tool_use(llm: Any) -> bool:
+    """True when structured output would 400 on this model.
+
+    langchain-anthropic's ``with_structured_output`` defaults to ``function_calling``, which
+    forces the tool call; the newest Claude models reject that. The ``json_schema`` method is
+    not a safe substitute here: the SDK closes every object (``additionalProperties: false``),
+    so this schema's untyped ``dict`` fields would come back as ``{}`` and pass validation.
+    Skipping the structured chain sends these models straight to the text path, which is the
+    same fallback a structured-output failure already takes.
+    """
+    model = str(getattr(llm, "model", None) or getattr(llm, "model_name", None) or "").lower()
+    return model.startswith(_FORCED_TOOL_REJECTING_PREFIXES)
+
 
 class FilingSummary(BaseModel):
     """Structured output for filing summaries."""
@@ -101,7 +123,7 @@ class FilingSummaryChain:
 
     def _build_structured_chain(self):
         with_structured_output = getattr(self.llm, "with_structured_output", None)
-        if not callable(with_structured_output):
+        if not callable(with_structured_output) or _rejects_forced_tool_use(self.llm):
             return None
         try:
             return cast(Any, FILING_SUMMARY_TEMPLATE) | cast(

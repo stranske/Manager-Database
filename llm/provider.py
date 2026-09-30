@@ -16,7 +16,7 @@ _REQUIRED_CREDENTIAL_KEYS: dict[str, tuple[str, ...]] = {
 
 _DEFAULT_MODEL_NAMES: dict[str, str] = {
     "openai": "gpt-4o-mini",
-    "anthropic": "claude-sonnet-4-20250514",
+    "anthropic": "claude-sonnet-5-5",
     "azure_openai": "gpt-4o-mini",
 }
 

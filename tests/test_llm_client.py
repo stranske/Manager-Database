@@ -399,3 +399,25 @@ def test_profile_slot_with_unresolvable_profile_fails_closed(monkeypatch, tmp_pa
     monkeypatch.setattr(llm_client, "create_llm", _fail)
 
     assert llm_client.build_chat_client() is None
+
+
+def test_claude5_family_omits_temperature_and_pins_max_tokens():
+    from llm import client as llm_client
+
+    for model in ("claude-sonnet-5-5", "claude-opus-5-5", "claude-sonnet-5"):
+        kwargs = llm_client._client_kwargs(model, 30, 2)
+        assert "temperature" not in kwargs, model
+        assert kwargs["max_tokens"] == llm_client.ANTHROPIC_THINKING_MAX_TOKENS, model
+    assert llm_client._client_kwargs("gpt-4o-mini", 30, 2)["temperature"] == 0.1
+
+
+def test_structured_chain_skipped_for_models_rejecting_forced_tool_use():
+    from types import SimpleNamespace
+
+    from chains import filing_summary, holdings_analysis
+
+    for module in (filing_summary, holdings_analysis):
+        assert module._rejects_forced_tool_use(SimpleNamespace(model="claude-sonnet-5-5"))
+        assert module._rejects_forced_tool_use(SimpleNamespace(model_name="claude-opus-5-5"))
+        assert not module._rejects_forced_tool_use(SimpleNamespace(model="claude-sonnet-5"))
+        assert not module._rejects_forced_tool_use(SimpleNamespace(model="gpt-4o-mini"))

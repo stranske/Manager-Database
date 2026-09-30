@@ -9,6 +9,7 @@ from adapters.base import connect_db, ensure_api_usage_schema, get_placeholder, 
 _MODEL_PRICING_PER_1K_TOKENS: dict[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.00015, 0.0006),
     "claude-sonnet-4-20250514": (0.003, 0.015),
+    "claude-sonnet-5-5": (0.002, 0.010),
 }
 
 
