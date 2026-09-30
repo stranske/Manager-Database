@@ -399,3 +399,27 @@ def test_profile_slot_with_unresolvable_profile_fails_closed(monkeypatch, tmp_pa
     monkeypatch.setattr(llm_client, "create_llm", _fail)
 
     assert llm_client.build_chat_client() is None
+
+
+def test_claude5_family_omits_temperature_and_pins_max_tokens():
+    from llm import client as llm_client
+
+    for model in ("claude-sonnet-5-5", "claude-opus-5-5", "claude-sonnet-5"):
+        kwargs = llm_client._client_kwargs(model, 30, 2)
+        assert "temperature" not in kwargs, model
+        assert kwargs["max_tokens"] == llm_client.ANTHROPIC_THINKING_MAX_TOKENS, model
+    assert llm_client._client_kwargs("gpt-4o-mini", 30, 2)["temperature"] == 0.1
+
+
+def test_structured_output_uses_json_schema_for_anthropic():
+    from chains import filing_summary, holdings_analysis
+
+    class ChatAnthropic:  # stand-in: the helper keys on the client class name
+        pass
+
+    class ChatOpenAI:
+        pass
+
+    for module in (filing_summary, holdings_analysis):
+        assert module._structured_output_kwargs(ChatAnthropic()) == {"method": "json_schema"}
+        assert module._structured_output_kwargs(ChatOpenAI()) == {}

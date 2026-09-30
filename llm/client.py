@@ -224,9 +224,25 @@ def _is_reasoning_model(model: str) -> bool:
     return lowered.startswith("o") and len(lowered) > 1 and lowered[1].isdigit()
 
 
+# The Claude 5 family always thinks: it rejects a custom ``temperature`` with a 400, and
+# thinking tokens count against ``max_tokens``. langchain-anthropic falls back to 4096 for models
+# its bundled profiles do not know (e.g. claude-sonnet-5-5), which can truncate the answer, so the
+# ceiling is explicit. 16000 keeps non-streaming calls well under the SDK's timeout heuristics.
+ANTHROPIC_THINKING_MAX_TOKENS = 16000
+
+
+def _is_claude5_family(model: str) -> bool:
+    lowered = model.lower().strip()
+    return any(
+        lowered.startswith(f"claude-{family}-5") for family in ("opus", "sonnet", "haiku", "fable")
+    )
+
+
 def _client_kwargs(model: str, timeout: int, max_retries: int) -> dict[str, object]:
     kwargs: dict[str, object] = {"timeout": timeout, "max_retries": max_retries}
-    if not _is_reasoning_model(model):
+    if _is_claude5_family(model):
+        kwargs["max_tokens"] = ANTHROPIC_THINKING_MAX_TOKENS
+    elif not _is_reasoning_model(model):
         kwargs["temperature"] = 0.1
     return kwargs
 

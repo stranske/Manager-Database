@@ -26,6 +26,16 @@ from tools.langchain_client import ClientInfo
 from tools.llm_provider import build_langsmith_metadata
 
 
+def _structured_output_kwargs(llm: Any) -> dict[str, str]:
+    """Pick a structured-output method the model accepts.
+
+    langchain-anthropic's default ``function_calling`` method FORCES the tool call
+    (``tool_choice`` of type ``tool``), which Claude Sonnet 5.5 / Opus 5.5 / Fable 5.1 reject
+    with a 400. Anthropic's native structured outputs (``json_schema``) work on every current
+    Claude model, so use it for ChatAnthropic and leave other providers on their defaults.
+    """
+    return {"method": "json_schema"} if type(llm).__name__ == "ChatAnthropic" else {}
+
 class HoldingsAnalysis(BaseModel):
     """Structured output for holdings analysis."""
 
@@ -73,7 +83,7 @@ class HoldingsAnalysisChain:
             return None
         try:
             return cast(Any, HOLDINGS_ANALYSIS_TEMPLATE) | cast(
-                Any, with_structured_output(HoldingsAnalysis)
+                Any, with_structured_output(HoldingsAnalysis, **_structured_output_kwargs(self.llm))
             )
         except Exception:
             return None
