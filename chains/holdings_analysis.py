@@ -36,6 +36,7 @@ def _structured_output_kwargs(llm: Any) -> dict[str, str]:
     """
     return {"method": "json_schema"} if type(llm).__name__ == "ChatAnthropic" else {}
 
+
 class HoldingsAnalysis(BaseModel):
     """Structured output for holdings analysis."""
 
