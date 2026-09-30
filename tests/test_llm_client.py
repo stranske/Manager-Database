@@ -411,15 +411,13 @@ def test_claude5_family_omits_temperature_and_pins_max_tokens():
     assert llm_client._client_kwargs("gpt-4o-mini", 30, 2)["temperature"] == 0.1
 
 
-def test_structured_output_uses_json_schema_for_anthropic():
+def test_structured_chain_skipped_for_models_rejecting_forced_tool_use():
+    from types import SimpleNamespace
+
     from chains import filing_summary, holdings_analysis
 
-    class ChatAnthropic:  # stand-in: the helper keys on the client class name
-        pass
-
-    class ChatOpenAI:
-        pass
-
     for module in (filing_summary, holdings_analysis):
-        assert module._structured_output_kwargs(ChatAnthropic()) == {"method": "json_schema"}
-        assert module._structured_output_kwargs(ChatOpenAI()) == {}
+        assert module._rejects_forced_tool_use(SimpleNamespace(model="claude-sonnet-5-5"))
+        assert module._rejects_forced_tool_use(SimpleNamespace(model_name="claude-opus-5-5"))
+        assert not module._rejects_forced_tool_use(SimpleNamespace(model="claude-sonnet-5"))
+        assert not module._rejects_forced_tool_use(SimpleNamespace(model="gpt-4o-mini"))
