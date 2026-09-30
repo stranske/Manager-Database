@@ -128,12 +128,15 @@ jobs:
       - name: Start MinIO
         # The minio/minio entrypoint needs the `server` command, which Actions
         # service containers cannot supply, so start it via docker run instead.
+        # Docker Hub and Quay both deny anonymous pulls as of 2026-09. This is
+        # a third-party mirror of the same release; pin its digest and retain
+        # the health check below as the executable compatibility gate.
         run: |
           docker run -d --name minio \
             -p 9000:9000 -p 9001:9001 \
             -e MINIO_ROOT_USER="$MINIO_ROOT_USER" \
             -e MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
-            quay.io/minio/minio:RELEASE.2025-05-24T17-08-30Z server /data --console-address ":9001"
+            docker.io/shuomura/minio:RELEASE.2025-05-24T17-08-30Z@sha256:23055090bb9d1c9b75b59fe2a8e27ec2e61204475791ec3b1861d342c8d1fd40 server /data --console-address ":9001"
           minio_ready=0
           for _ in $(seq 1 30); do
             if curl -sf http://localhost:9000/minio/health/live >/dev/null; then
