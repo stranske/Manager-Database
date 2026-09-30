@@ -275,7 +275,7 @@ services:
     volumes: ["pgdata:/var/lib/postgresql/data"]
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-05-24T17-08-30Z
+    image: docker.io/shuomura/minio:RELEASE.2025-05-24T17-08-30Z@sha256:23055090bb9d1c9b75b59fe2a8e27ec2e61204475791ec3b1861d342c8d1fd40
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minio
