@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import date, timedelta
 
 import pytest
 
@@ -60,6 +61,11 @@ def _conn() -> sqlite3.Connection:
     return conn
 
 
+def _transaction_date(days_before_today: int) -> str:
+    """Return a stable rolling-window fixture date relative to the current day."""
+    return (date.today() - timedelta(days=days_before_today)).isoformat()
+
+
 def _fake_fetcher_ok(issuer: str, *, lookback_days: int = 90):
     assert issuer
     assert lookback_days > 0
@@ -70,7 +76,7 @@ def _fake_fetcher_ok(issuer: str, *, lookback_days: int = 90):
             "insider_name": "Cook",
             "txn_code": "P",
             "shares": 100,
-            "txn_date": "2026-07-01",
+            "txn_date": _transaction_date(3),
             "acquired_disposed": "A",
         },
         {
@@ -79,7 +85,7 @@ def _fake_fetcher_ok(issuer: str, *, lookback_days: int = 90):
             "insider_name": "Cook",
             "txn_code": "P",
             "shares": 50,
-            "txn_date": "2026-07-02",
+            "txn_date": _transaction_date(2),
             "acquired_disposed": "A",
         },
         {
@@ -88,7 +94,7 @@ def _fake_fetcher_ok(issuer: str, *, lookback_days: int = 90):
             "insider_name": "Cook",
             "txn_code": "S",
             "shares": 20,
-            "txn_date": "2026-07-03",
+            "txn_date": _transaction_date(1),
             "acquired_disposed": "D",
         },
     ]
@@ -137,6 +143,58 @@ def test_deliberate_break_raises_when_guard_disabled():
             fetcher=_fake_fetcher_raises,
             raise_on_fetch_error=True,
         )
+
+
+def test_insider_direction_includes_day_90_and_excludes_day_91(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The rolling cutoff includes day 90 and excludes older transactions."""
+    reference_date = date(2030, 1, 15)
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls) -> date:
+            return reference_date
+
+    def boundary_fetcher(issuer: str, *, lookback_days: int = 90):
+        assert issuer
+        assert lookback_days == 90
+        return [
+            {
+                "issuer_cik": "0000320193",
+                "ticker": "AAPL",
+                "insider_name": "Cook",
+                "txn_code": "S",
+                "shares": 10,
+                "txn_date": (reference_date - timedelta(days=89)).isoformat(),
+                "acquired_disposed": "D",
+            },
+            {
+                "issuer_cik": "0000320193",
+                "ticker": "AAPL",
+                "insider_name": "Cook",
+                "txn_code": "P",
+                "shares": 100,
+                "txn_date": (reference_date - timedelta(days=90)).isoformat(),
+                "acquired_disposed": "A",
+            },
+            {
+                "issuer_cik": "0000320193",
+                "ticker": "AAPL",
+                "insider_name": "Cook",
+                "txn_code": "S",
+                "shares": 1000,
+                "txn_date": (reference_date - timedelta(days=91)).isoformat(),
+                "acquired_disposed": "D",
+            },
+        ]
+
+    monkeypatch.setattr(insider_flow, "date", FixedDate)
+    conn = _conn()
+    result = insider_flow.ingest_insider_for_manager(conn, 1, fetcher=boundary_fetcher)
+
+    assert result["inserted"] == 3
+    assert insider_flow.insider_net_direction_for_ticker(conn, "AAPL") == "net buy"
 
 
 def test_annotate_conviction_rows_joins_direction():
