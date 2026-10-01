@@ -153,8 +153,8 @@ def test_insider_direction_includes_day_90_and_excludes_day_91(
 
     class FixedDate(date):
         @classmethod
-        def today(cls) -> date:
-            return reference_date
+        def today(cls) -> FixedDate:
+            return cls(reference_date.year, reference_date.month, reference_date.day)
 
     def boundary_fetcher(issuer: str, *, lookback_days: int = 90):
         assert issuer
