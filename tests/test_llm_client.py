@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from llm import client as llm_client
 
 # Tests that exercise the blocked-model guard must pin their own model registry.
@@ -133,7 +135,7 @@ def test_build_chat_client_honors_env_overrides(monkeypatch):
     assert client_info is not None
     assert client_info.model == "gpt-5.6-sol"
     assert captured["config"].client_kwargs["max_retries"] == llm_client.DEFAULT_MAX_RETRIES
-    assert captured["config"].client_kwargs["temperature"] == 0.1
+    assert "temperature" not in captured["config"].client_kwargs
 
 
 def test_explicit_provider_uses_its_matching_default_model(monkeypatch):
@@ -421,3 +423,60 @@ def test_structured_chain_skipped_for_models_rejecting_forced_tool_use():
         assert module._rejects_forced_tool_use(SimpleNamespace(model_name="claude-opus-5-5"))
         assert not module._rejects_forced_tool_use(SimpleNamespace(model="claude-sonnet-5"))
         assert not module._rejects_forced_tool_use(SimpleNamespace(model="gpt-4o-mini"))
+
+
+@pytest.mark.parametrize("route", ["explicit", "slot"])
+@pytest.mark.parametrize(
+    "model,expected_kwargs",
+    [
+        ("gpt-6-astra", {"use_responses_api": True, "reasoning": {"effort": "high"}}),
+        ("gpt-6-sol", {"use_responses_api": True}),
+        ("gpt-6.1-sol", {"use_responses_api": True}),
+        ("gpt-6-luna", {"use_responses_api": True}),
+        ("gpt-5.6-sol", {}),
+        ("gpt-5.6-terra", {}),
+        ("o3-mini", {}),
+        ("gpt-4o-mini", {"temperature": 0.1}),
+    ],
+)
+def test_chat_constructor_kwargs_for_supported_models(
+    monkeypatch, tmp_path, route, model, expected_kwargs
+):
+    """Both application selection routes must configure the real provider boundary."""
+    registry_path = tmp_path / "model_registry.json"
+    registry_path.write_text(
+        json.dumps({"models": [{"model_id": model, "provider": "openai", "lifecycle": "current"}]}),
+        encoding="utf-8",
+    )
+    slot_path = tmp_path / "llm_slots.json"
+    slot_path.write_text(
+        json.dumps({"slots": [{"name": "approved", "provider": "openai", "model": model}]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(ENV_MODEL_REGISTRY_CONFIG, str(registry_path))
+    monkeypatch.setenv("LANGCHAIN_SLOT_CONFIG", str(slot_path))
+    monkeypatch.setenv("MANAGER_DB_OPENAI_API_KEY", "fake-key")
+    monkeypatch.delenv("LANGCHAIN_PROVIDER", raising=False)
+    monkeypatch.delenv("LANGCHAIN_MODEL", raising=False)
+    monkeypatch.delenv("LANGCHAIN_SLOT1_PROVIDER", raising=False)
+    monkeypatch.delenv("LANGCHAIN_SLOT1_MODEL", raising=False)
+    captured = []
+
+    def _fake_create_llm(config):
+        captured.append(config)
+        return _FakeClient()
+
+    monkeypatch.setattr(llm_client, "create_llm", _fake_create_llm)
+    options = {"provider": "openai", "model": model} if route == "explicit" else {}
+    result = llm_client.build_chat_client(timeout=31, max_retries=4, **options)
+
+    assert result is not None
+    assert result.model == model
+    assert len(captured) == 1
+    assert captured[0].provider_name == "openai"
+    assert captured[0].model_name == model
+    assert captured[0].client_kwargs == {
+        "timeout": 31,
+        "max_retries": 4,
+        **expected_kwargs,
+    }

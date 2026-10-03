@@ -221,7 +221,9 @@ def _resolve_max_retries(max_retries: int | None) -> int:
 
 def _is_reasoning_model(model: str) -> bool:
     lowered = model.lower().strip()
-    return lowered.startswith("o") and len(lowered) > 1 and lowered[1].isdigit()
+    return lowered.startswith(("gpt-5.6-", "gpt-6")) or (
+        lowered.startswith("o") and len(lowered) > 1 and lowered[1].isdigit()
+    )
 
 
 # The Claude 5 family always thinks: it rejects a custom ``temperature`` with a 400, and
@@ -240,7 +242,13 @@ def _is_claude5_family(model: str) -> bool:
 
 def _client_kwargs(model: str, timeout: int, max_retries: int) -> dict[str, object]:
     kwargs: dict[str, object] = {"timeout": timeout, "max_retries": max_retries}
-    if _is_claude5_family(model):
+    lowered = model.lower().strip()
+    if lowered.startswith("gpt-6-astra"):
+        kwargs["use_responses_api"] = True
+        kwargs["reasoning"] = {"effort": "high"}
+    elif lowered.startswith("gpt-6"):
+        kwargs["use_responses_api"] = True
+    elif _is_claude5_family(model):
         kwargs["max_tokens"] = ANTHROPIC_THINKING_MAX_TOKENS
     elif not _is_reasoning_model(model):
         kwargs["temperature"] = 0.1
