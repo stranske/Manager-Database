@@ -488,9 +488,7 @@ def test_chat_constructor_kwargs_for_supported_models(
     assert captured[0].kwargs["model"] == model
     assert captured[0].kwargs["api_key"].get_secret_value() == "fake-key"
     forwarded = {
-        key: value
-        for key, value in captured[0].kwargs.items()
-        if key not in {"model", "api_key"}
+        key: value for key, value in captured[0].kwargs.items() if key not in {"model", "api_key"}
     }
     assert forwarded == {
         "timeout": 31,
