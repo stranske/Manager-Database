@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 
 import pytest
 
@@ -433,6 +435,7 @@ def test_structured_chain_skipped_for_models_rejecting_forced_tool_use():
         ("gpt-6-sol", {"use_responses_api": True}),
         ("gpt-6.1-sol", {"use_responses_api": True}),
         ("gpt-6-luna", {"use_responses_api": True}),
+        ("gpt-5.6", {}),
         ("gpt-5.6-sol", {}),
         ("gpt-5.6-terra", {}),
         ("o3-mini", {}),
@@ -462,20 +465,34 @@ def test_chat_constructor_kwargs_for_supported_models(
     monkeypatch.delenv("LANGCHAIN_SLOT1_MODEL", raising=False)
     captured = []
 
-    def _fake_create_llm(config):
-        captured.append(config)
-        return _FakeClient()
+    class _Recorder:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
 
-    monkeypatch.setattr(llm_client, "create_llm", _fake_create_llm)
+    def _recording_chat_openai(**kwargs):
+        client = _Recorder(**kwargs)
+        captured.append(client)
+        return client
+
+    fake_openai = types.SimpleNamespace(
+        ChatOpenAI=_recording_chat_openai,
+        AzureChatOpenAI=_recording_chat_openai,
+    )
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_openai)
     options = {"provider": "openai", "model": model} if route == "explicit" else {}
     result = llm_client.build_chat_client(timeout=31, max_retries=4, **options)
 
     assert result is not None
     assert result.model == model
     assert len(captured) == 1
-    assert captured[0].provider_name == "openai"
-    assert captured[0].model_name == model
-    assert captured[0].client_kwargs == {
+    assert captured[0].kwargs["model"] == model
+    assert captured[0].kwargs["api_key"].get_secret_value() == "fake-key"
+    forwarded = {
+        key: value
+        for key, value in captured[0].kwargs.items()
+        if key not in {"model", "api_key"}
+    }
+    assert forwarded == {
         "timeout": 31,
         "max_retries": 4,
         **expected_kwargs,

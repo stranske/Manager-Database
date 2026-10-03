@@ -221,8 +221,11 @@ def _resolve_max_retries(max_retries: int | None) -> int:
 
 def _is_reasoning_model(model: str) -> bool:
     lowered = model.lower().strip()
-    return lowered.startswith(("gpt-5.6-", "gpt-6")) or (
-        lowered.startswith("o") and len(lowered) > 1 and lowered[1].isdigit()
+    return (
+        lowered == "gpt-5.6"
+        or lowered.startswith("gpt-5.6-")
+        or lowered.startswith("gpt-6")
+        or (lowered.startswith("o") and len(lowered) > 1 and lowered[1].isdigit())
     )
 
 
