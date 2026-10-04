@@ -1268,7 +1268,11 @@ async def list_managers(
         400: {
             "model": ErrorResponse,
             "description": "Validation error",
-        }
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "Legacy duplicate CIKs require cleanup before bulk imports",
+        },
     },
 )
 async def bulk_import_managers(
@@ -1329,12 +1333,14 @@ async def bulk_import_managers(
 
     conn = None
     successes: list[BulkImportSuccess] = []
+    schema_ready = False
     postgres_autocommit_restored = False
     db_error: BaseException | None = None
     try:
         if valid_records:
             conn = connect_db()
             _ensure_universe_schema(conn)
+            schema_ready = True
             valid_records, cik_failures = _exclude_conflicting_bulk_ciks(conn, valid_records)
             failures.extend(cik_failures)
             if not isinstance(conn, sqlite3.Connection) and getattr(conn, "autocommit", False):
@@ -1414,6 +1420,14 @@ async def bulk_import_managers(
                     db_error = cleanup_error
 
     if db_error is not None:
+        if not schema_ready and _is_cik_unique_violation(db_error):
+            errors = [
+                {
+                    "field": "cik",
+                    "message": "Existing manager records share a CIK; clean up duplicate CIKs before importing managers.",
+                }
+            ]
+            return JSONResponse(status_code=409, content={"errors": errors, "error": errors})
         _raise_db_unavailable(db_error)
 
     return BulkImportResponse(

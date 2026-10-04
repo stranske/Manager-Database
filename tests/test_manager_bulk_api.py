@@ -96,7 +96,17 @@ def test_bulk_json_imports_valid_records(tmp_path, monkeypatch):
 
 
 def test_bulk_json_rejects_duplicate_cik_within_request(tmp_path, monkeypatch):
+    import api.managers as managers_api
+
     monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+    inserted_names = []
+    original_insert = managers_api._insert_manager
+
+    def track_insert(conn, payload, *, commit=True):
+        inserted_names.append(payload.name)
+        return original_insert(conn, payload, commit=commit)
+
+    monkeypatch.setattr(managers_api, "_insert_manager", track_insert)
 
     resp = asyncio.run(
         _post_bulk_json(
@@ -118,6 +128,7 @@ def test_bulk_json_rejects_duplicate_cik_within_request(tmp_path, monkeypatch):
             "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
         }
     ]
+    assert inserted_names == ["Original"]
 
 
 def test_bulk_json_rejects_cik_already_in_database(tmp_path, monkeypatch):
@@ -132,6 +143,84 @@ def test_bulk_json_rejects_cik_already_in_database(tmp_path, monkeypatch):
     assert body["succeeded"] == 0
     assert body["failed"] == 1
     assert body["failures"][0]["errors"][0]["field"] == "cik"
+
+
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_reports_legacy_duplicate_ciks_without_changing_rows(
+    tmp_path, monkeypatch, source
+):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    original_rows = [("Legacy A", "0001791786"), ("Legacy B", "0001791786")]
+    with sqlite3.connect(db_path) as conn:
+        managers_api._ensure_manager_table(conn)
+        conn.executemany("INSERT INTO managers(name, cik) VALUES (?, ?)", original_rows)
+
+    if source == "json":
+        resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
+    else:
+        resp = asyncio.run(_post_bulk_csv("name,cik\nNew,0001791787\n"))
+
+    assert resp.status_code == 409
+    errors = [
+        {
+            "field": "cik",
+            "message": "Existing manager records share a CIK; clean up duplicate CIKs before importing managers.",
+        }
+    ]
+    assert resp.json() == {"errors": errors, "error": errors}
+    with sqlite3.connect(db_path) as conn:
+        assert (
+            conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == original_rows
+        )
+        # Once the duplicate owner is resolved, imports can create the index and resume.
+        conn.execute("UPDATE managers SET cik = NULL WHERE name = 'Legacy B'")
+
+    resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
+    assert resp.status_code == 200
+    assert resp.json()["succeeded"] == 1
+    with sqlite3.connect(db_path) as conn:
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Duplicate", "0001791787")
+            )
+
+
+@pytest.mark.parametrize("constraint", ["idx_managers_cik_unique", "idx_managers_lei_unique"])
+def test_bulk_import_postgres_schema_conflict_requires_cik_cleanup(monkeypatch, constraint):
+    from types import SimpleNamespace
+
+    psycopg = pytest.importorskip("psycopg")
+    import api.managers as managers_api
+
+    class UniqueViolation(psycopg.errors.UniqueViolation):
+        @property
+        def diag(self):
+            return SimpleNamespace(constraint_name=constraint)
+
+    events = []
+    conn = SimpleNamespace(
+        rollback=lambda: events.append("rollback"),
+        close=lambda: events.append("close"),
+    )
+    monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
+
+    def fail_schema(_conn):
+        raise UniqueViolation("simulated legacy duplicates")
+
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", fail_schema)
+    resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
+
+    assert events == ["rollback", "close"]
+    if constraint == "idx_managers_cik_unique":
+        assert resp.status_code == 409
+        assert resp.json()["errors"][0]["field"] == "cik"
+        assert "clean up duplicate CIKs" in resp.json()["errors"][0]["message"]
+    else:
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "Database unavailable"
 
 
 @pytest.mark.parametrize("conflict_index", [0, 1, 2])
