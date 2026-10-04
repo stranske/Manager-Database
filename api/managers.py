@@ -58,6 +58,40 @@ REQUIRED_FIELD_ERRORS = {
 DEFAULT_BULK_IMPORT_MAX_BYTES = 2_000_000
 CIK_PATTERN = re.compile(r"^\d{10}$")
 SQLITE_TABLE_INFO_SQL = "SELECT name FROM pragma_table_info(?)"
+# Python str.strip() recognizes these Unicode whitespace characters. SQL's
+# default TRIM only removes spaces, so database lookups need the explicit set.
+CIK_WHITESPACE_CODEPOINTS = (
+    9,
+    10,
+    11,
+    12,
+    13,
+    28,
+    29,
+    30,
+    31,
+    32,
+    133,
+    160,
+    5760,
+    8192,
+    8193,
+    8194,
+    8195,
+    8196,
+    8197,
+    8198,
+    8199,
+    8200,
+    8201,
+    8202,
+    8232,
+    8233,
+    8239,
+    8287,
+    12288,
+)
+BULK_CIK_LOOKUP_CHUNK_SIZE = 900
 
 
 class ManagerCreate(BaseModel):
@@ -277,6 +311,10 @@ def _ensure_universe_schema(conn: Any) -> None:
         if "quality_flags" not in columns:
             conn.execute("ALTER TABLE managers ADD COLUMN quality_flags TEXT NOT NULL DEFAULT '[]'")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_managers_trimmed_cik ON managers "
+            f"({_cik_lookup_expression(conn)})"
+        )
         conn.commit()
         return
 
@@ -293,15 +331,37 @@ def _ensure_universe_schema(conn: Any) -> None:
         "ALTER TABLE managers ADD COLUMN IF NOT EXISTS quality_flags jsonb DEFAULT '[]'::jsonb"
     )
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_managers_trimmed_cik ON managers "
+        f"({_cik_lookup_expression(conn)})"
+    )
+
+
+def _cik_lookup_expression(conn: Any) -> str:
+    """Return the indexed SQL expression matching payload CIK whitespace trimming."""
+    if isinstance(conn, sqlite3.Connection):
+        codes = ", ".join(str(code) for code in CIK_WHITESPACE_CODEPOINTS)
+        return f"TRIM(cik, char({codes}))"
+    characters = " || ".join(f"chr({code})" for code in CIK_WHITESPACE_CODEPOINTS)
+    return f"BTRIM(cik, {characters})"
 
 
 def _manager_exists_for_cik(conn: Any, cik: str) -> bool:
     placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     row = conn.execute(
-        f"SELECT 1 FROM managers WHERE TRIM(cik) = {placeholder} LIMIT 1",
-        (cik,),
+        f"SELECT 1 FROM managers WHERE {_cik_lookup_expression(conn)} = {placeholder} LIMIT 1",
+        (cik.strip(),),
     ).fetchone()
     return bool(row)
+
+
+def _is_cik_unique_violation(exc: BaseException) -> bool:
+    """Recognize CIK conflicts without swallowing unrelated database failures."""
+    if isinstance(exc, sqlite3.IntegrityError):
+        return "UNIQUE constraint failed: managers.cik" in str(exc)
+    return getattr(exc, "sqlstate", None) == "23505" and (
+        getattr(getattr(exc, "diag", None), "constraint_name", None) == "idx_managers_cik_unique"
+    )
 
 
 def _upsert_universe_record(conn: Any, name: str, cik: str, jurisdiction: str) -> None:
@@ -845,9 +905,24 @@ def _exclude_conflicting_bulk_ciks(
     accepted: list[tuple[int, ManagerCreate]] = []
     failures: list[BulkImportFailure] = []
     seen_ciks: set[str] = set()
+    candidate_ciks = sorted(
+        {payload.cik.strip() for _, payload in valid_records if payload.cik and payload.cik.strip()}
+    )
+    existing_ciks: set[str] = set()
+    placeholder = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+    expression = _cik_lookup_expression(conn)
+    for offset in range(0, len(candidate_ciks), BULK_CIK_LOOKUP_CHUNK_SIZE):
+        batch = candidate_ciks[offset : offset + BULK_CIK_LOOKUP_CHUNK_SIZE]
+        placeholders = ", ".join([placeholder] * len(batch))
+        rows = conn.execute(
+            f"SELECT DISTINCT {expression} FROM managers "
+            f"WHERE {expression} IN ({placeholders})",
+            tuple(batch),
+        ).fetchall()
+        existing_ciks.update(str(row[0]) for row in rows)
     for index, payload in valid_records:
         cik = payload.cik.strip() if payload.cik else ""
-        if cik and (cik in seen_ciks or _manager_exists_for_cik(conn, cik)):
+        if cik and (cik in seen_ciks or cik in existing_ciks):
             failures.append(
                 BulkImportFailure(
                     index=index,
@@ -993,14 +1068,7 @@ async def create_manager(
         try:
             manager_id = _insert_manager(conn, payload)
         except DB_ERROR_TYPES as exc:
-            sqlite_cik_conflict = isinstance(exc, sqlite3.IntegrityError) and (
-                "UNIQUE constraint failed: managers.cik" in str(exc)
-            )
-            postgres_cik_conflict = getattr(exc, "sqlstate", None) == "23505" and (
-                getattr(getattr(exc, "diag", None), "constraint_name", None)
-                == "idx_managers_cik_unique"
-            )
-            if payload.cik and (sqlite_cik_conflict or postgres_cik_conflict):
+            if payload.cik and _is_cik_unique_violation(exc):
                 errors = [{"field": "cik", "message": "A manager with this CIK already exists."}]
                 return JSONResponse(status_code=409, content={"errors": errors, "error": errors})
             raise
@@ -1272,8 +1340,36 @@ async def bulk_import_managers(
             if not isinstance(conn, sqlite3.Connection) and getattr(conn, "autocommit", False):
                 conn.autocommit = False
                 postgres_autocommit_restored = True
+            # An outer transaction keeps releasing SQLite savepoints from committing
+            # records before the entire batch has finished.
+            if isinstance(conn, sqlite3.Connection) and not conn.in_transaction:
+                conn.execute("BEGIN")
             for index, payload in valid_records:
-                manager_id = _insert_manager(conn, payload, commit=False)
+                if payload.cik:
+                    conn.execute("SAVEPOINT bulk_manager_insert")
+                try:
+                    manager_id = _insert_manager(conn, payload, commit=False)
+                except DB_ERROR_TYPES as exc:
+                    if not payload.cik or not _is_cik_unique_violation(exc):
+                        raise
+                    conn.execute("ROLLBACK TO SAVEPOINT bulk_manager_insert")
+                    conn.execute("RELEASE SAVEPOINT bulk_manager_insert")
+                    failures.append(
+                        BulkImportFailure(
+                            index=index,
+                            errors=_as_bulk_item_errors(
+                                [
+                                    {
+                                        "field": "cik",
+                                        "message": "A manager with this CIK already exists.",
+                                    }
+                                ]
+                            ),
+                        )
+                    )
+                    continue
+                if payload.cik:
+                    conn.execute("RELEASE SAVEPOINT bulk_manager_insert")
                 successes.append(
                     BulkImportSuccess(
                         index=index,

@@ -23,6 +23,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique
     ON managers (cik)
     WHERE cik IS NOT NULL;
 
+-- Match Python str.strip() used for manager CIK validation and lookup.
+CREATE INDEX IF NOT EXISTS idx_managers_trimmed_cik ON managers (
+    BTRIM(cik, chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) ||
+        chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) ||
+        chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) ||
+        chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) ||
+        chr(8233) || chr(8239) || chr(8287) || chr(12288))
+);
+
 CREATE INDEX IF NOT EXISTS idx_managers_lei
     ON managers (lei);
 
