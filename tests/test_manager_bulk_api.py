@@ -146,6 +146,51 @@ def test_bulk_json_rejects_cik_already_in_database(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_invalid_record_does_not_reserve_cik(tmp_path, monkeypatch, source):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    assert (
+        asyncio.run(_post_bulk_json([{"name": "Existing", "cik": "0001791786"}])).status_code == 200
+    )
+    records = [
+        {"name": "", "cik": "0001791787"},
+        {"name": "Valid", "cik": " 0001791787 "},
+        {"name": "Request duplicate", "cik": "0001791787"},
+        {"name": "Database duplicate", "cik": "0001791786"},
+        {"name": "Other", "cik": "0001791788"},
+    ]
+    if source == "json":
+        resp = asyncio.run(_post_bulk_json(records))
+    else:
+        csv_payload = "name,cik\n" + "".join(
+            f"{record['name']},{record['cik']}\n" for record in records
+        )
+        resp = asyncio.run(_post_bulk_csv(csv_payload))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert (body["total"], body["succeeded"], body["failed"]) == (5, 2, 3)
+    assert [item["index"] for item in body["successes"]] == [1, 4]
+    failures = {item["index"]: item["errors"] for item in body["failures"]}
+    assert set(failures) == {0, 2, 3}
+    assert failures[0][0]["field"] == "name"
+    for index in (2, 3):
+        assert failures[index] == [
+            {"field": "cik", "message": "A manager with this CIK already exists."}
+        ]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == [
+            ("Existing", "0001791786"),
+            ("Valid", "0001791787"),
+            ("Other", "0001791788"),
+        ]
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Direct duplicate", "0001791787")
+            )
+
+
+@pytest.mark.parametrize("source", ["json", "csv"])
 def test_bulk_import_enforces_cik_uniqueness_when_all_records_conflict(
     tmp_path, monkeypatch, source
 ):
