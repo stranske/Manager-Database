@@ -422,6 +422,58 @@ def test_bulk_json_handles_cik_insert_race_per_record(tmp_path, monkeypatch, con
         ]
 
 
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_rolls_back_successes_after_cik_race(tmp_path, monkeypatch, source):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    records = [
+        {"name": "Before", "cik": "0000000001"},
+        {"name": "Conflict", "cik": "0000000002"},
+        {"name": "After", "cik": "0000000003"},
+        {"name": "Database failure", "cik": "0000000004"},
+    ]
+    original_filter = managers_api._exclude_conflicting_bulk_ciks
+    original_insert = managers_api._insert_manager
+    attempted_names = []
+
+    def insert_competing_manager(conn, payloads):
+        result = original_filter(conn, payloads)
+        with sqlite3.connect(db_path) as competing_conn:
+            competing_conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Competing", "0000000002")
+            )
+        return result
+
+    def fail_last_insert(conn, payload, *, commit=True):
+        attempted_names.append(payload.name)
+        if payload.name == "Database failure":
+            raise sqlite3.OperationalError("simulated failure after CIK conflict recovery")
+        return original_insert(conn, payload, commit=commit)
+
+    monkeypatch.setattr(managers_api, "_exclude_conflicting_bulk_ciks", insert_competing_manager)
+    monkeypatch.setattr(managers_api, "_insert_manager", fail_last_insert)
+    if source == "json":
+        resp = asyncio.run(_post_bulk_json(records))
+    else:
+        contents = "name,cik\n" + "".join(f"{row['name']},{row['cik']}\n" for row in records)
+        resp = asyncio.run(_post_bulk_csv(contents))
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Database unavailable"
+    # The CIK conflict must recover before the unrelated failure aborts the batch.
+    assert attempted_names == [row["name"] for row in records]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == [
+            ("Competing", "0000000002")
+        ]
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Duplicate", "0000000002")
+            )
+
+
 @pytest.mark.parametrize("constraint", ["idx_managers_cik_unique", "idx_managers_lei_unique"])
 def test_bulk_import_postgres_recovers_only_cik_conflicts(monkeypatch, constraint):
     from types import SimpleNamespace
