@@ -830,6 +830,10 @@ def _validate_bulk_records(
             else:
                 logger.warning("Bulk import validation failed for record %s: %s", index, errors)
             continue
+        if payload.cik is not None:
+            # Store the same CIK used by duplicate checks. Missing CIKs must be
+            # NULL so multiple records without identifiers can share the index.
+            payload = payload.model_copy(update={"cik": payload.cik.strip() or None})
         valid_records.append((index, payload))
     return valid_records, failures
 
