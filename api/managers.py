@@ -834,6 +834,31 @@ def _validate_bulk_records(
     return valid_records, failures
 
 
+def _exclude_conflicting_bulk_ciks(
+    conn: Any, valid_records: list[tuple[int, ManagerCreate]]
+) -> tuple[list[tuple[int, ManagerCreate]], list[BulkImportFailure]]:
+    """Keep only bulk records whose CIK is unique in the request and database."""
+    accepted: list[tuple[int, ManagerCreate]] = []
+    failures: list[BulkImportFailure] = []
+    seen_ciks: set[str] = set()
+    for index, payload in valid_records:
+        cik = payload.cik.strip() if payload.cik else ""
+        if cik and (cik in seen_ciks or _manager_exists_for_cik(conn, cik)):
+            failures.append(
+                BulkImportFailure(
+                    index=index,
+                    errors=_as_bulk_item_errors(
+                        [{"field": "cik", "message": "A manager with this CIK already exists."}]
+                    ),
+                )
+            )
+            continue
+        if cik:
+            seen_ciks.add(cik)
+        accepted.append((index, payload))
+    return accepted, failures
+
+
 def _bulk_request_error(field: str, message: str) -> JSONResponse:
     """Return a consistent 400 payload for bulk requests."""
     errors = [{"field": field, "message": message}]
@@ -1237,7 +1262,9 @@ async def bulk_import_managers(
     try:
         if valid_records:
             conn = connect_db()
-            _ensure_manager_table(conn)
+            _ensure_universe_schema(conn)
+            valid_records, cik_failures = _exclude_conflicting_bulk_ciks(conn, valid_records)
+            failures.extend(cik_failures)
             if not isinstance(conn, sqlite3.Connection) and getattr(conn, "autocommit", False):
                 conn.autocommit = False
                 postgres_autocommit_restored = True

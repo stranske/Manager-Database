@@ -95,6 +95,45 @@ def test_bulk_json_imports_valid_records(tmp_path, monkeypatch):
     ]
 
 
+def test_bulk_json_rejects_duplicate_cik_within_request(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+
+    resp = asyncio.run(
+        _post_bulk_json(
+            [
+                {"name": "Original", "cik": "0001791786"},
+                {"name": "Duplicate", "cik": "0001791786"},
+            ]
+        )
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 1
+    assert body["failed"] == 1
+    assert body["successes"][0]["index"] == 0
+    assert body["failures"] == [
+        {
+            "index": 1,
+            "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+        }
+    ]
+
+
+def test_bulk_json_rejects_cik_already_in_database(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+    payload = {"name": "Original", "cik": "0001791786"}
+    assert asyncio.run(_post_bulk_json([payload])).status_code == 200
+
+    resp = asyncio.run(_post_bulk_json([{**payload, "name": "Duplicate"}]))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 0
+    assert body["failed"] == 1
+    assert body["failures"][0]["errors"][0]["field"] == "cik"
+
+
 def test_bulk_json_import_persists_investment_manager_fields(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -414,7 +453,7 @@ def test_bulk_import_postgres_transaction_state(monkeypatch, fail_insert):
 
     conn = PostgresConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _: None)
     monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
 
     def insert(_conn, _payload, *, commit=True):
@@ -477,7 +516,7 @@ def test_bulk_import_preserves_original_error_when_postgres_cleanup_fails(monkey
 
     conn = FailingCleanupConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _: None)
 
     def fail_insert(_conn, _payload, *, commit=True):
         raise psycopg.OperationalError("original insert failure")
@@ -516,7 +555,7 @@ def test_bulk_import_reports_postgres_close_failure(monkeypatch, caplog):
 
     conn = FailingCloseConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _: None)
     monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
     monkeypatch.setattr(managers_api, "_insert_manager", lambda *_args, **_kwargs: 1)
 
