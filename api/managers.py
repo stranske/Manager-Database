@@ -285,7 +285,33 @@ def _to_manager_response(row: tuple[object, ...]) -> ManagerResponse:
     )
 
 
-def _ensure_universe_schema(conn: Any) -> None:
+class LegacyDuplicateCikError(Exception):
+    """Existing CIK owners must be reconciled before uniqueness can be enabled."""
+
+
+def _check_legacy_cik_duplicates(conn: Any) -> None:
+    """Require explicit cleanup without rewriting or deleting existing managers."""
+    if isinstance(conn, sqlite3.Connection):
+        index_exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'index' "
+            "AND tbl_name = 'managers' AND name = 'idx_managers_cik_unique'"
+        ).fetchone()
+    else:
+        index_exists = conn.execute(
+            "SELECT 1 FROM pg_indexes WHERE schemaname = ANY(current_schemas(false)) "
+            "AND tablename = 'managers' AND indexname = 'idx_managers_cik_unique'"
+        ).fetchone()
+    # Once the invariant is enforced, avoid scanning all manager rows on each import.
+    if index_exists:
+        return
+    duplicate = conn.execute(
+        "SELECT 1 FROM managers WHERE cik IS NOT NULL GROUP BY cik HAVING COUNT(*) > 1 LIMIT 1"
+    ).fetchone()
+    if duplicate:
+        raise LegacyDuplicateCikError
+
+
+def _ensure_universe_schema(conn: Any, *, check_legacy_ciks: bool = False) -> None:
     """Ensure managers table has the columns/index needed for universe imports."""
     _ensure_manager_table(conn)
     if isinstance(conn, sqlite3.Connection):
@@ -310,6 +336,8 @@ def _ensure_universe_schema(conn: Any) -> None:
             )
         if "quality_flags" not in columns:
             conn.execute("ALTER TABLE managers ADD COLUMN quality_flags TEXT NOT NULL DEFAULT '[]'")
+        if check_legacy_ciks:
+            _check_legacy_cik_duplicates(conn)
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_managers_trimmed_cik ON managers "
@@ -330,6 +358,8 @@ def _ensure_universe_schema(conn: Any) -> None:
     conn.execute(
         "ALTER TABLE managers ADD COLUMN IF NOT EXISTS quality_flags jsonb DEFAULT '[]'::jsonb"
     )
+    if check_legacy_ciks:
+        _check_legacy_cik_duplicates(conn)
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_managers_cik_unique ON managers(cik)")
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_managers_trimmed_cik ON managers "
@@ -1339,7 +1369,7 @@ async def bulk_import_managers(
     try:
         if valid_records:
             conn = connect_db()
-            _ensure_universe_schema(conn)
+            _ensure_universe_schema(conn, check_legacy_ciks=True)
             schema_ready = True
             valid_records, cik_failures = _exclude_conflicting_bulk_ciks(conn, valid_records)
             failures.extend(cik_failures)
@@ -1396,7 +1426,7 @@ async def bulk_import_managers(
                 )
             conn.commit()
             invalidate_cache_prefix("managers")
-    except DB_ERROR_TYPES as exc:
+    except (LegacyDuplicateCikError, *DB_ERROR_TYPES) as exc:
         db_error = exc
         if conn is not None:
             try:
@@ -1420,7 +1450,9 @@ async def bulk_import_managers(
                     db_error = cleanup_error
 
     if db_error is not None:
-        if not schema_ready and _is_cik_unique_violation(db_error):
+        if not schema_ready and (
+            isinstance(db_error, LegacyDuplicateCikError) or _is_cik_unique_violation(db_error)
+        ):
             errors = [
                 {
                     "field": "cik",

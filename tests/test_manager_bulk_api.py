@@ -158,10 +158,25 @@ def test_bulk_import_reports_legacy_duplicate_ciks_without_changing_rows(
         managers_api._ensure_manager_table(conn)
         conn.executemany("INSERT INTO managers(name, cik) VALUES (?, ?)", original_rows)
 
+    queries = []
+
+    def connect_traced_db():
+        conn = sqlite3.connect(db_path)
+        conn.set_trace_callback(queries.append)
+        return conn
+
+    monkeypatch.setattr(managers_api, "connect_db", connect_traced_db)
     if source == "json":
-        resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
+        resp = asyncio.run(
+            _post_bulk_json(
+                [
+                    {"name": "Duplicate", "cik": "0001791786"},
+                    {"name": "New", "cik": "0001791787"},
+                ]
+            )
+        )
     else:
-        resp = asyncio.run(_post_bulk_csv("name,cik\nNew,0001791787\n"))
+        resp = asyncio.run(_post_bulk_csv("name,cik\nDuplicate,0001791786\nNew,0001791787\n"))
 
     assert resp.status_code == 409
     errors = [
@@ -171,6 +186,9 @@ def test_bulk_import_reports_legacy_duplicate_ciks_without_changing_rows(
         }
     ]
     assert resp.json() == {"errors": errors, "error": errors}
+    assert any("GROUP BY cik HAVING COUNT(*) > 1" in query for query in queries)
+    assert not any("CREATE UNIQUE INDEX" in query for query in queries)
+    assert not any(query.startswith("INSERT INTO managers") for query in queries)
     with sqlite3.connect(db_path) as conn:
         assert (
             conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == original_rows
@@ -181,11 +199,50 @@ def test_bulk_import_reports_legacy_duplicate_ciks_without_changing_rows(
     resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
     assert resp.status_code == 200
     assert resp.json()["succeeded"] == 1
+    queries.clear()
+    resp = asyncio.run(_post_bulk_json([{"name": "Other", "cik": "0001791788"}]))
+    assert resp.status_code == 200
+    assert resp.json()["succeeded"] == 1
+    assert not any("GROUP BY cik" in query for query in queries)
     with sqlite3.connect(db_path) as conn:
         with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
             conn.execute(
                 "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Duplicate", "0001791787")
             )
+
+
+def test_bulk_import_detects_postgres_legacy_duplicates_before_index_creation(monkeypatch):
+    import api.managers as managers_api
+
+    class PostgresConn:
+        def __init__(self):
+            self.events = []
+            self.last_sql = ""
+
+        def execute(self, sql):
+            self.events.append(sql)
+            self.last_sql = sql
+            assert "CREATE UNIQUE INDEX" not in sql
+            return self
+
+        def fetchone(self):
+            return (1,) if "GROUP BY cik HAVING COUNT(*) > 1" in self.last_sql else None
+
+        def rollback(self):
+            self.events.append("rollback")
+
+        def close(self):
+            self.events.append("close")
+
+    conn = PostgresConn()
+    monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
+    resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
+
+    assert resp.status_code == 409
+    assert resp.json()["errors"][0]["field"] == "cik"
+    assert "clean up duplicate CIKs" in resp.json()["errors"][0]["message"]
+    assert any("FROM pg_indexes" in event for event in conn.events)
+    assert conn.events[-2:] == ["rollback", "close"]
 
 
 @pytest.mark.parametrize("constraint", ["idx_managers_cik_unique", "idx_managers_lei_unique"])
@@ -207,7 +264,7 @@ def test_bulk_import_postgres_schema_conflict_requires_cik_cleanup(monkeypatch, 
     )
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
 
-    def fail_schema(_conn):
+    def fail_schema(_conn, **_kwargs):
         raise UniqueViolation("simulated legacy duplicates")
 
     monkeypatch.setattr(managers_api, "_ensure_universe_schema", fail_schema)
@@ -310,7 +367,7 @@ def test_bulk_import_postgres_recovers_only_cik_conflicts(monkeypatch, constrain
 
     conn = PostgresConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _, **_kwargs: None)
     monkeypatch.setattr(managers_api, "_exclude_conflicting_bulk_ciks", lambda _, rows: (rows, []))
     monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
 
@@ -865,7 +922,7 @@ def test_bulk_import_postgres_transaction_state(monkeypatch, fail_insert):
 
     conn = PostgresConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _, **_kwargs: None)
     monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
 
     def insert(_conn, _payload, *, commit=True):
@@ -928,7 +985,7 @@ def test_bulk_import_preserves_original_error_when_postgres_cleanup_fails(monkey
 
     conn = FailingCleanupConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _, **_kwargs: None)
 
     def fail_insert(_conn, _payload, *, commit=True):
         raise psycopg.OperationalError("original insert failure")
@@ -967,7 +1024,7 @@ def test_bulk_import_reports_postgres_close_failure(monkeypatch, caplog):
 
     conn = FailingCloseConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _, **_kwargs: None)
     monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
     monkeypatch.setattr(managers_api, "_insert_manager", lambda *_args, **_kwargs: 1)
 
