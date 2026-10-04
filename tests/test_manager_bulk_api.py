@@ -146,6 +146,57 @@ def test_bulk_json_rejects_cik_already_in_database(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_enforces_cik_uniqueness_when_all_records_conflict(
+    tmp_path, monkeypatch, source
+):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    # A legacy database may contain managers without a CIK uniqueness constraint.
+    with sqlite3.connect(db_path) as conn:
+        managers_api._ensure_manager_table(conn)
+        conn.execute("INSERT INTO managers(name, cik) VALUES (?, ?)", ("Original", "0001791786"))
+
+    if source == "json":
+        resp = asyncio.run(
+            _post_bulk_json(
+                [
+                    {"name": "Duplicate A", "cik": "0001791786"},
+                    {"name": "Duplicate B", "cik": " 0001791786 "},
+                ]
+            )
+        )
+    else:
+        resp = asyncio.run(
+            _post_bulk_csv("name,cik\nDuplicate A,0001791786\nDuplicate B, 0001791786 \n")
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "total": 2,
+        "succeeded": 0,
+        "failed": 2,
+        "successes": [],
+        "failures": [
+            {
+                "index": index,
+                "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+            }
+            for index in (0, 1)
+        ],
+    }
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers").fetchall() == [
+            ("Original", "0001791786")
+        ]
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Direct duplicate", "0001791786")
+            )
+
+
+@pytest.mark.parametrize("source", ["json", "csv"])
 def test_bulk_import_reports_legacy_duplicate_ciks_without_changing_rows(
     tmp_path, monkeypatch, source
 ):
