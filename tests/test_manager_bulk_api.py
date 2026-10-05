@@ -282,7 +282,7 @@ def test_bulk_import_reports_legacy_duplicate_ciks_without_changing_rows(
         }
     ]
     assert resp.json() == {"errors": errors, "error": errors}
-    assert any("GROUP BY cik HAVING COUNT(*) > 1" in query for query in queries)
+    assert any("GROUP BY TRIM(cik, char(" in query for query in queries)
     assert not any("CREATE UNIQUE INDEX" in query for query in queries)
     assert not any(query.startswith("INSERT INTO managers") for query in queries)
     with sqlite3.connect(db_path) as conn:
@@ -299,7 +299,7 @@ def test_bulk_import_reports_legacy_duplicate_ciks_without_changing_rows(
     resp = asyncio.run(_post_bulk_json([{"name": "Other", "cik": "0001791788"}]))
     assert resp.status_code == 200
     assert resp.json()["succeeded"] == 1
-    assert not any("GROUP BY cik" in query for query in queries)
+    assert any("GROUP BY TRIM(cik, char(" in query for query in queries)
     with sqlite3.connect(db_path) as conn:
         with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
             conn.execute(
@@ -322,7 +322,7 @@ def test_bulk_import_detects_postgres_legacy_duplicates_before_index_creation(mo
             return self
 
         def fetchone(self):
-            return (1,) if "GROUP BY cik HAVING COUNT(*) > 1" in self.last_sql else None
+            return (1,) if "GROUP BY BTRIM(cik," in self.last_sql else None
 
         def rollback(self):
             self.events.append("rollback")
@@ -337,7 +337,7 @@ def test_bulk_import_detects_postgres_legacy_duplicates_before_index_creation(mo
     assert resp.status_code == 409
     assert resp.json()["errors"][0]["field"] == "cik"
     assert "clean up duplicate CIKs" in resp.json()["errors"][0]["message"]
-    assert any("FROM pg_indexes" in event for event in conn.events)
+    assert any("GROUP BY BTRIM(cik," in event for event in conn.events)
     assert conn.events[-2:] == ["rollback", "close"]
 
 
@@ -1182,3 +1182,32 @@ def test_bulk_import_reports_postgres_close_failure(monkeypatch, caplog):
     assert resp.json()["detail"] == "Database unavailable"
     assert "Bulk import connection close failed: close failed" in caplog.text
     assert events == [("autocommit", False), "commit", ("autocommit", True), "close"]
+
+
+@pytest.mark.parametrize("existing_index", [False, True])
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_rejects_normalized_legacy_cik_owners(
+    tmp_path, monkeypatch, existing_index, source
+):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    original_rows = [("Legacy A", "0001791786"), ("Legacy B", "\t0001791786\t")]
+    with sqlite3.connect(db_path) as conn:
+        managers_api._ensure_manager_table(conn)
+        conn.executemany("INSERT INTO managers(name, cik) VALUES (?, ?)", original_rows)
+        if existing_index:
+            conn.execute("CREATE UNIQUE INDEX idx_managers_cik_unique ON managers(cik)")
+
+    if source == "json":
+        response = asyncio.run(_post_bulk_json([{"name": "Unrelated", "cik": "0001791787"}]))
+    else:
+        response = asyncio.run(_post_bulk_csv("name,cik\nUnrelated,0001791787\n"))
+
+    assert response.status_code == 409
+    assert response.json()["errors"][0]["field"] == "cik"
+    with sqlite3.connect(db_path) as conn:
+        assert (
+            conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == original_rows
+        )

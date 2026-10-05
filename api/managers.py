@@ -291,21 +291,12 @@ class LegacyDuplicateCikError(Exception):
 
 def _check_legacy_cik_duplicates(conn: Any) -> None:
     """Require explicit cleanup without rewriting or deleting existing managers."""
-    if isinstance(conn, sqlite3.Connection):
-        index_exists = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'index' "
-            "AND tbl_name = 'managers' AND name = 'idx_managers_cik_unique'"
-        ).fetchone()
-    else:
-        index_exists = conn.execute(
-            "SELECT 1 FROM pg_indexes WHERE schemaname = ANY(current_schemas(false)) "
-            "AND tablename = 'managers' AND indexname = 'idx_managers_cik_unique'"
-        ).fetchone()
-    # Once the invariant is enforced, avoid scanning all manager rows on each import.
-    if index_exists:
-        return
+    # A raw unique index cannot establish uniqueness after CIK whitespace normalization.
+    # Always check the same expression used by request lookup, including legacy indexed tables.
+    normalized_cik = _cik_lookup_expression(conn)
     duplicate = conn.execute(
-        "SELECT 1 FROM managers WHERE cik IS NOT NULL GROUP BY cik HAVING COUNT(*) > 1 LIMIT 1"
+        f"SELECT 1 FROM managers WHERE cik IS NOT NULL "
+        f"GROUP BY {normalized_cik} HAVING COUNT(*) > 1 LIMIT 1"
     ).fetchone()
     if duplicate:
         raise LegacyDuplicateCikError
