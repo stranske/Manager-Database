@@ -95,6 +95,714 @@ def test_bulk_json_imports_valid_records(tmp_path, monkeypatch):
     ]
 
 
+def test_bulk_json_rejects_duplicate_cik_within_request(tmp_path, monkeypatch):
+    import api.managers as managers_api
+
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+    inserted_names = []
+    original_insert = managers_api._insert_manager
+
+    def track_insert(conn, payload, *, commit=True):
+        inserted_names.append(payload.name)
+        return original_insert(conn, payload, commit=commit)
+
+    monkeypatch.setattr(managers_api, "_insert_manager", track_insert)
+
+    resp = asyncio.run(
+        _post_bulk_json(
+            [
+                {"name": "Original", "cik": "0001791786"},
+                {"name": "Duplicate", "cik": "0001791786"},
+            ]
+        )
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 1
+    assert body["failed"] == 1
+    assert body["successes"][0]["index"] == 0
+    assert body["failures"] == [
+        {
+            "index": 1,
+            "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+        }
+    ]
+    assert inserted_names == ["Original"]
+
+
+def test_bulk_json_rejects_cik_already_in_database(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "dev.db"))
+    payload = {"name": "Original", "cik": "0001791786"}
+    assert asyncio.run(_post_bulk_json([payload])).status_code == 200
+
+    resp = asyncio.run(_post_bulk_json([{**payload, "name": "Duplicate"}]))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 0
+    assert body["failed"] == 1
+    assert body["failures"][0]["errors"][0]["field"] == "cik"
+
+
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_invalid_record_does_not_reserve_cik(tmp_path, monkeypatch, source):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    assert (
+        asyncio.run(_post_bulk_json([{"name": "Existing", "cik": "0001791786"}])).status_code == 200
+    )
+    records = [
+        {"name": "", "cik": "0001791787"},
+        {"name": "Valid", "cik": " 0001791787 "},
+        {"name": "Request duplicate", "cik": "0001791787"},
+        {"name": "Database duplicate", "cik": "0001791786"},
+        {"name": "Other", "cik": "0001791788"},
+    ]
+    if source == "json":
+        resp = asyncio.run(_post_bulk_json(records))
+    else:
+        csv_payload = "name,cik\n" + "".join(
+            f"{record['name']},{record['cik']}\n" for record in records
+        )
+        resp = asyncio.run(_post_bulk_csv(csv_payload))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert (body["total"], body["succeeded"], body["failed"]) == (5, 2, 3)
+    assert [item["index"] for item in body["successes"]] == [1, 4]
+    failures = {item["index"]: item["errors"] for item in body["failures"]}
+    assert set(failures) == {0, 2, 3}
+    assert failures[0][0]["field"] == "name"
+    for index in (2, 3):
+        assert failures[index] == [
+            {"field": "cik", "message": "A manager with this CIK already exists."}
+        ]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == [
+            ("Existing", "0001791786"),
+            ("Valid", "0001791787"),
+            ("Other", "0001791788"),
+        ]
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Direct duplicate", "0001791787")
+            )
+
+
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_enforces_cik_uniqueness_when_all_records_conflict(
+    tmp_path, monkeypatch, source
+):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    # A legacy database may contain managers without a CIK uniqueness constraint.
+    with sqlite3.connect(db_path) as conn:
+        managers_api._ensure_manager_table(conn)
+        conn.execute("INSERT INTO managers(name, cik) VALUES (?, ?)", ("Original", "0001791786"))
+
+    if source == "json":
+        resp = asyncio.run(
+            _post_bulk_json(
+                [
+                    {"name": "Duplicate A", "cik": "0001791786"},
+                    {"name": "Duplicate B", "cik": " 0001791786 "},
+                ]
+            )
+        )
+    else:
+        resp = asyncio.run(
+            _post_bulk_csv("name,cik\nDuplicate A,0001791786\nDuplicate B, 0001791786 \n")
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "total": 2,
+        "succeeded": 0,
+        "failed": 2,
+        "successes": [],
+        "failures": [
+            {
+                "index": index,
+                "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+            }
+            for index in (0, 1)
+        ],
+    }
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers").fetchall() == [
+            ("Original", "0001791786")
+        ]
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Direct duplicate", "0001791786")
+            )
+
+
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_reports_legacy_duplicate_ciks_without_changing_rows(
+    tmp_path, monkeypatch, source
+):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    original_rows = [("Legacy A", "0001791786"), ("Legacy B", "0001791786")]
+    with sqlite3.connect(db_path) as conn:
+        managers_api._ensure_manager_table(conn)
+        conn.executemany("INSERT INTO managers(name, cik) VALUES (?, ?)", original_rows)
+
+    queries = []
+
+    def connect_traced_db():
+        conn = sqlite3.connect(db_path)
+        conn.set_trace_callback(queries.append)
+        return conn
+
+    monkeypatch.setattr(managers_api, "connect_db", connect_traced_db)
+    if source == "json":
+        resp = asyncio.run(
+            _post_bulk_json(
+                [
+                    {"name": "Duplicate", "cik": "0001791786"},
+                    {"name": "New", "cik": "0001791787"},
+                ]
+            )
+        )
+    else:
+        resp = asyncio.run(_post_bulk_csv("name,cik\nDuplicate,0001791786\nNew,0001791787\n"))
+
+    assert resp.status_code == 409
+    errors = [
+        {
+            "field": "cik",
+            "message": "Existing manager records share a CIK; clean up duplicate CIKs before importing managers.",
+        }
+    ]
+    assert resp.json() == {"errors": errors, "error": errors}
+    assert any("GROUP BY TRIM(cik, char(" in query for query in queries)
+    assert not any("CREATE UNIQUE INDEX" in query for query in queries)
+    assert not any(query.startswith("INSERT INTO managers") for query in queries)
+    with sqlite3.connect(db_path) as conn:
+        assert (
+            conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == original_rows
+        )
+        # Once the duplicate owner is resolved, imports can create the index and resume.
+        conn.execute("UPDATE managers SET cik = NULL WHERE name = 'Legacy B'")
+
+    resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
+    assert resp.status_code == 200
+    assert resp.json()["succeeded"] == 1
+    queries.clear()
+    resp = asyncio.run(_post_bulk_json([{"name": "Other", "cik": "0001791788"}]))
+    assert resp.status_code == 200
+    assert resp.json()["succeeded"] == 1
+    assert any("GROUP BY TRIM(cik, char(" in query for query in queries)
+    with sqlite3.connect(db_path) as conn:
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Duplicate", "0001791787")
+            )
+
+
+def test_bulk_import_detects_postgres_legacy_duplicates_before_index_creation(monkeypatch):
+    import api.managers as managers_api
+
+    class PostgresConn:
+        def __init__(self):
+            self.events = []
+            self.last_sql = ""
+
+        def execute(self, sql):
+            self.events.append(sql)
+            self.last_sql = sql
+            assert "CREATE UNIQUE INDEX" not in sql
+            return self
+
+        def fetchone(self):
+            return (1,) if "GROUP BY BTRIM(cik," in self.last_sql else None
+
+        def rollback(self):
+            self.events.append("rollback")
+
+        def close(self):
+            self.events.append("close")
+
+    conn = PostgresConn()
+    monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
+    resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
+
+    assert resp.status_code == 409
+    assert resp.json()["errors"][0]["field"] == "cik"
+    assert "clean up duplicate CIKs" in resp.json()["errors"][0]["message"]
+    assert any("GROUP BY BTRIM(cik," in event for event in conn.events)
+    assert conn.events[-2:] == ["rollback", "close"]
+
+
+@pytest.mark.parametrize("constraint", ["idx_managers_cik_unique", "idx_managers_lei_unique"])
+def test_bulk_import_postgres_schema_conflict_requires_cik_cleanup(monkeypatch, constraint):
+    from types import SimpleNamespace
+
+    psycopg = pytest.importorskip("psycopg")
+    import api.managers as managers_api
+
+    class UniqueViolation(psycopg.errors.UniqueViolation):
+        @property
+        def diag(self):
+            return SimpleNamespace(constraint_name=constraint)
+
+    events = []
+    conn = SimpleNamespace(
+        rollback=lambda: events.append("rollback"),
+        close=lambda: events.append("close"),
+    )
+    monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
+
+    def fail_schema(_conn, **_kwargs):
+        raise UniqueViolation("simulated legacy duplicates")
+
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", fail_schema)
+    resp = asyncio.run(_post_bulk_json([{"name": "New", "cik": "0001791787"}]))
+
+    assert events == ["rollback", "close"]
+    if constraint == "idx_managers_cik_unique":
+        assert resp.status_code == 409
+        assert resp.json()["errors"][0]["field"] == "cik"
+        assert "clean up duplicate CIKs" in resp.json()["errors"][0]["message"]
+    else:
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "Database unavailable"
+
+
+@pytest.mark.parametrize("conflict_index", [0, 1, 2])
+def test_bulk_json_handles_cik_insert_race_per_record(tmp_path, monkeypatch, conflict_index):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    payloads = [{"name": f"Manager {index}", "cik": f"{index + 1:010d}"} for index in range(3)]
+    original_filter = managers_api._exclude_conflicting_bulk_ciks
+
+    def insert_competing_manager(conn, records):
+        result = original_filter(conn, records)
+        # Another connection wins the race after validation but before insertion.
+        with sqlite3.connect(db_path) as competing_conn:
+            competing_conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)",
+                ("Competing manager", payloads[conflict_index]["cik"]),
+            )
+        return result
+
+    monkeypatch.setattr(managers_api, "_exclude_conflicting_bulk_ciks", insert_competing_manager)
+
+    resp = asyncio.run(_post_bulk_json(payloads))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 2
+    assert body["failed"] == 1
+    assert [item["index"] for item in body["successes"]] == [
+        index for index in range(3) if index != conflict_index
+    ]
+    assert body["failures"] == [
+        {
+            "index": conflict_index,
+            "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+        }
+    ]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY cik").fetchall() == [
+            (
+                "Competing manager" if index == conflict_index else payload["name"],
+                payload["cik"],
+            )
+            for index, payload in enumerate(payloads)
+        ]
+
+
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_rolls_back_successes_after_cik_race(tmp_path, monkeypatch, source):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    records = [
+        {"name": "Before", "cik": "0000000001"},
+        {"name": "Conflict", "cik": "0000000002"},
+        {"name": "After", "cik": "0000000003"},
+        {"name": "Database failure", "cik": "0000000004"},
+    ]
+    original_filter = managers_api._exclude_conflicting_bulk_ciks
+    original_insert = managers_api._insert_manager
+    attempted_names = []
+
+    def insert_competing_manager(conn, payloads):
+        result = original_filter(conn, payloads)
+        with sqlite3.connect(db_path) as competing_conn:
+            competing_conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Competing", "0000000002")
+            )
+        return result
+
+    def fail_last_insert(conn, payload, *, commit=True):
+        attempted_names.append(payload.name)
+        if payload.name == "Database failure":
+            raise sqlite3.OperationalError("simulated failure after CIK conflict recovery")
+        return original_insert(conn, payload, commit=commit)
+
+    monkeypatch.setattr(managers_api, "_exclude_conflicting_bulk_ciks", insert_competing_manager)
+    monkeypatch.setattr(managers_api, "_insert_manager", fail_last_insert)
+    if source == "json":
+        resp = asyncio.run(_post_bulk_json(records))
+    else:
+        contents = "name,cik\n" + "".join(f"{row['name']},{row['cik']}\n" for row in records)
+        resp = asyncio.run(_post_bulk_csv(contents))
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Database unavailable"
+    # The CIK conflict must recover before the unrelated failure aborts the batch.
+    assert attempted_names == [row["name"] for row in records]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == [
+            ("Competing", "0000000002")
+        ]
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Duplicate", "0000000002")
+            )
+
+
+@pytest.mark.parametrize("constraint", ["idx_managers_cik_unique", "idx_managers_lei_unique"])
+def test_bulk_import_postgres_recovers_only_cik_conflicts(monkeypatch, constraint):
+    from types import SimpleNamespace
+
+    psycopg = pytest.importorskip("psycopg")
+    import api.managers as managers_api
+
+    class UniqueViolation(psycopg.errors.UniqueViolation):
+        @property
+        def diag(self):
+            return SimpleNamespace(constraint_name=constraint)
+
+    class PostgresConn:
+        autocommit = True
+        aborted = False
+
+        def __init__(self):
+            self.events = []
+
+        def execute(self, sql):
+            assert self.autocommit is False
+            if sql == "ROLLBACK TO SAVEPOINT bulk_manager_insert":
+                assert self.aborted
+                self.aborted = False
+            else:
+                assert not self.aborted
+            self.events.append(sql)
+
+        def commit(self):
+            assert not self.aborted
+            self.events.append("commit")
+
+        def rollback(self):
+            self.aborted = False
+            self.events.append("rollback")
+
+        def close(self):
+            self.events.append("close")
+
+    conn = PostgresConn()
+    monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _, **_kwargs: None)
+    monkeypatch.setattr(managers_api, "_exclude_conflicting_bulk_ciks", lambda _, rows: (rows, []))
+    monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
+
+    def insert(_conn, payload, *, commit=True):
+        assert _conn is conn
+        assert not conn.aborted
+        assert not commit
+        conn.events.append(payload.name)
+        if payload.name == "Duplicate":
+            conn.aborted = True
+            raise UniqueViolation("simulated unique conflict")
+        return int(payload.cik)
+
+    monkeypatch.setattr(managers_api, "_insert_manager", insert)
+    resp = asyncio.run(
+        _post_bulk_json(
+            [
+                {"name": "Before", "cik": "0000000001"},
+                {"name": "Duplicate", "cik": "0000000002"},
+                {"name": "After", "cik": "0000000003"},
+            ]
+        )
+    )
+
+    assert conn.autocommit is True
+    assert conn.events[-1] == "close"
+    if constraint == "idx_managers_cik_unique":
+        assert resp.status_code == 200
+        assert [item["index"] for item in resp.json()["successes"]] == [0, 2]
+        assert resp.json()["failures"] == [
+            {
+                "index": 1,
+                "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+            }
+        ]
+        assert conn.events == [
+            "SAVEPOINT bulk_manager_insert",
+            "Before",
+            "RELEASE SAVEPOINT bulk_manager_insert",
+            "SAVEPOINT bulk_manager_insert",
+            "Duplicate",
+            "ROLLBACK TO SAVEPOINT bulk_manager_insert",
+            "RELEASE SAVEPOINT bulk_manager_insert",
+            "SAVEPOINT bulk_manager_insert",
+            "After",
+            "RELEASE SAVEPOINT bulk_manager_insert",
+            "commit",
+            "close",
+        ]
+    else:
+        assert resp.status_code == 503
+        assert "After" not in conn.events
+        assert "commit" not in conn.events
+        assert conn.events[-2] == "rollback"
+
+
+def test_bulk_json_normalizes_ciks_before_inserting(tmp_path, monkeypatch):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    resp = asyncio.run(
+        _post_bulk_json(
+            [
+                {"name": "Original", "cik": " 0001791786 "},
+                {"name": "Duplicate", "cik": "0001791786"},
+            ]
+        )
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 1
+    assert body["failed"] == 1
+    assert body["successes"][0]["manager"]["cik"] == "0001791786"
+    assert body["failures"] == [
+        {
+            "index": 1,
+            "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+        }
+    ]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers").fetchall() == [
+            ("Original", "0001791786")
+        ]
+
+
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_allows_multiple_records_without_ciks(tmp_path, monkeypatch, source):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    if source == "json":
+        resp = asyncio.run(
+            _post_bulk_json(
+                [
+                    {"name": "Manager A", "cik": ""},
+                    {"name": "Manager B", "cik": " "},
+                    {"name": "Manager C", "cik": None},
+                ]
+            )
+        )
+    else:
+        resp = asyncio.run(_post_bulk_csv("name,cik\nManager A,\nManager B, \nManager C,\n"))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 3
+    assert body["failed"] == 0
+    assert all(item["manager"]["cik"] is None for item in body["successes"])
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == [
+            ("Manager A", None),
+            ("Manager B", None),
+            ("Manager C", None),
+        ]
+
+
+@pytest.mark.parametrize("existing_index", [False, True])
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_ignores_absent_legacy_ciks(tmp_path, monkeypatch, existing_index, source):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    original_rows = [
+        ("Empty", ""),
+        ("Space", " "),
+        ("Tab", "\t"),
+        ("Unicode whitespace", "\u00a0\u3000"),
+        ("Null", None),
+        ("Existing", "0001791786"),
+    ]
+    with sqlite3.connect(db_path) as conn:
+        managers_api._ensure_manager_table(conn)
+        conn.executemany("INSERT INTO managers(name, cik) VALUES (?, ?)", original_rows)
+        if existing_index:
+            conn.execute("CREATE UNIQUE INDEX idx_managers_cik_unique ON managers(cik)")
+
+    records = [
+        {"name": "Without CIK A", "cik": ""},
+        {"name": "Without CIK B", "cik": " "},
+        {"name": "New", "cik": "0001791787"},
+        {"name": "Database duplicate", "cik": "0001791786"},
+        {"name": "Request duplicate", "cik": " 0001791787 "},
+    ]
+    if source == "json":
+        resp = asyncio.run(_post_bulk_json(records))
+    else:
+        contents = "name,cik\n" + "".join(f"{row['name']},{row['cik']}\n" for row in records)
+        resp = asyncio.run(_post_bulk_csv(contents))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert (body["total"], body["succeeded"], body["failed"]) == (5, 3, 2)
+    assert [item["index"] for item in body["successes"]] == [0, 1, 2]
+    assert body["failures"] == [
+        {
+            "index": index,
+            "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+        }
+        for index in (3, 4)
+    ]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == (
+            original_rows
+            + [("Without CIK A", None), ("Without CIK B", None), ("New", "0001791787")]
+        )
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Duplicate", "0001791787")
+            )
+
+
+@pytest.mark.parametrize("padding", [" ", "\t", "\n\r\v\f", "\u00a0\u3000", "\x1c\x85"])
+def test_bulk_csv_reports_duplicate_ciks_and_imports_unique_records(tmp_path, monkeypatch, padding):
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    assert (
+        asyncio.run(_post_bulk_json([{"name": "Existing", "cik": "0001791786"}])).status_code == 200
+    )
+    # Legacy CIK whitespace must still participate in the duplicate lookup.
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE managers SET cik = ?", (f"{padding}0001791786{padding}",))
+
+    resp = asyncio.run(
+        _post_bulk_csv(
+            "name,cik\nExisting duplicate,0001791786\n"
+            "New,0001791787\nRequest duplicate, 0001791787 \nOther,0001791788\n"
+        )
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 4
+    assert body["succeeded"] == 2
+    assert body["failed"] == 2
+    assert [item["index"] for item in body["successes"]] == [1, 3]
+    assert body["failures"] == [
+        {
+            "index": index,
+            "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+        }
+        for index in (0, 2)
+    ]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == [
+            ("Existing", f"{padding}0001791786{padding}"),
+            ("New", "0001791787"),
+            ("Other", "0001791788"),
+        ]
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Duplicate", "0001791787")
+            )
+
+
+def test_bulk_cik_checks_are_batched_and_use_expression_index():
+    import api.managers as managers_api
+
+    with sqlite3.connect(":memory:") as conn:
+        managers_api._ensure_universe_schema(conn)
+        cik = "0000000001"
+        # Exercise every character in the payload's strip rule, not just spaces.
+        whitespace = "".join(chr(code) for code in range(sys.maxunicode + 1) if chr(code).isspace())
+        conn.execute(
+            "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Legacy", f"{whitespace}{cik}")
+        )
+        queries = []
+        conn.set_trace_callback(queries.append)
+        records = [
+            (index, managers_api.ManagerCreate(name=f"Manager {index}", cik=f"{index + 1:010d}"))
+            for index in range(901)
+        ]
+        records.append(
+            (901, managers_api.ManagerCreate(name="Request duplicate", cik="0000000901"))
+        )
+
+        accepted, failures = managers_api._exclude_conflicting_bulk_ciks(conn, records)
+
+        assert [index for index, _ in accepted] == list(range(1, 901))
+        assert [failure.index for failure in failures] == [0, 901]
+        lookups = [query for query in queries if query.startswith("SELECT DISTINCT TRIM(cik,")]
+        assert len(lookups) == 2
+        assert not any(query.startswith("SELECT 1 FROM managers") for query in queries)
+        expression = managers_api._cik_lookup_expression(conn)
+        plan = conn.execute(
+            f"EXPLAIN QUERY PLAN SELECT {expression} FROM managers WHERE {expression} IN (?)",
+            (cik,),
+        ).fetchall()
+        assert any("idx_managers_trimmed_cik" in row[-1] for row in plan)
+        assert managers_api._manager_exists_for_cik(conn, f"\t{cik}\t")
+
+
+def test_bulk_cik_checks_batch_postgres_queries():
+    import api.managers as managers_api
+
+    class PostgresConn:
+        def __init__(self):
+            self.queries = []
+
+        def execute(self, sql, parameters):
+            self.queries.append((sql, parameters))
+            assert sql.count("%s") == len(parameters)
+            assert "BTRIM(cik, chr(9)" in sql
+            return self
+
+        def fetchall(self):
+            return [("0000000001",)] if len(self.queries) == 1 else []
+
+    conn = PostgresConn()
+    records = [
+        (index, managers_api.ManagerCreate(name=f"Manager {index}", cik=f"{index + 1:010d}"))
+        for index in range(901)
+    ]
+    accepted, failures = managers_api._exclude_conflicting_bulk_ciks(conn, records)
+
+    assert [len(parameters) for _, parameters in conn.queries] == [900, 1]
+    assert [index for index, _ in accepted] == list(range(1, 901))
+    assert [failure.index for failure in failures] == [0]
+    expression = managers_api._cik_lookup_expression(conn)
+    assert (
+        "".join((Path(__file__).parents[1] / "schema.sql").read_text().split()).find(
+            "".join(expression.split())
+        )
+        != -1
+    )
+
+
 def test_bulk_json_import_persists_investment_manager_fields(tmp_path, monkeypatch):
     db_path = tmp_path / "dev.db"
     monkeypatch.setenv("DB_PATH", str(db_path))
@@ -351,7 +1059,8 @@ def test_bulk_csv_with_only_empty_records_is_rejected(tmp_path, monkeypatch):
     ]
 
 
-def test_bulk_import_rolls_back_on_mid_batch_failure(tmp_path, monkeypatch):
+@pytest.mark.parametrize("with_ciks", [False, True])
+def test_bulk_import_rolls_back_on_mid_batch_failure(tmp_path, monkeypatch, with_ciks):
     import api.managers as managers_api
 
     db_path = tmp_path / "dev.db"
@@ -360,6 +1069,9 @@ def test_bulk_import_rolls_back_on_mid_batch_failure(tmp_path, monkeypatch):
         {"name": "Manager A", "jurisdictions": ["us"]},
         {"name": "Manager B", "jurisdictions": ["uk"]},
     ]
+    if with_ciks:
+        for index, payload in enumerate(payloads):
+            payload["cik"] = f"{index + 1:010d}"
     original_insert = managers_api._insert_manager
     calls = {"count": 0}
 
@@ -414,7 +1126,7 @@ def test_bulk_import_postgres_transaction_state(monkeypatch, fail_insert):
 
     conn = PostgresConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _, **_kwargs: None)
     monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
 
     def insert(_conn, _payload, *, commit=True):
@@ -477,7 +1189,7 @@ def test_bulk_import_preserves_original_error_when_postgres_cleanup_fails(monkey
 
     conn = FailingCleanupConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _, **_kwargs: None)
 
     def fail_insert(_conn, _payload, *, commit=True):
         raise psycopg.OperationalError("original insert failure")
@@ -516,7 +1228,7 @@ def test_bulk_import_reports_postgres_close_failure(monkeypatch, caplog):
 
     conn = FailingCloseConn()
     monkeypatch.setattr(managers_api, "connect_db", lambda: conn)
-    monkeypatch.setattr(managers_api, "_ensure_manager_table", lambda _: None)
+    monkeypatch.setattr(managers_api, "_ensure_universe_schema", lambda _, **_kwargs: None)
     monkeypatch.setattr(managers_api, "invalidate_cache_prefix", lambda _: None)
     monkeypatch.setattr(managers_api, "_insert_manager", lambda *_args, **_kwargs: 1)
 
@@ -526,3 +1238,32 @@ def test_bulk_import_reports_postgres_close_failure(monkeypatch, caplog):
     assert resp.json()["detail"] == "Database unavailable"
     assert "Bulk import connection close failed: close failed" in caplog.text
     assert events == [("autocommit", False), "commit", ("autocommit", True), "close"]
+
+
+@pytest.mark.parametrize("existing_index", [False, True])
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_rejects_normalized_legacy_cik_owners(
+    tmp_path, monkeypatch, existing_index, source
+):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    original_rows = [("Legacy A", "0001791786"), ("Legacy B", "\t0001791786\t")]
+    with sqlite3.connect(db_path) as conn:
+        managers_api._ensure_manager_table(conn)
+        conn.executemany("INSERT INTO managers(name, cik) VALUES (?, ?)", original_rows)
+        if existing_index:
+            conn.execute("CREATE UNIQUE INDEX idx_managers_cik_unique ON managers(cik)")
+
+    if source == "json":
+        response = asyncio.run(_post_bulk_json([{"name": "Unrelated", "cik": "0001791787"}]))
+    else:
+        response = asyncio.run(_post_bulk_csv("name,cik\nUnrelated,0001791787\n"))
+
+    assert response.status_code == 409
+    assert response.json()["errors"][0]["field"] == "cik"
+    with sqlite3.connect(db_path) as conn:
+        assert (
+            conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == original_rows
+        )
