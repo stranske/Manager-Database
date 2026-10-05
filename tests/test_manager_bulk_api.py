@@ -632,6 +632,62 @@ def test_bulk_import_allows_multiple_records_without_ciks(tmp_path, monkeypatch,
         ]
 
 
+@pytest.mark.parametrize("existing_index", [False, True])
+@pytest.mark.parametrize("source", ["json", "csv"])
+def test_bulk_import_ignores_absent_legacy_ciks(tmp_path, monkeypatch, existing_index, source):
+    import api.managers as managers_api
+
+    db_path = tmp_path / "dev.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    original_rows = [
+        ("Empty", ""),
+        ("Space", " "),
+        ("Tab", "\t"),
+        ("Unicode whitespace", "\u00a0\u3000"),
+        ("Null", None),
+        ("Existing", "0001791786"),
+    ]
+    with sqlite3.connect(db_path) as conn:
+        managers_api._ensure_manager_table(conn)
+        conn.executemany("INSERT INTO managers(name, cik) VALUES (?, ?)", original_rows)
+        if existing_index:
+            conn.execute("CREATE UNIQUE INDEX idx_managers_cik_unique ON managers(cik)")
+
+    records = [
+        {"name": "Without CIK A", "cik": ""},
+        {"name": "Without CIK B", "cik": " "},
+        {"name": "New", "cik": "0001791787"},
+        {"name": "Database duplicate", "cik": "0001791786"},
+        {"name": "Request duplicate", "cik": " 0001791787 "},
+    ]
+    if source == "json":
+        resp = asyncio.run(_post_bulk_json(records))
+    else:
+        contents = "name,cik\n" + "".join(f"{row['name']},{row['cik']}\n" for row in records)
+        resp = asyncio.run(_post_bulk_csv(contents))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert (body["total"], body["succeeded"], body["failed"]) == (5, 3, 2)
+    assert [item["index"] for item in body["successes"]] == [0, 1, 2]
+    assert body["failures"] == [
+        {
+            "index": index,
+            "errors": [{"field": "cik", "message": "A manager with this CIK already exists."}],
+        }
+        for index in (3, 4)
+    ]
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT name, cik FROM managers ORDER BY id").fetchall() == (
+            original_rows
+            + [("Without CIK A", None), ("Without CIK B", None), ("New", "0001791787")]
+        )
+        with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed: managers.cik"):
+            conn.execute(
+                "INSERT INTO managers(name, cik) VALUES (?, ?)", ("Duplicate", "0001791787")
+            )
+
+
 @pytest.mark.parametrize("padding", [" ", "\t", "\n\r\v\f", "\u00a0\u3000", "\x1c\x85"])
 def test_bulk_csv_reports_duplicate_ciks_and_imports_unique_records(tmp_path, monkeypatch, padding):
     db_path = tmp_path / "dev.db"

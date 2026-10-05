@@ -294,8 +294,9 @@ def _check_legacy_cik_duplicates(conn: Any) -> None:
     # A raw unique index cannot establish uniqueness after CIK whitespace normalization.
     # Always check the same expression used by request lookup, including legacy indexed tables.
     normalized_cik = _cik_lookup_expression(conn)
+    # Whitespace-only identifiers are absent, just like NULL CIKs in new payloads.
     duplicate = conn.execute(
-        f"SELECT 1 FROM managers WHERE cik IS NOT NULL "
+        f"SELECT 1 FROM managers WHERE cik IS NOT NULL AND {normalized_cik} <> '' "
         f"GROUP BY {normalized_cik} HAVING COUNT(*) > 1 LIMIT 1"
     ).fetchone()
     if duplicate:
