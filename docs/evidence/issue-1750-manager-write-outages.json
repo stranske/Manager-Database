@@ -1,0 +1,669 @@
+{
+  "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "mutations": [
+    {
+      "mutation": "outage-status",
+      "exit": 1
+    },
+    {
+      "mutation": "close-acquired-connection",
+      "exit": 1
+    },
+    {
+      "mutation": "preserve-cache-on-outage",
+      "exit": 1
+    }
+  ],
+  "restored_exit": 0,
+  "restored_byte_identical": true,
+  "runs": {
+    "mutation-outage-status": {
+      "tests": 9,
+      "failures": 9,
+      "nodes": [
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+          "result": "FAIL"
+        }
+      ]
+    },
+    "mutation-close-acquired-connection": {
+      "tests": 9,
+      "failures": 6,
+      "nodes": [
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+          "result": "FAIL"
+        }
+      ]
+    },
+    "mutation-preserve-cache-on-outage": {
+      "tests": 9,
+      "failures": 9,
+      "nodes": [
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+          "result": "FAIL"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+          "result": "FAIL"
+        }
+      ]
+    },
+    "mutation-restored-green": {
+      "tests": 9,
+      "failures": 0,
+      "nodes": [
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+          "result": "PASS"
+        },
+        {
+          "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+          "result": "PASS"
+        }
+      ]
+    }
+  },
+  "baseline": {
+    "tests": 1832,
+    "failures": 24,
+    "skips": 21,
+    "coverage": {
+      "covered_lines": 12224,
+      "num_statements": 14110,
+      "percent_covered": 86.63359319631466,
+      "percent_covered_display": "87",
+      "missing_lines": 1886,
+      "excluded_lines": 82,
+      "percent_statements_covered": 86.63359319631466,
+      "percent_statements_covered_display": "87"
+    }
+  },
+  "candidate": {
+    "tests": 1841,
+    "failures": 24,
+    "skips": 21,
+    "coverage": {
+      "covered_lines": 12227,
+      "num_statements": 14110,
+      "percent_covered": 86.65485471296952,
+      "percent_covered_display": "87",
+      "missing_lines": 1883,
+      "excluded_lines": 82,
+      "percent_statements_covered": 86.65485471296952,
+      "percent_statements_covered_display": "87"
+    }
+  },
+  "cache_preservation_followup": {
+    "python": "3.14.7",
+    "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "test_sha256": "b9d3cff5f3c4742f7bc1d1e8184b0132f50d4b626dd5751c8454df93594a2990",
+    "restored_byte_identical": true,
+    "command": "python -X pycache_prefix=<fresh-cache> -m pytest tests/test_manager_write_failures.py -q -m \"not slow\" --junitxml=<receipt>",
+    "runs": {
+      "outage-status": {
+        "exit": 1,
+        "tests": 9,
+        "failures": 9,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "FAIL"
+          }
+        ]
+      },
+      "close-acquired-connection": {
+        "exit": 1,
+        "tests": 9,
+        "failures": 6,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "FAIL"
+          }
+        ]
+      },
+      "preserve-cache-on-outage": {
+        "exit": 1,
+        "tests": 9,
+        "failures": 9,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "FAIL"
+          }
+        ]
+      },
+      "private-error-detail": {
+        "exit": 1,
+        "tests": 9,
+        "failures": 9,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "FAIL"
+          }
+        ]
+      },
+      "duplicate-connection-close": {
+        "exit": 1,
+        "tests": 9,
+        "failures": 6,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "FAIL"
+          }
+        ]
+      },
+      "restored-green": {
+        "exit": 0,
+        "tests": 9,
+        "failures": 0,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "PASS"
+          }
+        ]
+      }
+    },
+    "targeted_validation": {
+      "command": "pytest tests/test_manager_api.py tests/test_manager_bulk_api.py tests/test_manager_cache.py tests/test_manager_write_failures.py -q -m \"not slow\" --cov=api.managers --cov-report=term-missing --cov-report=json:<report> --junitxml=<receipt>",
+      "exit": 0,
+      "tests": 128,
+      "failures": 0,
+      "manager_coverage": {
+        "covered_lines": 674,
+        "num_statements": 821,
+        "percent_covered": 82.09500609013398,
+        "percent_covered_display": "82",
+        "missing_lines": 147,
+        "excluded_lines": 4,
+        "percent_statements_covered": 82.09500609013398,
+        "percent_statements_covered_display": "82"
+      }
+    },
+    "formatting": {
+      "black_command": "PYTHONPATH=/tmp/manager-black-runtime black --check --line-length 100 --exclude \"(\\.workflows-lib|node_modules)\" .",
+      "black_exit": 0,
+      "black_unchanged_files": 374,
+      "sandbox_runtime_workaround": "Temporary sitecustomize wraps asyncio.new_event_loop with an empty callback every 50 ms; formatter logic and checked files unchanged.",
+      "ruff_exit": 0,
+      "diff_check_exit": 0
+    }
+  },
+  "cleanup_order_and_tag_payload_followup": {
+    "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "test_sha256": "508787ce202d9759b478b1f47050fc3711a744c020d5439e529960c382559b13",
+    "restored_byte_identical": true,
+    "runs": {
+      "premature-connection-close": {
+        "exit": 1,
+        "tests": 9,
+        "failures": 6,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "FAIL"
+          }
+        ]
+      },
+      "drop-retained-tag": {
+        "exit": 1,
+        "tests": 9,
+        "failures": 1,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "FAIL"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "PASS"
+          }
+        ]
+      },
+      "restored-green": {
+        "exit": 0,
+        "tests": 9,
+        "failures": 0,
+        "nodes": [
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[connect-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[schema-delete]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-update]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-tags]",
+            "result": "PASS"
+          },
+          {
+            "node": "tests.test_manager_write_failures::test_write_outage_returns_503_and_preserves_cache[write-delete]",
+            "result": "PASS"
+          }
+        ]
+      }
+    },
+    "targeted_validation": {
+      "command": "pytest tests/test_manager_api.py tests/test_manager_bulk_api.py tests/test_manager_cache.py tests/test_manager_write_failures.py -q -m \"not slow\" --cov=api.managers --cov-report=term-missing --cov-report=json:<report> --junitxml=<receipt>",
+      "exit": 0,
+      "tests": 128,
+      "failures": 0,
+      "manager_coverage": {
+        "covered_lines": 674,
+        "num_statements": 821,
+        "percent_covered": 82.09500609013398,
+        "percent_covered_display": "82",
+        "missing_lines": 147,
+        "excluded_lines": 4,
+        "percent_statements_covered": 82.09500609013398,
+        "percent_statements_covered_display": "82"
+      }
+    },
+    "formatting": {
+      "black_command": "PYTHONPATH=/tmp/manager-black-runtime black --check --line-length 100 --exclude '(\\.workflows-lib|node_modules)' .",
+      "black_exit": 0,
+      "black_unchanged_files": 374,
+      "ruff_exit": 0,
+      "diff_check_exit": 0
+    }
+  }
+}
