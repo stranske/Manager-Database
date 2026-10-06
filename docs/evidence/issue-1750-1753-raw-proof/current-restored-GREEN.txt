@@ -1,0 +1,41 @@
+.........                                                                [100%]
+=============================== warnings summary ===============================
+api/chat.py:1501
+  /home/runner/work/Manager-Database/Manager-Database/api/chat.py:1501: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/fastapi/applications.py:4744
+../../../../../opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/fastapi/applications.py:4744
+../../../../../opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/fastapi/applications.py:4744
+  /opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/fastapi/applications.py:4744: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1801
+  /home/runner/work/Manager-Database/Manager-Database/api/chat.py:1801: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1808
+  /home/runner/work/Manager-Database/Manager-Database/api/chat.py:1808: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

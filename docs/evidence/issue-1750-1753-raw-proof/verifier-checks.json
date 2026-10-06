@@ -1,0 +1,35 @@
+{
+  "method": "CLI rejection checks against temporary copies; original artifacts and source unchanged",
+  "checks": [
+    {
+      "case": "changed raw capture",
+      "exit": 1,
+      "diagnostic": "Evidence verification failed: 1753-restored-GREEN.txt: SHA256 mismatch"
+    },
+    {
+      "case": "stale provenance hash",
+      "exit": 1,
+      "diagnostic": "Evidence verification failed: manager-baseline.log: conflicting provenance hashes"
+    },
+    {
+      "case": "unhashed privacy control",
+      "exit": 1,
+      "diagnostic": "Evidence verification failed: required captures are missing from hash index"
+    },
+    {
+      "case": "different test source",
+      "exit": 1,
+      "diagnostic": "Evidence verification failed: current outage tests differ from verified tests"
+    },
+    {
+      "case": "collection failure presented as semantic RED",
+      "exit": 1,
+      "diagnostic": "Evidence verification failed: outage-status: inconsistent mutation record"
+    },
+    {
+      "case": "incomplete passing outage matrix with consistent hashes",
+      "exit": 1,
+      "diagnostic": "Evidence verification failed: current-restored-GREEN.xml: incomplete outage case matrix"
+    }
+  ]
+}

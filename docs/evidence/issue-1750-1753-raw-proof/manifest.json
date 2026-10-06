@@ -374,7 +374,7 @@
     },
     {
       "path": "1753-restored-GREEN.xml",
-      "sha256": "b96e90923b6173cdfe2cc813ad736b3c84be4675b87afa0aa8799e150c35c9dc",
+      "sha256": "d20bd066da3c4028113bda42f8b0628d9b7787d2a2f7fa346d9c24f24d5ec6b5",
       "provenance": "Independent closer actual current-source replay,20261006T1622Z"
     },
     {
@@ -404,8 +404,28 @@
     },
     {
       "path": "1753-restored-GREEN.txt",
-      "sha256": "7fec0fccd430525dc3b4ff31b206036463a30391efc577215e002afc3a44d350",
+      "sha256": "8570bcf4c824077ec0dfa10fd5a7982094858b1dd2e620e6b4e945293dddd80a",
       "provenance": "Independent closer actual current-source replay,20261006T1622Z"
+    },
+    {
+      "path": "current-restored-GREEN.txt",
+      "sha256": "fc2ea0f18f68695d8a4994e4f6231b716aeea958edd4b53fae4456aaf169e248",
+      "provenance": "Current checkout outage replay; historical captures retained unchanged"
+    },
+    {
+      "path": "current-restored-GREEN.xml",
+      "sha256": "0e90577bb569e81251fafea6fd3d9d27ac0c831d4715312c096494143b1d8b61",
+      "provenance": "Current checkout outage replay; historical captures retained unchanged"
+    },
+    {
+      "path": "verify.py",
+      "sha256": "ace0f6ceefc75279b3bbbf5bdb973b93c80eb2683c91b2b353bcd5a78e80c37b",
+      "provenance": "Current checkout read-only verification tooling and CLI rejection checks"
+    },
+    {
+      "path": "verifier-checks.json",
+      "sha256": "35afb1502c0ae79187ea23474e38334a97d033e76eb5c6815592912003a1300c",
+      "provenance": "Current checkout read-only verification tooling and CLI rejection checks"
     }
   ],
   "independent_actual_mutations": [
@@ -469,24 +489,49 @@
     "1753-drop-retained-tags-RED.xml": "0a780638538461c497b22bd1961be1b54fa4120927eaba423d3e8eccb87f2ac5",
     "1753-controls.json": "344ef7d1786a70aca318d9c0be8d0c87b58a46d3a637e4aadacd60a23fd3c9da",
     "1753-outage-status-RED.txt": "2076a34cfa77e02fee1de494b3733e1c7b069606b85d3ac4ceb2c7adacf066ec",
-    "1753-original-five-controls.py": "25c6de9f397296f0daee6a3428d52703bff0ef708dfc45fd5b080130e3ae1f8c",
+    "1753-original-five-controls.py": "be685c2530d8c42e753a96a2a723560a227240eda3325f9f835ac2e092fcd1bf",
     "1753-double-close-RED.xml": "9bb63a73914f652ff59bc1020516b24bab6cdc8ddfb8531a40861151f0311ccf",
-    "1753-controls.py": "b5415b1129881848bc378b7e1eb03f8979b7d87fc10a4f1310f8e14e15cd47e0",
+    "1753-controls.py": "ad9d8d5c68e63d9979f6ce292baa1448fc5c57910a05770ebb5ec197d610e412",
     "manager-baseline.log": "203fb8f3096cffc9d0f199c91eae4cf77faad885b050f5573ecb659134f8a024",
     "1753-drop-retained-tags-RED.txt": "9ef35c6911ab610441c35afd2c56eb684d4e7305d2dd307487c42900660f6087",
     "1753-early-close-RED.txt": "ca94c64622dcb406741e8e301c7673858c26a300399ead7368b607d2be1f17bc",
     "1753-restored-GREEN.txt": "8570bcf4c824077ec0dfa10fd5a7982094858b1dd2e620e6b4e945293dddd80a",
     "1753-cache-invalidation-RED.xml": "10db40ca930b3110882e1675508efc4e2eb657ed1ec4fe4e054ee6ed4673e1e9",
-    "README.md": "e10d4a01c77cc036fdcd29eca8fe8c1148d71159072fcde1b979201c6bb60b9d",
+    "README.md": "5ca20afc54e4df3cd57731cc62cc1a665df1d4c6c73dfab65dfbffb7f77fff15",
     "1753-no-close-RED.txt": "e15206e71ae97de9aa9d585641e71be6a9629fd272095c2335a6839bd9cd97b4",
     "manager-candidate-coverage.json": "bd3d8d81ad71f9f7f6c73c65d1c83c289df5d4cc8fc8905d26ab2a2831020749",
     "manager-baseline.xml": "00a62fdb746bccb6267e3eaa6f8bbdf050ddf545ec1af0f868be61283413ff36",
-    "1753-double-control.py": "26f23f034d863562464ba10c4988ed7b6d20ffe782e470c5e50c826db42f9f97",
+    "1753-double-control.py": "223ffe8e2fe4523176359fb840b1a82f9712f17d48d4362d887be10cd73c73ca",
     "1753-private-detail-RED.txt": "dafa0ff0252f4c917d39267658c4ff959d93ca109d9fb06bce14a21f13b3b55f",
     "manager-baseline-coverage.json": "26f2c5705754dbe67a66e4222979f4940db42a47b8078f93f557832479a71fa3",
     "1753-cache-invalidation-RED.txt": "349377800c024fe81d52656caf743395bedcdc18ca66ec56111a15ba1a2c1199",
     "1753-no-close-RED.xml": "48d7230575a8381f640002266e2612f8e83cecb8cb4fcae8cdb75d3fadc4cb1a",
     "1753-private-detail-RED.xml": "50989c8fca420f9f1ff38e7703fddb94c881601579a46ae44541e32d313e9185",
-    "manager-candidate.log": "98f8b1787bbaeefe7fcf6ae3a1505104a96f6725604c32de5755e6a6c28c7336"
-  }
+    "manager-candidate.log": "98f8b1787bbaeefe7fcf6ae3a1505104a96f6725604c32de5755e6a6c28c7336",
+    "current-restored-GREEN.txt": "fc2ea0f18f68695d8a4994e4f6231b716aeea958edd4b53fae4456aaf169e248",
+    "current-restored-GREEN.xml": "0e90577bb569e81251fafea6fd3d9d27ac0c831d4715312c096494143b1d8b61",
+    "verify.py": "ace0f6ceefc75279b3bbbf5bdb973b93c80eb2683c91b2b353bcd5a78e80c37b",
+    "verifier-checks.json": "35afb1502c0ae79187ea23474e38334a97d033e76eb5c6815592912003a1300c"
+  },
+  "test_sha256": "508787ce202d9759b478b1f47050fc3711a744c020d5439e529960c382559b13",
+  "current_verification": {
+    "command": [
+      "/opt/hostedtoolcache/Python/3.14.8/x64/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_manager_write_failures.py",
+      "-q",
+      "-m",
+      "not slow",
+      "--junitxml=docs/evidence/issue-1750-1753-raw-proof/current-restored-GREEN.xml"
+    ],
+    "python_version": "3.14.8",
+    "exit": 0,
+    "production_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "test_sha256": "508787ce202d9759b478b1f47050fc3711a744c020d5439e529960c382559b13",
+    "console": "current-restored-GREEN.txt",
+    "junit": "current-restored-GREEN.xml",
+    "provenance": "Current checkout outage replay; historical captures retained unchanged"
+  },
+  "maintenance_note": "Historical raw captures unchanged. Corrected stale GREEN provenance hashes and formatted retained replay scripts with Black; files_sha256 records their current inspectable bytes."
 }
