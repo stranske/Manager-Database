@@ -87,6 +87,8 @@ workloop-state.md
 
 # Test/coverage artifacts
 coverage.xml
+.pytest_cache/
+.ruff_cache/
 
 # Per-run agent execution telemetry (HIGH conflict risk)
 # reusable-codex-run.yml writes langsmith-fleet-worker-attempt.json into the checkout
