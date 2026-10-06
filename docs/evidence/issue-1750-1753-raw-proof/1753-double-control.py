@@ -1,5 +1,5 @@
 import pathlib,subprocess,tempfile,hashlib,json,re
-p=pathlib.Path(__file__).parent;w=pathlib.Path('/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622');s=w/'api/managers.py';original=s.read_bytes();raw=original.decode();out=[]
+p=pathlib.Path(__file__).parent;w=pathlib.Path(__file__).resolve().parents[3];s=w/'api/managers.py';original=s.read_bytes();raw=original.decode();out=[]
 start=raw.index('async def patch_manager(');prefix=raw[:start];tail=raw[start:]
 mutations={'double-close':re.sub(r'(?m)^( +)conn.close\(\)$',r'\1conn.close()\n\1conn.close()',raw)}
 try:

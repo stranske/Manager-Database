@@ -1,12 +1,12 @@
-import pathlib,subprocess,tempfile,hashlib,json
-p=pathlib.Path(__file__).parent;w=pathlib.Path('/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622');s=w/'api/managers.py';original=s.read_bytes();raw=original.decode();out=[]
+import pathlib,subprocess,tempfile,hashlib,json,re
+p=pathlib.Path(__file__).parent;w=pathlib.Path(__file__).resolve().parents[3];s=w/'api/managers.py';original=s.read_bytes();raw=original.decode();out=[]
 start=raw.index('async def patch_manager(');prefix=raw[:start];tail=raw[start:]
 mutations={
 'outage-status':raw.replace('status_code=503, detail="Database unavailable"','status_code=500, detail="Database unavailable"'),
 'no-close':raw.replace('            conn.close()','            pass'),
 'cache-invalidation':raw.replace('    logger.exception("Database error in managers API.", exc_info=exc)', '    invalidate_cache_prefix("managers")\n    logger.exception("Database error in managers API.", exc_info=exc)'),
 'private-detail':raw.replace('status_code=503, detail="Database unavailable"','status_code=503, detail=str(exc)'),
-'double-close':raw.replace('            conn.close()','            conn.close()\n            conn.close()'),
+'double-close':re.sub(r'(?m)^( +)conn.close\(\)$',r'\1conn.close()\n\1conn.close()',raw),
 }
 try:
  for name,text in mutations.items():
