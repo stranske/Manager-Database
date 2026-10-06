@@ -23,7 +23,9 @@ Nine real ASGI requests cover connection, schema and write failures for manager
 update, tag patch and deletion. The SQLite connection double proves acquisition
 and release control; injected failures are not a PostgreSQL/live-service trial.
 Existing behavior correctly returns 503 without revealing the exception's private
-database path, closes acquired connections and leaves cached state intact.
+database path, closes acquired connections and leaves cached state intact. The
+follow-up below strengthens the original invalidation-spy check with stored cache
+contents and verifies that each request reaches its specified failure stage.
 No newly reproduced production defect needed a source change.
 
 ## Commands and observed results
@@ -174,3 +176,81 @@ ranking are retained at `/Users/teacher/.codex/automations/pd-workloop-resume/ev
 After opening, matching Codex keepalive owns CI/review. Merge Verify Closer owns
 current-head expected checks, full review findings, seven-minute floor, guarded
 merge and compare/chunk disposition. Issue1750 remains open for the broader initiative.
+
+## Cache preservation follow-up (Python 3.14.7 runner)
+
+The same nine cases now seed the real, isolated in-memory backend with manager
+item, list and count entries using production cache keys. They compare all three
+serialized values before and after each failed HTTP request. The invalidation spy
+wraps the real function, so accidental invalidation actually removes these entries.
+The tag-write case reads its current manager from the warmed production item
+cache. Connection, schema and write spies verify that each designated failure
+stage is reached exactly once and that earlier failures never attempt a write.
+Acquired connections still close exactly once; acquisition failures never close
+the unused connection double. Backend, metrics and environment patches restore
+the prior state at teardown.
+
+```sh
+pytest tests/test_manager_api.py tests/test_manager_bulk_api.py tests/test_manager_cache.py tests/test_manager_write_failures.py -q -m "not slow" --cov=api.managers --cov-report=term-missing --cov-report=json:<report> --junitxml=<receipt>
+# exit 0, 128 passed; api/managers.py: 821 statements, 147 missing, Cover 82%
+```
+
+This focused run covers 674/821 manager statements (82.0950060901%). It is a
+targeted measurement, not a replacement for the historical full-suite coverage
+comparison above. Coverage configuration, exclusions and the 75% floor remain
+unchanged. The full suite was not rerun in this follow-up; its recorded result
+remains NON_PASS with 24 existing UI authentication failures.
+
+The changed test was formatted with Black at line length 100. The required
+whole-repository check passed with exit 0 and 374 files unchanged:
+
+```sh
+PYTHONPATH=/tmp/manager-black-runtime black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
+ruff check tests/test_manager_write_failures.py
+git diff --check
+```
+
+Ordinary Black runs stalled in the sandbox's worker event loop with both Python
+3.14 and 3.12. The temporary `sitecustomize.py` under that `PYTHONPATH` wraps
+`asyncio.new_event_loop` to schedule an empty callback every 50 ms. This lets
+Black's existing workers complete without changing formatter logic, rules or
+checked files. Ruff and the diff check also passed with exit 0.
+
+Each follow-up mutation changed actual production source and used a fresh
+bytecode cache with the nine-case HTTP suite and `-m "not slow"`. The named
+results and test-file digest are recorded in the companion JSON under
+`cache_preservation_followup`.
+
+| Actual source mutation | Failing cases |
+| --- | ---: |
+| Outage HTTP status 503 -> 500 | 9 / 9 |
+| Remove acquired-connection cleanup | 6 / 9 |
+| Invalidate manager cache during outage handling | 9 / 9 |
+| Return private exception text as HTTP detail | 9 / 9 |
+| Close each acquired connection twice | 6 / 9 |
+| Byte-identical restored source | 0 / 9 |
+
+Both cleanup mutations leave only the three connection-acquisition cases passing.
+Restoration preserved the production SHA256 documented above. Raw follow-up
+logs and XML receipts were generated under
+`/tmp/manager-outage-evidence-ob5iage6`; the committed JSON preserves every node's
+result independently of those temporary files.
+
+### Verified acceptance criteria
+
+- [x] Tests
+  - [x] Added regression coverage for manager updates, tag changes, and deletions
+    during database outages, including safe error responses and cache and
+    connection handling (9 passing cases; all five source mutations detected).
+- [x] Documentation
+  - [x] Added test and mutation-test evidence documenting outage coverage,
+    results, and coverage measurements (historical full-suite comparison plus
+    follow-up named-node results and targeted coverage).
+
+The PR checkboxes and open/ready state could not be updated or verified from this
+runner: `gh pr view --json number,url,state,isDraft,body` failed to connect to
+`api.github.com`. The `needs-human` label could not be applied for the same reason.
+The checklist above records verified local acceptance only. Committing the test
+and evidence changes was also blocked: `git add` could not create
+`.git/index.lock` because this workspace mounts `.git` read-only. The requested
+source/test commit remains required when Git metadata is writable.
