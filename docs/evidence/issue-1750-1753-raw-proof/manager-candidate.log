@@ -1,0 +1,1285 @@
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 11%]
+........................................................................ [ 15%]
+......................ssssssssss........................................ [ 19%]
+........................................................................ [ 23%]
+........................................................................ [ 27%]
+ssss.................................................................... [ 31%]
+........................................................................ [ 35%]
+........................................................................ [ 39%]
+........................................................................ [ 43%]
+.................................s..........s........................... [ 46%]
+s....................................................................... [ 50%]
+........................................................................ [ 54%]
+........................................................................ [ 58%]
+........................................................................ [ 62%]
+........................................................................ [ 66%]
+........................................................................ [ 70%]
+........................................................................ [ 74%]
+........................................................................ [ 78%]
+.........................s.............................................. [ 82%]
+........................................................................ [ 86%]
+.........sss............................................................ [ 89%]
+......................................................................FF [ 93%]
+FFFFFFFFFFFFFFFFFFFFFF.................................................. [ 97%]
+.........................................                                [100%]
+=================================== FAILURES ===================================
+____________ test_configured_login_renders_with_real_authenticator _____________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+
+    def test_configured_login_renders_with_real_authenticator(configured_app):
+        app = configured_app.run()
+    
+        assert not app.exception
+>       assert [field.label for field in app.text_input] == ["Username", "Password"]
+E       AssertionError: assert [] == ['Username', 'Password']
+E         
+E         Right contains 2 more items, first extra item: 'Username'
+E         Use -v to get more diff
+
+tests/test_ui_auth.py:43: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:12.740 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+__ test_configured_login_rejects_invalid_credentials[analyst-wrong-password] ___
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+username = 'analyst', password = 'wrong-password'
+
+    @pytest.mark.parametrize(
+        ("username", "password"),
+        [("analyst", "wrong-password"), ("unknown", "synthetic-test-password")],
+    )
+    def test_configured_login_rejects_invalid_credentials(configured_app, username, password):
+        app = configured_app.run()
+>       _submit(app, username, password)
+
+tests/test_ui_auth.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:12.781 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_ test_configured_login_rejects_invalid_credentials[unknown-synthetic-test-password] _
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+username = 'unknown', password = 'synthetic-test-password'
+
+    @pytest.mark.parametrize(
+        ("username", "password"),
+        [("analyst", "wrong-password"), ("unknown", "synthetic-test-password")],
+    )
+    def test_configured_login_rejects_invalid_credentials(configured_app, username, password):
+        app = configured_app.run()
+>       _submit(app, username, password)
+
+tests/test_ui_auth.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:12.846 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+______________________ test_valid_login_rerun_and_logout _______________________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+
+    def test_valid_login_rerun_and_logout(configured_app):
+        app = configured_app.run()
+>       _submit(app)
+
+tests/test_ui_auth.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:12.909 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+__________ test_configured_login_does_not_trust_cached_dev_auth[None] __________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+authentication_status = None
+
+    @pytest.mark.parametrize("authentication_status", [None, False])
+    def test_configured_login_does_not_trust_cached_dev_auth(configured_app, authentication_status):
+        configured_app.session_state["auth"] = True
+        configured_app.session_state["authentication_status"] = authentication_status
+        app = configured_app.run()
+    
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+>       assert _button(app, "Login")
+               ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_ui_auth.py:98: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+label = 'Login'
+
+    def _button(app, label):
+>       return next(button for button in app.button if button.label == label)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/test_ui_auth.py:29: StopIteration
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:12.971 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+----------------------------- Captured stderr call -----------------------------
+2026-10-06 09:12:12.972 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-10-06 09:12:12.972 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_________ test_configured_login_does_not_trust_cached_dev_auth[False] __________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+authentication_status = False
+
+    @pytest.mark.parametrize("authentication_status", [None, False])
+    def test_configured_login_does_not_trust_cached_dev_auth(configured_app, authentication_status):
+        configured_app.session_state["auth"] = True
+        configured_app.session_state["authentication_status"] = authentication_status
+        app = configured_app.run()
+    
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+>       assert _button(app, "Login")
+               ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_ui_auth.py:98: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+label = 'Login'
+
+    def _button(app, label):
+>       return next(button for button in app.button if button.label == label)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/test_ui_auth.py:29: StopIteration
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:12.992 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+----------------------------- Captured stderr call -----------------------------
+2026-10-06 09:12:12.993 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-10-06 09:12:12.993 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+______________ test_require_login_fails_closed_without_dependency ______________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30448fec0>
+
+    def test_require_login_fails_closed_without_dependency(configured_app, monkeypatch):
+        app = configured_app.run()
+>       _submit(app)
+
+tests/test_ui_auth.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.012 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+____________ test_dev_mode_discards_previous_authenticated_session _____________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30476b6e0>
+
+    def test_dev_mode_discards_previous_authenticated_session(configured_app, monkeypatch):
+        app = configured_app.run()
+>       _submit(app)
+
+tests/test_ui_auth.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.071 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+___________ test_configured_login_requires_cookie_secret[None-False] ___________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x3040923c0>
+key = None, authenticated = False
+
+    @pytest.mark.parametrize("authenticated", [False, True])
+    @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+    def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+        app = configured_app.run()
+        if authenticated:
+            _submit(app)
+            assert app.session_state["auth"] is True
+            assert app.markdown[-1].value == "Protected content"
+    
+        if key is None:
+            monkeypatch.delenv("UI_COOKIE_KEY", raising=False)
+        else:
+            monkeypatch.setenv("UI_COOKIE_KEY", key)
+        # Invalid signing configuration must also revoke an already logged-in session.
+        for _ in range(2):
+            app.run()
+            assert not app.exception
+            assert app.session_state["auth"] is False
+            assert app.markdown[-1].value == "Access denied"
+            assert not app.text_input
+            assert all(button.label != "Logout" for button in app.button)
+>           assert "UI_COOKIE_KEY" in app.error[0].value
+E           AssertionError: assert 'UI_COOKIE_KEY' in 'streamlit_authenticator is required when UI auth credentials are configured.'
+E            +  where 'streamlit_authenticator is required when UI auth credentials are configured.' = Error().value
+
+tests/test_ui_auth.py:164: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.131 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+___________ test_configured_login_requires_cookie_secret[None-True] ____________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x304093530>
+key = None, authenticated = True
+
+    @pytest.mark.parametrize("authenticated", [False, True])
+    @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+    def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+        app = configured_app.run()
+        if authenticated:
+>           _submit(app)
+
+tests/test_ui_auth.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.153 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_____________ test_configured_login_requires_cookie_secret[-False] _____________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30405bce0>, key = ''
+authenticated = False
+
+    @pytest.mark.parametrize("authenticated", [False, True])
+    @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+    def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+        app = configured_app.run()
+        if authenticated:
+            _submit(app)
+            assert app.session_state["auth"] is True
+            assert app.markdown[-1].value == "Protected content"
+    
+        if key is None:
+            monkeypatch.delenv("UI_COOKIE_KEY", raising=False)
+        else:
+            monkeypatch.setenv("UI_COOKIE_KEY", key)
+        # Invalid signing configuration must also revoke an already logged-in session.
+        for _ in range(2):
+            app.run()
+            assert not app.exception
+            assert app.session_state["auth"] is False
+            assert app.markdown[-1].value == "Access denied"
+            assert not app.text_input
+            assert all(button.label != "Logout" for button in app.button)
+>           assert "UI_COOKIE_KEY" in app.error[0].value
+E           AssertionError: assert 'UI_COOKIE_KEY' in 'streamlit_authenticator is required when UI auth credentials are configured.'
+E            +  where 'streamlit_authenticator is required when UI auth credentials are configured.' = Error().value
+
+tests/test_ui_auth.py:164: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.212 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_____________ test_configured_login_requires_cookie_secret[-True] ______________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x3040ecc50>, key = ''
+authenticated = True
+
+    @pytest.mark.parametrize("authenticated", [False, True])
+    @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+    def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+        app = configured_app.run()
+        if authenticated:
+>           _submit(app)
+
+tests/test_ui_auth.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.231 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_ test_configured_login_requires_cookie_secret[                                -False] _
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30476aab0>
+key = '                                ', authenticated = False
+
+    @pytest.mark.parametrize("authenticated", [False, True])
+    @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+    def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+        app = configured_app.run()
+        if authenticated:
+            _submit(app)
+            assert app.session_state["auth"] is True
+            assert app.markdown[-1].value == "Protected content"
+    
+        if key is None:
+            monkeypatch.delenv("UI_COOKIE_KEY", raising=False)
+        else:
+            monkeypatch.setenv("UI_COOKIE_KEY", key)
+        # Invalid signing configuration must also revoke an already logged-in session.
+        for _ in range(2):
+            app.run()
+            assert not app.exception
+            assert app.session_state["auth"] is False
+            assert app.markdown[-1].value == "Access denied"
+            assert not app.text_input
+            assert all(button.label != "Logout" for button in app.button)
+>           assert "UI_COOKIE_KEY" in app.error[0].value
+E           AssertionError: assert 'UI_COOKIE_KEY' in 'streamlit_authenticator is required when UI auth credentials are configured.'
+E            +  where 'streamlit_authenticator is required when UI auth credentials are configured.' = Error().value
+
+tests/test_ui_auth.py:164: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.289 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_ test_configured_login_requires_cookie_secret[                                -True] _
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30476a3c0>
+key = '                                ', authenticated = True
+
+    @pytest.mark.parametrize("authenticated", [False, True])
+    @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+    def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+        app = configured_app.run()
+        if authenticated:
+>           _submit(app)
+
+tests/test_ui_auth.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.307 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+________ test_configured_login_requires_cookie_secret[short-key-False] _________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30476b350>
+key = 'short-key', authenticated = False
+
+    @pytest.mark.parametrize("authenticated", [False, True])
+    @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+    def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+        app = configured_app.run()
+        if authenticated:
+            _submit(app)
+            assert app.session_state["auth"] is True
+            assert app.markdown[-1].value == "Protected content"
+    
+        if key is None:
+            monkeypatch.delenv("UI_COOKIE_KEY", raising=False)
+        else:
+            monkeypatch.setenv("UI_COOKIE_KEY", key)
+        # Invalid signing configuration must also revoke an already logged-in session.
+        for _ in range(2):
+            app.run()
+            assert not app.exception
+            assert app.session_state["auth"] is False
+            assert app.markdown[-1].value == "Access denied"
+            assert not app.text_input
+            assert all(button.label != "Logout" for button in app.button)
+>           assert "UI_COOKIE_KEY" in app.error[0].value
+E           AssertionError: assert 'UI_COOKIE_KEY' in 'streamlit_authenticator is required when UI auth credentials are configured.'
+E            +  where 'streamlit_authenticator is required when UI auth credentials are configured.' = Error().value
+
+tests/test_ui_auth.py:164: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.366 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_________ test_configured_login_requires_cookie_secret[short-key-True] _________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30476aa20>
+key = 'short-key', authenticated = True
+
+    @pytest.mark.parametrize("authenticated", [False, True])
+    @pytest.mark.parametrize("key", [None, "", " " * 32, "short-key"])
+    def test_configured_login_requires_cookie_secret(configured_app, monkeypatch, key, authenticated):
+        app = configured_app.run()
+        if authenticated:
+>           _submit(app)
+
+tests/test_ui_auth.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ui_auth.py:33: in _submit
+    app.text_input[0].set_value(username)
+    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WidgetList(), idx = 0
+
+    def __getitem__(self, idx: int | slice) -> El_co | ElementList[El_co]:
+        if isinstance(idx, slice):
+            return ElementList(self._list[idx])
+>       return self._list[idx]
+               ^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+/opt/anaconda3/lib/python3.12/site-packages/streamlit/testing/v1/element_tree.py:233: IndexError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.389 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+________ test_authenticator_receives_independent_secret_and_cached_hash ________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c2c',
+    default_timeout=15,
+    session_state={$$STREAMLIT_INTERNAL_KEY_TESTING: {}},
+    _tree={
+
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30476a390>
+
+    def test_authenticator_receives_independent_secret_and_cached_hash(configured_app, monkeypatch):
+        ui = importlib.import_module("ui")
+        ui._password_hash.cache_clear()
+        with (
+>           patch.object(ui.stauth.Hasher, "hash", wraps=ui.stauth.Hasher.hash) as hasher,
+                         ^^^^^^^^^^^^^^^^
+            patch.object(ui.stauth, "Authenticate", wraps=ui.stauth.Authenticate) as authenticate,
+        ):
+E       AttributeError: 'NoneType' object has no attribute 'Hasher'
+
+tests/test_ui_auth.py:171: AttributeError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.453 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_______________ test_cookie_reauthentication_rejects_rotated_key _______________
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c2c',
+    default_timeout=15,
+    session_state={$$STREAMLIT_INTERNAL_KEY_TESTING: {}},
+    _tree={
+
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x304768710>
+
+    def test_cookie_reauthentication_rejects_rotated_key(configured_app, monkeypatch):
+>       from extra_streamlit_components import CookieManager
+E       ModuleNotFoundError: No module named 'extra_streamlit_components'
+
+tests/test_ui_auth.py:194: ModuleNotFoundError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.465 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+___ test_require_login_preserves_blank_credential_dev_mode[None-UI_USERNAME] ___
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x3040ec6b0>
+field = 'UI_USERNAME', value = None
+
+    @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_require_login_preserves_blank_credential_dev_mode(
+        configured_app, monkeypatch, field, value
+    ):
+        configured_value = os.environ[field]
+        if value is None:
+            monkeypatch.delenv(field, raising=False)
+        else:
+            monkeypatch.setenv(field, value)
+    
+        app = configured_app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is True
+        assert app.markdown[-1].value == "Protected content"
+        assert len(app.text_input) == 0
+    
+        # Reconfiguring credentials must revoke the dev-mode flag on the next run.
+        monkeypatch.setenv(field, configured_value)
+        app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+>       assert [widget.label for widget in app.text_input] == ["Username", "Password"]
+E       AssertionError: assert [] == ['Username', 'Password']
+E         
+E         Right contains 2 more items, first extra item: 'Username'
+E         Use -v to get more diff
+
+tests/test_ui_auth.py:251: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.478 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+___ test_require_login_preserves_blank_credential_dev_mode[None-UI_PASSWORD] ___
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30407aa50>
+field = 'UI_PASSWORD', value = None
+
+    @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_require_login_preserves_blank_credential_dev_mode(
+        configured_app, monkeypatch, field, value
+    ):
+        configured_value = os.environ[field]
+        if value is None:
+            monkeypatch.delenv(field, raising=False)
+        else:
+            monkeypatch.setenv(field, value)
+    
+        app = configured_app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is True
+        assert app.markdown[-1].value == "Protected content"
+        assert len(app.text_input) == 0
+    
+        # Reconfiguring credentials must revoke the dev-mode flag on the next run.
+        monkeypatch.setenv(field, configured_value)
+        app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+>       assert [widget.label for widget in app.text_input] == ["Username", "Password"]
+E       AssertionError: assert [] == ['Username', 'Password']
+E         
+E         Right contains 2 more items, first extra item: 'Username'
+E         Use -v to get more diff
+
+tests/test_ui_auth.py:251: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.496 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_____ test_require_login_preserves_blank_credential_dev_mode[-UI_USERNAME] _____
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x303fc6270>
+field = 'UI_USERNAME', value = ''
+
+    @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_require_login_preserves_blank_credential_dev_mode(
+        configured_app, monkeypatch, field, value
+    ):
+        configured_value = os.environ[field]
+        if value is None:
+            monkeypatch.delenv(field, raising=False)
+        else:
+            monkeypatch.setenv(field, value)
+    
+        app = configured_app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is True
+        assert app.markdown[-1].value == "Protected content"
+        assert len(app.text_input) == 0
+    
+        # Reconfiguring credentials must revoke the dev-mode flag on the next run.
+        monkeypatch.setenv(field, configured_value)
+        app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+>       assert [widget.label for widget in app.text_input] == ["Username", "Password"]
+E       AssertionError: assert [] == ['Username', 'Password']
+E         
+E         Right contains 2 more items, first extra item: 'Username'
+E         Use -v to get more diff
+
+tests/test_ui_auth.py:251: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.515 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+_____ test_require_login_preserves_blank_credential_dev_mode[-UI_PASSWORD] _____
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30448e6f0>
+field = 'UI_PASSWORD', value = ''
+
+    @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_require_login_preserves_blank_credential_dev_mode(
+        configured_app, monkeypatch, field, value
+    ):
+        configured_value = os.environ[field]
+        if value is None:
+            monkeypatch.delenv(field, raising=False)
+        else:
+            monkeypatch.setenv(field, value)
+    
+        app = configured_app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is True
+        assert app.markdown[-1].value == "Protected content"
+        assert len(app.text_input) == 0
+    
+        # Reconfiguring credentials must revoke the dev-mode flag on the next run.
+        monkeypatch.setenv(field, configured_value)
+        app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+>       assert [widget.label for widget in app.text_input] == ["Username", "Password"]
+E       AssertionError: assert [] == ['Username', 'Password']
+E         
+E         Right contains 2 more items, first extra item: 'Username'
+E         Use -v to get more diff
+
+tests/test_ui_auth.py:251: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.536 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+___ test_require_login_preserves_blank_credential_dev_mode[   -UI_USERNAME] ____
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x304078d10>
+field = 'UI_USERNAME', value = '   '
+
+    @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_require_login_preserves_blank_credential_dev_mode(
+        configured_app, monkeypatch, field, value
+    ):
+        configured_value = os.environ[field]
+        if value is None:
+            monkeypatch.delenv(field, raising=False)
+        else:
+            monkeypatch.setenv(field, value)
+    
+        app = configured_app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is True
+        assert app.markdown[-1].value == "Protected content"
+        assert len(app.text_input) == 0
+    
+        # Reconfiguring credentials must revoke the dev-mode flag on the next run.
+        monkeypatch.setenv(field, configured_value)
+        app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+>       assert [widget.label for widget in app.text_input] == ["Username", "Password"]
+E       AssertionError: assert [] == ['Username', 'Password']
+E         
+E         Right contains 2 more items, first extra item: 'Username'
+E         Use -v to get more diff
+
+tests/test_ui_auth.py:251: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.554 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+___ test_require_login_preserves_blank_credential_dev_mode[   -UI_PASSWORD] ____
+
+configured_app = AppTest(
+    _script_path='/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/tmp_lu2zt2b/5a509a6bb0fcfd958b0e868ed8064c...SpecialBlock(
+            type='sidebar'
+        ),
+        2: SpecialBlock(
+            type='event'
+        )
+    }
+)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x3040ecaa0>
+field = 'UI_PASSWORD', value = '   '
+
+    @pytest.mark.parametrize("field", ["UI_USERNAME", "UI_PASSWORD"])
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_require_login_preserves_blank_credential_dev_mode(
+        configured_app, monkeypatch, field, value
+    ):
+        configured_value = os.environ[field]
+        if value is None:
+            monkeypatch.delenv(field, raising=False)
+        else:
+            monkeypatch.setenv(field, value)
+    
+        app = configured_app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is True
+        assert app.markdown[-1].value == "Protected content"
+        assert len(app.text_input) == 0
+    
+        # Reconfiguring credentials must revoke the dev-mode flag on the next run.
+        monkeypatch.setenv(field, configured_value)
+        app.run()
+        assert not app.exception
+        assert app.session_state["auth"] is False
+        assert app.markdown[-1].value == "Access denied"
+>       assert [widget.label for widget in app.text_input] == ["Username", "Password"]
+E       AssertionError: assert [] == ['Username', 'Password']
+E         
+E         Right contains 2 more items, first extra item: 'Username'
+E         Use -v to get more diff
+
+tests/test_ui_auth.py:251: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-10-06 09:12:13.572 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+------------------------------ Captured log setup ------------------------------
+WARNING  streamlit.runtime.scriptrunner_utils.script_run_context:script_run_context.py:459 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1501
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/api/chat.py:1501: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1801
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/api/chat.py:1801: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1808
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/api/chat.py:1808: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/baseline/test_directional.py::test_directional[us_filter_narrows_count]
+tests/baseline/test_directional.py::test_directional[activist_filter_narrows_count]
+tests/baseline/test_directional.py::test_directional[combined_filter_narrows_further]
+tests/baseline/test_directional.py::test_directional[pagination_caps_page]
+tests/baseline/test_directional.py::test_directional[pagination_preserves_total]
+tests/baseline/test_directional.py::test_directional[richer_seed_raises_count]
+tests/baseline/test_directional.py::test_directional[richer_seed_raises_total_managers]
+tests/baseline/test_directional.py::test_directional[richer_seed_raises_with_cik]
+  tests/baseline/test_directional.py:37: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize("scen", _DIRECTIONALS, ids=[s["id"] for s in _DIRECTIONALS])
+
+tests/baseline/test_directional.py::test_directional[us_filter_narrows_count]
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_activism_api.py::test_list_activism_filings_filters
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/api/activism.py:198: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_activism_api.py::test_list_activism_events_filters
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/api/activism.py:259: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_activism_api.py::test_campaign_list_applies_target_date_and_limit_filters
+tests/test_activism_api.py::test_campaign_list_applies_target_date_and_limit_filters
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/api/activism.py:438: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_daily_report.py::test_load_diffs_and_news
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_signals_api.py::test_get_crowded_trades_filters_by_report_date_and_threshold
+tests/test_signals_api.py::test_crowded_trades_drops_non_finite_values
+tests/test_signals_api.py::test_crowded_trades_drops_non_finite_values
+tests/test_signals_api.py::test_signals_endpoints_return_empty_arrays_for_missing_data
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/api/signals.py:218: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_daily_report.py::test_load_diffs_and_news
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_signals_api.py::test_get_contrarian_signals_filters_by_manager
+tests/test_signals_api.py::test_contrarian_signals_drops_non_finite_values
+tests/test_signals_api.py::test_contrarian_signals_drops_non_finite_values
+tests/test_signals_api.py::test_signals_endpoints_return_empty_arrays_for_missing_data
+tests/test_signals_api.py::test_get_contrarian_signals_supports_sqlite_managers_id_shape
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/api/signals.py:274: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_monitor_memory.py::test_write_samples_respects_max_samples
+tests/test_monitor_memory.py::test_write_samples_respects_max_samples
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-1750-next-coverage/scripts/monitor_memory.py:87: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp = dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform darwin, python 3.12.2-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover
+----------------------------------------------------------------------------
+adapters/__init__.py                                         2      0   100%
+adapters/asic.py                                            37      3    92%
+adapters/base.py                                           146      1    99%
+adapters/canada.py                                          23      0   100%
+adapters/edgar.py                                          299     47    84%
+adapters/insider.py                                        175      8    95%
+adapters/mas.py                                             19      1    95%
+adapters/news.py                                           352     70    80%
+adapters/openfigi.py                                       165     11    93%
+adapters/prices.py                                         166     49    70%
+adapters/short_interest.py                                 100     29    71%
+adapters/uk.py                                             379     75    80%
+alembic/env.py                                              32      7    78%
+alembic/versions/001_canonical_schema.py                    66     16    76%
+alembic/versions/002_filings_raw_key_unique.py              15      1    93%
+alembic/versions/003_crowded_and_contrarian_tables.py       28      1    96%
+alembic/versions/004_conviction_scores.py                   18      0   100%
+alembic/versions/005_activism_filings.py                    24      1    96%
+alembic/versions/006_activism_events.py                     24      0   100%
+alembic/versions/007_alert_rules_history.py                 36      4    89%
+alembic/versions/008_align_alert_history_schema.py          18      2    89%
+alembic/versions/009_chat_feedback.py                       14      0   100%
+alembic/versions/010_schema_sql_parity_fixes.py             17      4    76%
+alembic/versions/011_openfigi_identifier_resolution.py      23      0   100%
+alembic/versions/012_bitemporal_holdings.py                 30      0   100%
+alembic/versions/013_manager_similarity.py                  12      0   100%
+alembic/versions/014_insider_transactions.py                16      0   100%
+alembic/versions/015_backtest_harness.py                    23      0   100%
+alembic/versions/016_activism_campaigns.py                  21      0   100%
+alembic/versions/017_manager_similarity_cosine.py           10      0   100%
+alembic/versions/018_short_interest.py                      15      0   100%
+alembic/versions/019_activism_campaign_returns.py           17      0   100%
+alembic/versions/020_manager_attribution.py                 17      0   100%
+alembic/versions/021_activism_documents.py                  13      0   100%
+alembic/versions/022_document_managers.py                   17      0   100%
+alembic/versions/023_manager_deletion_ledger.py             28      1    96%
+alerts/__init__.py                                           6      0   100%
+alerts/channels.py                                         138     31    78%
+alerts/data_quality.py                                      94      5    95%
+alerts/db.py                                               158     29    82%
+alerts/dispatch.py                                          36      2    94%
+alerts/engine.py                                           127     15    88%
+alerts/formatter.py                                         50      8    84%
+alerts/integration.py                                       41      1    98%
+alerts/models.py                                           133      7    95%
+api/__init__.py                                              0      0   100%
+api/_compat.py                                              24      7    71%
+api/activism.py                                            300     29    90%
+api/alerts.py                                              261     19    93%
+api/cache.py                                               131      2    98%
+api/chat.py                                                904     91    90%
+api/data.py                                                 24      4    83%
+api/handler.py                                              13      3    77%
+api/managers.py                                            821     67    92%
+api/memory_profiler.py                                       2      0   100%
+api/models.py                                               49      0   100%
+api/parser.py                                               30      3    90%
+api/search.py                                              294     28    90%
+api/signals.py                                             248     34    86%
+chains/__init__.py                                          12      7    42%
+chains/evidence.py                                          41      5    88%
+chains/filing_summary.py                                   254     37    85%
+chains/holdings_analysis.py                                355     30    92%
+chains/intent.py                                            10      1    90%
+chains/nl_query.py                                         188     22    88%
+chains/rag_search.py                                       246     26    89%
+chains/utils.py                                             96      5    95%
+config.py                                                   43      2    95%
+diff_holdings.py                                           106      9    92%
+embeddings.py                                              224     12    95%
+etl/__init__.py                                              0      0   100%
+etl/activism_campaign_flow.py                              162     30    81%
+etl/activism_detection.py                                  194     47    76%
+etl/activism_flow.py                                       158     20    87%
+etl/attribution_flow.py                                    195     38    81%
+etl/backtest_flow.py                                       290     31    89%
+etl/conviction_flow.py                                     319     51    84%
+etl/daily_diff_flow.py                                     170     21    88%
+etl/digest_flow.py                                         178     33    81%
+etl/edgar_flow.py                                          229     25    89%
+etl/evaluation_flow.py                                     141     27    81%
+etl/ingest_flow.py                                         390     59    85%
+etl/insider_flow.py                                        126     15    88%
+etl/logging_setup.py                                        80      7    91%
+etl/manager_similarity_flow.py                              61      3    95%
+etl/news_flow.py                                           249     21    92%
+etl/point_in_time.py                                       100     11    89%
+etl/short_interest_flow.py                                  72      3    96%
+etl/summariser_flow.py                                      45      5    89%
+etl/uk_flow.py                                              14      2    86%
+llm/__init__.py                                              6      0   100%
+llm/client.py                                              200     31    84%
+llm/cost_tracking.py                                        19      1    95%
+llm/evaluation.py                                          256     60    77%
+llm/injection.py                                           151      8    95%
+llm/langsmith_fleet.py                                     148      1    99%
+llm/provider.py                                             39      0   100%
+llm/tracing.py                                              68     10    85%
+profiler.py                                                164     17    90%
+services/__init__.py                                         0      0   100%
+services/manager_deletion.py                               312     88    72%
+ui/__init__.py                                              44     17    61%
+ui/alerts.py                                               283     67    76%
+ui/app.py                                                   16      0   100%
+ui/daily_report.py                                         303     69    77%
+ui/dashboard.py                                            620    104    83%
+ui/launch.py                                                11      1    91%
+ui/research.py                                             221     43    81%
+ui/search.py                                                70      5    93%
+ui/upload.py                                                94     36    62%
+utils/__init__.py                                            0      0   100%
+utils/extract.py                                            16      0   100%
+utils/identifiers.py                                        16      3    81%
+utils/numeric.py                                            24      1    96%
+----------------------------------------------------------------------------
+TOTAL                                                    14110   1883    87%
+Coverage JSON written to file /Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261006T1402Z/manager-candidate-coverage.json
+=========================== short test summary info ============================
+FAILED tests/test_ui_auth.py::test_configured_login_renders_with_real_authenticator
+FAILED tests/test_ui_auth.py::test_configured_login_rejects_invalid_credentials[analyst-wrong-password]
+FAILED tests/test_ui_auth.py::test_configured_login_rejects_invalid_credentials[unknown-synthetic-test-password]
+FAILED tests/test_ui_auth.py::test_valid_login_rerun_and_logout - IndexError:...
+FAILED tests/test_ui_auth.py::test_configured_login_does_not_trust_cached_dev_auth[None]
+FAILED tests/test_ui_auth.py::test_configured_login_does_not_trust_cached_dev_auth[False]
+FAILED tests/test_ui_auth.py::test_require_login_fails_closed_without_dependency
+FAILED tests/test_ui_auth.py::test_dev_mode_discards_previous_authenticated_session
+FAILED tests/test_ui_auth.py::test_configured_login_requires_cookie_secret[None-False]
+FAILED tests/test_ui_auth.py::test_configured_login_requires_cookie_secret[None-True]
+FAILED tests/test_ui_auth.py::test_configured_login_requires_cookie_secret[-False]
+FAILED tests/test_ui_auth.py::test_configured_login_requires_cookie_secret[-True]
+FAILED tests/test_ui_auth.py::test_configured_login_requires_cookie_secret[                                -False]
+FAILED tests/test_ui_auth.py::test_configured_login_requires_cookie_secret[                                -True]
+FAILED tests/test_ui_auth.py::test_configured_login_requires_cookie_secret[short-key-False]
+FAILED tests/test_ui_auth.py::test_configured_login_requires_cookie_secret[short-key-True]
+FAILED tests/test_ui_auth.py::test_authenticator_receives_independent_secret_and_cached_hash
+FAILED tests/test_ui_auth.py::test_cookie_reauthentication_rejects_rotated_key
+FAILED tests/test_ui_auth.py::test_require_login_preserves_blank_credential_dev_mode[None-UI_USERNAME]
+FAILED tests/test_ui_auth.py::test_require_login_preserves_blank_credential_dev_mode[None-UI_PASSWORD]
+FAILED tests/test_ui_auth.py::test_require_login_preserves_blank_credential_dev_mode[-UI_USERNAME]
+FAILED tests/test_ui_auth.py::test_require_login_preserves_blank_credential_dev_mode[-UI_PASSWORD]
+FAILED tests/test_ui_auth.py::test_require_login_preserves_blank_credential_dev_mode[   -UI_USERNAME]
+FAILED tests/test_ui_auth.py::test_require_login_preserves_blank_credential_dev_mode[   -UI_PASSWORD]

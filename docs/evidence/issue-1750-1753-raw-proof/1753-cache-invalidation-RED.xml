@@ -1,0 +1,877 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="9" time="0.176" timestamp="2026-10-06T11:47:19.634466-05:00" hostname="server.trs.private"><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[connect-update]" time="0.064"><failure message="assert {'managers.it...1e4de9': None} == {'managers.it...b1e4de9': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.list:2970c6c50912f37ed7a1d54587674ac7a854281ee4b7f72e860028cad72eb86d': None} != {'managers.list:2970c6c50912f37ed7a1d54587674ac7a854281ee4b7f72e860028cad72eb86d': '[[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]]'}&#10;  {'managers.item:3778895140987f350ac81ec104461dc25b237290bfa99610f458f99702e797d8': None} != {'managers.item:3778895140987f350ac81ec104461dc25b237290bfa99610f458f99702e797d8': '[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]'}&#10;  {'mana...&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c056db0&gt;
+method = 'PATCH', path = '/managers/1', payload = {'name': 'Updated'}
+write_symbol = '_update_manager', stage = 'connect'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...1e4de9': None} == {'managers.it...b1e4de9': '1'}
+E         
+E         Differing items:
+E         {'managers.list:2970c6c50912f37ed7a1d54587674ac7a854281ee4b7f72e860028cad72eb86d': None} != {'managers.list:2970c6c50912f37ed7a1d54587674ac7a854281ee4b7f72e860028cad72eb86d': '[[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]]'}
+E         {'managers.item:3778895140987f350ac81ec104461dc25b237290bfa99610f458f99702e797d8': None} != {'managers.item:3778895140987f350ac81ec104461dc25b237290bfa99610f458f99702e797d8': '[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]'}
+E         {'mana...
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[connect-tags]" time="0.004"><failure message="assert {'managers.it...317ce7': None} == {'managers.it...8317ce7': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.item:9d29b9bcfe9eededeba0145b3273c0d8c0b3f90a7d7432f3e636c6fc7503d188': None} != {'managers.item:9d29b9bcfe9eededeba0145b3273c0d8c0b3f90a7d7432f3e636c6fc7503d188': '[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]'}&#10;  {'managers.list:b7298f146f943436d64ae1caa82719f9472dd4402c3cc63db02d85f0108a4a2c': None} != {'managers.list:b7298f146f943436d64ae1caa82719f9472dd4402c3cc63db02d85f0108a4a2c': '[[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]]'}&#10;  {'mana...&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c066c30&gt;
+method = 'PATCH', path = '/managers/1/tags'
+payload = {'add': ['new'], 'remove': ['retired']}
+write_symbol = '_update_manager', stage = 'connect'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...317ce7': None} == {'managers.it...8317ce7': '1'}
+E         
+E         Differing items:
+E         {'managers.item:9d29b9bcfe9eededeba0145b3273c0d8c0b3f90a7d7432f3e636c6fc7503d188': None} != {'managers.item:9d29b9bcfe9eededeba0145b3273c0d8c0b3f90a7d7432f3e636c6fc7503d188': '[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]'}
+E         {'managers.list:b7298f146f943436d64ae1caa82719f9472dd4402c3cc63db02d85f0108a4a2c': None} != {'managers.list:b7298f146f943436d64ae1caa82719f9472dd4402c3cc63db02d85f0108a4a2c': '[[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]]'}
+E         {'mana...
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[connect-delete]" time="0.003"><failure message="assert {'managers.it...7588e8': None} == {'managers.it...17588e8': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.count:7987dd9edc8c4ece328cb4d08d43344692b93dd327420fd74a0b0e1ac17588e8': None} != {'managers.count:7987dd9edc8c4ece328cb4d08d43344692b93dd327420fd74a0b0e1ac17588e8': '1'}&#10;  {'managers.item:c04417e6f691e740f382c500a7b0a10a8591cd78f32c439ac4b004aeafaacae0': None} != {'managers.item:c04417e6f691e740f382c500a7b0a10a8591cd78f32c439ac4b004aeafaacae0': '[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]'}&#10;  {'managers.list:ec83426fba972d96826413b39cde922fb6fee09bf319a20fe5dbe51c10806757': None} != {'managers....&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c066b40&gt;
+method = 'DELETE', path = '/managers/1', payload = None
+write_symbol = 'delete_manager_data', stage = 'connect'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...7588e8': None} == {'managers.it...17588e8': '1'}
+E         
+E         Differing items:
+E         {'managers.count:7987dd9edc8c4ece328cb4d08d43344692b93dd327420fd74a0b0e1ac17588e8': None} != {'managers.count:7987dd9edc8c4ece328cb4d08d43344692b93dd327420fd74a0b0e1ac17588e8': '1'}
+E         {'managers.item:c04417e6f691e740f382c500a7b0a10a8591cd78f32c439ac4b004aeafaacae0': None} != {'managers.item:c04417e6f691e740f382c500a7b0a10a8591cd78f32c439ac4b004aeafaacae0': '[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]'}
+E         {'managers.list:ec83426fba972d96826413b39cde922fb6fee09bf319a20fe5dbe51c10806757': None} != {'managers....
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[schema-update]" time="0.003"><failure message="assert {'managers.it...162ab3': None} == {'managers.it...7162ab3': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.item:b158a3634ae79c84bfd9520dd2284663c1f7e122c3293e6a92b37a541810e85d': None} != {'managers.item:b158a3634ae79c84bfd9520dd2284663c1f7e122c3293e6a92b37a541810e85d': '[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]'}&#10;  {'managers.list:0bac7f36bf91c4b13538b542d6ffac8a4414a54f683076b091a3caaaeed944e3': None} != {'managers.list:0bac7f36bf91c4b13538b542d6ffac8a4414a54f683076b091a3caaaeed944e3': '[[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]]'}&#10;  {'mana...&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_3')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c07c4d0&gt;
+method = 'PATCH', path = '/managers/1', payload = {'name': 'Updated'}
+write_symbol = '_update_manager', stage = 'schema'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...162ab3': None} == {'managers.it...7162ab3': '1'}
+E         
+E         Differing items:
+E         {'managers.item:b158a3634ae79c84bfd9520dd2284663c1f7e122c3293e6a92b37a541810e85d': None} != {'managers.item:b158a3634ae79c84bfd9520dd2284663c1f7e122c3293e6a92b37a541810e85d': '[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]'}
+E         {'managers.list:0bac7f36bf91c4b13538b542d6ffac8a4414a54f683076b091a3caaaeed944e3': None} != {'managers.list:0bac7f36bf91c4b13538b542d6ffac8a4414a54f683076b091a3caaaeed944e3': '[[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]]'}
+E         {'mana...
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[schema-tags]" time="0.003"><failure message="assert {'managers.it...e0bc07': None} == {'managers.it...7e0bc07': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.count:035df4447ebcb78e81557a5f5ccb1f8ee511ed8bb24dbc6011e50c1317e0bc07': None} != {'managers.count:035df4447ebcb78e81557a5f5ccb1f8ee511ed8bb24dbc6011e50c1317e0bc07': '1'}&#10;  {'managers.item:b29acde9c84f5ba752188adeca9044ce4d094423fa4575b2c6514397e527c706': None} != {'managers.item:b29acde9c84f5ba752188adeca9044ce4d094423fa4575b2c6514397e527c706': '[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]'}&#10;  {'managers.list:adfe804613b86109e59f21cdfc3e3b14f08761719c840f7702597f7c69d33e25': None} != {'managers....&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_4')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c484fb0&gt;
+method = 'PATCH', path = '/managers/1/tags'
+payload = {'add': ['new'], 'remove': ['retired']}
+write_symbol = '_update_manager', stage = 'schema'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...e0bc07': None} == {'managers.it...7e0bc07': '1'}
+E         
+E         Differing items:
+E         {'managers.count:035df4447ebcb78e81557a5f5ccb1f8ee511ed8bb24dbc6011e50c1317e0bc07': None} != {'managers.count:035df4447ebcb78e81557a5f5ccb1f8ee511ed8bb24dbc6011e50c1317e0bc07': '1'}
+E         {'managers.item:b29acde9c84f5ba752188adeca9044ce4d094423fa4575b2c6514397e527c706': None} != {'managers.item:b29acde9c84f5ba752188adeca9044ce4d094423fa4575b2c6514397e527c706': '[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]'}
+E         {'managers.list:adfe804613b86109e59f21cdfc3e3b14f08761719c840f7702597f7c69d33e25': None} != {'managers....
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[schema-delete]" time="0.003"><failure message="assert {'managers.it...8d356e': None} == {'managers.it...48d356e': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.list:8f61a556b0320426c7b21f74a8697bab7cb6be0b2a5be4ec6f0e6b8fa6387803': None} != {'managers.list:8f61a556b0320426c7b21f74a8697bab7cb6be0b2a5be4ec6f0e6b8fa6387803': '[[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]]'}&#10;  {'managers.count:228dff1ae05fe1819092cbcb22b1ef0cb2bd1330da3c73eee16197b8248d356e': None} != {'managers.count:228dff1ae05fe1819092cbcb22b1ef0cb2bd1330da3c73eee16197b8248d356e': '1'}&#10;  {'managers.item:683b589e38aced928afc47dc71aa6086daa0fd3ca5c8b88ba8eea0a85960dfa7': None} != {'manager...&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_5')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c485b80&gt;
+method = 'DELETE', path = '/managers/1', payload = None
+write_symbol = 'delete_manager_data', stage = 'schema'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...8d356e': None} == {'managers.it...48d356e': '1'}
+E         
+E         Differing items:
+E         {'managers.list:8f61a556b0320426c7b21f74a8697bab7cb6be0b2a5be4ec6f0e6b8fa6387803': None} != {'managers.list:8f61a556b0320426c7b21f74a8697bab7cb6be0b2a5be4ec6f0e6b8fa6387803': '[[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]]'}
+E         {'managers.count:228dff1ae05fe1819092cbcb22b1ef0cb2bd1330da3c73eee16197b8248d356e': None} != {'managers.count:228dff1ae05fe1819092cbcb22b1ef0cb2bd1330da3c73eee16197b8248d356e': '1'}
+E         {'managers.item:683b589e38aced928afc47dc71aa6086daa0fd3ca5c8b88ba8eea0a85960dfa7': None} != {'manager...
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[write-update]" time="0.003"><failure message="assert {'managers.it...8721b8': None} == {'managers.it...b8721b8': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.count:daada02ae50534843a037224b3ee1fa89814f8df8cf73a7ace5f0f586b8721b8': None} != {'managers.count:daada02ae50534843a037224b3ee1fa89814f8df8cf73a7ace5f0f586b8721b8': '1'}&#10;  {'managers.item:1097f8602c66d250daaf6a6ba90bf9f11dff2448487603b0160ac1461dbb492b': None} != {'managers.item:1097f8602c66d250daaf6a6ba90bf9f11dff2448487603b0160ac1461dbb492b': '[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]'}&#10;  {'managers.list:62c954e6876c0b4bc65992a217dea6d3d43528c79611d4ac6ab63525ba714757': None} != {'managers....&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_6')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c48a0f0&gt;
+method = 'PATCH', path = '/managers/1', payload = {'name': 'Updated'}
+write_symbol = '_update_manager', stage = 'write'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...8721b8': None} == {'managers.it...b8721b8': '1'}
+E         
+E         Differing items:
+E         {'managers.count:daada02ae50534843a037224b3ee1fa89814f8df8cf73a7ace5f0f586b8721b8': None} != {'managers.count:daada02ae50534843a037224b3ee1fa89814f8df8cf73a7ace5f0f586b8721b8': '1'}
+E         {'managers.item:1097f8602c66d250daaf6a6ba90bf9f11dff2448487603b0160ac1461dbb492b': None} != {'managers.item:1097f8602c66d250daaf6a6ba90bf9f11dff2448487603b0160ac1461dbb492b': '[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]'}
+E         {'managers.list:62c954e6876c0b4bc65992a217dea6d3d43528c79611d4ac6ab63525ba714757': None} != {'managers....
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[write-tags]" time="0.003"><failure message="assert {'managers.it...a7816e': None} == {'managers.it...8a7816e': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.count:e8cc53fe49afc4f7ccd26c5c99e17f6cc1626e27a75a95d61331de62a8a7816e': None} != {'managers.count:e8cc53fe49afc4f7ccd26c5c99e17f6cc1626e27a75a95d61331de62a8a7816e': '1'}&#10;  {'managers.item:2e8ec3e7f866912a01111dfdabd35c1f04639297c42eb37532c5f38bd1606392': None} != {'managers.item:2e8ec3e7f866912a01111dfdabd35c1f04639297c42eb37532c5f38bd1606392': '[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]'}&#10;  {'managers.list:d1707e824d33d04d29d85c8e68b492524d32c3dca21447448f04b9576bce979e': None} != {'managers....&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_7')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c4887a0&gt;
+method = 'PATCH', path = '/managers/1/tags'
+payload = {'add': ['new'], 'remove': ['retired']}
+write_symbol = '_update_manager', stage = 'write'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...a7816e': None} == {'managers.it...8a7816e': '1'}
+E         
+E         Differing items:
+E         {'managers.count:e8cc53fe49afc4f7ccd26c5c99e17f6cc1626e27a75a95d61331de62a8a7816e': None} != {'managers.count:e8cc53fe49afc4f7ccd26c5c99e17f6cc1626e27a75a95d61331de62a8a7816e': '1'}
+E         {'managers.item:2e8ec3e7f866912a01111dfdabd35c1f04639297c42eb37532c5f38bd1606392': None} != {'managers.item:2e8ec3e7f866912a01111dfdabd35c1f04639297c42eb37532c5f38bd1606392': '[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]'}
+E         {'managers.list:d1707e824d33d04d29d85c8e68b492524d32c3dca21447448f04b9576bce979e': None} != {'managers....
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[write-delete]" time="0.003"><failure message="assert {'managers.it...2fe35e': None} == {'managers.it...52fe35e': '1'}&#10;  &#10;  Differing items:&#10;  {'managers.item:5834d9937caa9d9b5fff9c43a247aa7d8d978850eccbe5411f5147798fb1aa27': None} != {'managers.item:5834d9937caa9d9b5fff9c43a247aa7d8d978850eccbe5411f5147798fb1aa27': '[1, &quot;Original&quot;, null, null, &quot;[]&quot;, &quot;[]&quot;, &quot;[\\&quot;retired\\&quot;, \\&quot;retained\\&quot;]&quot;, &quot;{}&quot;, &quot;[]&quot;, null, null]'}&#10;  {'managers.count:0feaf9377fd2fe950f71cdd070713ec895f37ed305aac7edb673bb6e652fe35e': None} != {'managers.count:0feaf9377fd2fe950f71cdd070713ec895f37ed305aac7edb673bb6e652fe35e': '1'}&#10;  {'managers.list:0ca0d58603f4bee36aae13d508e5e442a1d16c677f589b40d465148def516572': None} != {'managers....&#10;  &#10;  ...Full output truncated (2 lines hidden), use '-vv' to show">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-962/test_write_outage_returns_503_8')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16c03cc20&gt;
+method = 'DELETE', path = '/managers/1', payload = None
+write_symbol = 'delete_manager_data', stage = 'write'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       assert {key: backend.get(key) for key in cached_values} == cached_before
+E       assert {'managers.it...2fe35e': None} == {'managers.it...52fe35e': '1'}
+E         
+E         Differing items:
+E         {'managers.item:5834d9937caa9d9b5fff9c43a247aa7d8d978850eccbe5411f5147798fb1aa27': None} != {'managers.item:5834d9937caa9d9b5fff9c43a247aa7d8d978850eccbe5411f5147798fb1aa27': '[1, "Original", null, null, "[]", "[]", "[\\"retired\\", \\"retained\\"]", "{}", "[]", null, null]'}
+E         {'managers.count:0feaf9377fd2fe950f71cdd070713ec895f37ed305aac7edb673bb6e652fe35e': None} != {'managers.count:0feaf9377fd2fe950f71cdd070713ec895f37ed305aac7edb673bb6e652fe35e': '1'}
+E         {'managers.list:0ca0d58603f4bee36aae13d508e5e442a1d16c677f589b40d465148def516572': None} != {'managers....
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_manager_write_failures.py:98: AssertionError</failure></testcase></testsuite></testsuites>
