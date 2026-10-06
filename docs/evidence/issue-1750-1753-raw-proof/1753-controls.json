@@ -1,0 +1,15 @@
+[
+  {
+    "mutation": "early-close",
+    "returncode": 1
+  },
+  {
+    "mutation": "drop-retained-tags",
+    "returncode": 1
+  },
+  {
+    "restored": true,
+    "sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "returncode": 0
+  }
+]

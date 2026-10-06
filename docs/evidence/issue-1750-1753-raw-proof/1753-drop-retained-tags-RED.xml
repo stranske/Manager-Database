@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="9" time="0.453" timestamp="2026-10-06T11:29:36.173065-05:00" hostname="server.trs.private"><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[connect-update]" time="0.213" /><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[connect-tags]" time="0.007" /><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[connect-delete]" time="0.005" /><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[schema-update]" time="0.005" /><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[schema-tags]" time="0.005" /><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[schema-delete]" time="0.005" /><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[write-update]" time="0.007" /><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[write-tags]" time="0.006"><failure message="AssertionError: expected call not found.&#10;Expected: mock(&lt;Mock spec='Connection' id='5919999184'&gt;, 1, ManagerUpdate(name=None, cik=None, lei=None, aliases=None, jurisdictions=None, tags=['retained', 'new'], registry_ids=None))&#10;  Actual: mock(&lt;Mock spec='Connection' id='5919999184'&gt;, 1, ManagerUpdate(name=None, cik=None, lei=None, aliases=None, jurisdictions=None, tags=['new'], registry_ids=None))">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-914/test_write_outage_returns_503_7')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x160da74a0&gt;
+method = 'PATCH', path = '/managers/1/tags'
+payload = {'add': ['new'], 'remove': ['retired']}
+write_symbol = '_update_manager', stage = 'write'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+        assert {key: backend.get(key) for key in cached_values} == cached_before
+        invalidate.assert_not_called()
+        connect.assert_called_once_with()
+        connection.execute.assert_not_called()
+        if stage == "connect":
+            ensure_schema.assert_not_called()
+            write.assert_not_called()
+            connection.close.assert_not_called()
+        else:
+            ensure_schema.assert_called_once_with(connection)
+            if stage == "schema":
+                write.assert_not_called()
+            else:
+                if method == "DELETE":
+                    write.assert_called_once_with(connection, 1)
+                else:
+                    expected_update = (
+                        {"tags": ["retained", "new"]} if path.endswith("/tags") else payload
+                    )
+&gt;                   write.assert_called_once_with(
+                        connection, 1, managers.ManagerUpdate.model_validate(expected_update)
+                    )
+
+tests/test_manager_write_failures.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/anaconda3/lib/python3.12/unittest/mock.py:956: in assert_called_once_with
+    return self.assert_called_with(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Mock id='5920004272'&gt;
+args = (&lt;Mock spec='Connection' id='5919999184'&gt;, 1, ManagerUpdate(name=None, cik=None, lei=None, aliases=None, jurisdictions=None, tags=['retained', 'new'], registry_ids=None))
+kwargs = {}
+
+    def assert_called_with(self, /, *args, **kwargs):
+        """assert that the last call was made with the specified arguments.
+    
+        Raises an AssertionError if the args and keyword args passed in are
+        different to the last call to the mock."""
+        if self.call_args is None:
+            expected = self._format_mock_call_signature(args, kwargs)
+            actual = 'not called.'
+            error_message = ('expected call not found.\nExpected: %s\n  Actual: %s'
+                    % (expected, actual))
+            raise AssertionError(error_message)
+    
+        def _error_message():
+            msg = self._format_mock_failure_message(args, kwargs)
+            return msg
+        expected = self._call_matcher(_Call((args, kwargs), two=True))
+        actual = self._call_matcher(self.call_args)
+        if actual != expected:
+            cause = expected if isinstance(expected, Exception) else None
+&gt;           raise AssertionError(_error_message()) from cause
+E           AssertionError: expected call not found.
+E           Expected: mock(&lt;Mock spec='Connection' id='5919999184'&gt;, 1, ManagerUpdate(name=None, cik=None, lei=None, aliases=None, jurisdictions=None, tags=['retained', 'new'], registry_ids=None))
+E             Actual: mock(&lt;Mock spec='Connection' id='5919999184'&gt;, 1, ManagerUpdate(name=None, cik=None, lei=None, aliases=None, jurisdictions=None, tags=['new'], registry_ids=None))
+
+/opt/anaconda3/lib/python3.12/unittest/mock.py:944: AssertionError</failure></testcase><testcase classname="tests.test_manager_write_failures" name="test_write_outage_returns_503_and_preserves_cache[write-delete]" time="0.006" /></testsuite></testsuites>

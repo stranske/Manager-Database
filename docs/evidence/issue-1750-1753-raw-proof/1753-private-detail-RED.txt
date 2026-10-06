@@ -1,0 +1,1082 @@
+FFFFFFFFF                                                                [100%]
+=================================== FAILURES ===================================
+______ test_write_outage_returns_503_and_preserves_cache[connect-update] _______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x144c9bb90>
+method = 'PATCH', path = '/managers/1', payload = {'name': 'Updated'}
+write_symbol = '_update_manager', stage = 'connect'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1773, in patch_manager
+    conn = connect_db()
+           ^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+_______ test_write_outage_returns_503_and_preserves_cache[connect-tags] ________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x144caf0e0>
+method = 'PATCH', path = '/managers/1/tags'
+payload = {'add': ['new'], 'remove': ['retired']}
+write_symbol = '_update_manager', stage = 'connect'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1841, in patch_manager_tags
+    conn = connect_db()
+           ^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+______ test_write_outage_returns_503_and_preserves_cache[connect-delete] _______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x144caf200>
+method = 'DELETE', path = '/managers/1', payload = None
+write_symbol = 'delete_manager_data', stage = 'connect'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1879, in delete_manager
+    conn = connect_db()
+           ^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+_______ test_write_outage_returns_503_and_preserves_cache[schema-update] _______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1450ccfe0>
+method = 'PATCH', path = '/managers/1', payload = {'name': 'Updated'}
+write_symbol = '_update_manager', stage = 'schema'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1774, in patch_manager
+    _ensure_manager_table(conn)
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+________ test_write_outage_returns_503_and_preserves_cache[schema-tags] ________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1450cccb0>
+method = 'PATCH', path = '/managers/1/tags'
+payload = {'add': ['new'], 'remove': ['retired']}
+write_symbol = '_update_manager', stage = 'schema'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1842, in patch_manager_tags
+    _ensure_manager_table(conn)
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+_______ test_write_outage_returns_503_and_preserves_cache[schema-delete] _______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1450d0440>
+method = 'DELETE', path = '/managers/1', payload = None
+write_symbol = 'delete_manager_data', stage = 'schema'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1880, in delete_manager
+    _ensure_manager_table(conn)
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+_______ test_write_outage_returns_503_and_preserves_cache[write-update] ________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x144cc6c00>
+method = 'PATCH', path = '/managers/1', payload = {'name': 'Updated'}
+write_symbol = '_update_manager', stage = 'write'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1775, in patch_manager
+    updated = _update_manager(conn, id, payload)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+________ test_write_outage_returns_503_and_preserves_cache[write-tags] _________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1450d86b0>
+method = 'PATCH', path = '/managers/1/tags'
+payload = {'add': ['new'], 'remove': ['retired']}
+write_symbol = '_update_manager', stage = 'write'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1850, in patch_manager_tags
+    _update_manager(conn, id, ManagerUpdate.model_validate({"tags": merged_tags}))
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+_______ test_write_outage_returns_503_and_preserves_cache[write-delete] ________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-963/test_write_outage_returns_503_8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1450da180>
+method = 'DELETE', path = '/managers/1', payload = None
+write_symbol = 'delete_manager_data', stage = 'write'
+
+    @pytest.mark.parametrize(
+        ("method", "path", "payload", "write_symbol"),
+        [
+            ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
+            (
+                "PATCH",
+                "/managers/1/tags",
+                {"add": ["new"], "remove": ["retired"]},
+                "_update_manager",
+            ),
+            ("DELETE", "/managers/1", None, "delete_manager_data"),
+        ],
+        ids=["update", "tags", "delete"],
+    )
+    @pytest.mark.parametrize("stage", ["connect", "schema", "write"])
+    def test_write_outage_returns_503_and_preserves_cache(
+        tmp_path, monkeypatch, method, path, payload, write_symbol, stage
+    ):
+        db_path = str(tmp_path / "outage.db")
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.delenv("DB_URL", raising=False)
+        # Isolate the real in-memory backend and restore the previous backend on teardown.
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("CACHE_MAX_ITEMS", "512")
+        monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
+        monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
+        monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
+        existing_row = (
+            1,
+            "Original",
+            None,
+            None,
+            "[]",
+            "[]",
+            '["retired", "retained"]',
+            "{}",
+            "[]",
+            None,
+            None,
+        )
+        cached_values = {
+            cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
+            cache_module._make_cache_key(
+                "managers.list", (db_path, 10, 0, None, None, None, None), {}
+            ): [existing_row],
+            cache_module._make_cache_key("managers.count", (db_path, None, None, None, None), {}): 1,
+        }
+        for key, value in cached_values.items():
+            cache_module.cache_set(key, value)
+        backend = cache_module._get_backend()
+        cached_before = {key: backend.get(key) for key in cached_values}
+        assert all(value is not None for value in cached_before.values())
+    
+        connection = Mock(spec=sqlite3.Connection)
+        invalidate = Mock(wraps=cache_module.invalidate_cache_prefix)
+        monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
+    
+        def fail(*args, **kwargs):
+            # Exactly-once cleanup must happen after the failed operation, not before it.
+            connection.close.assert_not_called()
+            raise sqlite3.OperationalError("private database location /secret/outage.db")
+    
+        connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
+        ensure_schema = Mock(side_effect=fail) if stage == "schema" else Mock()
+        write = Mock(side_effect=fail)
+        monkeypatch.setattr(managers, "connect_db", connect)
+        monkeypatch.setattr(managers, "_ensure_manager_table", ensure_schema)
+        monkeypatch.setattr(managers, write_symbol, write)
+        # The tags endpoint reads the real warmed item cache before attempting its write.
+    
+        async def request():
+            await cast(Any, app.router).startup()
+            try:
+                transport = httpx.ASGITransport(app=cast(Any, app))
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.request(method, path, json=payload)
+            finally:
+                await cast(Any, app.router).shutdown()
+    
+        response = asyncio.run(request())
+        assert response.status_code == 503
+>       assert response.json() == {"detail": "Database unavailable"}
+E       AssertionError: assert {'detail': 'p...et/outage.db'} == {'detail': 'D... unavailable'}
+E         
+E         Differing items:
+E         {'detail': 'private database location /secret/outage.db'} != {'detail': 'Database unavailable'}
+E         Use -v to get more diff
+
+tests/test_manager_write_failures.py:97: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.managers:managers.py:812 Database error in managers API.
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/managers.py", line 1881, in delete_manager
+    result = delete_manager_data(conn, id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1199, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/tests/test_manager_write_failures.py", line 76, in fail
+    raise sqlite3.OperationalError("private database location /secret/outage.db")
+sqlite3.OperationalError: private database location /secret/outage.db
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1501
+  /Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/chat.py:1501: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1801
+  /Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/chat.py:1801: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1808
+  /Users/teacher/.codex/automations/imi-merge-verify-closer/worktrees/manager-1753-acceptance-1622/api/chat.py:1808: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[connect-update]
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[connect-tags]
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[connect-delete]
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[schema-update]
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[schema-tags]
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[schema-delete]
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[write-update]
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[write-tags]
+FAILED tests/test_manager_write_failures.py::test_write_outage_returns_503_and_preserves_cache[write-delete]
+9 failed, 7 warnings in 0.76s
