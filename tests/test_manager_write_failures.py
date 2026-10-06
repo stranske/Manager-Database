@@ -17,7 +17,12 @@ from api.chat import app
     ("method", "path", "payload", "write_symbol"),
     [
         ("PATCH", "/managers/1", {"name": "Updated"}, "_update_manager"),
-        ("PATCH", "/managers/1/tags", {"add": ["new"]}, "_update_manager"),
+        (
+            "PATCH",
+            "/managers/1/tags",
+            {"add": ["new"], "remove": ["retired"]},
+            "_update_manager",
+        ),
         ("DELETE", "/managers/1", None, "delete_manager_data"),
     ],
     ids=["update", "tags", "delete"],
@@ -35,7 +40,19 @@ def test_write_outage_returns_503_and_preserves_cache(
     monkeypatch.setenv("CACHE_TTL_SECONDS", "60")
     monkeypatch.setattr(cache_module, "_CACHE_BACKEND", None)
     monkeypatch.setattr(cache_module, "_CACHE_METRICS", {})
-    existing_row = (1, "Original", None, None, "[]", "[]", "[]", "{}", "[]", None, None)
+    existing_row = (
+        1,
+        "Original",
+        None,
+        None,
+        "[]",
+        "[]",
+        '["retired", "retained"]',
+        "{}",
+        "[]",
+        None,
+        None,
+    )
     cached_values = {
         cache_module._make_cache_key("managers.item", (db_path, 1), {}): existing_row,
         cache_module._make_cache_key(
@@ -54,6 +71,8 @@ def test_write_outage_returns_503_and_preserves_cache(
     monkeypatch.setattr(managers, "invalidate_cache_prefix", invalidate)
 
     def fail(*args, **kwargs):
+        # Exactly-once cleanup must happen after the failed operation, not before it.
+        connection.close.assert_not_called()
         raise sqlite3.OperationalError("private database location /secret/outage.db")
 
     connect = Mock(side_effect=fail) if stage == "connect" else Mock(return_value=connection)
@@ -89,6 +108,13 @@ def test_write_outage_returns_503_and_preserves_cache(
         if stage == "schema":
             write.assert_not_called()
         else:
-            write.assert_called_once()
-            assert write.call_args.args[:2] == (connection, 1)
+            if method == "DELETE":
+                write.assert_called_once_with(connection, 1)
+            else:
+                expected_update = (
+                    {"tags": ["retained", "new"]} if path.endswith("/tags") else payload
+                )
+                write.assert_called_once_with(
+                    connection, 1, managers.ManagerUpdate.model_validate(expected_update)
+                )
         connection.close.assert_called_once_with()

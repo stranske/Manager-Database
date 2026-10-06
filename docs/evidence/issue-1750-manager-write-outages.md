@@ -254,3 +254,48 @@ The checklist above records verified local acceptance only. Committing the test
 and evidence changes was also blocked: `git add` could not create
 `.git/index.lock` because this workspace mounts `.git` read-only. The requested
 source/test commit remains required when Git metadata is writable.
+
+## Cleanup order and tag payload follow-up
+
+The nine HTTP cases now assert that the connection is still open when the
+injected connection, schema or write failure runs. The acquired-connection cases
+continue to assert exactly one close after the request. This detects moving the
+sole close before the database operation, which a final call-count assertion
+alone would miss.
+
+The tag request now adds `new` and removes `retired` from a cached manager whose
+tags are `retired` and `retained`. At the write-failure stage, the test verifies
+the exact update payload contains `retained` and `new`; the original cached
+item, list and count remain unchanged. Manager updates and deletions also verify
+their exact write arguments.
+
+The focused command documented above passed all 128 cases with `-m "not slow"`.
+Its coverage table reports `api/managers.py` at 82% (674/821 statements,
+82.0950060901%), matching the previous targeted measurement. No percentage target
+is claimed complete, and the historical full-suite NON_PASS result still applies.
+
+Two additional deliberate mutations changed actual production source, each using
+a fresh bytecode cache and the nine-case HTTP suite:
+
+| Actual source mutation | Failing cases | Observed assertion |
+| --- | ---: | --- |
+| Move the sole acquired-connection close before schema processing | 6 / 9 | Connection already closed at failure injection |
+| Replace merged tags with only newly added tags | 1 / 9 | Exact tag update payload differs |
+| Byte-identical restored source | 0 / 9 | All nine cases pass |
+
+The connection mutation leaves all three acquisition-failure cases passing.
+The tag mutation fails only `write-tags`, where tag merging reaches the write.
+Production bytes were restored in `finally` and retain the SHA256 recorded above.
+The companion JSON records all named-node results, the changed test's SHA256,
+targeted coverage and formatting results under
+`cleanup_order_and_tag_payload_followup`. Raw receipts were generated at
+`/tmp/manager-outage-order-gxz1dxnh`.
+
+Black formatted the changed test at line length 100. The required whole-repository
+Black check passed with 374 files unchanged using the same temporary event-loop
+workaround described above. Focused Ruff and `git diff --check` also passed.
+Local acceptance remains verified. A GitHub PR read again failed to connect to
+`api.github.com`, so remote checklist and readiness verification remain pending.
+Staging this follow-up also failed because `.git/index.lock` cannot be created
+on the read-only Git filesystem; these test and evidence changes remain
+uncommitted in the workspace.
