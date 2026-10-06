@@ -1,6 +1,12 @@
-import pathlib, subprocess, tempfile, hashlib, json
+import hashlib
+import json
+import pathlib
+import re
+import subprocess
+import tempfile
 
-p = pathlib.Path(__file__).parent
+p = pathlib.Path(tempfile.mkdtemp(prefix="1753-replay-"))
+print("Replay output:", p)
 w = pathlib.Path(__file__).resolve().parents[3]
 s = w / "api/managers.py"
 original = s.read_bytes()
@@ -9,13 +15,37 @@ out = []
 start = raw.index("async def patch_manager(")
 prefix = raw[:start]
 tail = raw[start:]
+
+
+def replace_exact(text, old, new, expected):
+    actual = text.count(old)
+    if actual != expected:
+        raise ValueError(f"mutation anchor expected {expected} matches, found {actual}")
+    return text.replace(old, new)
+
+
+def double_close(text):
+    changed, count = re.subn(r"(?m)^( +)conn.close\(\)$", r"\1conn.close()\n\1conn.close()", text)
+    if count != 10:
+        raise ValueError(f"double-close expected 10 matches, found {count}")
+    return changed
+
+
 mutations = {
     "early-close": prefix
-    + tail.replace("conn = connect_db()\n", "conn = connect_db()\n        conn.close()\n").replace(
-        "            conn.close()\n", "            pass\n"
+    + replace_exact(
+        replace_exact(
+            tail, "conn = connect_db()\n", "conn = connect_db()\n        conn.close()\n", 3
+        ),
+        "            conn.close()\n",
+        "            pass\n",
+        3,
     ),
-    "drop-retained-tags": raw.replace(
-        "merged_tags = _merge_tags(existing_tags, add_tags, remove_tags)", "merged_tags = add_tags"
+    "drop-retained-tags": replace_exact(
+        raw,
+        "merged_tags = _merge_tags(existing_tags, add_tags, remove_tags)",
+        "merged_tags = add_tags",
+        1,
     ),
 }
 try:

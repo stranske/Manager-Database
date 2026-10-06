@@ -86,9 +86,11 @@ def verify(evidence, repository):
     for name, expected in hashes.items():
         path = (evidence / name).resolve()
         require(path.is_relative_to(evidence.resolve()), "artifact outside evidence directory")
+        require(path.is_file(), f"{name}: missing or non-regular artifact")
         require(digest(path) == expected, f"{name}: SHA256 mismatch")
     for record in manifest["files"]:
         name = record["path"]
+        require(name in hashes, f"{name}: missing from hash index")
         require(record["sha256"] == hashes[name], f"{name}: conflicting provenance hashes")
         require(bool(record["provenance"]), f"{name}: missing provenance")
     require(
@@ -179,7 +181,7 @@ def main():
     args = parser.parse_args()
     try:
         result = verify(args.evidence, args.repository)
-    except (ValueError, KeyError, OSError, ET.ParseError) as exc:
+    except (ValueError, KeyError, TypeError, AttributeError, OSError, ET.ParseError) as exc:
         parser.exit(1, f"Evidence verification failed: {exc}\n")
     print(json.dumps(result, indent=2))
 

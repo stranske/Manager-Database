@@ -1,6 +1,12 @@
-import pathlib, subprocess, tempfile, hashlib, json, re
+import hashlib
+import json
+import pathlib
+import re
+import subprocess
+import tempfile
 
-p = pathlib.Path(__file__).parent
+p = pathlib.Path(tempfile.mkdtemp(prefix="1753-replay-"))
+print("Replay output:", p)
 w = pathlib.Path(__file__).resolve().parents[3]
 s = w / "api/managers.py"
 original = s.read_bytes()
@@ -9,9 +15,23 @@ out = []
 start = raw.index("async def patch_manager(")
 prefix = raw[:start]
 tail = raw[start:]
-mutations = {
-    "double-close": re.sub(r"(?m)^( +)conn.close\(\)$", r"\1conn.close()\n\1conn.close()", raw)
-}
+
+
+def replace_exact(text, old, new, expected):
+    actual = text.count(old)
+    if actual != expected:
+        raise ValueError(f"mutation anchor expected {expected} matches, found {actual}")
+    return text.replace(old, new)
+
+
+def double_close(text):
+    changed, count = re.subn(r"(?m)^( +)conn.close\(\)$", r"\1conn.close()\n\1conn.close()", text)
+    if count != 10:
+        raise ValueError(f"double-close expected 10 matches, found {count}")
+    return changed
+
+
+mutations = {"double-close": double_close(raw)}
 try:
     for name, text in mutations.items():
         assert text != raw
@@ -63,6 +83,6 @@ out.append(
         "returncode": r.returncode,
     }
 )
-(p / "1753-original-five-controls.json").write_text(json.dumps(out, indent=2))
+(p / "1753-double-control.json").write_text(json.dumps(out, indent=2))
 print(json.dumps(out))
 assert r.returncode == 0

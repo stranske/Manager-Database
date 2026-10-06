@@ -1,6 +1,12 @@
-import pathlib, subprocess, tempfile, hashlib, json, re
+import hashlib
+import json
+import pathlib
+import re
+import subprocess
+import tempfile
 
-p = pathlib.Path(__file__).parent
+p = pathlib.Path(tempfile.mkdtemp(prefix="1753-replay-"))
+print("Replay output:", p)
 w = pathlib.Path(__file__).resolve().parents[3]
 s = w / "api/managers.py"
 original = s.read_bytes()
@@ -9,20 +15,40 @@ out = []
 start = raw.index("async def patch_manager(")
 prefix = raw[:start]
 tail = raw[start:]
+
+
+def replace_exact(text, old, new, expected):
+    actual = text.count(old)
+    if actual != expected:
+        raise ValueError(f"mutation anchor expected {expected} matches, found {actual}")
+    return text.replace(old, new)
+
+
+def double_close(text):
+    changed, count = re.subn(r"(?m)^( +)conn.close\(\)$", r"\1conn.close()\n\1conn.close()", text)
+    if count != 10:
+        raise ValueError(f"double-close expected 10 matches, found {count}")
+    return changed
+
+
 mutations = {
-    "outage-status": raw.replace(
+    "outage-status": replace_exact(
+        raw,
         'status_code=503, detail="Database unavailable"',
         'status_code=500, detail="Database unavailable"',
+        1,
     ),
-    "no-close": raw.replace("            conn.close()", "            pass"),
-    "cache-invalidation": raw.replace(
+    "no-close": replace_exact(raw, "            conn.close()", "            pass", 10),
+    "cache-invalidation": replace_exact(
+        raw,
         '    logger.exception("Database error in managers API.", exc_info=exc)',
         '    invalidate_cache_prefix("managers")\n    logger.exception("Database error in managers API.", exc_info=exc)',
+        1,
     ),
-    "private-detail": raw.replace(
-        'status_code=503, detail="Database unavailable"', "status_code=503, detail=str(exc)"
+    "private-detail": replace_exact(
+        raw, 'status_code=503, detail="Database unavailable"', "status_code=503, detail=str(exc)", 1
     ),
-    "double-close": re.sub(r"(?m)^( +)conn.close\(\)$", r"\1conn.close()\n\1conn.close()", raw),
+    "double-close": double_close(raw),
 }
 try:
     for name, text in mutations.items():

@@ -1,0 +1,17 @@
+[
+  {
+    "control": "hash-index-list",
+    "exit": 1,
+    "diagnostic": "Evidence verification failed: 'list' object has no attribute 'keys'"
+  },
+  {
+    "control": "null-coverage-files",
+    "exit": 1,
+    "diagnostic": "Evidence verification failed: 'NoneType' object is not iterable"
+  },
+  {
+    "control": "missing-provenance-index",
+    "exit": 1,
+    "diagnostic": "Evidence verification failed: 1753-controls.py: missing from hash index"
+  }
+]

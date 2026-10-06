@@ -46,9 +46,12 @@ sets and coverage scopes and denominators. It exits nonzero when evidence is
 missing or inconsistent. Hash checks establish consistency with the manifest;
 they do not independently authenticate who originally produced a capture.
 
-The historical mutation scripts are retained for inspection. They edit source
-temporarily and overwrite receipts if executed in place; use an isolated checkout
-and retain its outputs separately when replaying them. The initial double-close
+The mutation scripts edit production source temporarily, assert exact anchor
+counts, and always restore its original bytes. Run them sequentially in an isolated
+checkout. Each replay writes to a unique temporary directory printed at startup;
+committed captures remain untouched. The double-close replay writes its own
+`1753-double-control.json`. [Replay safety proof](replay-safety-proof.json) retains
+complete transcripts and before/after hashes of every original evidence file. The initial double-close
 collection error was rejected; only the corrected six-assertion semantic failure
 counts as RED. The read-only verifier does not execute these scripts.
 
