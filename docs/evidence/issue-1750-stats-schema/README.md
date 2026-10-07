@@ -75,3 +75,27 @@ in its separate console capture, not inferred from that overwritten XML.
 Historical provider verdicts remain unchanged. Keepalive owns hosted checks/review;
 closer owns unchanged-head acceptance, full topology/threads, seven-minute floor,
 guarded merge and actual comparison before chunk disposition.
+
+## Portable immutable replay recovery
+
+The historical executed driver and its original hash manifest are preserved as
+`manager-mutation-driver-original.py.gz` and `manifest-original.json.gz`.
+The current driver derives this checkout from its own location, uses the active
+Python interpreter and requires a new output directory:
+
+```sh
+python docs/evidence/issue-1750-stats-schema/manager-mutation-driver.py --output /tmp/manager-stats-new-proof
+```
+
+An existing output path is refused before source is read or mutated. Each RED
+and GREEN has its own JUnit report, raw compressed log and exact argv receipt;
+bytecode caches are temporary and cleaned after each process. Importing the
+helper performs no mutation. The new replay is under `portable-replay/` and
+retains every actual four-case RED1/GREEN0 result separately from the original
+captures. Six isolated controls prove restoration on launch error, RED timeout,
+RED exits0/2 and GREEN timeout, plus refusal of existing output before source read.
+Those controls are synthetic; the four-case portable replay uses real pytest
+processes and actual production mutations. Focused Black/Ruff/diff checks pass.
+The original full-suite coverage comparison still describes the unchanged
+runtime source and four stats tests; this recovery changes only retained proof
+utility/evidence, and does not claim a new full-suite or hosted CI pass.

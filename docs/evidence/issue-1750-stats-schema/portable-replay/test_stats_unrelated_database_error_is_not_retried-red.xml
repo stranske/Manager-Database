@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.161" timestamp="2026-10-07T00:23:32.967664-05:00" hostname="server.trs.private"><testcase classname="tests.test_manager_stats_schema_fallback" name="test_stats_unrelated_database_error_is_not_retried" time="0.074"><failure message="AssertionError: Expected 'execute' to be called once. Called 2 times.&#10;Calls: [call('SELECT cik, lei, jurisdictions, tags, jurisdiction FROM managers'),&#10; call('SELECT cik, lei, jurisdictions, tags FROM managers')].">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x146bdc3e0&gt;
+
+    def test_stats_unrelated_database_error_is_not_retried(monkeypatch):
+        conn = Mock(spec=sqlite3.Connection)
+        conn.execute.side_effect = sqlite3.OperationalError("private /secret/stats.db unavailable")
+        monkeypatch.setattr(managers, "connect_db", Mock(return_value=conn))
+        monkeypatch.setattr(managers, "_ensure_manager_table", Mock())
+        response = _stats()
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+&gt;       conn.execute.assert_called_once_with(
+            "SELECT cik, lei, jurisdictions, tags, jurisdiction FROM managers"
+        )
+
+tests/test_manager_stats_schema_fallback.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Mock name='mock.execute' id='5468956448'&gt;
+args = ('SELECT cik, lei, jurisdictions, tags, jurisdiction FROM managers',)
+kwargs = {}
+
+    def assert_called_once_with(self, /, *args, **kwargs):
+        """assert that the mock was called exactly once and that that call was
+        with the specified arguments."""
+        if not self.call_count == 1:
+            msg = ("Expected '%s' to be called once. Called %s times.%s"
+                   % (self._mock_name or 'mock',
+                      self.call_count,
+                      self._calls_repr()))
+&gt;           raise AssertionError(msg)
+E           AssertionError: Expected 'execute' to be called once. Called 2 times.
+E           Calls: [call('SELECT cik, lei, jurisdictions, tags, jurisdiction FROM managers'),
+E            call('SELECT cik, lei, jurisdictions, tags FROM managers')].
+
+/opt/anaconda3/lib/python3.12/unittest/mock.py:955: AssertionError</failure></testcase></testsuite></testsuites>

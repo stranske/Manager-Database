@@ -1,0 +1,150 @@
+[
+  {
+    "case": "test_stats_current_schema_retries_missing_legacy_column",
+    "mutation": "missing-column",
+    "old": "if not missing_jurisdiction:",
+    "new": "if True:",
+    "runs": {
+      "red": {
+        "argv": [
+          "/opt/anaconda3/bin/python3",
+          "-X",
+          "pycache_prefix=/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/mdb-proof-8udurybg",
+          "-m",
+          "pytest",
+          "tests/test_manager_stats_schema_fallback.py::test_stats_current_schema_retries_missing_legacy_column",
+          "-q",
+          "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-portable-replay/test_stats_current_schema_retries_missing_legacy_column-red.xml"
+        ],
+        "exit": 1
+      },
+      "green": {
+        "argv": [
+          "/opt/anaconda3/bin/python3",
+          "-X",
+          "pycache_prefix=/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/mdb-proof-fic8dxmn",
+          "-m",
+          "pytest",
+          "tests/test_manager_stats_schema_fallback.py::test_stats_current_schema_retries_missing_legacy_column",
+          "-q",
+          "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-portable-replay/test_stats_current_schema_retries_missing_legacy_column-green.xml"
+        ],
+        "exit": 0
+      }
+    },
+    "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "mutant_sha256": "6b620f611d8f7f8e726dde7930a343599b7f6949760e27983a988dc9efa12fd6",
+    "restored_byte_identical": true
+  },
+  {
+    "case": "test_stats_legacy_jurisdiction_only_fills_empty_array[empty-array]",
+    "mutation": "legacy-fallback",
+    "old": "if not jurisdiction_values and jurisdiction_raw is not None:",
+    "new": "if False:",
+    "runs": {
+      "red": {
+        "argv": [
+          "/opt/anaconda3/bin/python3",
+          "-X",
+          "pycache_prefix=/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/mdb-proof-w7ixi1og",
+          "-m",
+          "pytest",
+          "tests/test_manager_stats_schema_fallback.py::test_stats_legacy_jurisdiction_only_fills_empty_array[empty-array]",
+          "-q",
+          "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-portable-replay/test_stats_legacy_jurisdiction_only_fills_empty_array[empty-array]-red.xml"
+        ],
+        "exit": 1
+      },
+      "green": {
+        "argv": [
+          "/opt/anaconda3/bin/python3",
+          "-X",
+          "pycache_prefix=/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/mdb-proof-xrzhxcsw",
+          "-m",
+          "pytest",
+          "tests/test_manager_stats_schema_fallback.py::test_stats_legacy_jurisdiction_only_fills_empty_array[empty-array]",
+          "-q",
+          "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-portable-replay/test_stats_legacy_jurisdiction_only_fills_empty_array[empty-array]-green.xml"
+        ],
+        "exit": 0
+      }
+    },
+    "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "mutant_sha256": "3b744947212a9c1ff183431790bf1e40ddde4d7c022e2d9147a057a8469f2dab",
+    "restored_byte_identical": true
+  },
+  {
+    "case": "test_stats_legacy_jurisdiction_only_fills_empty_array[empty-text]",
+    "mutation": "legacy-fallback",
+    "old": "if not jurisdiction_values and jurisdiction_raw is not None:",
+    "new": "if False:",
+    "runs": {
+      "red": {
+        "argv": [
+          "/opt/anaconda3/bin/python3",
+          "-X",
+          "pycache_prefix=/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/mdb-proof-euqv6r40",
+          "-m",
+          "pytest",
+          "tests/test_manager_stats_schema_fallback.py::test_stats_legacy_jurisdiction_only_fills_empty_array[empty-text]",
+          "-q",
+          "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-portable-replay/test_stats_legacy_jurisdiction_only_fills_empty_array[empty-text]-red.xml"
+        ],
+        "exit": 1
+      },
+      "green": {
+        "argv": [
+          "/opt/anaconda3/bin/python3",
+          "-X",
+          "pycache_prefix=/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/mdb-proof-by5r27y_",
+          "-m",
+          "pytest",
+          "tests/test_manager_stats_schema_fallback.py::test_stats_legacy_jurisdiction_only_fills_empty_array[empty-text]",
+          "-q",
+          "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-portable-replay/test_stats_legacy_jurisdiction_only_fills_empty_array[empty-text]-green.xml"
+        ],
+        "exit": 0
+      }
+    },
+    "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "mutant_sha256": "3b744947212a9c1ff183431790bf1e40ddde4d7c022e2d9147a057a8469f2dab",
+    "restored_byte_identical": true
+  },
+  {
+    "case": "test_stats_unrelated_database_error_is_not_retried",
+    "mutation": "unrelated-error",
+    "old": "if not missing_jurisdiction:",
+    "new": "if False:",
+    "runs": {
+      "red": {
+        "argv": [
+          "/opt/anaconda3/bin/python3",
+          "-X",
+          "pycache_prefix=/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/mdb-proof-lwoyiae5",
+          "-m",
+          "pytest",
+          "tests/test_manager_stats_schema_fallback.py::test_stats_unrelated_database_error_is_not_retried",
+          "-q",
+          "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-portable-replay/test_stats_unrelated_database_error_is_not_retried-red.xml"
+        ],
+        "exit": 1
+      },
+      "green": {
+        "argv": [
+          "/opt/anaconda3/bin/python3",
+          "-X",
+          "pycache_prefix=/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/mdb-proof-ueykfpec",
+          "-m",
+          "pytest",
+          "tests/test_manager_stats_schema_fallback.py::test_stats_unrelated_database_error_is_not_retried",
+          "-q",
+          "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-portable-replay/test_stats_unrelated_database_error_is_not_retried-green.xml"
+        ],
+        "exit": 0
+      }
+    },
+    "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "mutant_sha256": "bd6a76b3a6d1e6c09c179da0ad72a73bdae12ca36d3ad830874e786439db1ab0",
+    "restored_byte_identical": true
+  }
+]
