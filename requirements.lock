@@ -119,6 +119,7 @@ cyclopts==4.22.2
     # via prefect
 dateparser==1.4.1
     # via prefect
+defusedxml==0.7.1
 distlib==0.4.3
     # via virtualenv
 distro==1.9.0
