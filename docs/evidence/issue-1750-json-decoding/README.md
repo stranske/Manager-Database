@@ -51,7 +51,7 @@ Use a development environment with repository test dependencies and `defusedxml`
 
 ```sh
 python3 -m pytest tests/test_manager_legacy_decoding.py -q -o addopts=
-python3 docs/evidence/issue-1750-json-decoding/replay.py --output /tmp/new-manager-json-proof
+python3 docs/evidence/issue-1750-json-decoding/replay_json_boundaries.py --output /tmp/new-manager-json-proof
 ```
 
 The output directory must be new. The driver derives the checkout from its own
@@ -65,3 +65,5 @@ Merge Verify Closer owns complete expected topology, unchanged head, full active
 review-thread bodies, seven-minute review floor, guarded merge and actual
 `verify:compare` with bounded chunk disposition. Original provider NON_PASS and
 the separate existing UI-auth failures remain visible.
+
+CI correction: the new driver uses a unique module name to avoid a collision with the older evidence replay. Exact mypy 2.4.0 checking now passes that discovery boundary. It retains one identical pre-existing Playwright Page protocol error on the untouched base and candidate; this is not a full typecheck PASS. Raw hosted failure and paired local receipts are in `typecheck-correction.tar.gz`, bound by `typecheck-correction.json`. The original validation archive remains unchanged.

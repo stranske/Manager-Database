@@ -1,0 +1,28 @@
+{
+  "hosted_failure": "Duplicate module replay from new and prior evidence scripts",
+  "repair": "Rename only new driver to replay_json_boundaries.py; driver bytes unchanged; update README/current bindings",
+  "mypy_version": "2.4.0",
+  "argv": [
+    "mypy",
+    "--config-file",
+    "pyproject.toml",
+    "--exclude",
+    ".workflows-lib",
+    "."
+  ],
+  "baseline_exit": 1,
+  "candidate_exit": 1,
+  "identical_residual_errors": [
+    "scripts/capture_ui_screenshots.py:105: error: Argument 1 to \"capture_targets\" has incompatible type \"playwright.sync_api._generated.Page\"; expected \"scripts.capture_ui_screenshots.Page\"  [arg-type]"
+  ],
+  "disposition": "Duplicate module eliminated; residual scripts/capture_ui_screenshots.py:105 Playwright Page protocol error reproduced on untouched base; no local full-mypy PASS or hosted PASS claim",
+  "archive_sha256": "5fd4cb418a91be88d552617e24f221169e3aebf942970d4f4865f6ee2b102ecd",
+  "members": {
+    "Manager-1760-typecheck-hosted.log": "3a392d80d9337cedf06d034527000349e8013aaa18988def7572c7f232b7adf7",
+    "manager-mypy-setup.log": "018fe0aaf952480684474046fbe6da8b390d6e542a0770d855cf23f58d611728",
+    "manager-mypy-baseline.log": "7bc57a59a9cba4b25db99e0f6340981845819f348cf1e4e49cb26f095a627a91",
+    "manager-mypy-baseline.json": "5659000786896d301bc4e23835e7b41a09eb89cb8ea87001b2766767f4caae75",
+    "manager-mypy-correction.log": "543b94b89c44c57f1c70f5899076e981e2b8183b72bebd308469d6e8f80ca435",
+    "manager-mypy-correction.json": "1f53bbeca4dd81b3acc11ee186a6838da1edbc92d15dd0a2f34298b060ef5c2d"
+  }
+}

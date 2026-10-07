@@ -218,11 +218,13 @@
   "current_files": {
     "api/managers.py": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
     "tests/test_manager_legacy_decoding.py": "6977627dae7682451e2ac61eeb9f046a61de30ca6254c34d314448bdc8520b25",
-    "docs/evidence/issue-1750-json-decoding/README.md": "ab23b0a5a2dde66a787a3fbbc947bca7fb453a1c7cd5cdf31e74026b43cafdec",
+    "docs/evidence/issue-1750-json-decoding/README.md": "17919eff4de4190d38d89cdf3f177c4c8c9e93b3ffc31ff8b4a4275650b00ecf",
     "docs/evidence/issue-1750-json-decoding/comparison.json": "4ff6116b93a89c339adb00f586f69d779e09798139a2c08bb73a8e2bc9011c26",
-    "docs/evidence/issue-1750-json-decoding/replay.py": "355cc9bc0ff3603e9bf6730c24f917f7d69916e13fec3eaae876e6df136eb40e",
     "docs/evidence/issue-1750-json-decoding/history-500.txt.gz": "4056c149b420f5f1563bb855d3f1a0951b4ade75b29412bf97152e6719e7285f",
-    "docs/evidence/issue-1750-json-decoding/ranking.json.gz": "bae50804c0d88b263ef6413c7ce8433c6749e50d273a3855260aa8ca890cd2d4"
+    "docs/evidence/issue-1750-json-decoding/ranking.json.gz": "bae50804c0d88b263ef6413c7ce8433c6749e50d273a3855260aa8ca890cd2d4",
+    "docs/evidence/issue-1750-json-decoding/replay_json_boundaries.py": "355cc9bc0ff3603e9bf6730c24f917f7d69916e13fec3eaae876e6df136eb40e",
+    "docs/evidence/issue-1750-json-decoding/typecheck-correction.tar.gz": "5fd4cb418a91be88d552617e24f221169e3aebf942970d4f4865f6ee2b102ecd",
+    "docs/evidence/issue-1750-json-decoding/typecheck-correction.json": "6f3917f899f1f37015d131db026fb726f74139ccce5e595a02d41642fe7c6224"
   },
   "decoded_files": {
     "docs/evidence/issue-1750-json-decoding/history-500.txt.gz": {
