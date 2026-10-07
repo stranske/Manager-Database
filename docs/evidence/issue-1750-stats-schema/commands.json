@@ -1,0 +1,46 @@
+[
+  {
+    "argv": [
+      "/opt/anaconda3/bin/python3",
+      "-m",
+      "pytest",
+      "tests",
+      "-q",
+      "--cov",
+      "--cov-report=json:/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-baseline.json",
+      "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-baseline.xml"
+    ],
+    "exit": 1,
+    "capture": "manager-baseline.log.gz"
+  },
+  {
+    "argv": [
+      "/opt/anaconda3/bin/python3",
+      "-m",
+      "pytest",
+      "tests",
+      "-q",
+      "--cov",
+      "--cov-report=json:/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-candidate.json",
+      "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-candidate.xml"
+    ],
+    "exit": 1,
+    "capture": "manager-candidate.log.gz"
+  },
+  {
+    "argv": [
+      "/opt/anaconda3/bin/python3",
+      "-m",
+      "pytest",
+      "tests/test_manager_api.py",
+      "tests/test_manager_bulk_api.py",
+      "tests/test_manager_cache.py",
+      "tests/test_manager_write_failures.py",
+      "tests/test_manager_stats_schema_fallback.py",
+      "-q",
+      "--junitxml=/Users/teacher/.codex/automations/pd-workloop-resume/evidence/20261007T0501Z/manager-focused-all.xml"
+    ],
+    "exit": 0,
+    "capture": "manager-focused-all.log.gz"
+  }
+]

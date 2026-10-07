@@ -1,0 +1,518 @@
+[
+  {
+    "file": "api/managers.py",
+    "repair_subject_proxy": 9,
+    "churn": 16,
+    "missing_statements": 67
+  },
+  {
+    "file": "ui/dashboard.py",
+    "repair_subject_proxy": 5,
+    "churn": 8,
+    "missing_statements": 104
+  },
+  {
+    "file": "etl/manager_similarity_flow.py",
+    "repair_subject_proxy": 5,
+    "churn": 7,
+    "missing_statements": 3
+  },
+  {
+    "file": "etl/edgar_flow.py",
+    "repair_subject_proxy": 4,
+    "churn": 10,
+    "missing_statements": 25
+  },
+  {
+    "file": "alerts/engine.py",
+    "repair_subject_proxy": 4,
+    "churn": 8,
+    "missing_statements": 15
+  },
+  {
+    "file": "llm/client.py",
+    "repair_subject_proxy": 4,
+    "churn": 5,
+    "missing_statements": 31
+  },
+  {
+    "file": "ui/alerts.py",
+    "repair_subject_proxy": 4,
+    "churn": 4,
+    "missing_statements": 67
+  },
+  {
+    "file": "api/chat.py",
+    "repair_subject_proxy": 3,
+    "churn": 11,
+    "missing_statements": 91
+  },
+  {
+    "file": "embeddings.py",
+    "repair_subject_proxy": 3,
+    "churn": 9,
+    "missing_statements": 12
+  },
+  {
+    "file": "etl/ingest_flow.py",
+    "repair_subject_proxy": 2,
+    "churn": 8,
+    "missing_statements": 59
+  },
+  {
+    "file": "api/signals.py",
+    "repair_subject_proxy": 2,
+    "churn": 7,
+    "missing_statements": 34
+  },
+  {
+    "file": "api/activism.py",
+    "repair_subject_proxy": 2,
+    "churn": 6,
+    "missing_statements": 29
+  },
+  {
+    "file": "api/search.py",
+    "repair_subject_proxy": 2,
+    "churn": 6,
+    "missing_statements": 28
+  },
+  {
+    "file": "alerts/models.py",
+    "repair_subject_proxy": 2,
+    "churn": 4,
+    "missing_statements": 7
+  },
+  {
+    "file": "ui/__init__.py",
+    "repair_subject_proxy": 2,
+    "churn": 3,
+    "missing_statements": 17
+  },
+  {
+    "file": "adapters/insider.py",
+    "repair_subject_proxy": 2,
+    "churn": 3,
+    "missing_statements": 8
+  },
+  {
+    "file": "ui/upload.py",
+    "repair_subject_proxy": 2,
+    "churn": 2,
+    "missing_statements": 36
+  },
+  {
+    "file": "adapters/base.py",
+    "repair_subject_proxy": 1,
+    "churn": 8,
+    "missing_statements": 1
+  },
+  {
+    "file": "etl/activism_flow.py",
+    "repair_subject_proxy": 1,
+    "churn": 6,
+    "missing_statements": 20
+  },
+  {
+    "file": "adapters/edgar.py",
+    "repair_subject_proxy": 1,
+    "churn": 5,
+    "missing_statements": 47
+  },
+  {
+    "file": "etl/activism_detection.py",
+    "repair_subject_proxy": 1,
+    "churn": 5,
+    "missing_statements": 47
+  },
+  {
+    "file": "etl/conviction_flow.py",
+    "repair_subject_proxy": 1,
+    "churn": 4,
+    "missing_statements": 51
+  },
+  {
+    "file": "chains/filing_summary.py",
+    "repair_subject_proxy": 1,
+    "churn": 3,
+    "missing_statements": 37
+  },
+  {
+    "file": "chains/rag_search.py",
+    "repair_subject_proxy": 1,
+    "churn": 3,
+    "missing_statements": 26
+  },
+  {
+    "file": "ui/daily_report.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 69
+  },
+  {
+    "file": "adapters/prices.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 49
+  },
+  {
+    "file": "chains/holdings_analysis.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 30
+  },
+  {
+    "file": "alerts/db.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 29
+  },
+  {
+    "file": "api/alerts.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 19
+  },
+  {
+    "file": "etl/point_in_time.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 11
+  },
+  {
+    "file": "alembic/env.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 7
+  },
+  {
+    "file": "api/cache.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 2
+  },
+  {
+    "file": "llm/cost_tracking.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "missing_statements": 1
+  },
+  {
+    "file": "services/manager_deletion.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "missing_statements": 88
+  },
+  {
+    "file": "adapters/uk.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "missing_statements": 75
+  },
+  {
+    "file": "alerts/dispatch.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "missing_statements": 2
+  },
+  {
+    "file": "alembic/versions/023_manager_deletion_ledger.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "missing_statements": 1
+  },
+  {
+    "file": "etl/daily_diff_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 7,
+    "missing_statements": 21
+  },
+  {
+    "file": "chains/nl_query.py",
+    "repair_subject_proxy": 0,
+    "churn": 4,
+    "missing_statements": 22
+  },
+  {
+    "file": "etl/news_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 4,
+    "missing_statements": 21
+  },
+  {
+    "file": "diff_holdings.py",
+    "repair_subject_proxy": 0,
+    "churn": 4,
+    "missing_statements": 9
+  },
+  {
+    "file": "etl/digest_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "missing_statements": 33
+  },
+  {
+    "file": "etl/activism_campaign_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "missing_statements": 30
+  },
+  {
+    "file": "etl/evaluation_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "missing_statements": 27
+  },
+  {
+    "file": "config.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "missing_statements": 2
+  },
+  {
+    "file": "alembic/versions/001_canonical_schema.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "missing_statements": 16
+  },
+  {
+    "file": "api/_compat.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "missing_statements": 7
+  },
+  {
+    "file": "ui/search.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "missing_statements": 5
+  },
+  {
+    "file": "adapters/news.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 70
+  },
+  {
+    "file": "llm/evaluation.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 60
+  },
+  {
+    "file": "ui/research.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 43
+  },
+  {
+    "file": "etl/attribution_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 38
+  },
+  {
+    "file": "alerts/channels.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 31
+  },
+  {
+    "file": "etl/backtest_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 31
+  },
+  {
+    "file": "adapters/short_interest.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 29
+  },
+  {
+    "file": "etl/insider_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 15
+  },
+  {
+    "file": "adapters/openfigi.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 11
+  },
+  {
+    "file": "alerts/data_quality.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 5
+  },
+  {
+    "file": "chains/evidence.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 5
+  },
+  {
+    "file": "chains/utils.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 5
+  },
+  {
+    "file": "etl/summariser_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 5
+  },
+  {
+    "file": "alembic/versions/010_schema_sql_parity_fixes.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 4
+  },
+  {
+    "file": "adapters/asic.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 3
+  },
+  {
+    "file": "etl/short_interest_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 3
+  },
+  {
+    "file": "utils/identifiers.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 3
+  },
+  {
+    "file": "alerts/integration.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 1
+  },
+  {
+    "file": "llm/langsmith_fleet.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 1
+  },
+  {
+    "file": "ui/launch.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 1
+  },
+  {
+    "file": "utils/numeric.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "missing_statements": 1
+  },
+  {
+    "file": "profiler.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 17
+  },
+  {
+    "file": "llm/tracing.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 10
+  },
+  {
+    "file": "alerts/formatter.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 8
+  },
+  {
+    "file": "llm/injection.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 8
+  },
+  {
+    "file": "chains/__init__.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 7
+  },
+  {
+    "file": "etl/logging_setup.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 7
+  },
+  {
+    "file": "alembic/versions/007_alert_rules_history.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 4
+  },
+  {
+    "file": "api/data.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 4
+  },
+  {
+    "file": "api/handler.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 3
+  },
+  {
+    "file": "api/parser.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 3
+  },
+  {
+    "file": "alembic/versions/008_align_alert_history_schema.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 2
+  },
+  {
+    "file": "etl/uk_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 2
+  },
+  {
+    "file": "adapters/mas.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 1
+  },
+  {
+    "file": "alembic/versions/002_filings_raw_key_unique.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 1
+  },
+  {
+    "file": "alembic/versions/003_crowded_and_contrarian_tables.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 1
+  },
+  {
+    "file": "alembic/versions/005_activism_filings.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 1
+  },
+  {
+    "file": "chains/intent.py",
+    "repair_subject_proxy": 0,
+    "churn": 0,
+    "missing_statements": 1
+  }
+]

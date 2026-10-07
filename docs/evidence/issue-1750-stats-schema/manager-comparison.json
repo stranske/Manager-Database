@@ -1,0 +1,174 @@
+{
+  "baseline": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "24",
+    "skipped": "21",
+    "tests": "1841",
+    "time": "66.485",
+    "timestamp": "2026-10-07T00:05:32.268822-05:00",
+    "hostname": "server.trs.private"
+  },
+  "candidate": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "24",
+    "skipped": "21",
+    "tests": "1845",
+    "time": "60.791",
+    "timestamp": "2026-10-07T00:11:10.203430-05:00",
+    "hostname": "server.trs.private"
+  },
+  "focused": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "132",
+    "time": "1.325",
+    "timestamp": "2026-10-07T00:11:06.631310-05:00",
+    "hostname": "server.trs.private"
+  },
+  "baseline_totals": {
+    "covered_lines": 12227,
+    "num_statements": 14110,
+    "percent_covered": 86.65485471296952,
+    "percent_covered_display": "87",
+    "missing_lines": 1883,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.65485471296952,
+    "percent_statements_covered_display": "87"
+  },
+  "candidate_totals": {
+    "covered_lines": 12241,
+    "num_statements": 14110,
+    "percent_covered": 86.75407512402552,
+    "percent_covered_display": "87",
+    "missing_lines": 1869,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.75407512402552,
+    "percent_statements_covered_display": "87"
+  },
+  "baseline_managers": {
+    "covered_lines": 754,
+    "num_statements": 821,
+    "percent_covered": 91.83922046285018,
+    "percent_covered_display": "92",
+    "missing_lines": 67,
+    "excluded_lines": 4,
+    "percent_statements_covered": 91.83922046285018,
+    "percent_statements_covered_display": "92"
+  },
+  "candidate_managers": {
+    "covered_lines": 768,
+    "num_statements": 821,
+    "percent_covered": 93.54445797807551,
+    "percent_covered_display": "94",
+    "missing_lines": 53,
+    "excluded_lines": 4,
+    "percent_statements_covered": 93.54445797807551,
+    "percent_statements_covered_display": "94"
+  },
+  "same_24_failed_nodes": [
+    [
+      "tests.test_ui_auth",
+      "test_authenticator_receives_independent_secret_and_cached_hash"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_does_not_trust_cached_dev_auth[False]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_does_not_trust_cached_dev_auth[None]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_rejects_invalid_credentials[analyst-wrong-password]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_rejects_invalid_credentials[unknown-synthetic-test-password]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_renders_with_real_authenticator"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_requires_cookie_secret[                                -False]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_requires_cookie_secret[                                -True]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_requires_cookie_secret[-False]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_requires_cookie_secret[-True]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_requires_cookie_secret[None-False]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_requires_cookie_secret[None-True]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_requires_cookie_secret[short-key-False]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_configured_login_requires_cookie_secret[short-key-True]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_cookie_reauthentication_rejects_rotated_key"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_dev_mode_discards_previous_authenticated_session"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_require_login_fails_closed_without_dependency"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_require_login_preserves_blank_credential_dev_mode[   -UI_PASSWORD]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_require_login_preserves_blank_credential_dev_mode[   -UI_USERNAME]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_require_login_preserves_blank_credential_dev_mode[-UI_PASSWORD]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_require_login_preserves_blank_credential_dev_mode[-UI_USERNAME]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_require_login_preserves_blank_credential_dev_mode[None-UI_PASSWORD]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_require_login_preserves_blank_credential_dev_mode[None-UI_USERNAME]"
+    ],
+    [
+      "tests.test_ui_auth",
+      "test_valid_login_rerun_and_logout"
+    ]
+  ],
+  "identical_file_statement_exclusion_scope": true,
+  "production_byte_identical": true,
+  "production_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "base_head": "1be8228369c5f8b45e85af41acf269f7ad88657b"
+}
