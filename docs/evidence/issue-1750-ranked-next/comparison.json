@@ -1,0 +1,111 @@
+{
+  "baseline": {
+    "coverage": {
+      "covered_lines": 12241,
+      "num_statements": 14110,
+      "percent_covered": 86.75407512402552,
+      "percent_covered_display": "87",
+      "missing_lines": 1869,
+      "excluded_lines": 82,
+      "percent_statements_covered": 86.75407512402552,
+      "percent_statements_covered_display": "87"
+    },
+    "junit": {
+      "total": 1845,
+      "passed": 1800,
+      "failures": [
+        "tests.test_ui_auth::test_authenticator_receives_independent_secret_and_cached_hash",
+        "tests.test_ui_auth::test_configured_login_does_not_trust_cached_dev_auth[False]",
+        "tests.test_ui_auth::test_configured_login_does_not_trust_cached_dev_auth[None]",
+        "tests.test_ui_auth::test_configured_login_rejects_invalid_credentials[analyst-wrong-password]",
+        "tests.test_ui_auth::test_configured_login_rejects_invalid_credentials[unknown-synthetic-test-password]",
+        "tests.test_ui_auth::test_configured_login_renders_with_real_authenticator",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[                                -False]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[                                -True]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[-False]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[-True]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[None-False]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[None-True]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[short-key-False]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[short-key-True]",
+        "tests.test_ui_auth::test_cookie_reauthentication_rejects_rotated_key",
+        "tests.test_ui_auth::test_dev_mode_discards_previous_authenticated_session",
+        "tests.test_ui_auth::test_require_login_fails_closed_without_dependency",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[   -UI_PASSWORD]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[   -UI_USERNAME]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[-UI_PASSWORD]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[-UI_USERNAME]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[None-UI_PASSWORD]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[None-UI_USERNAME]",
+        "tests.test_ui_auth::test_valid_login_rerun_and_logout"
+      ],
+      "skipped": 21
+    },
+    "exit_code": 1
+  },
+  "candidate": {
+    "coverage": {
+      "covered_lines": 12242,
+      "num_statements": 14110,
+      "percent_covered": 86.7611622962438,
+      "percent_covered_display": "87",
+      "missing_lines": 1868,
+      "excluded_lines": 82,
+      "percent_statements_covered": 86.7611622962438,
+      "percent_statements_covered_display": "87"
+    },
+    "junit": {
+      "total": 1851,
+      "passed": 1806,
+      "failures": [
+        "tests.test_ui_auth::test_authenticator_receives_independent_secret_and_cached_hash",
+        "tests.test_ui_auth::test_configured_login_does_not_trust_cached_dev_auth[False]",
+        "tests.test_ui_auth::test_configured_login_does_not_trust_cached_dev_auth[None]",
+        "tests.test_ui_auth::test_configured_login_rejects_invalid_credentials[analyst-wrong-password]",
+        "tests.test_ui_auth::test_configured_login_rejects_invalid_credentials[unknown-synthetic-test-password]",
+        "tests.test_ui_auth::test_configured_login_renders_with_real_authenticator",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[                                -False]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[                                -True]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[-False]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[-True]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[None-False]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[None-True]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[short-key-False]",
+        "tests.test_ui_auth::test_configured_login_requires_cookie_secret[short-key-True]",
+        "tests.test_ui_auth::test_cookie_reauthentication_rejects_rotated_key",
+        "tests.test_ui_auth::test_dev_mode_discards_previous_authenticated_session",
+        "tests.test_ui_auth::test_require_login_fails_closed_without_dependency",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[   -UI_PASSWORD]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[   -UI_USERNAME]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[-UI_PASSWORD]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[-UI_USERNAME]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[None-UI_PASSWORD]",
+        "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[None-UI_USERNAME]",
+        "tests.test_ui_auth::test_valid_login_rerun_and_logout"
+      ],
+      "skipped": 21
+    },
+    "exit_code": 1
+  },
+  "same_source_universe_and_exclusions": true,
+  "covered_line_regressions": {},
+  "same_failing_nodes": true,
+  "production_byte_identical_to_base": true,
+  "production_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "mutation_phases": 12,
+  "actual_red_green_exits": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+  ],
+  "restored": true
+}

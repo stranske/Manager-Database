@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "/opt/anaconda3/bin/python3",
+    "-m",
+    "pytest",
+    "tests",
+    "-q",
+    "--cov",
+    "--cov-report=json:docs/evidence/issue-1750-ranked-next/baseline-coverage.json",
+    "--junitxml=docs/evidence/issue-1750-ranked-next/baseline-junit.xml"
+  ],
+  "cwd": "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-1750-ranked-next-boundaries",
+  "exit_code": null,
+  "exit_note": "Initial shell proceeded to print the log without retaining pytest status; JUnit and raw failure summary prove non-PASS. Do not claim an observed raw exit code.",
+  "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245"
+}

@@ -1,0 +1,35 @@
+[
+  {
+    "name": "black",
+    "argv": [
+      "/opt/anaconda3/bin/python3",
+      "-m",
+      "black",
+      "--check",
+      "tests/test_manager_similarity_boundaries.py",
+      "docs/evidence/issue-1750-ranked-next/replay.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "ruff",
+    "argv": [
+      "/opt/anaconda3/bin/python3",
+      "-m",
+      "ruff",
+      "check",
+      "tests/test_manager_similarity_boundaries.py",
+      "docs/evidence/issue-1750-ranked-next/replay.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "diff",
+    "argv": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0
+  }
+]

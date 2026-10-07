@@ -1,0 +1,680 @@
+[
+  {
+    "path": "api/managers.py",
+    "repair_subject_proxy": 9,
+    "churn": 16,
+    "uncovered_statements": 53
+  },
+  {
+    "path": "ui/dashboard.py",
+    "repair_subject_proxy": 5,
+    "churn": 8,
+    "uncovered_statements": 104
+  },
+  {
+    "path": "etl/manager_similarity_flow.py",
+    "repair_subject_proxy": 5,
+    "churn": 7,
+    "uncovered_statements": 3
+  },
+  {
+    "path": "etl/edgar_flow.py",
+    "repair_subject_proxy": 4,
+    "churn": 10,
+    "uncovered_statements": 25
+  },
+  {
+    "path": "alerts/engine.py",
+    "repair_subject_proxy": 4,
+    "churn": 8,
+    "uncovered_statements": 15
+  },
+  {
+    "path": "llm/client.py",
+    "repair_subject_proxy": 4,
+    "churn": 5,
+    "uncovered_statements": 31
+  },
+  {
+    "path": "ui/alerts.py",
+    "repair_subject_proxy": 4,
+    "churn": 4,
+    "uncovered_statements": 67
+  },
+  {
+    "path": "api/chat.py",
+    "repair_subject_proxy": 3,
+    "churn": 11,
+    "uncovered_statements": 91
+  },
+  {
+    "path": "embeddings.py",
+    "repair_subject_proxy": 3,
+    "churn": 9,
+    "uncovered_statements": 12
+  },
+  {
+    "path": "alembic/versions/012_manager_similarity.py",
+    "repair_subject_proxy": 3,
+    "churn": 4,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "etl/ingest_flow.py",
+    "repair_subject_proxy": 2,
+    "churn": 8,
+    "uncovered_statements": 59
+  },
+  {
+    "path": "api/signals.py",
+    "repair_subject_proxy": 2,
+    "churn": 7,
+    "uncovered_statements": 34
+  },
+  {
+    "path": "api/search.py",
+    "repair_subject_proxy": 2,
+    "churn": 6,
+    "uncovered_statements": 28
+  },
+  {
+    "path": "api/activism.py",
+    "repair_subject_proxy": 2,
+    "churn": 6,
+    "uncovered_statements": 29
+  },
+  {
+    "path": "alerts/models.py",
+    "repair_subject_proxy": 2,
+    "churn": 4,
+    "uncovered_statements": 7
+  },
+  {
+    "path": "ui/__init__.py",
+    "repair_subject_proxy": 2,
+    "churn": 3,
+    "uncovered_statements": 17
+  },
+  {
+    "path": "adapters/insider.py",
+    "repair_subject_proxy": 2,
+    "churn": 3,
+    "uncovered_statements": 8
+  },
+  {
+    "path": "ui/upload.py",
+    "repair_subject_proxy": 2,
+    "churn": 2,
+    "uncovered_statements": 36
+  },
+  {
+    "path": "adapters/base.py",
+    "repair_subject_proxy": 1,
+    "churn": 8,
+    "uncovered_statements": 1
+  },
+  {
+    "path": "etl/activism_flow.py",
+    "repair_subject_proxy": 1,
+    "churn": 6,
+    "uncovered_statements": 20
+  },
+  {
+    "path": "etl/activism_detection.py",
+    "repair_subject_proxy": 1,
+    "churn": 5,
+    "uncovered_statements": 47
+  },
+  {
+    "path": "adapters/edgar.py",
+    "repair_subject_proxy": 1,
+    "churn": 5,
+    "uncovered_statements": 47
+  },
+  {
+    "path": "etl/conviction_flow.py",
+    "repair_subject_proxy": 1,
+    "churn": 4,
+    "uncovered_statements": 51
+  },
+  {
+    "path": "chains/filing_summary.py",
+    "repair_subject_proxy": 1,
+    "churn": 3,
+    "uncovered_statements": 37
+  },
+  {
+    "path": "chains/rag_search.py",
+    "repair_subject_proxy": 1,
+    "churn": 3,
+    "uncovered_statements": 26
+  },
+  {
+    "path": "chains/holdings_analysis.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 30
+  },
+  {
+    "path": "llm/cost_tracking.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 1
+  },
+  {
+    "path": "api/alerts.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 19
+  },
+  {
+    "path": "ui/app.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "ui/daily_report.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 69
+  },
+  {
+    "path": "alerts/db.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 29
+  },
+  {
+    "path": "etl/point_in_time.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 11
+  },
+  {
+    "path": "adapters/prices.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 49
+  },
+  {
+    "path": "api/cache.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 2
+  },
+  {
+    "path": "alembic/env.py",
+    "repair_subject_proxy": 1,
+    "churn": 2,
+    "uncovered_statements": 7
+  },
+  {
+    "path": "llm/provider.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alembic/versions/023_manager_deletion_ledger.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 1
+  },
+  {
+    "path": "services/__init__.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "services/manager_deletion.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 88
+  },
+  {
+    "path": "alembic/versions/022_document_managers.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alerts/dispatch.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 2
+  },
+  {
+    "path": "alembic/versions/021_activism_documents.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alembic/versions/013_manager_similarity.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "adapters/uk.py",
+    "repair_subject_proxy": 1,
+    "churn": 1,
+    "uncovered_statements": 75
+  },
+  {
+    "path": "tools/langchain_client.py",
+    "repair_subject_proxy": 0,
+    "churn": 11,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "tools/embedding_provider.py",
+    "repair_subject_proxy": 0,
+    "churn": 9,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "etl/daily_diff_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 7,
+    "uncovered_statements": 21
+  },
+  {
+    "path": "tools/ci_failure_triage.py",
+    "repair_subject_proxy": 0,
+    "churn": 6,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "tools/llm_registry.py",
+    "repair_subject_proxy": 0,
+    "churn": 6,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "tools/evaluate_model_benchmark.py",
+    "repair_subject_proxy": 0,
+    "churn": 6,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "tools/post_ci_summary.py",
+    "repair_subject_proxy": 0,
+    "churn": 4,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "etl/news_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 4,
+    "uncovered_statements": 21
+  },
+  {
+    "path": "diff_holdings.py",
+    "repair_subject_proxy": 0,
+    "churn": 4,
+    "uncovered_statements": 9
+  },
+  {
+    "path": "chains/nl_query.py",
+    "repair_subject_proxy": 0,
+    "churn": 4,
+    "uncovered_statements": 22
+  },
+  {
+    "path": "tools/discover_model_catalog.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "tools/llm_provider.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "etl/activism_campaign_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 30
+  },
+  {
+    "path": "tools/check_model_registry_freshness.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "config.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 2
+  },
+  {
+    "path": "etl/digest_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 33
+  },
+  {
+    "path": "etl/evaluation_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 27
+  },
+  {
+    "path": "tools/__init__.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "tools/run_contract.py",
+    "repair_subject_proxy": 0,
+    "churn": 3,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "tools/coverage_guard.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "ui/search.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "uncovered_statements": 5
+  },
+  {
+    "path": "alembic/versions/001_canonical_schema.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "uncovered_statements": 16
+  },
+  {
+    "path": "api/_compat.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "uncovered_statements": 7
+  },
+  {
+    "path": "design-system/ds_streamlit.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "web/wasm_app.py",
+    "repair_subject_proxy": 0,
+    "churn": 2,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "docs/evidence/issue-1750-stats-schema/manager-mutation-driver.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "docs/evidence/issue-1750-1753-raw-proof/1753-controls.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "docs/evidence/issue-1750-1753-raw-proof/1753-double-control.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "docs/evidence/issue-1750-1753-raw-proof/1753-original-five-controls.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "docs/evidence/issue-1750-1753-raw-proof/verify.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "tools/coverage_trend.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alembic/versions/020_activism_documents.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alembic/versions/020_manager_attribution.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "etl/attribution_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 38
+  },
+  {
+    "path": "alembic/versions/019_activism_campaign_returns.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "adapters/short_interest.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 29
+  },
+  {
+    "path": "alembic/versions/018_short_interest.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "etl/short_interest_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 3
+  },
+  {
+    "path": "alembic/versions/017_manager_similarity_cosine.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alembic/versions/016_activism_campaigns.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alembic/versions/015_backtest_harness.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "etl/backtest_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 31
+  },
+  {
+    "path": "alembic/versions/014_insider_transactions.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "etl/insider_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 15
+  },
+  {
+    "path": "alembic/versions/012_bitemporal_holdings.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "utils/extract.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "adapters/news.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 70
+  },
+  {
+    "path": "alerts/__init__.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alerts/data_quality.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 5
+  },
+  {
+    "path": "alerts/integration.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 1
+  },
+  {
+    "path": "adapters/openfigi.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 11
+  },
+  {
+    "path": "alembic/versions/011_openfigi_identifier_resolution.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alembic/versions/006_activism_events.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alerts/channels.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 31
+  },
+  {
+    "path": "etl/summariser_flow.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 5
+  },
+  {
+    "path": "llm/evaluation.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 60
+  },
+  {
+    "path": "chains/utils.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 5
+  },
+  {
+    "path": "utils/identifiers.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 3
+  },
+  {
+    "path": "alembic/versions/009_chat_feedback.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "alembic/versions/010_schema_sql_parity_fixes.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 4
+  },
+  {
+    "path": "utils/numeric.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 1
+  },
+  {
+    "path": "ui/launch.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 1
+  },
+  {
+    "path": "tools/registry.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "adapters/asic.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 3
+  },
+  {
+    "path": "api/models.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "ui/research.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 43
+  },
+  {
+    "path": "chains/evidence.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 5
+  },
+  {
+    "path": "web/__init__.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 0
+  },
+  {
+    "path": "llm/langsmith_fleet.py",
+    "repair_subject_proxy": 0,
+    "churn": 1,
+    "uncovered_statements": 1
+  }
+]
