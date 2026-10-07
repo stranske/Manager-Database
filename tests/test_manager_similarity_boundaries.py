@@ -76,6 +76,20 @@ def test_similarity_discards_nonfinite_rows_before_limit(
     assert response.status_code == 200
     assert response.json() == {"items": expected}
 
+    # A negative infinity in the selected metric sorts last. A nonbinding limit
+    # ensures the invalid row cannot escape detection just by ranking below peers.
+    invalid[invalid_column] = float("-inf")
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE manager_similarity SET jaccard = ?, cosine = ? "
+            "WHERE manager_id_a = ? AND manager_id_b = ?",
+            (invalid["jaccard"], invalid["cosine"], 1, 2),
+        )
+    for limit in (1, 3):
+        response = _get(basis, limit=limit)
+        assert response.status_code == 200
+        assert response.json() == {"items": expected[:limit]}
+
 
 @pytest.mark.parametrize("stage", ["connect", "query"])
 def test_similarity_database_outage_is_sanitized_and_connection_closed(monkeypatch, stage):

@@ -47,3 +47,30 @@ Acceptance criteria verified against the tests and retained evidence:
 - [x] Tests:database errors return sanitized service-unavailable responses, with connection cleanup after query failures.
 - [x] Documentation:test results, coverage comparison, production mutation checks and artifact integrity evidence are retained.
 - [x] Documentation:existing UI authentication failures, deployment limitations and the open broader coverage initiative are recorded.
+
+## Signed infinity and checklist reconciliation
+
+The same four score cases now also store negative infinity in each selected/secondary
+metric. Requests with limit1 and a nonbinding limit3 verify that both finite peers
+survive, preserve the selected metric's ranking, and exclude the invalid row even
+when its selected score sorts last. The six named cases and production bytes are
+unchanged in count and scope.
+
+Fresh receipts in `signed-infinity/` record 6 focused passes and 76 related manager
+passes with slow tests excluded. An actual production mutation that rejects only
+positive infinity makes all four score cases fail; exact byte restoration makes
+all four pass. Console, JUnit, argv, cwd, source hashes, formatting and whitespace
+receipts are retained alongside an audit of all 91 previously committed evidence
+artifacts, the original full-suite comparison, and 24 prior mutation phases.
+
+The PR body omitted the acceptance checklist despite the verified preceding
+follow-up. `signed-infinity/pr-body.md` contains the reconciled body with all six
+acceptance checkboxes checked. Updating GitHub was blocked: the connector requires
+approval unavailable under this run's approval policy, and the CLI cannot connect
+to `api.github.com`. The remote checklist update remains a handoff action.
+
+The full-suite comparison remains the original retained measurement, with 24
+existing UI authentication failures and 21 skips in both captures; this round
+does not claim a new full-suite run or coverage increase. Deployment and live
+PostgreSQL behavior remain unverified, and the broader coverage initiative stays
+open.

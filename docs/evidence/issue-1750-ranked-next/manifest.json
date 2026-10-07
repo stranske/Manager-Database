@@ -1,8 +1,8 @@
 [
   {
     "path": "README.md",
-    "sha256": "790b9d354fa9ce98a6b2cd756dd8b6b11a0a777cc1bf24061220820e672f5d7a",
-    "bytes": 6401
+    "sha256": "c3d1385eedbeb834281b2debf7290c8bf5cb5f8c9ee1e7c27a0e29bb1f1f0056",
+    "bytes": 8020
   },
   {
     "path": "baseline-command.json",
@@ -600,6 +600,115 @@
     "bytes": 39,
     "decoded_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
     "decoded_bytes": 19
+  },
+  {
+    "path": "signed-infinity/audit.json",
+    "sha256": "f256bc5a8f8cdbae457d279a266ce11d00cb4a02af7553d265524277f33f7925",
+    "bytes": 682
+  },
+  {
+    "path": "signed-infinity/black-individual.json",
+    "sha256": "f26bfd48ae993427dc95de9409d19bf6593cd70bb0ae98364cdc16771690ab4a",
+    "bytes": 14136
+  },
+  {
+    "path": "signed-infinity/black-individual.txt.gz",
+    "sha256": "3064ec2c229574a48f45142272226bc3ab122d507cb8f6cf7f653561a6684d61",
+    "bytes": 160,
+    "decoded_sha256": "f222b09821b4fd4cb87cf1aa2e6fdfbbc18e95f67804cc3a2168c99abf8dd61f",
+    "decoded_bytes": 21010
+  },
+  {
+    "path": "signed-infinity/black.txt.gz",
+    "sha256": "fd9eb868e55f29da2a9b24ac3d1460d411230deeef0e4b7189751ad51ea9f501",
+    "bytes": 76,
+    "decoded_sha256": "a2a14179f51a32543986a5ba3e60151fc94c0f3b32f00b94cb17babcf7e671af",
+    "decoded_bytes": 58
+  },
+  {
+    "path": "signed-infinity/diff.txt.gz",
+    "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "bytes": 20,
+    "decoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "decoded_bytes": 0
+  },
+  {
+    "path": "signed-infinity/focused.txt.gz",
+    "sha256": "b8520886894980c40e118ad5cd0177a1ff44790d5e631d8ac4df9555a9f7a4d6",
+    "bytes": 474,
+    "decoded_sha256": "2199a80d3b59e5590f256443e5aa08430bdf5e9a323aeecd6a07e6be759d8f4d",
+    "decoded_bytes": 2066
+  },
+  {
+    "path": "signed-infinity/focused.xml.gz",
+    "sha256": "7b1cf6b27515b30426bfe9be73d0687aa26d7dcecf4a7f8104a80b2338dc4367",
+    "bytes": 340,
+    "decoded_sha256": "182aa0d2e70ca09c493474ac83792809e8c78130bd34d93cd56f35390b95ac0f",
+    "decoded_bytes": 1185
+  },
+  {
+    "path": "signed-infinity/mutation.json",
+    "sha256": "1c342b578b0dbe3121e793d750d6e91113a290d84763d7c59fdd411768a71a59",
+    "bytes": 392
+  },
+  {
+    "path": "signed-infinity/negative-green.txt.gz",
+    "sha256": "c3ad7168c30a14d9954ec53242247ea5a8aa12b64fccfd910e00bf13e96a29a7",
+    "bytes": 482,
+    "decoded_sha256": "a82b7c7092767889d4bc8e0a5f5a1617428303b13e669c6ed20343c6772d7ee5",
+    "decoded_bytes": 2080
+  },
+  {
+    "path": "signed-infinity/negative-green.xml.gz",
+    "sha256": "e1d79cfef28a7dda2a3426f02f2dbd05210327edaa2a3b70a6e9f1e6aef843b6",
+    "bytes": 291,
+    "decoded_sha256": "9e174db724dfef410a66f7ac83bbca1481dcb9360b335805ad216d09b9e3dc5b",
+    "decoded_bytes": 865
+  },
+  {
+    "path": "signed-infinity/negative-red.txt.gz",
+    "sha256": "ad4f70e166c4118e3eeb4e5dd0399d14df5e898e76f2e6626a829337bf6b1506",
+    "bytes": 3800,
+    "decoded_sha256": "431a2d67ac919828c0b9a7799e62286f1fbacf92f06088fcb91bc66e443f06f9",
+    "decoded_bytes": 51744
+  },
+  {
+    "path": "signed-infinity/negative-red.xml.gz",
+    "sha256": "7e48c261626e6835eac854a34adc67143975a9f4581d45972397948ec1be7bde",
+    "bytes": 3606,
+    "decoded_sha256": "3bccbc97eda9fd03d6921cf2d654ddaecd692c32b9b6d880b71651c7a1663394",
+    "decoded_bytes": 49815
+  },
+  {
+    "path": "signed-infinity/pr-body.md",
+    "sha256": "c8cd56c07ef743d77c4fd4163473dfb32a859a80eb124e79d16fda5d6d6ec841",
+    "bytes": 5370
+  },
+  {
+    "path": "signed-infinity/related.txt.gz",
+    "sha256": "6cba2c51323c1b16613c3c0c65d508fc47b62efc9d6b2353c2ca011aa58d118c",
+    "bytes": 482,
+    "decoded_sha256": "077bb32252279e6c769902e8995b3a6a9cf9836020d703a4fe10c7279d737fdc",
+    "decoded_bytes": 2147
+  },
+  {
+    "path": "signed-infinity/related.xml.gz",
+    "sha256": "9466cc264d24b4575a239788833886e26e36b8e2d738a23190bd9a70a5309ea2",
+    "bytes": 1477,
+    "decoded_sha256": "e794e17484704172c50e28a017c9faade1b51d40208ed98f5370015512e2dce0",
+    "decoded_bytes": 9719
+  },
+  {
+    "path": "signed-infinity/ruff.txt.gz",
+    "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53",
+    "bytes": 39,
+    "decoded_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "decoded_bytes": 19
+  },
+  {
+    "path": "signed-infinity/validation.json",
+    "sha256": "bf44121251f9bbd76e97480ae99baa0b92c2d346e631cd4b5769a791ff61b8de",
+    "bytes": 4115
   },
   {
     "path": "validation.json",

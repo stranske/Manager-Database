@@ -1,0 +1,16 @@
+{
+  "committed_artifacts_verified": 91,
+  "original_full_suite_comparison_verified": true,
+  "prior_mutation_phases_verified": 24,
+  "production_byte_identical_to_base": true,
+  "test_sha256": "ca1950255cad58e899005ed688c4b0f48c437d7be024d308865f2374a13dc77d",
+  "focused_passed": 6,
+  "related_passed": 76,
+  "negative_mutation_failures": 4,
+  "negative_restored_passes": 4,
+  "fresh_full_suite_run": false,
+  "pr_body_update_blocked": "Connector requires unavailable approval; CLI cannot connect to api.github.com.",
+  "workspace_git_metadata_read_only": true,
+  "commit_checkout": "/tmp/manager-similarity-followup",
+  "handoff_patch": "/tmp/manager-similarity-followup.patch"
+}
