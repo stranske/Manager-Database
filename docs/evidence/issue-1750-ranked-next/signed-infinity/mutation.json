@@ -1,0 +1,7 @@
+{
+  "before": "value is None or math.isfinite(float(value))",
+  "after": "value is None or float(value) != float(\"inf\")",
+  "original_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "mutation_sha256": "fc4c12f21b469714461cafcbd89c54c64abca5db6081dbbd87d9d0b7a5588ca9",
+  "restored_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245"
+}

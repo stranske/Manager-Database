@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "/opt/anaconda3/bin/python3",
+    "-m",
+    "pytest",
+    "tests",
+    "--ignore=tests/test_manager_similarity_boundaries.py",
+    "-q",
+    "--cov",
+    "--cov-report=json:docs/evidence/issue-1750-ranked-next/baseline-verified-coverage.json",
+    "--junitxml=docs/evidence/issue-1750-ranked-next/baseline-verified-junit.xml"
+  ],
+  "cwd": "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-1750-ranked-next-boundaries",
+  "exit_code": 1
+}

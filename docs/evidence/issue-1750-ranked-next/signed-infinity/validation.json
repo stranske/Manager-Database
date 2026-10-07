@@ -1,0 +1,143 @@
+[
+  {
+    "name": "focused",
+    "argv": [
+      "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_manager_similarity_boundaries.py",
+      "-m",
+      "not slow",
+      "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/signed-infinity/focused.xml"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0,
+    "tests": 6,
+    "failed": [],
+    "skipped": 0
+  },
+  {
+    "name": "related",
+    "argv": [
+      "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_manager_api.py",
+      "tests/test_manager_write_failures.py",
+      "tests/test_manager_stats_schema_fallback.py",
+      "tests/test_manager_similarity_boundaries.py",
+      "-m",
+      "not slow",
+      "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/signed-infinity/related.xml"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0,
+    "tests": 76,
+    "failed": [],
+    "skipped": 0
+  },
+  {
+    "name": "negative-red",
+    "argv": [
+      "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_manager_similarity_boundaries.py",
+      "-k",
+      "discards_nonfinite",
+      "-m",
+      "not slow",
+      "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/signed-infinity/negative-red.xml"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 1,
+    "tests": 4,
+    "failed": [
+      "test_similarity_discards_nonfinite_rows_before_limit[jaccard-jaccard]",
+      "test_similarity_discards_nonfinite_rows_before_limit[jaccard-cosine]",
+      "test_similarity_discards_nonfinite_rows_before_limit[cosine-jaccard]",
+      "test_similarity_discards_nonfinite_rows_before_limit[cosine-cosine]"
+    ],
+    "skipped": 0
+  },
+  {
+    "name": "negative-green",
+    "argv": [
+      "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_manager_similarity_boundaries.py",
+      "-k",
+      "discards_nonfinite",
+      "-m",
+      "not slow",
+      "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/signed-infinity/negative-green.xml"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0,
+    "tests": 4,
+    "failed": [],
+    "skipped": 0
+  },
+  {
+    "name": "black-initial-uncached",
+    "argv": [
+      "black",
+      "--check",
+      "--line-length",
+      "100",
+      "--exclude",
+      "(\\.workflows-lib|node_modules)",
+      "."
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "env": {
+      "BLACK_CACHE_DIR": "/tmp/signed-similarity-black-cache",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    },
+    "timed_out": true,
+    "timeout_seconds": 180,
+    "exit_code": null,
+    "verification_harness_exit_code": 1,
+    "recovery": "All 382 tracked Python files checked individually, then the exact repository gate passed."
+  },
+  {
+    "name": "black",
+    "argv": [
+      "black",
+      "--check",
+      "--line-length",
+      "100",
+      "--exclude",
+      "(\\.workflows-lib|node_modules)",
+      "."
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0,
+    "env": {
+      "BLACK_CACHE_DIR": "/tmp/signed-similarity-black-cache"
+    },
+    "cache_preparation": "382 tracked Python files individually checked under the same root configuration; initial uncached repository check stalled."
+  },
+  {
+    "name": "ruff",
+    "argv": [
+      "ruff",
+      "check",
+      "tests/test_manager_similarity_boundaries.py",
+      "docs/evidence/issue-1750-ranked-next/replay.py"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0
+  },
+  {
+    "name": "diff",
+    "argv": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0
+  }
+]

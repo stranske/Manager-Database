@@ -1,0 +1,52 @@
+[
+  {
+    "case": "red-failure",
+    "expected_accept": true,
+    "actual_accept": true
+  },
+  {
+    "case": "green-pass",
+    "expected_accept": true,
+    "actual_accept": true
+  },
+  {
+    "case": "red-pass",
+    "expected_accept": false,
+    "actual_accept": false
+  },
+  {
+    "case": "green-failure",
+    "expected_accept": false,
+    "actual_accept": false
+  },
+  {
+    "case": "red-error",
+    "expected_accept": false,
+    "actual_accept": false
+  },
+  {
+    "case": "green-skip",
+    "expected_accept": false,
+    "actual_accept": false
+  },
+  {
+    "case": "wrong-node",
+    "expected_accept": false,
+    "actual_accept": false
+  },
+  {
+    "case": "no-case",
+    "expected_accept": false,
+    "actual_accept": false
+  },
+  {
+    "case": "two-cases",
+    "expected_accept": false,
+    "actual_accept": false
+  },
+  {
+    "case": "failure-and-error",
+    "expected_accept": false,
+    "actual_accept": false
+  }
+]

@@ -1,0 +1,49 @@
+{
+  "original_manifest_sha256": "720f997295f96f2bea7d46642dd7f378ae0596a5284f9fc7c589c60d2361cd5f",
+  "original_artifacts_verified": 50,
+  "retained_full_suite_counts": {
+    "baseline": {
+      "passed": 1800,
+      "failed": 24,
+      "skipped": 21,
+      "exit_code": 1
+    },
+    "candidate": {
+      "passed": 1806,
+      "failed": 24,
+      "skipped": 21,
+      "exit_code": 1
+    }
+  },
+  "same_failure_inventory": true,
+  "same_statement_universe_and_exclusions": true,
+  "covered_line_regressions": {},
+  "retained_statement_coverage": {
+    "baseline": 86.75407512402552,
+    "candidate": 86.7611622962438
+  },
+  "fresh_mutation_exits": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+  ],
+  "limit_mutation_exits": [
+    1,
+    0
+  ],
+  "production_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "production_byte_identical_to_base": true,
+  "test_sha256": "1f0e40ceb367f04152e76394ab866e5f2757ef1028bfb613c9e58f383149c5cb",
+  "fresh_full_suite_run": false,
+  "deployment_readiness_established": false,
+  "broader_coverage_initiative_complete": false
+}

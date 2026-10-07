@@ -1,0 +1,44 @@
+{
+  "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "restored_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "records": [
+    {
+      "phase": "red",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py",
+        "-k",
+        "before_limit",
+        "-m",
+        "not slow",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/limit-red.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "for row in finite_rows[:limit]",
+      "mutation_after": "for row in finite_rows",
+      "phase_source_sha256": "489e934f4d3492360b5acf3981fd1fe9d14ea2c5cb2ffd2635c0a89dfab9dfed",
+      "exit_code": 1
+    },
+    {
+      "phase": "green",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py",
+        "-k",
+        "before_limit",
+        "-m",
+        "not slow",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/limit-green.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "for row in finite_rows[:limit]",
+      "mutation_after": "for row in finite_rows",
+      "phase_source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "exit_code": 0
+    }
+  ]
+}

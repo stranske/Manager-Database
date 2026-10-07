@@ -1,0 +1,138 @@
+"""Protect HTTP similarity results from non-finite rows and database outages."""
+
+import asyncio
+import sqlite3
+from typing import Any, cast
+from unittest.mock import Mock
+
+import httpx
+import pytest
+
+from api import managers
+from api.chat import app
+
+
+def _get(basis, limit=1):
+    async def request():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=cast(Any, app)), base_url="http://test"
+        ) as client:
+            return await client.get("/managers/1/similar", params={"basis": basis, "limit": limit})
+
+    return asyncio.run(request())
+
+
+@pytest.mark.parametrize("basis", ["jaccard", "cosine"])
+@pytest.mark.parametrize("invalid_column", ["jaccard", "cosine"])
+def test_similarity_discards_nonfinite_rows_before_limit(
+    tmp_path, monkeypatch, basis, invalid_column
+):
+    path = tmp_path / "similarity.db"
+    monkeypatch.setenv("DB_PATH", str(path))
+    monkeypatch.delenv("DB_URL", raising=False)
+    with sqlite3.connect(path) as conn:
+        managers._ensure_manager_table(conn)
+        conn.executemany(
+            "INSERT INTO managers(id, name) VALUES (?, ?)",
+            [(1, "One"), (2, "Two"), (3, "Three"), (4, "Four")],
+        )
+        managers.ensure_manager_similarity_table(conn)
+        invalid = {"jaccard": 0.99, "cosine": 0.99}
+        invalid[invalid_column] = float("inf")
+        conn.executemany(
+            "INSERT INTO manager_similarity "
+            "(manager_id_a, manager_id_b, jaccard, cosine, overlap_count, union_count) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (1, 2, invalid["jaccard"], invalid["cosine"], 9, 10),
+                (1, 3, 0.5, 0.6, 3, 5),
+                (1, 4, 0.7, 0.4, 7, 10),
+            ],
+        )
+    # Both finite peers survive filtering; their order depends on the selected basis.
+    three = {
+        "manager_id": 3,
+        "basis": basis,
+        "score": 0.6 if basis == "cosine" else 0.5,
+        "jaccard": 0.5,
+        "cosine": 0.6,
+        "overlap_count": 3,
+        "union_count": 5,
+    }
+    four = {
+        "manager_id": 4,
+        "basis": basis,
+        "score": 0.4 if basis == "cosine" else 0.7,
+        "jaccard": 0.7,
+        "cosine": 0.4,
+        "overlap_count": 7,
+        "union_count": 10,
+    }
+    expected = [three, four] if basis == "cosine" else [four, three]
+    response = _get(basis)
+    assert response.status_code == 200
+    assert response.json() == {"items": expected[:1]}
+    response = _get(basis, limit=2)
+    assert response.status_code == 200
+    assert response.json() == {"items": expected}
+
+    # A negative infinity in the selected metric sorts last. A nonbinding limit
+    # ensures the invalid row cannot escape detection just by ranking below peers.
+    invalid[invalid_column] = float("-inf")
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE manager_similarity SET jaccard = ?, cosine = ? "
+            "WHERE manager_id_a = ? AND manager_id_b = ?",
+            (invalid["jaccard"], invalid["cosine"], 1, 2),
+        )
+    for limit in (1, 3):
+        response = _get(basis, limit=limit)
+        assert response.status_code == 200
+        assert response.json() == {"items": expected[:limit]}
+
+
+@pytest.mark.parametrize("stage", ["connect", "query"])
+def test_similarity_database_outage_is_sanitized_and_connection_closed(monkeypatch, stage):
+    failure = sqlite3.OperationalError("private /secret/manager.db unavailable")
+    connect = Mock()
+    conn = Mock(spec=sqlite3.Connection)
+    if stage == "connect":
+        connect.side_effect = failure
+    else:
+        connect.return_value = conn
+        conn.execute.side_effect = failure
+    monkeypatch.setattr(managers, "connect_db", connect)
+    monkeypatch.setattr(managers, "_ensure_manager_table", Mock())
+    monkeypatch.setattr(managers, "_manager_id_column", Mock(return_value="id"))
+    response = _get("jaccard")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Database unavailable"}
+    connect.assert_called_once_with()
+    if stage == "connect":
+        conn.close.assert_not_called()
+    else:
+        conn.execute.assert_called_once_with("SELECT 1 FROM managers WHERE id = ?", (1,))
+        conn.close.assert_called_once_with()
+
+        # Also fail the results query after the manager lookup succeeds. Cleanup
+        # and sanitization must hold at either query boundary.
+        connect.reset_mock()
+        conn.reset_mock()
+        manager_lookup = Mock()
+        manager_lookup.fetchone.return_value = (1,)
+        conn.execute.side_effect = [manager_lookup, failure]
+        ensure_similarity = Mock()
+        monkeypatch.setattr(managers, "ensure_manager_similarity_table", ensure_similarity)
+
+        response = _get("cosine")
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+        connect.assert_called_once_with()
+        manager_lookup.fetchone.assert_called_once_with()
+        ensure_similarity.assert_called_once_with(conn)
+        assert conn.execute.call_count == 2
+        query, parameters = conn.execute.call_args.args
+        assert "FROM manager_similarity" in query
+        assert "ORDER BY cosine DESC" in query
+        assert parameters == (1, 1, 1)
+        conn.close.assert_called_once_with()

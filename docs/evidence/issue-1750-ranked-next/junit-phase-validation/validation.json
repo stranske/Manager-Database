@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-07T08:27:47.884641+00:00",
+  "actual_replay_exit": 0,
+  "phases": 12,
+  "red_failures": 6,
+  "green_passes": 6,
+  "junit_controls": 10,
+  "source_restored_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "scope": "Strict JUnit proof validation only; retained full-suite comparison unchanged"
+}
