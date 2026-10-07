@@ -96,3 +96,13 @@ is open and ready for review, but updating its body is still blocked: the GitHub
 connector requires approval unavailable under this run's `never` policy, and the
 CLI cannot connect to GitHub. Repository git metadata is also read-only, so this
 round's commit and patch are prepared in `/tmp` for handoff.
+
+## Exact JUnit phase validation (closer review4204128459)
+
+The portable replay now requires exactly one testcase matching the selected node,
+rejects testcase errors/skips, and requires RED failure versus GREEN success in
+addition to the actual exit code. Ten acceptance/rejection controls pass, including
+wrong/missing/duplicate cases and failure-plus-error. A fresh six-production-mutation
+replay produced six named RED failures and six restored GREEN passes, with byte-identical
+api/managers.py restoration. Raw console/JUnit and exact phase argv/cwd/source hashes
+are retained in junit-phase-validation/. No new full-suite or coverage claim is made.

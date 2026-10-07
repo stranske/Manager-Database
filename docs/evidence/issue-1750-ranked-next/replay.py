@@ -6,7 +6,23 @@ import json
 import os
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
+
+
+def validate_phase_junit(path, node, phase):
+    cases = ET.parse(path).getroot().findall(".//testcase")
+    if len(cases) != 1 or cases[0].get("name") != node:
+        raise RuntimeError("Unexpected JUnit testcase: " + node + " " + phase)
+    case = cases[0]
+    failed = case.find("failure") is not None
+    if (
+        case.find("error") is not None
+        or case.find("skipped") is not None
+        or failed != (phase == "red")
+    ):
+        raise RuntimeError("Unexpected JUnit outcome: " + node + " " + phase)
+    return {"name": node, "failed": failed, "errors": 0, "skipped": 0}
 
 
 def main():
@@ -97,6 +113,7 @@ def main():
                         check=False,
                     )
                 record["exit_code"] = result.returncode
+                record["junit"] = validate_phase_junit(output / (stem + ".xml"), node, phase)
                 if result.returncode != expected:
                     raise RuntimeError("Unexpected phase exit: " + node + " " + phase)
     finally:
