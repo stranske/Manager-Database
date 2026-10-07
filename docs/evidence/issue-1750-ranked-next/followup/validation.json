@@ -1,0 +1,76 @@
+[
+  {
+    "name": "focused",
+    "argv": [
+      "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_manager_similarity_boundaries.py",
+      "-m",
+      "not slow",
+      "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/focused-junit.xml"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0
+  },
+  {
+    "name": "related",
+    "argv": [
+      "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_manager_api.py",
+      "tests/test_manager_write_failures.py",
+      "tests/test_manager_stats_schema_fallback.py",
+      "tests/test_manager_similarity_boundaries.py",
+      "-m",
+      "not slow",
+      "--cov=api.managers",
+      "--cov-report=term-missing",
+      "--cov-report=json:/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/targeted-coverage.json",
+      "--cov-fail-under=0",
+      "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/related-junit.xml"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0
+  },
+  {
+    "name": "black",
+    "argv": [
+      "black",
+      "--check",
+      "--line-length",
+      "100",
+      "--exclude",
+      "(\\.workflows-lib|node_modules)",
+      "."
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0,
+    "env": {
+      "BLACK_CACHE_DIR": "/tmp/manager-similarity-black-cache"
+    },
+    "cache_preparation": "382 tracked Python files individually checked under the same root configuration; default runner cache was unwritable and multi-file formatting stalled."
+  },
+  {
+    "name": "ruff",
+    "argv": [
+      "ruff",
+      "check",
+      "tests/test_manager_similarity_boundaries.py",
+      "docs/evidence/issue-1750-ranked-next/replay.py"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0
+  },
+  {
+    "name": "diff",
+    "argv": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+    "exit_code": 0
+  }
+]

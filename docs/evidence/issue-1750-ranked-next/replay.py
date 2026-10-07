@@ -70,6 +70,8 @@ def main():
                     "pytest",
                     "tests/test_manager_similarity_boundaries.py::" + node,
                     "-q",
+                    "-m",
+                    "not slow",
                     "-o",
                     "addopts=",
                     "--junitxml=" + str(output / (stem + ".xml")),

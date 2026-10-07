@@ -12,12 +12,12 @@ from api import managers
 from api.chat import app
 
 
-def _get(basis):
+def _get(basis, limit=1):
     async def request():
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=cast(Any, app)), base_url="http://test"
         ) as client:
-            return await client.get("/managers/1/similar", params={"basis": basis, "limit": 1})
+            return await client.get("/managers/1/similar", params={"basis": basis, "limit": limit})
 
     return asyncio.run(request())
 
@@ -33,7 +33,8 @@ def test_similarity_discards_nonfinite_rows_before_limit(
     with sqlite3.connect(path) as conn:
         managers._ensure_manager_table(conn)
         conn.executemany(
-            "INSERT INTO managers(id, name) VALUES (?, ?)", [(1, "One"), (2, "Two"), (3, "Three")]
+            "INSERT INTO managers(id, name) VALUES (?, ?)",
+            [(1, "One"), (2, "Two"), (3, "Three"), (4, "Four")],
         )
         managers.ensure_manager_similarity_table(conn)
         invalid = {"jaccard": 0.99, "cosine": 0.99}
@@ -42,23 +43,38 @@ def test_similarity_discards_nonfinite_rows_before_limit(
             "INSERT INTO manager_similarity "
             "(manager_id_a, manager_id_b, jaccard, cosine, overlap_count, union_count) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            [(1, 2, invalid["jaccard"], invalid["cosine"], 9, 10), (1, 3, 0.5, 0.6, 3, 5)],
+            [
+                (1, 2, invalid["jaccard"], invalid["cosine"], 9, 10),
+                (1, 3, 0.5, 0.6, 3, 5),
+                (1, 4, 0.7, 0.4, 7, 10),
+            ],
         )
+    # Both finite peers survive filtering; their order depends on the selected basis.
+    three = {
+        "manager_id": 3,
+        "basis": basis,
+        "score": 0.6 if basis == "cosine" else 0.5,
+        "jaccard": 0.5,
+        "cosine": 0.6,
+        "overlap_count": 3,
+        "union_count": 5,
+    }
+    four = {
+        "manager_id": 4,
+        "basis": basis,
+        "score": 0.4 if basis == "cosine" else 0.7,
+        "jaccard": 0.7,
+        "cosine": 0.4,
+        "overlap_count": 7,
+        "union_count": 10,
+    }
+    expected = [three, four] if basis == "cosine" else [four, three]
     response = _get(basis)
     assert response.status_code == 200
-    assert response.json() == {
-        "items": [
-            {
-                "manager_id": 3,
-                "basis": basis,
-                "score": 0.6 if basis == "cosine" else 0.5,
-                "jaccard": 0.5,
-                "cosine": 0.6,
-                "overlap_count": 3,
-                "union_count": 5,
-            }
-        ]
-    }
+    assert response.json() == {"items": expected[:1]}
+    response = _get(basis, limit=2)
+    assert response.status_code == 200
+    assert response.json() == {"items": expected}
 
 
 @pytest.mark.parametrize("stage", ["connect", "query"])

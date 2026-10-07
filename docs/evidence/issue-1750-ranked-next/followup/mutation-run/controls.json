@@ -1,0 +1,258 @@
+{
+  "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "records": [
+    {
+      "node": "test_similarity_discards_nonfinite_rows_before_limit[jaccard-jaccard]",
+      "phase": "red",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_discards_nonfinite_rows_before_limit[jaccard-jaccard]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/0-red.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "value is None or math.isfinite(float(value))",
+      "mutation_after": "True",
+      "phase_source_sha256": "7bb7127885376d7a6ba4ae812a5a11dfe084900b774ed6dddd7ac535db52f1e6",
+      "exit_code": 1
+    },
+    {
+      "node": "test_similarity_discards_nonfinite_rows_before_limit[jaccard-jaccard]",
+      "phase": "green",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_discards_nonfinite_rows_before_limit[jaccard-jaccard]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/0-green.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "value is None or math.isfinite(float(value))",
+      "mutation_after": "True",
+      "phase_source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "exit_code": 0
+    },
+    {
+      "node": "test_similarity_discards_nonfinite_rows_before_limit[jaccard-cosine]",
+      "phase": "red",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_discards_nonfinite_rows_before_limit[jaccard-cosine]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/1-red.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "value is None or math.isfinite(float(value))",
+      "mutation_after": "True",
+      "phase_source_sha256": "7bb7127885376d7a6ba4ae812a5a11dfe084900b774ed6dddd7ac535db52f1e6",
+      "exit_code": 1
+    },
+    {
+      "node": "test_similarity_discards_nonfinite_rows_before_limit[jaccard-cosine]",
+      "phase": "green",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_discards_nonfinite_rows_before_limit[jaccard-cosine]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/1-green.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "value is None or math.isfinite(float(value))",
+      "mutation_after": "True",
+      "phase_source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "exit_code": 0
+    },
+    {
+      "node": "test_similarity_discards_nonfinite_rows_before_limit[cosine-jaccard]",
+      "phase": "red",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_discards_nonfinite_rows_before_limit[cosine-jaccard]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/2-red.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "value is None or math.isfinite(float(value))",
+      "mutation_after": "True",
+      "phase_source_sha256": "7bb7127885376d7a6ba4ae812a5a11dfe084900b774ed6dddd7ac535db52f1e6",
+      "exit_code": 1
+    },
+    {
+      "node": "test_similarity_discards_nonfinite_rows_before_limit[cosine-jaccard]",
+      "phase": "green",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_discards_nonfinite_rows_before_limit[cosine-jaccard]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/2-green.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "value is None or math.isfinite(float(value))",
+      "mutation_after": "True",
+      "phase_source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "exit_code": 0
+    },
+    {
+      "node": "test_similarity_discards_nonfinite_rows_before_limit[cosine-cosine]",
+      "phase": "red",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_discards_nonfinite_rows_before_limit[cosine-cosine]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/3-red.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "value is None or math.isfinite(float(value))",
+      "mutation_after": "True",
+      "phase_source_sha256": "7bb7127885376d7a6ba4ae812a5a11dfe084900b774ed6dddd7ac535db52f1e6",
+      "exit_code": 1
+    },
+    {
+      "node": "test_similarity_discards_nonfinite_rows_before_limit[cosine-cosine]",
+      "phase": "green",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_discards_nonfinite_rows_before_limit[cosine-cosine]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/3-green.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "value is None or math.isfinite(float(value))",
+      "mutation_after": "True",
+      "phase_source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "exit_code": 0
+    },
+    {
+      "node": "test_similarity_database_outage_is_sanitized_and_connection_closed[connect]",
+      "phase": "red",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_database_outage_is_sanitized_and_connection_closed[connect]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/4-red.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "_raise_db_unavailable(exc)",
+      "mutation_after": "raise HTTPException(status_code=500, detail=str(exc))",
+      "phase_source_sha256": "c4d0eafbda24fe7f5a2d4312aa29184ab8c4df44e7b9e99bd17992d40657393b",
+      "exit_code": 1
+    },
+    {
+      "node": "test_similarity_database_outage_is_sanitized_and_connection_closed[connect]",
+      "phase": "green",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_database_outage_is_sanitized_and_connection_closed[connect]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/4-green.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "_raise_db_unavailable(exc)",
+      "mutation_after": "raise HTTPException(status_code=500, detail=str(exc))",
+      "phase_source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "exit_code": 0
+    },
+    {
+      "node": "test_similarity_database_outage_is_sanitized_and_connection_closed[query]",
+      "phase": "red",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_database_outage_is_sanitized_and_connection_closed[query]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/5-red.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "conn.close()",
+      "mutation_after": "pass  # deliberately omit acquired connection cleanup",
+      "phase_source_sha256": "83821902a016323323ea0da564e88557cd4ec3dfd444b61a37eadb74f6cb374f",
+      "exit_code": 1
+    },
+    {
+      "node": "test_similarity_database_outage_is_sanitized_and_connection_closed[query]",
+      "phase": "green",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_database_outage_is_sanitized_and_connection_closed[query]",
+        "-q",
+        "-m",
+        "not slow",
+        "-o",
+        "addopts=",
+        "--junitxml=/home/runner/work/Manager-Database/Manager-Database/docs/evidence/issue-1750-ranked-next/followup/mutation-run/5-green.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "mutation_before": "conn.close()",
+      "mutation_after": "pass  # deliberately omit acquired connection cleanup",
+      "phase_source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "exit_code": 0
+    }
+  ],
+  "restored_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245"
+}
