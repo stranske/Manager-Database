@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.125" timestamp="2026-10-07T00:22:22.921663-05:00" hostname="server.trs.private"><testcase classname="tests.test_manager_stats_schema_fallback" name="test_stats_legacy_jurisdiction_only_fills_empty_array[empty-array]" time="0.067"><failure message="AssertionError: assert {'total_manag..._cik': 0, ...} == {'total_manag...'uk': 1}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;  {'by_jurisdiction': {'uk': 1}} != {'by_jurisdiction': {'ca': 1, 'uk': 1}}&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-1614/test_stats_legacy_jurisdiction0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x14a08e0c0&gt;
+empty = '[]'
+
+    @pytest.mark.parametrize("empty", ["[]", ""], ids=["empty-array", "empty-text"])
+    def test_stats_legacy_jurisdiction_only_fills_empty_array(tmp_path, monkeypatch, empty):
+        conn = _database(tmp_path, monkeypatch, legacy=True)
+        conn.executemany(
+            "INSERT INTO managers(name, jurisdictions, jurisdiction) VALUES (?, ?, ?)",
+            [("Fallback", empty, "  CA  "), ("Modern", '["UK"]', "US")],
+        )
+        conn.commit()
+        conn.close()
+        response = _stats()
+        assert response.status_code == 200
+&gt;       assert response.json() == {
+            "total_managers": 2,
+            "with_cik": 0,
+            "with_lei": 0,
+            "by_jurisdiction": {"ca": 1, "uk": 1},
+            "by_tag": {},
+        }
+E       AssertionError: assert {'total_manag..._cik': 0, ...} == {'total_manag...'uk': 1}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'by_jurisdiction': {'uk': 1}} != {'by_jurisdiction': {'ca': 1, 'uk': 1}}
+E         Use -v to get more diff
+
+tests/test_manager_stats_schema_fallback.py:73: AssertionError</failure></testcase></testsuite></testsuites>

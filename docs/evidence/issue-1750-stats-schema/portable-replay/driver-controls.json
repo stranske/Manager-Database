@@ -1,0 +1,36 @@
+[
+  {
+    "case": "oserror",
+    "source_restored": true,
+    "exception": "OSError",
+    "calls": 1
+  },
+  {
+    "case": "red-timeout",
+    "source_restored": true,
+    "exception": "TimeoutExpired",
+    "calls": 1
+  },
+  {
+    "case": "red-zero",
+    "source_restored": true,
+    "exception": "AssertionError",
+    "calls": 1
+  },
+  {
+    "case": "red-collection",
+    "source_restored": true,
+    "exception": "AssertionError",
+    "calls": 1
+  },
+  {
+    "case": "green-timeout",
+    "source_restored": true,
+    "exception": "TimeoutExpired",
+    "calls": 2
+  },
+  {
+    "case": "existing-output-rejected-before-source-read",
+    "prior_bytes_preserved": true
+  }
+]

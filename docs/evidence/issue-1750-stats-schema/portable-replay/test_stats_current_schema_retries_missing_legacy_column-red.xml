@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.131" timestamp="2026-10-07T00:21:49.776008-05:00" hostname="server.trs.private"><testcase classname="tests.test_manager_stats_schema_fallback" name="test_stats_current_schema_retries_missing_legacy_column" time="0.072"><failure message="assert 503 == 200&#10; +  where 503 = &lt;Response [503 Service Unavailable]&gt;.status_code">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-1612/test_stats_current_schema_retr0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16de4b5c0&gt;
+
+    def test_stats_current_schema_retries_missing_legacy_column(tmp_path, monkeypatch):
+        conn = _database(tmp_path, monkeypatch)
+        conn.executemany(
+            "INSERT INTO managers(name, cik, lei, jurisdictions, tags) VALUES (?, ?, ?, ?, ?)",
+            [
+                ("A", " 123 ", " ", '["US", "us", " UK "]', '["Value", "value"]'),
+                ("B", None, "LEI", '["uk"]', '["Growth", "value"]'),
+            ],
+        )
+        conn.commit()
+        conn.close()
+        response = _stats()
+&gt;       assert response.status_code == 200
+E       assert 503 == 200
+E        +  where 503 = &lt;Response [503 Service Unavailable]&gt;.status_code
+
+tests/test_manager_stats_schema_fallback.py:52: AssertionError</failure></testcase></testsuite></testsuites>
