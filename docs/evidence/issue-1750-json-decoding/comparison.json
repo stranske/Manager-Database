@@ -1,0 +1,98 @@
+{
+  "base": "9486daea8baa38032c226c65aabb0e900450c112",
+  "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "baseline_counts": {
+    "pass": 1806,
+    "skip": 21,
+    "fail": 24
+  },
+  "candidate_counts": {
+    "pass": 1812,
+    "skip": 21,
+    "fail": 24
+  },
+  "new_nodes": {
+    "tests.test_manager_legacy_decoding::test_array_decoder_preserves_native_values_and_rejects_wrong_json_shapes": "pass",
+    "tests.test_manager_legacy_decoding::test_array_decoder_trims_semicolon_legacy_values_and_discards_empty_parts": "pass",
+    "tests.test_manager_legacy_decoding::test_array_decoder_trims_comma_legacy_values_and_discards_empty_parts": "pass",
+    "tests.test_manager_legacy_decoding::test_registry_decoder_converts_native_keys_and_values_without_accepting_invalid_shapes": "pass",
+    "tests.test_manager_legacy_decoding::test_quality_flags_decoder_retains_only_objects_and_rejects_invalid_shapes": "pass",
+    "tests.test_manager_legacy_decoding::test_legacy_manager_row_keeps_timestamps_separate_from_quality_flags": "pass"
+  },
+  "changed_old_nodes": {},
+  "baseline_totals": {
+    "covered_lines": 12242,
+    "num_statements": 14110,
+    "percent_covered": 86.7611622962438,
+    "percent_covered_display": "87",
+    "missing_lines": 1868,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.7611622962438,
+    "percent_statements_covered_display": "87"
+  },
+  "candidate_totals": {
+    "covered_lines": 12262,
+    "num_statements": 14110,
+    "percent_covered": 86.9029057406095,
+    "percent_covered_display": "87",
+    "missing_lines": 1848,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.9029057406095,
+    "percent_statements_covered_display": "87"
+  },
+  "coverage_files": 114,
+  "covered_line_regressions": {},
+  "new_manager_lines": [
+    210,
+    212,
+    219,
+    220,
+    221,
+    222,
+    223,
+    224,
+    227,
+    232,
+    238,
+    241,
+    242,
+    245,
+    250,
+    256,
+    259,
+    260,
+    263,
+    269
+  ],
+  "existing_failures": [
+    "tests.test_ui_auth::test_configured_login_renders_with_real_authenticator",
+    "tests.test_ui_auth::test_configured_login_rejects_invalid_credentials[analyst-wrong-password]",
+    "tests.test_ui_auth::test_configured_login_rejects_invalid_credentials[unknown-synthetic-test-password]",
+    "tests.test_ui_auth::test_valid_login_rerun_and_logout",
+    "tests.test_ui_auth::test_configured_login_does_not_trust_cached_dev_auth[None]",
+    "tests.test_ui_auth::test_configured_login_does_not_trust_cached_dev_auth[False]",
+    "tests.test_ui_auth::test_require_login_fails_closed_without_dependency",
+    "tests.test_ui_auth::test_dev_mode_discards_previous_authenticated_session",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[None-False]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[None-True]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[-False]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[-True]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[                                -False]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[                                -True]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[short-key-False]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[short-key-True]",
+    "tests.test_ui_auth::test_authenticator_receives_independent_secret_and_cached_hash",
+    "tests.test_ui_auth::test_cookie_reauthentication_rejects_rotated_key",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[None-UI_USERNAME]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[None-UI_PASSWORD]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[-UI_USERNAME]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[-UI_PASSWORD]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[   -UI_USERNAME]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[   -UI_PASSWORD]"
+  ],
+  "notes": [
+    "Both complete suites exit 1 with unchanged 24 UI-auth failures and 21 skips.",
+    "No production edit or product bug found.",
+    "Repair-subject history is a prioritization proxy, not verified escaped incidents."
+  ]
+}

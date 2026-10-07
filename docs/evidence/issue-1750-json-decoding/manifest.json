@@ -1,0 +1,242 @@
+{
+  "base": "9486daea8baa38032c226c65aabb0e900450c112",
+  "archive": {
+    "file": "validation.tar.gz",
+    "sha256": "0f2cb0f60264be0dfaf5a393c842fc0f4b36f72f8628d30e67b0af351e7c0f34",
+    "bytes": 214746
+  },
+  "members": {
+    "manager-baseline-coverage.json": {
+      "sha256": "043e1ab5b6d1c690bcc09be396cfa63b649e2987ed3cbfe08983f854bff19646",
+      "bytes": 747915
+    },
+    "manager-baseline-junit.xml": {
+      "sha256": "3d51ceceaee2327d2a08170bec4a91ab24d59310f22f6864eef329cc27f5e1b7",
+      "bytes": 287493
+    },
+    "manager-baseline.json": {
+      "sha256": "3e6a60d09c835779266a539eb5ac0b200ea5dde20cfa8fd86251c504d8837387",
+      "bytes": 590
+    },
+    "manager-baseline.log": {
+      "sha256": "c2ad4ed3f51cf967df8efd10ffe697c4d0dc33b9dfa28984d4f4c2a1f988a274",
+      "bytes": 59986
+    },
+    "manager-black.log": {
+      "sha256": "61a41b3609b5c6e273f93f12abc517b60db21f181d7d30fa679ed107c8a35df4",
+      "bytes": 58
+    },
+    "manager-candidate-coverage.json": {
+      "sha256": "8c48f3cbaa775f437e310c48163940f268c813e9509b75cf2dbc5b0f274eb45e",
+      "bytes": 747835
+    },
+    "manager-candidate-junit.xml": {
+      "sha256": "2e7f1353af58d12be0a57c2d2b7e734d46200a61ac2c939ba9c5ef7aa66b50df",
+      "bytes": 288415
+    },
+    "manager-candidate.json": {
+      "sha256": "afa2cedef025befef158e05bb8cf3352beb162136786808feb0ac22120f1936a",
+      "bytes": 592
+    },
+    "manager-candidate.log": {
+      "sha256": "aac74a4059ac01aae8e5d6d30692e139d3ca34c61ed3adfa9cd149e18a3abeb7",
+      "bytes": 59987
+    },
+    "manager-comparison.json": {
+      "sha256": "4ff6116b93a89c339adb00f586f69d779e09798139a2c08bb73a8e2bc9011c26",
+      "bytes": 4434
+    },
+    "manager-mutation-controls/controls.json": {
+      "sha256": "5d894f65739d29a8667d324b18d1348fd59a93d8aa6ab4fd428851ebe759fe9e",
+      "bytes": 10425
+    },
+    "manager-mutation-controls/test_array_decoder_preserves_native_values_and_rejects_wrong_json_shapes-green.json": {
+      "sha256": "b8155e3a1551110185facab9d51f7593c39f978648c8d6e12c65e65df16c70f7",
+      "bytes": 541
+    },
+    "manager-mutation-controls/test_array_decoder_preserves_native_values_and_rejects_wrong_json_shapes-green.log": {
+      "sha256": "d9fb9d95b97cf0433c75a61485866c5d22a6067b1d1b422bacc597612e86f661",
+      "bytes": 2472
+    },
+    "manager-mutation-controls/test_array_decoder_preserves_native_values_and_rejects_wrong_json_shapes-green.xml": {
+      "sha256": "f077989d6c115e3ebef891f588d54a24b7b6c01a55c9238f60f8ac0646e58b82",
+      "bytes": 406
+    },
+    "manager-mutation-controls/test_array_decoder_preserves_native_values_and_rejects_wrong_json_shapes-red.json": {
+      "sha256": "4e9ecedf4a7508b834bddf15ecf57e23368975308a9d4d044ac3f8a86fcaf002",
+      "bytes": 539
+    },
+    "manager-mutation-controls/test_array_decoder_preserves_native_values_and_rejects_wrong_json_shapes-red.log": {
+      "sha256": "25aaff22d055687e2bd94b320e8be8a12331721413790cc50d8e655b7fe3e87e",
+      "bytes": 3209
+    },
+    "manager-mutation-controls/test_array_decoder_preserves_native_values_and_rejects_wrong_json_shapes-red.xml": {
+      "sha256": "48930c27950844645425d8a0f7061bc3915b8b537f138590367e709dbf8d99ac",
+      "bytes": 959
+    },
+    "manager-mutation-controls/test_array_decoder_trims_comma_legacy_values_and_discards_empty_parts-green.json": {
+      "sha256": "b397798e2988a64d492982791e3c037c78abbc2c3c993a5d66b59f02bda382b9",
+      "bytes": 535
+    },
+    "manager-mutation-controls/test_array_decoder_trims_comma_legacy_values_and_discards_empty_parts-green.log": {
+      "sha256": "58cd736a14a2760a25ed122f607ab2a5bd560484720195e1b600341730c1c6d1",
+      "bytes": 2472
+    },
+    "manager-mutation-controls/test_array_decoder_trims_comma_legacy_values_and_discards_empty_parts-green.xml": {
+      "sha256": "cccf923070dd8fa4b1971bb0f940136e3a9849b70e6d694fe71870e05532e521",
+      "bytes": 403
+    },
+    "manager-mutation-controls/test_array_decoder_trims_comma_legacy_values_and_discards_empty_parts-red.json": {
+      "sha256": "3e28483ea1623ca4c4edea3547c07976a3d1cfc378ba2d7611ce64f35ce50688",
+      "bytes": 533
+    },
+    "manager-mutation-controls/test_array_decoder_trims_comma_legacy_values_and_discards_empty_parts-red.log": {
+      "sha256": "4c0480551f3d6a89201e622dc662e29beae5284bf67b4c65f7244ce5b8409244",
+      "bytes": 3279
+    },
+    "manager-mutation-controls/test_array_decoder_trims_comma_legacy_values_and_discards_empty_parts-red.xml": {
+      "sha256": "bf24ccd081cfc568a796742584130bf9f85826e9d508828b97149c8b313ac588",
+      "bytes": 1089
+    },
+    "manager-mutation-controls/test_array_decoder_trims_semicolon_legacy_values_and_discards_empty_parts-green.json": {
+      "sha256": "3b87a37de18347dbcb133bde43b6ba56de4f9ed1b0c7ac89807fcc062416b8cf",
+      "bytes": 543
+    },
+    "manager-mutation-controls/test_array_decoder_trims_semicolon_legacy_values_and_discards_empty_parts-green.log": {
+      "sha256": "d9fb9d95b97cf0433c75a61485866c5d22a6067b1d1b422bacc597612e86f661",
+      "bytes": 2472
+    },
+    "manager-mutation-controls/test_array_decoder_trims_semicolon_legacy_values_and_discards_empty_parts-green.xml": {
+      "sha256": "f0be7ccfff1007e4655c5b987ee9f4794dbcba5c9c787c50d8bf9f86a74705ea",
+      "bytes": 407
+    },
+    "manager-mutation-controls/test_array_decoder_trims_semicolon_legacy_values_and_discards_empty_parts-red.json": {
+      "sha256": "697ace751dbe58884b1637c801fe57253ab299ca12c7069a3506d597b97d6b7c",
+      "bytes": 541
+    },
+    "manager-mutation-controls/test_array_decoder_trims_semicolon_legacy_values_and_discards_empty_parts-red.log": {
+      "sha256": "aa830d2170cb658d59e9cb501dfe076ac4d4b5a654cdbec4e4adce758b0a309f",
+      "bytes": 3312
+    },
+    "manager-mutation-controls/test_array_decoder_trims_semicolon_legacy_values_and_discards_empty_parts-red.xml": {
+      "sha256": "5671a5374174265426e89a282b0d5b7426da7cb1da1553f407199ecd419c8140",
+      "bytes": 1135
+    },
+    "manager-mutation-controls/test_legacy_manager_row_keeps_timestamps_separate_from_quality_flags-green.json": {
+      "sha256": "3c524e2e27cf3a5a2873d725453b5ce64457139d49443f60323f591edff9f236",
+      "bytes": 533
+    },
+    "manager-mutation-controls/test_legacy_manager_row_keeps_timestamps_separate_from_quality_flags-green.log": {
+      "sha256": "a25ab99db15eeee040ba3b419dde032c6a6222aab2c61da757c57645894bfd8a",
+      "bytes": 2472
+    },
+    "manager-mutation-controls/test_legacy_manager_row_keeps_timestamps_separate_from_quality_flags-green.xml": {
+      "sha256": "6efa6452be8f0f42a3dd342b07565eabf760d4e4a163137fbfea056db7b56c08",
+      "bytes": 402
+    },
+    "manager-mutation-controls/test_legacy_manager_row_keeps_timestamps_separate_from_quality_flags-red.json": {
+      "sha256": "00d468b82364f07a4813030e239ffef3968440d393bcd886f161cfab8e024c71",
+      "bytes": 531
+    },
+    "manager-mutation-controls/test_legacy_manager_row_keeps_timestamps_separate_from_quality_flags-red.log": {
+      "sha256": "6878609c41ccbe0167503187fad74090e62fcb26546bb97bf18c65d3d52d0c85",
+      "bytes": 3653
+    },
+    "manager-mutation-controls/test_legacy_manager_row_keeps_timestamps_separate_from_quality_flags-red.xml": {
+      "sha256": "4a3c6b38ad6f8b9cdfbb3b4aaba0ee14efe71b34dd370608a924745d583f65bd",
+      "bytes": 1562
+    },
+    "manager-mutation-controls/test_quality_flags_decoder_retains_only_objects_and_rejects_invalid_shapes-green.json": {
+      "sha256": "c6f28fa4aa2690ba2af8113d248bd9ad21dd552323b0b485ee37fb46cd1396c5",
+      "bytes": 545
+    },
+    "manager-mutation-controls/test_quality_flags_decoder_retains_only_objects_and_rejects_invalid_shapes-green.log": {
+      "sha256": "1e20bf2c47b649bf8c9cb102fd4934b68cc7880e25cb1e6ef5e74a5cb9d87fbd",
+      "bytes": 2472
+    },
+    "manager-mutation-controls/test_quality_flags_decoder_retains_only_objects_and_rejects_invalid_shapes-green.xml": {
+      "sha256": "796383decbc3c59af98d1bb0ed6fbbdd31ccc8b533bf7bf01b78f437605edfe2",
+      "bytes": 408
+    },
+    "manager-mutation-controls/test_quality_flags_decoder_retains_only_objects_and_rejects_invalid_shapes-red.json": {
+      "sha256": "d41cae80c0021dba7f9dab7613f8b1b600e789a5c4bf56fc7c1db15fe3ac5f56",
+      "bytes": 543
+    },
+    "manager-mutation-controls/test_quality_flags_decoder_retains_only_objects_and_rejects_invalid_shapes-red.log": {
+      "sha256": "ecdb188933269ba8ccace29253b1657c013e8e87c6d0e52d2b664bc33dbb9370",
+      "bytes": 3330
+    },
+    "manager-mutation-controls/test_quality_flags_decoder_retains_only_objects_and_rejects_invalid_shapes-red.xml": {
+      "sha256": "e0e7c2ab3f55121041acd39da0e30c7b020627ee59e66f9b29be573895ef5ae2",
+      "bytes": 1119
+    },
+    "manager-mutation-controls/test_registry_decoder_converts_native_keys_and_values_without_accepting_invalid_shapes-green.json": {
+      "sha256": "3b9a250abd0d188de79c581c50dd50241407c2098d781a3c4476577b4448b92d",
+      "bytes": 569
+    },
+    "manager-mutation-controls/test_registry_decoder_converts_native_keys_and_values_without_accepting_invalid_shapes-green.log": {
+      "sha256": "a25ab99db15eeee040ba3b419dde032c6a6222aab2c61da757c57645894bfd8a",
+      "bytes": 2472
+    },
+    "manager-mutation-controls/test_registry_decoder_converts_native_keys_and_values_without_accepting_invalid_shapes-green.xml": {
+      "sha256": "d468969fe04a589b4b0e903803003f0e82c508e7b8bfbbb272fed1a95c51d0ff",
+      "bytes": 420
+    },
+    "manager-mutation-controls/test_registry_decoder_converts_native_keys_and_values_without_accepting_invalid_shapes-red.json": {
+      "sha256": "61da277e059fd620f1bb4f0fec8320ecc6ea34853c502dfdc3528ec5773d011a",
+      "bytes": 567
+    },
+    "manager-mutation-controls/test_registry_decoder_converts_native_keys_and_values_without_accepting_invalid_shapes-red.log": {
+      "sha256": "ee1f5766c2d15988fdd73cec4a1c18cd0cefb9686d205529d80f74524021f266",
+      "bytes": 3285
+    },
+    "manager-mutation-controls/test_registry_decoder_converts_native_keys_and_values_without_accepting_invalid_shapes-red.xml": {
+      "sha256": "f30f92973cf5b766b975b1c9a2d5dd1e15f6d6a11a894b32f4be2bd4609cfa11",
+      "bytes": 1041
+    },
+    "manager-mutations.json": {
+      "sha256": "46af76777671ddc4dd862a8da08513d976301e90fe9b3cf52edbb7f93b8e5eae",
+      "bytes": 457
+    },
+    "manager-mutations.log": {
+      "sha256": "d770a29789cc71dac94a03279472af138ec8c84030dd402b67acf0c8bd0fc21b",
+      "bytes": 72
+    },
+    "manager-output-refusal.json": {
+      "sha256": "0c2f584fd791051fcea54d2be09da3c86bc4874aedb2821f6865640fcf3b76d0",
+      "bytes": 457
+    },
+    "manager-output-refusal.log": {
+      "sha256": "a2576ee77628934d20cb6e41d74c89d28ac015937a9e6b411ea7a3f6ec6fc99b",
+      "bytes": 676
+    },
+    "manager-ruff.log": {
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19
+    }
+  },
+  "current_files": {
+    "api/managers.py": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "tests/test_manager_legacy_decoding.py": "6977627dae7682451e2ac61eeb9f046a61de30ca6254c34d314448bdc8520b25",
+    "docs/evidence/issue-1750-json-decoding/README.md": "515c81e9a452166d33e99cf0b2fa29e77b01f2f2a1cbdd60e494e46844257a63",
+    "docs/evidence/issue-1750-json-decoding/comparison.json": "4ff6116b93a89c339adb00f586f69d779e09798139a2c08bb73a8e2bc9011c26",
+    "docs/evidence/issue-1750-json-decoding/history-500.txt.gz": "4056c149b420f5f1563bb855d3f1a0951b4ade75b29412bf97152e6719e7285f",
+    "docs/evidence/issue-1750-json-decoding/ranking.json.gz": "bae50804c0d88b263ef6413c7ce8433c6749e50d273a3855260aa8ca890cd2d4",
+    "docs/evidence/issue-1750-json-decoding/replay_json_boundaries.py": "27fa18f00bc9f6107628972df77ea084c4c8a9f04ba57dcb6605d93ee7571ed0",
+    "docs/evidence/issue-1750-json-decoding/typecheck-correction.tar.gz": "5fd4cb418a91be88d552617e24f221169e3aebf942970d4f4865f6ee2b102ecd",
+    "docs/evidence/issue-1750-json-decoding/typecheck-correction.json": "6f3917f899f1f37015d131db026fb726f74139ccce5e595a02d41642fe7c6224",
+    "docs/evidence/issue-1750-json-decoding/review-revalidation.json": "025bde5a787378e9aab9a18d7ec8a1affc00c4922564e9555a1cff07c3748f15",
+    "docs/evidence/issue-1750-json-decoding/review-revalidation.tar.gz": "afbd3e6f95a8df52596338934a50861c2959eda1f4f4e59bd8d380297f06461d",
+    "tests/test_manager_json_replay_guard.py": "8612059f0bba0320b9a611d462a34b921118c2fd4494b2e6ed359e10921f5cb0"
+  },
+  "decoded_files": {
+    "docs/evidence/issue-1750-json-decoding/history-500.txt.gz": {
+      "sha256": "42572a8d5a6ad1119711b34aec7a2de80766c43245853ce9e1b89eebd072c420",
+      "bytes": 152755
+    },
+    "docs/evidence/issue-1750-json-decoding/ranking.json.gz": {
+      "sha256": "ad1d42771a72eaad7611ae0ae8afd9b69f27d4b656a0a10ef9fa8143654332fe",
+      "bytes": 23276
+    }
+  }
+}
