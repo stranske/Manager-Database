@@ -74,3 +74,25 @@ existing UI authentication failures and 21 skips in both captures; this round
 does not claim a new full-suite run or coverage increase. Deployment and live
 PostgreSQL behavior remain unverified, and the broader coverage initiative stays
 open.
+
+## Similarity-results query outage
+
+The existing query-outage case now also lets the manager lookup succeed before
+failing the similarity-results query. It checks the sanitized 503 response and
+exactly one connection close at both query boundaries, preserving the six named
+cases. A production mutation that leaks error details only after successful
+lookup fails the added assertion; exact byte restoration passes.
+
+`query-outage/validation.json` records fresh focused and related test commands,
+targeted coverage, mutation results and formatting checks. Raw console and JUnit
+captures are stored as keyed JSON in `console.json.gz` and `junit.json.gz`.
+The preceding 108 artifacts, 24 mutation phases and original full-suite comparison
+were independently verified before extending the test. The original 24 UI-auth
+failures and 21 skips remain historical; no new full-suite run, deployment or live
+PostgreSQL validation, or completion of the broader coverage initiative is claimed.
+
+`query-outage/pr-body.md` retains the reconciled acceptance checklist. The live PR
+is open and ready for review, but updating its body is still blocked: the GitHub
+connector requires approval unavailable under this run's `never` policy, and the
+CLI cannot connect to GitHub. Repository git metadata is also read-only, so this
+round's commit and patch are prepared in `/tmp` for handoff.

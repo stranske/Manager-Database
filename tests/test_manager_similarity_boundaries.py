@@ -113,3 +113,26 @@ def test_similarity_database_outage_is_sanitized_and_connection_closed(monkeypat
     else:
         conn.execute.assert_called_once_with("SELECT 1 FROM managers WHERE id = ?", (1,))
         conn.close.assert_called_once_with()
+
+        # Also fail the results query after the manager lookup succeeds. Cleanup
+        # and sanitization must hold at either query boundary.
+        connect.reset_mock()
+        conn.reset_mock()
+        manager_lookup = Mock()
+        manager_lookup.fetchone.return_value = (1,)
+        conn.execute.side_effect = [manager_lookup, failure]
+        ensure_similarity = Mock()
+        monkeypatch.setattr(managers, "ensure_manager_similarity_table", ensure_similarity)
+
+        response = _get("cosine")
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Database unavailable"}
+        connect.assert_called_once_with()
+        manager_lookup.fetchone.assert_called_once_with()
+        ensure_similarity.assert_called_once_with(conn)
+        assert conn.execute.call_count == 2
+        query, parameters = conn.execute.call_args.args
+        assert "FROM manager_similarity" in query
+        assert "ORDER BY cosine DESC" in query
+        assert parameters == (1, 1, 1)
+        conn.close.assert_called_once_with()

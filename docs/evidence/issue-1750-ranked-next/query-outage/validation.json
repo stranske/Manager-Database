@@ -1,0 +1,163 @@
+{
+  "records": [
+    {
+      "name": "focused",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py",
+        "-m",
+        "not slow",
+        "--junitxml=/tmp/similarity-query-focused.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "exit_code": 0,
+      "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "tests": 6,
+      "failed": [],
+      "skipped": 0
+    },
+    {
+      "name": "results-query-red",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_database_outage_is_sanitized_and_connection_closed[query]",
+        "-m",
+        "not slow",
+        "--junitxml=/tmp/similarity-query-results-query-red.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "exit_code": 1,
+      "source_sha256": "d1dd3fba608b1122d831291fb74c7e004ac19318363852e154267359e92de9e9",
+      "tests": 1,
+      "failed": [
+        "test_similarity_database_outage_is_sanitized_and_connection_closed[query]"
+      ],
+      "skipped": 0
+    },
+    {
+      "name": "results-query-green",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_similarity_boundaries.py::test_similarity_database_outage_is_sanitized_and_connection_closed[query]",
+        "-m",
+        "not slow",
+        "--junitxml=/tmp/similarity-query-results-query-green.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "exit_code": 0,
+      "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+      "tests": 1,
+      "failed": [],
+      "skipped": 0
+    },
+    {
+      "name": "related-targeted-coverage",
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_manager_api.py",
+        "tests/test_manager_write_failures.py",
+        "tests/test_manager_stats_schema_fallback.py",
+        "tests/test_manager_similarity_boundaries.py",
+        "-m",
+        "not slow",
+        "--cov=api.managers",
+        "--cov-report=term-missing",
+        "--cov-report=json:/tmp/similarity-query-targeted-coverage.json",
+        "--cov-fail-under=0",
+        "--junitxml=/tmp/similarity-query-related-coverage.xml"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "exit_code": 0,
+      "tests": 76,
+      "failed": [],
+      "skipped": 0,
+      "source_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245"
+    },
+    {
+      "name": "black",
+      "argv": [
+        "black",
+        "--check",
+        "--line-length",
+        "100",
+        "--exclude",
+        "(\\.workflows-lib|node_modules)",
+        "."
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "exit_code": 0,
+      "env": {
+        "BLACK_CACHE_DIR": "/tmp/similarity-query-black-cache"
+      }
+    },
+    {
+      "name": "ruff",
+      "argv": [
+        "ruff",
+        "check",
+        "tests/test_manager_similarity_boundaries.py",
+        "docs/evidence/issue-1750-ranked-next/replay.py"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "exit_code": 0,
+      "env": {}
+    },
+    {
+      "name": "whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/home/runner/work/Manager-Database/Manager-Database",
+      "exit_code": 0,
+      "env": {}
+    }
+  ],
+  "mutation_before": "        _raise_db_unavailable(exc)",
+  "mutation_after": "        if \"score_column\" in locals():\n            raise HTTPException(status_code=503, detail=str(exc))\n        _raise_db_unavailable(exc)",
+  "restored_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "test_sha256": "9bf2179f580010a7c453aface4e2c5ad5eab8fdf5e9cb9225ad261054754857b",
+  "prior_artifacts_verified": 108,
+  "prior_mutation_phases_verified": 24,
+  "original_full_suite_comparison_verified": true,
+  "fresh_full_suite_run": false,
+  "remote_checklist_update": "Rejected: GitHub connector requires approval; run approval policy is never.",
+  "targeted_coverage": {
+    "covered_lines": 510,
+    "num_statements": 821,
+    "percent_covered": 62.119366626065776,
+    "percent_covered_display": "62",
+    "missing_lines": 311,
+    "excluded_lines": 4,
+    "percent_statements_covered": 62.119366626065776,
+    "percent_statements_covered_display": "62"
+  },
+  "targeted_coverage_note": "Manager subset only; fail-under=0 prevents applying the whole-repository threshold to a partial source/test universe. Historical complete-suite coverage comparison remains the authoritative PR measurement; no 90% goal achievement is claimed.",
+  "black_initial_attempts": {
+    "repository_check_exit": 130,
+    "tracked_batch_exit": 130,
+    "recovery": "Interrupted stalled checks. All 382 tracked files passed individually, then were checked again with a writable BLACK_CACHE_DIR to warm the cache for the exact repository command."
+  },
+  "black_individual_checks": {
+    "files": 382,
+    "all_exit_zero": true,
+    "details": "console.json.gz, key black-individual"
+  },
+  "pr_state_verified": {
+    "number": 1759,
+    "state": "open",
+    "isDraft": false,
+    "head_sha": "ecae68c3433ffc64c0ea87cda217d731e8becff6"
+  },
+  "commit_checkout": "/tmp/manager-similarity-query-outage-commit",
+  "handoff_patch": "/tmp/manager-similarity-query-outage.patch"
+}

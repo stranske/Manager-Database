@@ -1,8 +1,8 @@
 [
   {
     "path": "README.md",
-    "sha256": "c3d1385eedbeb834281b2debf7290c8bf5cb5f8c9ee1e7c27a0e29bb1f1f0056",
-    "bytes": 8020
+    "sha256": "44e7fecdcd7a7473dfd490fe616d7ec45507c02a047c03140c53a18ac2e03cda",
+    "bytes": 9391
   },
   {
     "path": "baseline-command.json",
@@ -583,6 +583,30 @@
     "path": "mutation-run/controls.json",
     "sha256": "3cf3c087b3b74a87d44a36e4afdb277d5366cdc97948a49ac5c5ecec7dcd19ab",
     "bytes": 11250
+  },
+  {
+    "path": "query-outage/console.json.gz",
+    "sha256": "a711c97f503b0cdf828b2ae935c2e2eee16596189b9c22d659a606a6df5ab022",
+    "bytes": 5621,
+    "decoded_sha256": "527354b3d66e37378a1f24c72324fad32fc01e1836bc924fa6c9e606b1c2817c",
+    "decoded_bytes": 48197
+  },
+  {
+    "path": "query-outage/junit.json.gz",
+    "sha256": "325d66cc2037c6c860ed0fdf4c17542e30d5d69827e4796443c965f07964d986",
+    "bytes": 2438,
+    "decoded_sha256": "b04f4135b0226710ab0899566e7da089240ee74c89c28789851ea3f674e089cd",
+    "decoded_bytes": 15331
+  },
+  {
+    "path": "query-outage/pr-body.md",
+    "sha256": "cebb1c79016d16694a4a721f04b615f93fe8501f29dbef2bf20906aebd13a3e7",
+    "bytes": 5504
+  },
+  {
+    "path": "query-outage/validation.json",
+    "sha256": "4207531951c07ebe616ebd648b86f6b5d61a35927629f2454a335d0547b6d2b7",
+    "bytes": 5692
   },
   {
     "path": "ranking.json",
