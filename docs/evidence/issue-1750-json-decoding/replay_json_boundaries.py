@@ -42,8 +42,8 @@ CASES = [
     ),
     (
         "test_legacy_manager_row_keeps_timestamps_separate_from_quality_flags",
-        "manager_id_raw = 0",
-        "manager_id_raw = -1",
+        "created_at_raw = row[9] if len(row) > 10 else row[8]",
+        "created_at_raw = row[9]",
     ),
 ]
 
@@ -69,6 +69,8 @@ def main():
         (tree / TEST).write_bytes((root / TEST).read_bytes())
         source = tree / SOURCE
         original = source.read_bytes()
+        if digest(original) != caller[SOURCE]:
+            raise ValueError("Archive source differs from checkout; commit source changes first")
         for name, before, after in CASES:
             assert original.decode().count(before) == 1, name
             mutant = original.decode().replace(before, after, 1).encode()
