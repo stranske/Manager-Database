@@ -1,5 +1,5 @@
 {
-  "archive_sha256": "798845856e8869110dc12825a680f623048baa3649485df34b97eac419c8e46b",
+  "archive_sha256": "26db3efd93c726a74aaad467b110cb0165c78bd506254ab9844a629cb92ab223",
   "members": {
     "api/managers.py": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
     "docs/evidence/issue-1750-legacy-schema/comparison.json": "b901d08ed4736261124fc856066b8cbb52ee5ae01a082bbe9ca0dc4c694ab94f",
@@ -49,6 +49,7 @@
     "md-mutations-v2/updated-backfill-red.xml": "59bcda27d7ab1b5b80be478e26766b5281c8767bf6830cb0f2bcceafed7494e2",
     "md-mutations/receipts.json": "569d7d93e59459de075545e524b8021e2158860657204ec07695b77fa68f3174",
     "md-ranking.json": "9173b407f13777521b157382a653e3553b09fa7334b4288cc23f2d9b60c056a3",
+    "suite-commands.json": "d11b7a57421c82a52c5e70b76740d411ceb96f03069191c00e25456fdaca3554",
     "tests/test_manager_legacy_schema.py": "63c31301a483ffb736d13b46b3af66019b56984f7b4fb06132ded809f327033c"
   }
 }

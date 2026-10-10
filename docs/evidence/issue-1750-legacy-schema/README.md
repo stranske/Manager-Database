@@ -53,7 +53,7 @@ Whole-repository Black checked 387 files; focused Ruff and whitespace checks pas
 
 `validation.tar.gz` retains lossless full-suite consoles, JUnit, coverage,
 interpreter/platform, ranking, original production/test/replay bytes, and every
-mutation phase. `archive-index.json` binds all 49 members and the archive itself.
+mutation phase. `archive-index.json` binds all 50 members and the archive itself.
 Exact argv/cwd/exits and caller/source hashes appear in final mutation receipts.
 The archived suite output paths are the original absolute evidence paths.
 
