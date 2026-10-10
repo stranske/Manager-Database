@@ -1,0 +1,169 @@
+{
+  "base": "b3f80503da92f2911d00b36920102627c7ed7792",
+  "history_window": 500,
+  "ranking_order": [
+    "repair-subject proxy descending",
+    "touches descending",
+    "uncovered statements descending"
+  ],
+  "repair_subject_regex": "fix|bug|repair|regress|recover",
+  "proxy_is_not_escaped_defect_count": true,
+  "ranked": [
+    {
+      "path": "api/managers.py",
+      "repair_proxy": 9,
+      "touches": 16,
+      "missing": 32
+    },
+    {
+      "path": "ui/dashboard.py",
+      "repair_proxy": 5,
+      "touches": 8,
+      "missing": 104
+    },
+    {
+      "path": "etl/manager_similarity_flow.py",
+      "repair_proxy": 5,
+      "touches": 7,
+      "missing": 3
+    },
+    {
+      "path": "etl/edgar_flow.py",
+      "repair_proxy": 4,
+      "touches": 10,
+      "missing": 25
+    },
+    {
+      "path": "alerts/engine.py",
+      "repair_proxy": 4,
+      "touches": 8,
+      "missing": 15
+    },
+    {
+      "path": "llm/client.py",
+      "repair_proxy": 4,
+      "touches": 5,
+      "missing": 31
+    },
+    {
+      "path": "ui/alerts.py",
+      "repair_proxy": 4,
+      "touches": 4,
+      "missing": 67
+    },
+    {
+      "path": "api/chat.py",
+      "repair_proxy": 3,
+      "touches": 11,
+      "missing": 91
+    },
+    {
+      "path": "embeddings.py",
+      "repair_proxy": 3,
+      "touches": 9,
+      "missing": 12
+    },
+    {
+      "path": "etl/ingest_flow.py",
+      "repair_proxy": 2,
+      "touches": 8,
+      "missing": 59
+    },
+    {
+      "path": "api/signals.py",
+      "repair_proxy": 2,
+      "touches": 7,
+      "missing": 34
+    },
+    {
+      "path": "api/activism.py",
+      "repair_proxy": 2,
+      "touches": 6,
+      "missing": 29
+    },
+    {
+      "path": "api/search.py",
+      "repair_proxy": 2,
+      "touches": 6,
+      "missing": 28
+    },
+    {
+      "path": "alerts/models.py",
+      "repair_proxy": 2,
+      "touches": 4,
+      "missing": 7
+    },
+    {
+      "path": "ui/__init__.py",
+      "repair_proxy": 2,
+      "touches": 3,
+      "missing": 17
+    },
+    {
+      "path": "adapters/insider.py",
+      "repair_proxy": 2,
+      "touches": 3,
+      "missing": 8
+    },
+    {
+      "path": "ui/upload.py",
+      "repair_proxy": 2,
+      "touches": 2,
+      "missing": 36
+    },
+    {
+      "path": "adapters/base.py",
+      "repair_proxy": 1,
+      "touches": 8,
+      "missing": 1
+    },
+    {
+      "path": "etl/activism_flow.py",
+      "repair_proxy": 1,
+      "touches": 6,
+      "missing": 20
+    },
+    {
+      "path": "adapters/edgar.py",
+      "repair_proxy": 1,
+      "touches": 5,
+      "missing": 47
+    }
+  ],
+  "prior_chunk": "#1760 legacy JSON decoding is merged and excluded",
+  "selected": "Four real SQLite legacy-schema migration boundaries, no production edit",
+  "baseline_production_missing_lines": [
+    195,
+    314,
+    318,
+    320,
+    321,
+    325,
+    326,
+    330,
+    406,
+    461,
+    469,
+    503,
+    504,
+    514,
+    596,
+    602,
+    639,
+    706,
+    837,
+    838,
+    839,
+    847,
+    1079,
+    1096,
+    1106,
+    1310,
+    1311,
+    1436,
+    1519,
+    1520,
+    1792,
+    1862
+  ]
+}

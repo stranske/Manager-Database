@@ -1,0 +1,83 @@
+{
+  "baseline_counts": {
+    "skipped": 21,
+    "failed": 24,
+    "passed": 1813
+  },
+  "candidate_counts": {
+    "skipped": 21,
+    "failed": 24,
+    "passed": 1817
+  },
+  "old_outcomes_identical": true,
+  "source_file_count": 115,
+  "baseline_totals": {
+    "covered_lines": 12297,
+    "num_statements": 14172,
+    "percent_covered": 86.7696867061812,
+    "percent_covered_display": "87",
+    "missing_lines": 1875,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.7696867061812,
+    "percent_statements_covered_display": "87"
+  },
+  "candidate_totals": {
+    "covered_lines": 12304,
+    "num_statements": 14172,
+    "percent_covered": 86.81907987581145,
+    "percent_covered_display": "87",
+    "missing_lines": 1868,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.81907987581145,
+    "percent_statements_covered_display": "87"
+  },
+  "newly_covered_lines": [
+    [
+      "api/managers.py",
+      [
+        195,
+        314,
+        318,
+        320,
+        321,
+        325,
+        326
+      ]
+    ]
+  ],
+  "lost_covered_lines": [],
+  "unchanged_source_universe_exclusions_statements": true,
+  "full_suite_exit_codes": [
+    1,
+    1
+  ],
+  "known_failures": [
+    "tests.test_ui_auth::test_configured_login_renders_with_real_authenticator",
+    "tests.test_ui_auth::test_configured_login_rejects_invalid_credentials[analyst-wrong-password]",
+    "tests.test_ui_auth::test_configured_login_rejects_invalid_credentials[unknown-synthetic-test-password]",
+    "tests.test_ui_auth::test_valid_login_rerun_and_logout",
+    "tests.test_ui_auth::test_configured_login_does_not_trust_cached_dev_auth[None]",
+    "tests.test_ui_auth::test_configured_login_does_not_trust_cached_dev_auth[False]",
+    "tests.test_ui_auth::test_require_login_fails_closed_without_dependency",
+    "tests.test_ui_auth::test_dev_mode_discards_previous_authenticated_session",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[None-False]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[None-True]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[-False]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[-True]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[                                -False]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[                                -True]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[short-key-False]",
+    "tests.test_ui_auth::test_configured_login_requires_cookie_secret[short-key-True]",
+    "tests.test_ui_auth::test_authenticator_receives_independent_secret_and_cached_hash",
+    "tests.test_ui_auth::test_cookie_reauthentication_rejects_rotated_key",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[None-UI_USERNAME]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[None-UI_PASSWORD]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[-UI_USERNAME]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[-UI_PASSWORD]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[   -UI_USERNAME]",
+    "tests.test_ui_auth::test_require_login_preserves_blank_credential_dev_mode[   -UI_PASSWORD]"
+  ],
+  "production_sha256": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+  "mutation_pairs": 4,
+  "scope": "SQLite only; no PostgreSQL/deployment/full-suite PASS/repository90 claim"
+}
