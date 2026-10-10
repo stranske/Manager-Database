@@ -25,7 +25,7 @@ def test_universe_upgrade_adds_missing_identifiers_and_native_json_defaults(lega
     row = conn.execute(
         "SELECT id, name, cik, jurisdiction, jurisdictions, quality_flags FROM managers"
     ).fetchone()
-    assert row == (7, "Legacy manager", None, None, "[]", "[]")
+    assert row == (7, "Legacy manager", None, None, "[]", "[]"), "legacy JSON defaults changed"
     assert json.loads(row[4]) == []
     indexes = {row[1] for row in conn.execute("PRAGMA index_list(managers)")}
     assert {"idx_managers_cik_unique", "idx_managers_trimmed_cik"} <= indexes
@@ -39,7 +39,7 @@ def test_universe_upgrade_backfills_created_at_without_rewriting_updated_at(lega
     conn.execute("INSERT INTO managers VALUES (7, 'Legacy manager', '2001-02-03 04:05:06')")
     managers._ensure_universe_schema(conn)
     created, updated = conn.execute("SELECT created_at, updated_at FROM managers").fetchone()
-    assert created is not None
+    assert created is not None, "legacy created_at backfill missing"
     assert conn.execute("SELECT datetime(?)", (created,)).fetchone()[0] == created
     assert updated == "2001-02-03 04:05:06"
 
@@ -52,7 +52,7 @@ def test_universe_upgrade_backfills_updated_at_without_rewriting_created_at(lega
     conn.execute("INSERT INTO managers VALUES (7, 'Legacy manager', '2001-02-03 04:05:06')")
     managers._ensure_universe_schema(conn)
     created, updated = conn.execute("SELECT created_at, updated_at FROM managers").fetchone()
-    assert updated is not None
+    assert updated is not None, "legacy updated_at backfill missing"
     assert conn.execute("SELECT datetime(?)", (updated,)).fetchone()[0] == updated
     assert created == "2001-02-03 04:05:06"
 
@@ -74,5 +74,9 @@ def test_universe_upgrade_is_idempotent_and_enforces_cik_uniqueness(legacy_conne
     assert (
         conn.execute("SELECT type, name, sql FROM sqlite_master ORDER BY name").fetchall() == schema
     )
+    assert any(
+        row[1] == "idx_managers_cik_unique" and row[2] == 1
+        for row in conn.execute("PRAGMA index_list(managers)")
+    ), "legacy CIK uniqueness index missing"
     with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed"):
         conn.execute("INSERT INTO managers (name, cik) VALUES ('Duplicate', '0000000007')")

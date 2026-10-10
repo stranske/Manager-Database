@@ -37,6 +37,12 @@ CASES = [
         '        conn.execute("SELECT 1")\n',
     ),
 ]
+EXPECTED_FAILURES = {
+    "json-default": "AssertionError: legacy JSON defaults changed",
+    "created-backfill": "AssertionError: legacy created_at backfill missing",
+    "updated-backfill": "AssertionError: legacy updated_at backfill missing",
+    "unique-index": "AssertionError: legacy CIK uniqueness index missing",
+}
 
 
 def digest(data):
@@ -70,6 +76,9 @@ def run_case(output, name, node, phase):
         and not bad
         and len(failed) == expected
     )
+    if phase == "red" and valid:
+        message = failed[0].find("failure").get("message", "")
+        valid = message.splitlines()[:1] == [EXPECTED_FAILURES[name]]
     return {
         "mutation": name,
         "phase": phase,

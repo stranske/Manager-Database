@@ -1,0 +1,39 @@
+{
+  "created_at": "2026-10-10T16:01:46.426336+00:00",
+  "archive_sha256": "de102f0eb0c83ad462051b8824f9bd463f4ba1a82796f03d994ae07a92b3e93c",
+  "members": {
+    "md-review-red.xml": "e58e281f00f1852d1677037be31e4000b2617a93b1e5c00e3f6e63302703a7e7",
+    "md-review-red.txt": "6c9a58240bd8ea45999b699ef857df6b969a937cbb2f852096b0098fd640c652",
+    "md-review-green.xml": "0ab7f44199eb40cd0dc7270a5f18fdb4cca58f172a3e7a2e4120fa0266d42bd6",
+    "md-review-replay.txt": "6a055f5d418f4aeab8fdc8c0c5f4981b07ccfcbfc0dec12d71841e5b2f2fe021",
+    "md-review-green.txt": "e6d11d331fa2901b8f844fe3474116d9bcb77358b7e01c880f3ae8116e765ec4",
+    "md-restoration-red.xml": "dba6f76f7ceb1b2055d789eed055077e7b013a6ffb9d281f3a4f4a620c342e96",
+    "md-restoration-green.xml": "9c5179203516cdc56ca750c473b3be1242ea0027ee1b9f4921db1ffb8a935f78",
+    "md-restoration-controls.json": "926195c9eba6346253cb516fbbc668db38c3ff6c87ecf5128eaacfd1e3229913",
+    "md-restoration-red.txt": "972e6cf250b874833eca875fb4d4ea9612c5ee8b8e2f953ac56f4df20dafc645",
+    "md-restoration-green.txt": "502ac01698d21aca9495175e41124f3ee5b25678fb45f733b8a8108721741239",
+    "md-review-replay/json-default-red.txt": "14f7576052b724e81249ce51a786cd801cb36e09cf787428761211a66da6e805",
+    "md-review-replay/json-default-green.txt": "95de8016a1d8f9406b66a2d594ecef2d3b11b3dabd9513acb1a55484c370797b",
+    "md-review-replay/unique-index-green.xml": "939354f1c4070808889c68bdb8733997a3046edf4ea5bd2dac7ce1513c667ab4",
+    "md-review-replay/created-backfill-red.xml": "e68cbf4aefdbc4d341141f4ca1c5082153b26169e87959bf008ed1f2fe8e50d0",
+    "md-review-replay/json-default-red.xml": "8e39080f20b9be8469f0eeae1f466e609bc808b3e9709b1397a3cb47ecd99905",
+    "md-review-replay/json-default-green.xml": "005004d82d173f2f4f1e6d598ba63fbddadbbc0360a9b49b1bf75e593f3ab22f",
+    "md-review-replay/unique-index-green.txt": "95de8016a1d8f9406b66a2d594ecef2d3b11b3dabd9513acb1a55484c370797b",
+    "md-review-replay/created-backfill-red.txt": "634d39d2a0ce974d6105550d88173fa4992975b268aa898fa1c7338d3a1eb619",
+    "md-review-replay/receipts.json": "0c4272dca3fd0aaa46906a4dc4de065bd5fad75204b2ead4abcb2ca8f804beaf",
+    "md-review-replay/updated-backfill-green.txt": "3999f55cbfa207c7068677af6f11005e72174afe110294c3cec0d1e749dbe3ff",
+    "md-review-replay/created-backfill-green.xml": "d489c42116e923b522a7afc45c75649b979a38f2e5a3251563f1432c4f22557e",
+    "md-review-replay/unique-index-red.txt": "4697d31bd3168e33fa4b67461221832a81a91c7ba8e83c4dc7bdfcd66e7bc312",
+    "md-review-replay/updated-backfill-red.xml": "723466594da6c4331f4000fc66b022f7d9408e2da8d0b293aa805e446b341df0",
+    "md-review-replay/created-backfill-green.txt": "74f7cc4881d3f40514e57ea6457c1f2819148fe93893bbaff12c378e04d4f5b8",
+    "md-review-replay/updated-backfill-green.xml": "79fa3dfdcf168529c4fd9283dcd6a4c3699a196687bfd86e4534781a9b4a3df2",
+    "md-review-replay/unique-index-red.xml": "57294e8c5cd600bb5cb76edc616524b0deaa537d9a6a75c43ac6bfaf7bc51492",
+    "md-review-replay/updated-backfill-red.txt": "e0f7b7b195ab010307d7dc9443d92dac8976c57b67c26bee79cb61a01425950a"
+  },
+  "current_bindings": {
+    "api/managers.py": "401a4591cd8965308f5ccffaf2d95144f2fd190a114e223cf3bccd77c0ff8245",
+    "tests/test_manager_legacy_schema.py": "e22be097302b82d01b754d44901975d2f836921bb8f2b1607d09d95607c1e626",
+    "tests/test_manager_schema_replay.py": "93e94cb0d5999907ec8e8ed3998c57b4244c62f4f7ee2744dcf3c24ec55cdab7",
+    "docs/evidence/issue-1750-legacy-schema/replay_schema_boundaries.py": "3ba1106d43ba0b4a034889dcacd62ef12b746b55a0112f024175bc28930486f5"
+  }
+}
