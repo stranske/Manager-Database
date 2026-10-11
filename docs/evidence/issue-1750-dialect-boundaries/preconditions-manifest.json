@@ -1,0 +1,43 @@
+{
+  "schema": "manager-dialect-preconditions/v1",
+  "focused_passes": 81,
+  "new_checks": 30,
+  "production_unchanged": true,
+  "full_suite_and_coverage": "historical original archive; not rerun",
+  "broader_issue_1750": "OPEN below 90%",
+  "pr_checkbox_update": "connector rejected: requires approval under never policy",
+  "archive_sha256": "b8c5d7cc660eb70dbd40552de461f6edea7c2dae4f7e390086c50a14de7f4789",
+  "archive_members": {
+    "black-ordinary.json": "084152583286bde2faa3912621e55aa062ddf94e077c0cdc752f1c07c8a2412e",
+    "black-ordinary.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "black-runtime/sitecustomize.py": "74cf2b6847e49af2d0985b86693848935ae4c5a67abdd1db11be08e95f3d7df7",
+    "black.json": "fc0674b91d2bec4e8b0a358a86b97a1da37bdf9cc2d3c87396fd1e716545672d",
+    "black.log": "580c08241ccaad75b49a81dd4a4205b5cc8f4467a738472c15b91fb6353c7242",
+    "diff.json": "9785d5b1fccc604702fcc65db47018c81777e21afee2a759144d38b7f0b5d1c4",
+    "diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "focused.json": "ad1665812e8961359284837f84b25cf970bc8de75de5e28cd066d2279cdbafdf",
+    "focused.log": "735fdc8b810d92df09aba5431ef72724404791588f961acafd4ad25b89d9f2f6",
+    "focused.xml": "1c6068e1129135f020a3ca5918d366b050caf5c9d30fdc694c2ec6c814887e33",
+    "historical-verification.json": "4591d0a3781125aa123c241cb0cd798c22ac638f99a31b20ea94d844c10f34d8",
+    "mypy.json": "d83536a10e46dc26ee8c28e5cf65170624112501bdcb46ca9916d360ffa377ec",
+    "mypy.log": "050c52a2b0c61e8b681ef5c485e0bc03340b8d55148e0acef27d744c8be42033",
+    "reconciled-pr-body.md": "14c356a3ced7b7a0eb9818db35ee073a1e8ed91c233b017cc41af9247405c1b8",
+    "ruff.json": "ca343aee327c200166c89b951f15d0f2fcc90f523ba5bae4904ea14eb9a46245",
+    "ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "run_checks.py": "6a196a3a6d1c6747c1c00ec22f1cf8dcf36528e9986185727b9bfe158ef33184",
+    "snapshots/preconditions.md": "735257e2df21347961a0bd8e819246848e59852c0cbbb06c3a608cafe4aab0e2",
+    "snapshots/test_manager_dialect_replay_preconditions.py": "2c81be66fef0e1df16d9e4d31f9e2f4cdf52a6cee226552ba7de3589335e0115"
+  },
+  "current_inputs": {
+    "tests/test_manager_dialect_replay_preconditions.py": "2c81be66fef0e1df16d9e4d31f9e2f4cdf52a6cee226552ba7de3589335e0115",
+    "docs/evidence/issue-1750-dialect-boundaries/preconditions.md": "735257e2df21347961a0bd8e819246848e59852c0cbbb06c3a608cafe4aab0e2",
+    "api/managers.py": "51d52e5042bbe8ae4a7ea66cf56952dbdf515a16a42c4b7fdc10528479c276c3",
+    "tests/test_manager_dialect_boundaries.py": "cbe6e2e7539b4e3d28a2c43313c90c6bc8d7b3f9966bf356714713097947ff05",
+    "tests/test_manager_dialect_replay_guard.py": "1489a694ff2497c890aa549ae003cfc55e3360b4eb0344d7a8b152aed1474c49",
+    "docs/evidence/issue-1750-dialect-boundaries/replay_dialect_boundaries.py": "ccae1698af6db29b17fa95b18e0973b37d7ac548a4840f0ff560d5db0168487e",
+    "docs/evidence/issue-1750-dialect-boundaries/manifest.json": "8c59dd6b4d105229ff3c97968fb7749d77f2b3bc34134a3ee5406b017610d521",
+    "docs/evidence/issue-1750-dialect-boundaries/acceptance-manifest.json": "f17a5f5677b2c7c97fd270ae45d1d1949b4db383eb0de7717cf5406237e78a33",
+    "docs/evidence/issue-1750-dialect-boundaries/replay-evidence-manifest.json": "a40cb5fdde7d75861cf313950b114503c1a550fad9afdc5e8dd9e438b60904ce",
+    "docs/evidence/issue-1750-dialect-boundaries/interruptions-manifest.json": "4afe388074baa63f4a0138e5df1e52a0890b3c6012419d89d241c822ef406414"
+  }
+}
