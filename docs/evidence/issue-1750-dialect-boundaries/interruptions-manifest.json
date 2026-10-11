@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "focused_passes": 51,
+  "new_checks": 18,
+  "production_unchanged": true,
+  "archive_sha256": "bf5be3823ef4c9e3bed379d598b93e3f7bb2ad877a53ab174edd5ab1c37757e4",
+  "archive_members": {
+    "black-ordinary.json": "385a82654b0ff8e46422cb219345789d12329c45542dc461cfdd73e3b80e59d9",
+    "black-ordinary.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "black-runtime/sitecustomize.py": "74cf2b6847e49af2d0985b86693848935ae4c5a67abdd1db11be08e95f3d7df7",
+    "black.json": "ea8106c40002ea20bb15fc48ce9aa8d7068a87f00dfea8097321eb4ac678436d",
+    "black.log": "1fe0b4b7526937d0c696b329109ca221cf45fdc4ca5c71675d55a63b7f6037d3",
+    "focused.xml": "f347dccab74d0de9aa75f138647a20a2ab8aac3ab33ebfc02efdbfab77869c58",
+    "historical-verification.json": "40e19fce2dfef93c64dea2deb13947b0c733bb91bf16bf5bc2580bd6b0a92b69",
+    "test_manager_dialect_replay_interruptions.py": "ebaf6012bb0778f3830bcca71197a850f37e43ccb7f9fc2666609ca99d9a20ab"
+  },
+  "current_inputs": {
+    "tests/test_manager_dialect_replay_interruptions.py": "ebaf6012bb0778f3830bcca71197a850f37e43ccb7f9fc2666609ca99d9a20ab",
+    "api/managers.py": "51d52e5042bbe8ae4a7ea66cf56952dbdf515a16a42c4b7fdc10528479c276c3",
+    "tests/test_manager_dialect_boundaries.py": "cbe6e2e7539b4e3d28a2c43313c90c6bc8d7b3f9966bf356714713097947ff05",
+    "tests/test_manager_dialect_replay_guard.py": "1489a694ff2497c890aa549ae003cfc55e3360b4eb0344d7a8b152aed1474c49",
+    "docs/evidence/issue-1750-dialect-boundaries/replay_dialect_boundaries.py": "ccae1698af6db29b17fa95b18e0973b37d7ac548a4840f0ff560d5db0168487e"
+  }
+}
