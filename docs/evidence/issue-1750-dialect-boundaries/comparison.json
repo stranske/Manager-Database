@@ -1,0 +1,72 @@
+{
+  "base_commit": "fb45b95caeb56c0f9eeb13818c895fd52c9ae3ef",
+  "baseline": {
+    "PASS": 1875,
+    "SKIP": 21,
+    "FAIL": 24
+  },
+  "candidate": {
+    "PASS": 1881,
+    "SKIP": 21,
+    "FAIL": 24
+  },
+  "unchanged_old_outcomes": 1920,
+  "new_nodes": {
+    "tests.test_manager_dialect_boundaries::test_postgres_array_filters_keep_values_in_parameters": "PASS",
+    "tests.test_manager_dialect_boundaries::test_postgres_universe_upsert_preserves_native_array_and_conflict_update": "PASS",
+    "tests.test_manager_dialect_boundaries::test_postgres_insert_missing_returned_identity_is_zero": "PASS",
+    "tests.test_manager_dialect_boundaries::test_postgres_registry_update_uses_jsonb_cast_and_serialized_parameter": "PASS",
+    "tests.test_manager_dialect_boundaries::test_postgres_conflict_update_preserves_old_flags_with_jsonb_cast": "PASS",
+    "tests.test_manager_dialect_boundaries::test_count_missing_aggregate_row_is_zero_without_cache": "PASS"
+  },
+  "covered_lines_before": 12376,
+  "covered_lines_after": 12384,
+  "statements": 14243,
+  "excluded_lines": 82,
+  "percent_before": 86.8918065014393,
+  "percent_after": 86.94797444358632,
+  "source_files": 116,
+  "source_universe_unchanged": true,
+  "covered_line_regressions": [],
+  "new_covered_lines": [
+    [
+      "api/managers.py",
+      514
+    ],
+    [
+      "api/managers.py",
+      461
+    ],
+    [
+      "api/managers.py",
+      596
+    ],
+    [
+      "api/managers.py",
+      406
+    ],
+    [
+      "api/managers.py",
+      503
+    ],
+    [
+      "api/managers.py",
+      504
+    ],
+    [
+      "api/managers.py",
+      602
+    ],
+    [
+      "api/managers.py",
+      639
+    ]
+  ],
+  "production_sha256": "51d52e5042bbe8ae4a7ea66cf56952dbdf515a16a42c4b7fdc10528479c276c3",
+  "limitations": [
+    "24 existing UI/auth failures remain; full commands both exit1",
+    "RecordingConnection checks generated SQL and adapter parameters only; no live PostgreSQL or deployed API execution",
+    "Local Python3.12.2 installed environment; hosted dependency parity not claimed",
+    "Broad source1750 remains OPEN below90%"
+  ]
+}
