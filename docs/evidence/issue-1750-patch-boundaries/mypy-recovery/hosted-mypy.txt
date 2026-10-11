@@ -1,0 +1,854 @@
+Python CI / typecheck-mypy	UNKNOWN STEP	﻿2026-10-11T13:30:00.7282516Z Current runner version: '2.337.0'
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7308908Z ##[group]Runner Image Provisioner
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7309831Z Hosted Compute Agent
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7310450Z Version: 20261002.596
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7311394Z Commit: c3d12f3313a95f25162a1503be624f3b0617f8c0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7312189Z Build Date: 2026-10-02T22:28:27Z
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7312898Z Worker ID: {e4ea984d-cde4-4d3c-928a-1b8f6264b463}
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7313742Z Region: eastus
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7314341Z Cloud: Azure
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7314963Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7316465Z ##[group]Operating System
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7317115Z Ubuntu
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7317782Z 24.04.5
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7318302Z LTS
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7318889Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7319455Z ##[group]Runner Image
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7320049Z Image: ubuntu-24.04
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7320720Z Version: 20261004.327.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7322539Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261004.327/images/ubuntu/Ubuntu2404-Readme.md
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7324229Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261004.327
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7325168Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7326426Z ##[group]GITHUB_TOKEN Permissions
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7328763Z Contents: read
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7329429Z Metadata: read
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7329988Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7332758Z Secret source: Actions
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7333716Z Cache mode: write
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7334743Z Prepare workflow directory
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7918213Z Prepare all required actions
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:00.7968879Z Getting action download info
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.0283245Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.1336264Z Download action repository 'actions/setup-python@v7' (SHA:5fda3b95a4ea91299a34e894583c3862153e4b97)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.2133886Z Download action repository 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.3025904Z Download action repository 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9' (SHA:55cc8345863c7cc4c66a329aec7e433d2d1c52a9)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5203124Z Uses: stranske/Workflows/.github/workflows/reusable-10-ci-python.yml@refs/heads/main (c15e5eb8e588e3a36e1941bf8384913f09e01d52)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5208278Z ##[group] Inputs
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5208824Z   working-directory: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5209322Z   workflows_ref: main
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5209806Z   python-version: 3.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5210307Z   python-versions: ["3.12", "3.13"]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5210858Z   changed-files-json: []
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5212086Z   force-full: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5212600Z   primary-python-version: 3.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5213120Z   marker: 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5213548Z   pytest_markers: not nightly
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5214054Z   pytest_args: 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5214482Z   coverage-min: 75
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5214941Z   lint: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5215377Z   format_check: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5215832Z   typecheck: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5216274Z   run-mypy: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5216714Z   coverage: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5217143Z   cache: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5217582Z   enable-metrics: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5218052Z   slow-test-top: 15
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5218507Z   slow-test-min-seconds: 1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5219004Z   enable-history: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5219490Z   enable-classification: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5220066Z   history-artifact-name: metrics-history.ndjson
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5220681Z   enable-coverage-delta: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5221371Z   baseline-coverage: 0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5221863Z   coverage-alert-drop: 1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5222363Z   fail-on-coverage-drop: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5222895Z   coverage-drop-label: coverage-drop
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5223436Z   enable-soft-gate: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5223919Z   artifact-prefix: gate-
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5224690Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.5225441Z Complete job name: Python CI / typecheck-mypy
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6051906Z ##[group]Run actions/checkout@v7
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6052892Z with:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6053324Z   submodules: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6053786Z   fetch-depth: 1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6054264Z   repository: stranske/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6058133Z   token: ***
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6058566Z   ssh-strict: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6059005Z   ssh-user: git
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6059451Z   persist-credentials: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6059934Z   clean: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6060384Z   sparse-checkout-cone-mode: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6060906Z   fetch-tags: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6061560Z   show-progress: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6062009Z   lfs: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6062433Z   set-safe-directory: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6062944Z   allow-unsafe-pr-checkout: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6063704Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6064105Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6064696Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6065604Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.6066269Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7089089Z Syncing repository: stranske/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7091558Z ##[group]Getting Git version info
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7092413Z Working directory is '/home/runner/work/Manager-Database/Manager-Database'
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7093583Z [command]/usr/bin/git version
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7164332Z git version 2.55.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7187235Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7198216Z Temporarily overriding HOME='/home/runner/work/_temp/c68e1165-77a7-4f52-b267-2a0e214c8bbb' before making global git config changes
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7200633Z Adding repository directory to the temporary git global config as a safe directory
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7204926Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7256870Z Deleting the contents of '/home/runner/work/Manager-Database/Manager-Database'
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7260878Z ##[group]Determining repository object format
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7262954Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7266309Z ##[group]Initializing the repository
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7267776Z [command]/usr/bin/git init /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7386691Z hint: Using 'master' as the name for the initial branch. This default branch name
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7387938Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7389102Z hint: to use in all of your new repositories, which will suppress this warning,
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7390677Z hint: call:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7392690Z hint:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7393816Z hint: 	git config --global init.defaultBranch <name>
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7395262Z hint:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7396532Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7398787Z hint: 'development'. The just-created branch can be renamed via this command:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7400714Z hint:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7401839Z hint: 	git branch -m <name>
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7402681Z hint:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7403352Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7404493Z Initialized empty Git repository in /home/runner/work/Manager-Database/Manager-Database/.git/
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7408247Z [command]/usr/bin/git remote add origin https://github.com/stranske/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7469150Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7470498Z ##[group]Disabling automatic garbage collection
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7473814Z [command]/usr/bin/git config --local gc.auto 0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7507453Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7508906Z ##[group]Setting up auth
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7509861Z Removing SSH command configuration
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7515115Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7549392Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7952385Z Removing HTTP extra header
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.7960114Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8000739Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8226109Z Removing includeIf entries pointing to credentials config files
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8232234Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8271733Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8496872Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8532537Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Manager-Database/Manager-Database/.git.path /home/runner/work/_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8562642Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Manager-Database/Manager-Database/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8597358Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8631011Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8658134Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8659516Z ##[group]Fetching the repository
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:01.8666595Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +9076ac0944d8602a2160fa81884f9ab3be1c6b8e:refs/remotes/pull/1764/merge
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1875249Z From https://github.com/stranske/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1876660Z  * [new ref]         9076ac0944d8602a2160fa81884f9ab3be1c6b8e -> pull/1764/merge
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1879881Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1881495Z ##[group]Determining the checkout info
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1882648Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1912287Z [command]/usr/bin/git sparse-checkout disable
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1941871Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1973513Z ##[group]Checking out the ref
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.1977990Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1764/merge
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6281917Z Note: switching to 'refs/remotes/pull/1764/merge'.
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6283283Z 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6284187Z You are in 'detached HEAD' state. You can look around, make experimental
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6286313Z changes and commit them, and you can discard any commits you make in this
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6288422Z state without impacting any branches by switching back to a branch.
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6289647Z 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6290554Z If you want to create a new branch to retain commits you create, you may
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6292852Z do so (now or later) by using -c with the switch command. Example:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6294028Z 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6294669Z   git switch -c <new-branch-name>
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6295580Z 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6296161Z Or undo this operation with:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6296988Z 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6297494Z   git switch -
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6298181Z 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6299141Z Turn off this advice by setting config variable advice.detachedHead to false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6300460Z 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6302066Z HEAD is now at 9076ac0 Merge 39b983bd5bfa5417a7b22395eec13ea9e7bb56cf into abf863032fc570211e9eb7692bb98bbacabe66c8
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6306136Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6349365Z [command]/usr/bin/git log -1 --format=%H
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6373330Z 9076ac0944d8602a2160fa81884f9ab3be1c6b8e
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6708832Z ##[group]Run set -euo pipefail
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6710187Z ^[[36;1mset -euo pipefail^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.6711926Z ^[[36;1mpython "${GITHUB_WORKSPACE}/tools/resolve_mypy_pin.py"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7009555Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7011296Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7012244Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7013641Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7015706Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7017376Z   MATRIX_PYTHON_VERSION: 3.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7018557Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7355852Z Resolved mypy Python version: 3.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7602003Z ##[group]Run actions/setup-python@v7
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7603264Z with:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7604186Z   python-version: 3.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7605189Z   check-latest: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7614678Z   token: ***
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7615606Z   update-environment: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7616667Z   allow-prereleases: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7617683Z   freethreaded: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7618636Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7619442Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7620676Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7622615Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.7624049Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.8808047Z ##[group]Installed versions
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.8900674Z Successfully set up CPython (3.12.15)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.8902945Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9184215Z ##[group]Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9186780Z with:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9187677Z   node-version: 24
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9188617Z   check-latest: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9197579Z   token: ***
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9198546Z   package-manager-cache: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9199576Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9200393Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9201881Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9203608Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9205218Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9206878Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9208518Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9210167Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9211976Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9213517Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:03.9214827Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.0536786Z Found in cache @ /opt/hostedtoolcache/node/24.21.0/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.0539970Z ##[group]Environment details
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.4961992Z node: v24.21.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.4963219Z npm: 11.19.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.4963491Z yarn: 1.22.22
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.4964406Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5092344Z ##[group]Run curl -LsSf https://astral.sh/uv/install.sh | sh
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5092936Z ^[[36;1mcurl -LsSf https://astral.sh/uv/install.sh | sh^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5093386Z ^[[36;1mecho "$HOME/.local/bin" >> "$GITHUB_PATH"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5172409Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5172817Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5173055Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5173415Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5173940Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5174650Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5175147Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5175662Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5176135Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5176623Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5177072Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.5177453Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:04.6416677Z downloading uv 0.13.0 x86_64-unknown-linux-gnu
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.0973422Z installing to /home/runner/.local/bin
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.1031885Z   uv
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.1050558Z   uvx
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.1086990Z everything's installed!
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2384760Z ##[group]Run actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2385228Z with:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2385509Z   path: ~/.cache/uv
+Python CI / typecheck-mypy	UNKNOWN STEP	
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2386280Z   key: uv-Linux-3.12-d5363d00b2deb72ffc9b99aea3eac142fc0c12e68b94cab7018e22eced05c363-0ae2dbd356381a6a7e584806e8277fdef776ea9ad61afd4d887ace3d19de6861
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2387085Z   restore-keys: uv-Linux-
+Python CI / typecheck-mypy	UNKNOWN STEP	
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2387422Z   enableCrossOsArchive: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2387773Z   fail-on-cache-miss: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2388063Z   lookup-only: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2388326Z   save-always: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2388577Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2388800Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2389152Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2389665Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2390155Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2390671Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2391744Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2392236Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2392681Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2393125Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.2393500Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:05.4135589Z Cache hit for: uv-Linux-3.12-d5363d00b2deb72ffc9b99aea3eac142fc0c12e68b94cab7018e22eced05c363-0ae2dbd356381a6a7e584806e8277fdef776ea9ad61afd4d887ace3d19de6861
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:06.4712689Z Received 243269632 of 2190596879 (11.1%), 229.9 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:07.4759657Z Received 520093696 of 2190596879 (23.7%), 245.9 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:08.4782655Z Received 775946240 of 2190596879 (35.4%), 245.1 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:09.4833570Z Received 1015021568 of 2190596879 (46.3%), 240.5 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:10.4875579Z Received 1296039936 of 2190596879 (59.2%), 245.8 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:11.5003815Z Received 1551892480 of 2190596879 (70.8%), 245.4 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:12.5022301Z Received 1811939328 of 2190596879 (82.7%), 245.3 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:13.5032599Z Received 2097152000 of 2190596879 (95.7%), 248.6 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:13.8466049Z Received 2190596879 of 2190596879 (100.0%), 249.1 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:13.8468424Z Cache Size: ~2089 MB (2190596879 B)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:13.8514985Z [command]/usr/bin/tar -xf /home/runner/work/_temp/00b7b683-9c35-4fce-9450-a1886952016c/cache.tzst -P -C /home/runner/work/Manager-Database/Manager-Database --use-compress-program unzstd
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.3090253Z Cache restored successfully
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4137913Z Cache restored from key: uv-Linux-3.12-d5363d00b2deb72ffc9b99aea3eac142fc0c12e68b94cab7018e22eced05c363-0ae2dbd356381a6a7e584806e8277fdef776ea9ad61afd4d887ace3d19de6861
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4702150Z ##[group]Run set -euo pipefail
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4703161Z ^[[36;1mset -euo pipefail^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4703604Z ^[[36;1mstart_ts=$(date +%s)^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4704009Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4704568Z ^[[36;1mto_bool() {^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4705083Z ^[[36;1m  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4705705Z ^[[36;1m    1|true|yes|y|on) echo "true" ;;^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4706165Z ^[[36;1m    *) echo "false" ;;^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4706549Z ^[[36;1m  esac^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4706859Z ^[[36;1m}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4707159Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4707509Z ^[[36;1mlint_enabled=$(to_bool "$INPUT_LINT")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4708052Z ^[[36;1mformat_enabled=$(to_bool "$INPUT_FORMAT_CHECK")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4708642Z ^[[36;1mtypecheck_enabled=$(to_bool "$INPUT_TYPECHECK")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4709243Z ^[[36;1mrun_mypy_enabled=$(to_bool "$INPUT_RUN_MYPY")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4709901Z ^[[36;1mcoverage_enabled=$(to_bool "$INPUT_COVERAGE")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4710445Z ^[[36;1mmypy_enabled="false"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4711292Z ^[[36;1mif [ "$typecheck_enabled" = "true" ] && [ "$run_mypy_enabled" = "true" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4712025Z ^[[36;1m  mypy_enabled="true"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4712437Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4712752Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4713066Z ^[[36;1madd_tool() {^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4713440Z ^[[36;1m  specs+=("$1")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4713847Z ^[[36;1m  tools_installed+=("$2")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4714268Z ^[[36;1m}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4714578Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4714890Z ^[[36;1mskip_tool() {^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4715290Z ^[[36;1m  tools_skipped+=("$1")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4715705Z ^[[36;1m}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4716009Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4716498Z ^[[36;1m# A pyproject.toml that only carries tool configuration (e.g.^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4717345Z ^[[36;1m# [tool.coverage]) is not an installable distribution. Treat the repo^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4718135Z ^[[36;1m# as a package only when it declares [project] (PEP 621),^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4718905Z ^[[36;1m# [build-system], or [tool.poetry]; otherwise `-e .[app,dev]` fails^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4719736Z ^[[36;1m# for a consumer that merely wants somewhere to keep tool config.^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4720435Z ^[[36;1mpyproject_declares_distribution() {^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4720973Z ^[[36;1m  [ -f pyproject.toml ] || return 1^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4721653Z ^[[36;1m  grep -Eq \^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4722257Z ^[[36;1m    '^[[:space:]]*\[[[:space:]]*(project|build-system|tool\.poetry)[[:space:]]*\]' \^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4722976Z ^[[36;1m    pyproject.toml^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4723377Z ^[[36;1m}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4723662Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4724010Z ^[[36;1mif [ -n "${PRIVATE_PYPI_TOKEN:-}" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4724737Z ^[[36;1m  export PIP_INDEX_URL="https://__token__:${PRIVATE_PYPI_TOKEN}@pypi.org/simple"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4725408Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4725708Z ^[[36;1mspecs=()^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4726041Z ^[[36;1mtools_installed=()^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4726467Z ^[[36;1mtools_skipped=()^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4726849Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4727215Z ^[[36;1mif [ -f requirements.lock ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4727739Z ^[[36;1m  specs+=('-r' 'requirements.lock')^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4728225Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4728534Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4728905Z ^[[36;1mif pyproject_declares_distribution \^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4729486Z ^[[36;1m  || [ -f setup.cfg ] || [ -f setup.py ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4730037Z ^[[36;1m  specs+=('-e' '.[app,dev]')^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4730469Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4730779Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4731262Z ^[[36;1mblack_spec="black"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4731719Z ^[[36;1mdocformatter_spec="docformatter"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4732204Z ^[[36;1misort_spec="isort"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4732822Z ^[[36;1mruff_spec="ruff"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4733226Z ^[[36;1mmypy_spec="mypy"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4733653Z ^[[36;1mpytest_spec=""^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4734089Z ^[[36;1mpytest_cov_spec=""^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4734508Z ^[[36;1mcoverage_spec=""^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4735099Z ^[[36;1mpytest_xdist_spec=""^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4735694Z ^[[36;1m# Do not install heavyweight "baseline" test deps implicitly.^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4736490Z ^[[36;1m# Repos should declare their own runtime/test dependencies.^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4737093Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4737427Z ^[[36;1mresolve_spec() {^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4737828Z ^[[36;1m  local package=$1^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4738246Z ^[[36;1m  local version=${2:-}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4738694Z ^[[36;1m  local default_version=${3:-}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4739170Z ^[[36;1m  if [ -n "$version" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4739655Z ^[[36;1m    echo "${package}==${version}"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4740162Z ^[[36;1m  elif [ -n "$default_version" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4740711Z ^[[36;1m    echo "${package}>=${default_version}"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4741391Z ^[[36;1m  else^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4741750Z ^[[36;1m    echo "$package"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4742146Z ^[[36;1m  fi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4742480Z ^[[36;1m}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4742804Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4743372Z ^[[36;1mautofix_env="${GITHUB_WORKSPACE}/.github/workflows/autofix-versions.env"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4744103Z ^[[36;1mrequire_exact_pin() {^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4744541Z ^[[36;1m  local tool=$1^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4744949Z ^[[36;1m  local spec=${2:-}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4745465Z ^[[36;1m  if [ -z "$spec" ] || [ "${spec#*==}" = "$spec" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4746365Z ^[[36;1m    echo "Error: ${tool} must be pinned in ${autofix_env}; refusing to install unpinned tooling." >&2^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4747180Z ^[[36;1m    exit 1^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4747541Z ^[[36;1m  fi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4747879Z ^[[36;1m}^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4748529Z ^[[36;1m# Always honor tool pins when present. Lock files typically only capture runtime deps.^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4749340Z ^[[36;1mif [ -f "$autofix_env" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4749973Z ^[[36;1m  # shellcheck source=.github/workflows/autofix-versions.env^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4750644Z ^[[36;1m  source "$autofix_env"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4751505Z ^[[36;1m  black_spec=$(resolve_spec "black" "${BLACK_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4752421Z ^[[36;1m  docformatter_spec=$(resolve_spec "docformatter" "${DOCFORMATTER_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4753339Z ^[[36;1m  isort_spec=$(resolve_spec "isort" "${ISORT_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4754075Z ^[[36;1m  ruff_spec=$(resolve_spec "ruff" "${RUFF_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4754791Z ^[[36;1m  mypy_spec=$(resolve_spec "mypy" "${MYPY_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4755545Z ^[[36;1m  pytest_spec=$(resolve_spec "pytest" "${PYTEST_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4756424Z ^[[36;1m  pytest_cov_spec=$(resolve_spec "pytest-cov" "${PYTEST_COV_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4757334Z ^[[36;1m  coverage_spec=$(resolve_spec "coverage" "${COVERAGE_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4758282Z ^[[36;1m  pytest_xdist_spec=$(resolve_spec "pytest-xdist" "${PYTEST_XDIST_VERSION:-}" "")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4759027Z ^[[36;1melse^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4759652Z ^[[36;1m  echo "Error: ${autofix_env} is required; refusing to install unpinned tooling." >&2^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4760406Z ^[[36;1m  exit 1^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4760751Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4761262Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4761679Z ^[[36;1mrequire_exact_pin "pytest" "$pytest_spec"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4762360Z ^[[36;1mrequire_exact_pin "pytest-xdist" "$pytest_xdist_spec"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4763014Z ^[[36;1mif [ "$coverage_enabled" = "true" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4763702Z ^[[36;1m  require_exact_pin "pytest-cov" "$pytest_cov_spec"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4764349Z ^[[36;1m  require_exact_pin "coverage" "$coverage_spec"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4765044Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4765367Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4765954Z ^[[36;1m# Always install dev tools - lock files only contain runtime deps, not dev tools^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4766716Z ^[[36;1mif [ "$format_enabled" = "true" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4767387Z ^[[36;1m  add_tool "$black_spec" "black"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4767941Z ^[[36;1m  add_tool "$docformatter_spec" "docformatter"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4768501Z ^[[36;1m  add_tool "$isort_spec" "isort"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4768951Z ^[[36;1melse^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4769356Z ^[[36;1m  skip_tool "black (format_check disabled)"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4769988Z ^[[36;1m  skip_tool "docformatter (format_check disabled)"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4770537Z ^[[36;1m  skip_tool "isort (format_check disabled)"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4770828Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4771294Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4771529Z ^[[36;1mif [ "$lint_enabled" = "true" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4771841Z ^[[36;1m  add_tool "$ruff_spec" "ruff"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4772107Z ^[[36;1melse^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4772333Z ^[[36;1m  skip_tool "ruff (lint disabled)"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4772605Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4772792Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4773006Z ^[[36;1mif [ "$mypy_enabled" = "true" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4773300Z ^[[36;1m  add_tool "$mypy_spec" "mypy"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4773555Z ^[[36;1melse^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4773781Z ^[[36;1m  skip_tool "mypy (typecheck disabled)"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4774067Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4774244Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4774442Z ^[[36;1madd_tool "$pytest_spec" "pytest"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4774759Z ^[[36;1madd_tool "$pytest_xdist_spec" "pytest-xdist"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4775055Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4775272Z ^[[36;1mif [ "$coverage_enabled" = "true" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4775597Z ^[[36;1m  add_tool "$pytest_cov_spec" "pytest-cov"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4775915Z ^[[36;1m  add_tool "$coverage_spec" "coverage"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4776202Z ^[[36;1melse^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4776448Z ^[[36;1m  skip_tool "pytest-cov (coverage disabled)"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4776787Z ^[[36;1m  skip_tool "coverage (coverage disabled)"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4777346Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4777626Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4777907Z ^[[36;1mif [ ${#specs[@]} -eq 0 ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4778485Z ^[[36;1m  echo "No install targets found; skipping dependency installation."^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4778991Z ^[[36;1melse^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4779356Z ^[[36;1m  uv pip install --system "${specs[@]}"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4779731Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4779986Z ^[[36;1m^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4780396Z ^[[36;1mend_ts=$(date +%s)^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4780745Z ^[[36;1mduration=$((end_ts - start_ts))^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4781425Z ^[[36;1mif [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4781870Z ^[[36;1m  installed_label="none"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4782304Z ^[[36;1m  skipped_label="none"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4782709Z ^[[36;1m  if [ ${#tools_installed[@]} -gt 0 ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4783171Z ^[[36;1m    installed_label=$(printf '%s, ' "${tools_installed[@]}")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4783722Z ^[[36;1m    installed_label=${installed_label%, }^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4784099Z ^[[36;1m  fi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4800097Z ^[[36;1m  if [ ${#tools_skipped[@]} -gt 0 ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4800756Z ^[[36;1m    skipped_label=$(printf '%s, ' "${tools_skipped[@]}")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4801631Z ^[[36;1m    skipped_label=${skipped_label%, }^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4802108Z ^[[36;1m  fi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4802433Z ^[[36;1m  {^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4802900Z ^[[36;1m    printf '## Dependency installation timing\n'^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4803515Z ^[[36;1m    printf -- '- Duration: %ss\n' "$duration"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4804150Z ^[[36;1m    printf -- '- Tools installed: %s\n' "$installed_label"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4805182Z ^[[36;1m    printf -- '- Tools skipped (disabled): %s\n' "$skipped_label"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4805924Z ^[[36;1m    if [ ${#tools_skipped[@]} -gt 0 ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4806759Z ^[[36;1m      printf -- '- Note: skipping %d tool(s) avoids extra setup time when disabled.\n' \^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4807777Z ^[[36;1m        "${#tools_skipped[@]}"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4808244Z ^[[36;1m    fi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4808907Z ^[[36;1m    req_hash=$(sha256sum requirements.lock 2>/dev/null | cut -d' ' -f1 || echo none)^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4809984Z ^[[36;1m    pyproject_hash=$(sha256sum pyproject.toml 2>/dev/null | cut -d' ' -f1 || echo none)^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4810605Z ^[[36;1m    printf -- '- Cache key: uv-%s-%s-%s-%s\n' \^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4810944Z ^[[36;1m      "Linux" \^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4811522Z ^[[36;1m      "$INPUT_PYTHON_VERSION" \^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4811825Z ^[[36;1m      "$req_hash" \^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4812076Z ^[[36;1m      "$pyproject_hash"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4812349Z ^[[36;1m  } >>"${GITHUB_STEP_SUMMARY}"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4812629Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4876530Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4876886Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4877084Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4877416Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4877892Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4878315Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4878738Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4879183Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4879579Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4879969Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4880360Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4880698Z   PRIVATE_PYPI_TOKEN: 
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4880940Z   INPUT_LINT: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4881389Z   INPUT_FORMAT_CHECK: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4881632Z   INPUT_TYPECHECK: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4881852Z   INPUT_RUN_MYPY: true
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4882068Z   INPUT_COVERAGE: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4882299Z   INPUT_PYTHON_VERSION: 3.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:34.4882531Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:35.1657965Z Using Python 3.12.15 environment at: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:35.3409440Z    Updating https://github.com/stranske/Workflows.git (HEAD)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:35.8864664Z     Updated https://github.com/stranske/Workflows.git (c15e5eb8e588e3a36e1941bf8384913f09e01d52)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:35.9976224Z Resolved 209 packages in 830ms
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0081506Z    Building manager-database @ file:///home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0166586Z Downloading asyncpg (3.4MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0174171Z Downloading pydantic-core (2.0MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0174553Z Downloading zstandard (5.3MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0186499Z    Building app-baseline-kit @ git+https://github.com/stranske/Workflows.git@c15e5eb8e588e3a36e1941bf8384913f09e01d52#subdirectory=packages/app-baseline-kit
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0199369Z Downloading lxml (5.0MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0210864Z Downloading pillow (6.6MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0211825Z Downloading numpy (15.9MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0222554Z Downloading psycopg-binary (4.9MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0223238Z Downloading sqlalchemy (3.2MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0223784Z Downloading pyarrow (46.6MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0291946Z Downloading black (2.0MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0321880Z Downloading rapidfuzz (3.0MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0322796Z Downloading mypy (14.8MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0332045Z Downloading tiktoken (1.1MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.0402215Z Downloading pandas (10.5MiB)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.1642592Z  Downloaded tiktoken
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.2422851Z  Downloaded pydantic-core
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.2728622Z  Downloaded black
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.2849712Z  Downloaded rapidfuzz
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.3307447Z  Downloaded asyncpg
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.3321990Z  Downloaded sqlalchemy
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.3855454Z  Downloaded zstandard
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.3903117Z  Downloaded lxml
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.4082799Z  Downloaded psycopg-binary
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.4362421Z  Downloaded pillow
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.6244591Z  Downloaded numpy
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.6535914Z  Downloaded pandas
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.7352600Z  Downloaded mypy
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:36.8823516Z  Downloaded pyarrow
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.1769230Z       Built app-baseline-kit @ git+https://github.com/stranske/Workflows.git@c15e5eb8e588e3a36e1941bf8384913f09e01d52#subdirectory=packages/app-baseline-kit
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.2069435Z       Built manager-database @ file:///home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.2317466Z Prepared 37 packages in 2.22s
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8607720Z Installed 209 packages in 628ms
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8609497Z  + aiofiles==25.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8610351Z  + aiosqlite==0.22.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8613175Z  + alembic==1.18.5
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8613886Z  + altair==6.2.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8614567Z  + amplitude-analytics==1.2.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8615336Z  + annotated-doc==0.0.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8616143Z  + annotated-types==0.8.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8616876Z  + anthropic==0.120.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8617522Z  + anyio==4.14.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8619668Z  + app-baseline-kit==0.2.0 (from git+https://github.com/stranske/Workflows.git@c15e5eb8e588e3a36e1941bf8384913f09e01d52#subdirectory=packages/app-baseline-kit)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8622249Z  + apprise==1.12.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8623001Z  + asgi-lifespan==2.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8623765Z  + ast-serialize==0.12.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8624579Z  + asyncpg==0.31.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8625251Z  + attrs==26.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8625646Z  + bcrypt==5.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8626034Z  + beartype==0.22.9
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8626442Z  + beautifulsoup4==4.15.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8626867Z  + black==26.10.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8627242Z  + blinker==1.9.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8627625Z  + boto3==1.43.56
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8627989Z  + botocore==1.43.56
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8628385Z  + burner-redis==0.1.7
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8628790Z  + cachetools==7.1.6
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8629194Z  + captcha==0.7.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8629571Z  + certifi==2026.7.22
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8629965Z  + cffi==2.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8630319Z  + cfgv==3.5.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8630710Z  + charset-normalizer==3.4.9
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8631372Z  + click==8.4.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8631742Z  + cloudpickle==3.1.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8632129Z  + colorama==0.4.6
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8632652Z  + coolname==5.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8633017Z  + coverage==7.16.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8633378Z  + cronsim==2.7
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8633750Z  + cryptography==49.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8634148Z  + cyclopts==4.22.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8634515Z  + dateparser==1.4.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8634904Z  + defusedxml==0.7.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8635271Z  + distlib==0.4.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8635623Z  + distro==1.9.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8635984Z  + docker==7.2.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8636371Z  + docstring-parser==0.18.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8636796Z  + edgartools==5.44.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8637197Z  + exceptiongroup==1.3.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8637622Z  + execnet==2.1.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8638085Z  + extra-streamlit-components==0.1.81
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8638578Z  + fakeredis==2.37.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8638967Z  + fastapi==0.140.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8639350Z  + feedparser==6.0.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8639736Z  + filelock==3.32.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8640102Z  + fsspec==2026.6.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8640480Z  + gitdb==4.0.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8640879Z  + gitpython==3.1.57
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8641509Z  + graphviz==0.21
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8641892Z  + greenlet==3.5.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8642259Z  + griffe==2.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8642623Z  + griffecli==2.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8642997Z  + griffelib==2.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8643357Z  + h11==0.16.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8643695Z  + h2==4.4.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8644329Z  + hpack==4.2.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8644723Z  + httpcore==1.0.9
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8645134Z  + httptools==0.8.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8645509Z  + httpx==0.28.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8645899Z  + httpxthrottlecache==0.3.5
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8646576Z  + humanize==4.16.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8646961Z  + hyperframe==6.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8647350Z  + identify==2.6.19
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8647710Z  + idna==3.18
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8648066Z  + iniconfig==2.3.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8648452Z  + itsdangerous==2.2.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8648907Z  + jinja2==3.1.6
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8649350Z  + jinja2-humanize-extension==0.4.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8649827Z  + jiter==0.16.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8650190Z  + jmespath==1.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8650565Z  + jsonpatch==1.33
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8650938Z  + jsonpointer==3.1.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8651559Z  + jsonschema==4.26.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8652040Z  + jsonschema-specifications==2025.9.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8652536Z  + langchain==1.3.14
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8652967Z  + langchain-anthropic==1.5.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8653428Z  + langchain-core==1.5.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8653860Z  + langchain-openai==1.4.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8654314Z  + langchain-protocol==0.0.18
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8654751Z  + langgraph==1.2.9
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8655203Z  + langgraph-checkpoint==4.1.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8655685Z  + langgraph-prebuilt==1.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8656134Z  + langgraph-sdk==0.4.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8656544Z  + langsmith==0.10.10
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8656941Z  + librt==0.16.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8657355Z  + lxml==6.1.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8657730Z  + mako==1.3.12
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8658505Z  + manager-database==0.1.0 (from file:///home/runner/work/Manager-Database/Manager-Database)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8659310Z  + markdown==3.10.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8659697Z  + markdown-it-py==4.2.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8660116Z  + markupsafe==3.0.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8660498Z  + mdurl==0.1.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8660845Z  + mypy==2.4.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8661414Z  + mypy-extensions==1.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8661860Z  + narwhals==2.24.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8662240Z  + nest-asyncio==1.6.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8662630Z  + nodeenv==1.10.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8662997Z  + numpy==2.5.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8663355Z  + oauthlib==3.3.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8663736Z  + openai==2.48.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8664127Z  + opentelemetry-api==1.44.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8664568Z  + orjson==3.11.9
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8664942Z  + ormsgpack==1.12.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8665328Z  + packaging==26.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8665701Z  + pandas==3.0.5
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8666064Z  + pathspec==1.1.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8666450Z  + pdfminer-six==20260107
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8666878Z  + pdfplumber==0.11.10
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8667271Z  + pendulum==3.2.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8667637Z  + pillow==12.3.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8668025Z  + platformdirs==4.11.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8668422Z  + pluggy==1.6.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8668787Z  + pre-commit==4.6.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8669164Z  + prefect==3.8.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8669561Z  + prometheus-client==0.26.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8669999Z  + protobuf==7.35.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8670374Z  + psycopg==3.3.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8670762Z  + psycopg-binary==3.3.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8671357Z  + py-key-value-aio==0.4.5
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8671793Z  + pyarrow==24.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8672166Z  + pycparser==3.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8672544Z  + pydantic==2.13.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8672926Z  + pydantic-core==2.46.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8673402Z  + pydantic-extra-types==2.11.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8673871Z  + pydantic-settings==2.14.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8674294Z  + pydeck==0.9.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8674654Z  + pydocket==0.23.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8675028Z  + pygments==2.20.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8675391Z  + pyjwt==2.13.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8675743Z  + pypdf==6.14.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8676112Z  + pypdfium2==5.12.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8676507Z  + pyrate-limiter==4.4.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8676910Z  + pytest==9.1.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8677287Z  + pytest-asyncio==1.4.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8677696Z  + pytest-cov==7.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8678296Z  + pytest-datadir==1.8.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8678754Z  + pytest-regressions==2.11.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8679215Z  + pytest-xdist==3.8.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8679674Z  + python-dateutil==2.9.0.post0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8680324Z  + python-discovery==1.5.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8680782Z  + python-dotenv==1.2.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8681384Z  + python-json-logger==4.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8681842Z  + python-multipart==0.0.32
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8682295Z  + python-slugify==8.0.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8682702Z  + pytokens==0.4.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8683071Z  + pytz==2026.3.post1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8683463Z  + pyyaml==6.0.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8683827Z  + rank-bm25==0.2.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8684201Z  + rapidfuzz==3.14.5
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8684587Z  + readchar==4.2.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8684957Z  + redis==8.0.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8685319Z  + referencing==0.37.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8685706Z  + regex==2026.7.19
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8686080Z  + requests==2.34.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8686485Z  + requests-oauthlib==2.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8686929Z  + requests-toolbelt==1.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8687366Z  + rfc3339-validator==0.1.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8687778Z  + rich==15.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8688132Z  + rich-rst==2.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8688517Z  + rpds-py==2026.6.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8688897Z  + ruamel-yaml==0.19.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8689305Z  + ruamel-yaml-clib==0.2.15
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8689720Z  + ruff==0.16.10
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8690081Z  + s3transfer==0.19.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8690470Z  + semver==3.0.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8690843Z  + sgmllib3k==1.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8691444Z  + shellingham==1.5.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8691825Z  + six==1.17.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8692173Z  + smmap==5.0.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8692539Z  + sniffio==1.3.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8692925Z  + sortedcontainers==2.4.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8693354Z  + soupsieve==2.9.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8693739Z  + sqlalchemy==2.0.51
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8694119Z  + stamina==26.1.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8694483Z  + starlette==1.3.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8695926Z  + stranske-pdf-extract==0.1.0 (from git+https://github.com/stranske/Workflows.git@a0ee3aa25c08d4eeb8e96dc6c8d7791930cd2d9a#subdirectory=packages/stranske_pdf_extract)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8697264Z  + streamlit==1.60.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8697734Z  + streamlit-authenticator==0.4.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8698207Z  + tabulate==0.10.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8698578Z  + tenacity==9.1.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8698959Z  + text-unidecode==1.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8699368Z  + textdistance==4.6.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8699755Z  + tiktoken==0.13.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8700120Z  + toml==0.10.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8700479Z  + tqdm==4.69.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8700844Z  + truststore==0.10.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8701386Z  + typer==0.27.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8701826Z  + types-pyyaml==6.0.12.20260724
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8702294Z  + typing-extensions==4.16.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8702745Z  + typing-inspection==0.4.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8703183Z  + tzdata==2026.5
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8703549Z  + tzlocal==5.4.4
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8703937Z  + uncalled-for==0.3.2
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8704329Z  + unidecode==1.4.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8704708Z  + urllib3==2.7.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8705079Z  + uuid-utils==0.17.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8705463Z  + uvicorn==0.51.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8705916Z  + virtualenv==21.7.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8706417Z  + watchdog==6.0.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8706918Z  + websockets==15.0.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8707415Z  + whenever==0.10.3
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8708032Z  + xxhash==3.8.1
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:38.8708472Z  + zstandard==0.25.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0160771Z ##[group]Run actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0161440Z with:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0161647Z   path: ./.mypy_cache
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0162079Z   key: mypy-Linux -3.12 -0ae2dbd356381a6a7e584806e8277fdef776ea9ad61afd4d887ace3d19de6861 -
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0162599Z   restore-keys: mypy-Linux-3.12-
+Python CI / typecheck-mypy	UNKNOWN STEP	mypy-Linux-
+Python CI / typecheck-mypy	UNKNOWN STEP	
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0162912Z   enableCrossOsArchive: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0163174Z   fail-on-cache-miss: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0163415Z   lookup-only: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0163635Z   save-always: false
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0163834Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0164020Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0164326Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0165036Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0165486Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0165960Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0166387Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0166770Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0167161Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0167549Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.0167879Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.2030487Z Cache hit for: mypy-Linux -3.12 -0ae2dbd356381a6a7e584806e8277fdef776ea9ad61afd4d887ace3d19de6861 -
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.4612359Z Received 10882780 of 10882780 (100.0%), 53.8 MBs/sec
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.4613140Z Cache Size: ~10 MB (10882780 B)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.4648388Z [command]/usr/bin/tar -xf /home/runner/work/_temp/95c1f0f6-1a70-4998-80a4-19ba12c08e9f/cache.tzst -P -C /home/runner/work/Manager-Database/Manager-Database --use-compress-program unzstd
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.5831834Z Cache restored successfully
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.5917823Z Cache restored from key: mypy-Linux -3.12 -0ae2dbd356381a6a7e584806e8277fdef776ea9ad61afd4d887ace3d19de6861 -
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6030731Z ##[group]Run set -euo pipefail
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6031413Z ^[[36;1mset -euo pipefail^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6031685Z ^[[36;1margs=()^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6031935Z ^[[36;1mif [ -f pyproject.toml ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6032277Z ^[[36;1m  args+=("--config-file" "pyproject.toml")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6032584Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6032935Z ^[[36;1m# Exclude .workflows-lib (synced from source repo with different config)^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6033371Z ^[[36;1margs+=("--exclude" ".workflows-lib")^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6033669Z ^[[36;1mtarget="src"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6033939Z ^[[36;1mif [ ! -d "$target" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6034207Z ^[[36;1m  target="."^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6034420Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6034627Z ^[[36;1mmypy "${args[@]}" "$target"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6100676Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6101318Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6101533Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6101914Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6102420Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6102882Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6103357Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6103820Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6104241Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6104666Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6105112Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.6105614Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9193448Z docs/evidence/issue-1750-ranked-next/replay.py: error: Duplicate module named "replay" (also at "./docs/evidence/issue-1750-patch-boundaries/replay.py")
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9195761Z docs/evidence/issue-1750-ranked-next/replay.py: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#mapping-file-paths-to-modules for more info
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9197611Z docs/evidence/issue-1750-ranked-next/replay.py: note: Common resolutions include:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9198910Z docs/evidence/issue-1750-ranked-next/replay.py: note:     a) using `--exclude` to avoid checking one of them,
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9200228Z docs/evidence/issue-1750-ranked-next/replay.py: note:     b) adding `__init__.py` somewhere,
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9201984Z docs/evidence/issue-1750-ranked-next/replay.py: note:     c) using `--explicit-package-bases` or adjusting `MYPYPATH`
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9203469Z Found 1 error in 1 file (errors prevented further checking)
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9233918Z ##[error]Process completed with exit code 2.
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9286217Z ##[group]Run set -euo pipefail
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9286567Z ^[[36;1mset -euo pipefail^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9286900Z ^[[36;1mecho "outcome=${MYPY_OUTCOME}" >> "${GITHUB_OUTPUT}"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9287286Z ^[[36;1mif [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9287581Z ^[[36;1m  {^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9287806Z ^[[36;1m    printf '## Mypy\n'^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9288117Z ^[[36;1m    printf -- '- Outcome: %s\n' "${MYPY_OUTCOME}"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9288449Z ^[[36;1m  } >>"${GITHUB_STEP_SUMMARY}"^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9288742Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9289068Z ^[[36;1mif [ "${MYPY_OUTCOME}" != "success" ] && [ "${MYPY_OUTCOME}" != "skipped" ]; then^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9289571Z ^[[36;1m  printf 'Mypy failed with outcome: %s\n' "${MYPY_OUTCOME}" >&2^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9289956Z ^[[36;1m  exit 1^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9290173Z ^[[36;1mfi^[[0m
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9354697Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9355088Z env:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9355289Z   WORKDIR: .
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9355610Z   WORKSPACE_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9356109Z   PROJECT_ROOT: /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9356558Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9357007Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9357457Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9357851Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9358255Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9358659Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9359010Z   MYPY_OUTCOME: failure
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9359250Z ##[endgroup]
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9442013Z Mypy failed with outcome: failure
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9445508Z ##[error]Process completed with exit code 1.
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:39.9559598Z Post job cleanup.
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0398619Z [command]/usr/bin/git version
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0436360Z git version 2.55.0
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0472216Z Temporarily overriding HOME='/home/runner/work/_temp/fa6fe4a8-2ef4-42f4-a2c2-3e131cf876d6' before making global git config changes
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0473445Z Adding repository directory to the temporary git global config as a safe directory
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0477262Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Manager-Database/Manager-Database
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0509718Z Removing SSH command configuration
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0516316Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0553270Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0783000Z Removing HTTP extra header
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0787991Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.0820726Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1047819Z Removing includeIf entries pointing to credentials config files
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1048666Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1078972Z includeif.gitdir:/home/runner/work/Manager-Database/Manager-Database/.git.path
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1079881Z includeif.gitdir:/home/runner/work/Manager-Database/Manager-Database/.git/worktrees/*.path
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1080480Z includeif.gitdir:/github/workspace/.git.path
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1082915Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1089564Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Manager-Database/Manager-Database/.git.path
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1111744Z /home/runner/work/_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1122045Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Manager-Database/Manager-Database/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-4ee2b596\-028f\-4204\-84c4\-36dee56dd7ff\.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1156585Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Manager-Database/Manager-Database/.git/worktrees/*.path
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1185452Z /home/runner/work/_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1194581Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Manager-Database/Manager-Database/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-4ee2b596\-028f\-4204\-84c4\-36dee56dd7ff\.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1228009Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1252284Z /github/runner_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1262150Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-4ee2b596\-028f\-4204\-84c4\-36dee56dd7ff\.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1295929Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1317969Z /github/runner_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1326303Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-4ee2b596\-028f\-4204\-84c4\-36dee56dd7ff\.config
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1361542Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1602190Z Removing credentials config '/home/runner/work/_temp/git-credentials-4ee2b596-028f-4204-84c4-36dee56dd7ff.config'
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1784055Z Evaluate and set job outputs
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1788797Z Set output 'mypy_outcome'
+Python CI / typecheck-mypy	UNKNOWN STEP	2026-10-11T13:30:40.1790714Z Cleaning up orphan processes
