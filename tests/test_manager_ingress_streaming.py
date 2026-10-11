@@ -106,6 +106,38 @@ def test_bulk_stream_accepts_exact_byte_limit(tmp_path, monkeypatch, payload):
         assert conn.execute("SELECT name FROM managers").fetchall() == [(name,)]
 
 
+@pytest.mark.parametrize("declared_size", ["missing", "malformed", "character-count"])
+def test_bulk_stream_rejects_final_utf8_chunk(monkeypatch, caplog, payload, declared_size):
+    content_type, body, _ = payload
+    max_bytes = len(body) - 1
+    monkeypatch.setenv("BULK_IMPORT_MAX_BYTES", str(max_bytes))
+
+    def forbid_storage():
+        raise AssertionError("oversized final chunk reached storage")
+
+    monkeypatch.setattr(managers, "connect_db", forbid_storage)
+    # A character-based limit would accept this otherwise valid JSON/CSV body.
+    assert len(body.decode()) < max_bytes
+    content_length = {
+        "missing": None,
+        "malformed": b"bad",
+        "character-count": str(len(body.decode())).encode(),
+    }[declared_size]
+    # Split within a UTF-8 character: the final ASGI message completes valid text
+    # but makes cumulative bytes exceed the limit by exactly one byte.
+    split = body.index(b"\xc3") + 1
+    status, response, consumed = post_chunks(
+        [body[:split], body[split:]], content_type, content_length
+    )
+
+    assert status == 413
+    assert (
+        "payload exceeds " + str(max_bytes) + " bytes" in response["errors"][0]["message"].lower()
+    )
+    assert consumed == [0, 1]
+    assert f"Bulk import payload too large: {len(body)} bytes (max {max_bytes})." in caplog.text
+
+
 def test_declared_oversize_rejects_before_first_receive(monkeypatch, payload):
     monkeypatch.setenv("BULK_IMPORT_MAX_BYTES", "20")
 

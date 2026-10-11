@@ -109,3 +109,42 @@ acceptance criteria above therefore remain a local reconciliation pending a
 permitted PR-body update. No protected workflow or repository configuration
 was edited. The original archive and review-repair manifest remain unchanged;
 their bindings identify their historical snapshots.
+
+## Final-chunk follow-up (2026-10-11)
+
+Reviewed the six recent commits through `6bd4bac` and reverified all 34 existing
+focused ingress/evidence cases. The review-repair archive SHA256, every member
+hash and all three current source/test/replay bindings also match. All seven
+acceptance checkboxes in the local checklist above are verified. The PR-body
+reconciliation was attempted before further edits, but the connector returned
+`MCP tool call requires approval, but approval policy is never`; the remote
+checkbox update remains blocked. PR #1762 was confirmed open with `draft=false`.
+
+Six additional cases in `tests/test_manager_ingress_streaming.py` cover a final
+ASGI body chunk that exceeds the byte limit by exactly one byte, while the
+UTF-8 character count fits. JSON and CSV bodies split within a UTF-8 character
+are rejected before storage for absent, malformed and character-count
+Content-Length values. These tests also verify the cumulative-byte warning.
+In an isolated checkout, allowing one extra byte makes all six tests fail
+with the storage sentinel (exit 1); byte-identical source restoration makes
+all six pass (exit 0).
+
+```bash
+python -m pytest tests/test_manager_ingress_streaming.py \
+  tests/test_manager_ingress_boundaries.py tests/test_manager_ingress_evidence.py \
+  tests/test_manager_ingress_review.py tests/test_manager_bulk_api.py \
+  --cov=api.managers --cov-report=term-missing --cov-fail-under=0 -m "not slow"
+```
+
+This command passes **96 cases**. The targeted coverage table reports
+`api/managers.py`: **826 statements, 424 missed, 49% covered**. It is a focused
+measurement; the historical matched-suite counts and repository-wide coverage
+remain unchanged. Focused Ruff and whitespace checks pass. Sequential Black
+checks verified all 393 Python files and populated a fresh cache before the
+required full Black CLI check passed; no formatting exclusions were changed.
+
+The working checkout still cannot create `.git/index.lock` because its `.git`
+directory is read-only. The source/test commit is prepared in a writable
+checkout under `/tmp`, with an exported patch. Neither the working branch nor
+the PR head is claimed to contain that commit. Protected files and historical
+evidence archives remain unchanged.
