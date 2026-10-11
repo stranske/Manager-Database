@@ -71,14 +71,22 @@ Acceptance criteria verified against the final tests and retained evidence:
 - [x] **Documentation**
   - [x] Added validation records and reproduction guidance for the manager patch-boundary tests.
 
-Delivery blocker for this follow-up: `.git` is mounted read-only in the agent
-sandbox, and staging fails while creating `.git/index.lock`. No commit or push
-was created. The GitHub connector also rejected the blocker comment and
-`needs-human` label because they require approval and this run's policy is
-`never`. A runner with Git metadata write access must stage and commit the test,
-this README, the manifest and `acceptance-validation.tar.gz`. PR #1764 was
-verified open and ready for review; its remote head was unchanged by this run.
+## Delivery and verifier disposition
+
+PR #1764 was squash-merged as `7a594966916e5aafc92bfc76a6ec6dd13fb0bf24`
+after complete expected check topology for both PR events, zero active review
+threads and the exact-head seven-minute review floor. The original agent's
+read-only Git metadata limitation was resolved by the delivery owner; it is not
+a current human blocker.
+
+Actual compare run38147413513 returned CONCERNS from both providers because
+required archives and large evidence were omitted/truncated in their inputs.
+The provider verdict remains unchanged. Independent retained-artifact audit
+verified both archive hashes and all81member hashes. The bounded patch tests
+and production/replay identities remain separate from broad source#1750, which
+continues below90% with its original UI-auth failures. This documentation follow-up
+repairs the stale delivery note and README binding, not provider input completeness.
 
 ## Mypy entry-point recovery
 
-The entry point is now `replay_patch_boundaries.py` to avoid mypy discovering two modules named `replay`. Its bytes retain SHA256 `42995b1b758d04565ab6bbb7dfe5a6e86d0adf02630da956433881836629bf46`. Historical archive contents and historical bindings are unchanged. The exact full command passes module discovery locally but exits 1 on unrelated local installed-stub/type errors; hosted confirmation remains pending. Both replay files typecheck together successfully, and all four manager patch tests pass. Full logs and commands are in `mypy-recovery/`.
+The entry point is now `replay_patch_boundaries.py` to avoid mypy discovering two modules named `replay`. Its bytes retain SHA256 `42995b1b758d04565ab6bbb7dfe5a6e86d0adf02630da956433881836629bf46`. Historical archive contents and historical bindings are unchanged. The exact full command passes module discovery locally but exits 1 on unrelated local installed-stub/type errors; hosted Gate/mypy reported PASS on exact `be66b6f19d4fc03fa402d2e823c2f7ae8f0ddece` before the guarded merge. Both replay files typecheck together successfully, and all four manager patch tests pass. Full logs and commands are in `mypy-recovery/`.

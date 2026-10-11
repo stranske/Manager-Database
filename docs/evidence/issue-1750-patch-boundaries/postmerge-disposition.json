@@ -1,0 +1,14 @@
+{
+  "merge": "7a594966916e5aafc92bfc76a6ec6dd13fb0bf24",
+  "verified_archive_members": 81,
+  "verified_archives": 2,
+  "current_binding_mismatches": [
+    "docs/evidence/issue-1750-patch-boundaries/README.md"
+  ],
+  "current_binding_mismatches_after": [],
+  "provider_verdicts": [
+    "CONCERNS",
+    "CONCERNS"
+  ],
+  "bounded_disposition": "Original archives81member hashes and unchanged production/test/replay/comparison verified; repair stale README note and binding only, no whole-source/provider PASS"
+}

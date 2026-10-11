@@ -47,7 +47,7 @@
     "tests/test_manager_patch_boundaries.py": "5a513468335fa64b7eb2ebd007c025d3d2bcd25533d020d488f4849abae65497",
     "docs/evidence/issue-1750-patch-boundaries/replay_patch_boundaries.py": "42995b1b758d04565ab6bbb7dfe5a6e86d0adf02630da956433881836629bf46",
     "docs/evidence/issue-1750-patch-boundaries/comparison.json": "1d6df92583290195c7c3e6836b3802071b20eee6037e1045e153c95251b54705",
-    "docs/evidence/issue-1750-patch-boundaries/README.md": "e64d58e62be452c31f19953b79c14c30535e77091eccc2c222befa88be54bb82"
+    "docs/evidence/issue-1750-patch-boundaries/README.md": "138584009571342dd66725ecf95624897e5b27ac42693f4281b90c74c3489eb8"
   },
   "historical_files_sha256": {
     "api/managers.py": "51d52e5042bbe8ae4a7ea66cf56952dbdf515a16a42c4b7fdc10528479c276c3",
@@ -102,5 +102,13 @@
       "mutations/test_tag_patch_removed_record_returns_404_after_committed_write-red.log": "ebc271a4cd15ba289c9ec3ebe1341c5697eea02550c5f77654c25e219e35dcae",
       "mutations/test_tag_patch_removed_record_returns_404_after_committed_write-red.xml": "1a0944c4a60539ff7e1c032ac956a3689914c33d5cce58732bfdcf0655e8a765"
     }
-  }
+  },
+  "prior_readme_bindings": [
+    {
+      "revision": "be66b6f19d4fc03fa402d2e823c2f7ae8f0ddece",
+      "sha256": "e64d58e62be452c31f19953b79c14c30535e77091eccc2c222befa88be54bb82",
+      "status": "stale-after-mypy-recovery-edit",
+      "observed_sha256": "256768891732a054812e95ed1fec3d2ba90a18d176f0cef1b0d8efa272b7f74c"
+    }
+  ]
 }
