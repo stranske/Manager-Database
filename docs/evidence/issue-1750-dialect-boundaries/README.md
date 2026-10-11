@@ -1,5 +1,10 @@
 # Manager adapter boundaries — source #1750
 
+The [acceptance follow-up](acceptance.md) records the current focused verification,
+eleven additional adapter/replay checks, and a fresh six-case mutation archive.
+The full-suite and coverage comparison below describes the original bounded run;
+it is not a new full-suite result for the follow-up environment.
+
 Six new named cases cover PostgreSQL array filters, native-array universe upsert,
 missing insert identities, JSONB registry updates, preservation of conflict flags,
 and missing aggregate results. Production bytes are unchanged. The connection is
