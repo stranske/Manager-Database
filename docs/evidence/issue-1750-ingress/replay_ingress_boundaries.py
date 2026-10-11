@@ -129,22 +129,24 @@ def main():
                 raise RuntimeError(f"Invalid RED/GREEN pair: {name}")
     finally:
         SOURCE.write_bytes(original)
+        callers_unchanged = all(
+            digest((ROOT / path).read_bytes()) == value for path, value in caller_hashes.items()
+        )
         (args.output / "receipts.json").write_text(
             json.dumps(
                 {
                     "source": binding,
                     "restored": SOURCE.read_bytes() == original,
                     "caller_sha256": caller_hashes,
-                    "callers_unchanged": all(
-                        digest((ROOT / path).read_bytes()) == value
-                        for path, value in caller_hashes.items()
-                    ),
+                    "callers_unchanged": callers_unchanged,
                     "receipts": receipts,
                 },
                 indent=2,
             )
             + "\n"
         )
+        if not callers_unchanged:
+            raise RuntimeError("Caller integrity failed; replay receipt is incomplete")
     print("Four production mutations: RED exit 1 / byte-identical restoration GREEN exit 0")
 
 
