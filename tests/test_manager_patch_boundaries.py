@@ -3,6 +3,7 @@
 import asyncio
 import json
 import sqlite3
+from contextlib import closing
 
 import pytest
 from fastapi import HTTPException
@@ -13,10 +14,18 @@ from api import managers
 def test_empty_update_does_not_execute_sql():
     conn = sqlite3.connect(":memory:")
     statements = []
-    conn.set_trace_callback(statements.append)
     try:
+        managers._ensure_manager_table(conn)
+        conn.execute("INSERT INTO managers (id, name, tags) VALUES (1, 'Original', '[]')")
+        conn.commit()
+        original = conn.execute("SELECT * FROM managers WHERE id = 1").fetchone()
+        changes = conn.total_changes
+        conn.set_trace_callback(statements.append)
         assert managers._update_manager(conn, 1, managers.ManagerUpdate()) is False
         assert statements == []
+        assert conn.total_changes == changes
+        assert not conn.in_transaction
+        assert conn.execute("SELECT * FROM managers WHERE id = 1").fetchone() == original
     finally:
         conn.close()
 
@@ -35,7 +44,7 @@ def test_blank_patch_name_returns_400_before_connecting(monkeypatch):
 @pytest.fixture
 def disappearing_manager(tmp_path, monkeypatch):
     db = tmp_path / "manager.db"
-    with sqlite3.connect(db) as seed:
+    with closing(sqlite3.connect(db)) as seed, seed:
         managers._ensure_manager_table(seed)
         seed.execute("INSERT INTO managers (id, name, tags) VALUES (1, 'Original', '[]')")
     connections = []
@@ -57,6 +66,17 @@ def disappearing_manager(tmp_path, monkeypatch):
         # The tags endpoint has an initial read before its committed update.
         name, tags = conn.execute("SELECT name, tags FROM managers WHERE id = 1").fetchone()
         if name == "Updated" or tags != "[]":
+            assert not conn.in_transaction
+            # A separate reader must see the write before the deletion is injected.
+            observer = sqlite3.connect(db)
+            try:
+                committed = observer.execute(
+                    "SELECT name, tags FROM managers WHERE id = 1"
+                ).fetchone()
+                assert committed == (name, tags)
+                assert committed in (("Updated", "[]"), ("Original", '["new"]'))
+            finally:
+                observer.close()
             events.append("removed-after-write")
             conn.execute("DELETE FROM managers WHERE id = 1")
             conn.commit()
@@ -71,7 +91,7 @@ def disappearing_manager(tmp_path, monkeypatch):
     assert events == ["removed-after-write", "close"]
     with pytest.raises(sqlite3.ProgrammingError, match="closed"):
         connections[0].execute("SELECT 1")
-    with sqlite3.connect(db) as verify:
+    with closing(sqlite3.connect(db)) as verify:
         assert verify.execute("SELECT COUNT(*) FROM managers").fetchone()[0] == 0
 
 
