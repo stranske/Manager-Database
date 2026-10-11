@@ -7,6 +7,9 @@ They verify raw archive contents rather than relying on the comparison summary.
 
 Verified acceptance checklist:
 
+- [x] **Bug Fixes**
+  - [x] Oversized bulk imports stop receiving at the first chunk that crosses
+    the configured byte limit, before storage access.
 - [x] **Tests**
   - [x] Regression coverage protects invalid bulk-size configuration, empty CSV,
     invalid patch requests and oversized bodies with malformed Content-Length.
@@ -66,3 +69,43 @@ records verified implementation criteria, without claiming hosted checks passed.
 The workspace's `.git` directory is read-only, so committing on its branch is
 blocked by creation of `.git/index.lock`. The follow-up commit is prepared in
 an isolated checkout under `/tmp`, with an applyable patch exported separately.
+
+## Streaming follow-up (2026-10-11)
+
+Reconciled recent commits `0bb9fcf`, `c6ad920`, `87af211` and `2aa02eb` against
+the acceptance criteria. The production streaming fix already exists. New
+`tests/test_manager_ingress_streaming.py` adds 22 app-level cases covering JSON
+and CSV, absent/malformed/underdeclared Content-Length, first-chunk oversize,
+cumulative oversize, and a byte exactly at the limit followed by one extra byte.
+It verifies that remaining chunks are unread and storage is never opened for
+oversized requests. Exact-limit UTF-8 payloads successfully import into SQLite;
+declared oversize is rejected without receiving any request body.
+
+```bash
+python -m pytest tests/test_manager_ingress_streaming.py \
+  tests/test_manager_ingress_boundaries.py tests/test_manager_ingress_evidence.py \
+  tests/test_manager_ingress_review.py --cov=api.managers \
+  --cov-report=term-missing --cov-fail-under=0 -m "not slow" -o addopts= -q
+python -m pytest tests/test_manager_bulk_api.py -m "not slow" -o addopts= -q
+python -m ruff check tests/test_manager_ingress_streaming.py
+git diff --check
+```
+
+The focused ingress/evidence command passes **34 cases**. The current
+`api/managers.py` coverage table shows **36%** (294/826 statements); this narrow
+measurement does not replace historical repository-wide coverage. Existing
+bulk API tests pass **56 cases**. A broader bulk/OpenAPI/rate-contract command
+stalled after 60 cases and was interrupted; no full-run pass is claimed.
+Focused Ruff and whitespace checks pass. Black passes the required full CLI
+check across **393 Python files**. As in the earlier revalidation, sequential
+`reformat_one` checks populated `/tmp/manager-ingress-streaming-black-cache`
+before the full command passed with that `BLACK_CACHE_DIR`; no source files
+were changed by this check.
+
+The GitHub connector successfully confirmed PR #1762 is open and ready for
+review (`draft=false`), but rejected the reconciled PR-body update with
+`MCP tool call requires approval, but approval policy is never`. The checked
+acceptance criteria above therefore remain a local reconciliation pending a
+permitted PR-body update. No protected workflow or repository configuration
+was edited. The original archive and review-repair manifest remain unchanged;
+their bindings identify their historical snapshots.

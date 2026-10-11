@@ -1,7 +1,11 @@
 # Manager ingress validation coverage
 
 Related to #1750. This is a bounded chunk of the continuing coverage initiative;
-#1750 stays open below 90%. No production code is changed.
+#1750 stays open below 90%. The original coverage increment changed no production
+code. The subsequent [review repair](review-repair-20261011/README.md) enforces
+cumulative streamed bytes and makes replay caller-integrity failures fatal.
+The suite counts, coverage figures and snapshot bindings below describe the
+original archived run.
 
 Fresh last-500-commit ranking selects `api/managers.py`: nine repair-subject
 proxy commits, 16 touches, 25 uncovered statements. This is a history proxy,
@@ -53,8 +57,8 @@ no hosted-environment parity or hosted CI PASS is claimed.
 
 `validation.tar.gz` retains lossless full consoles, JUnit, coverage JSON,
 exact argv/cwd/exits, interpreter versions, original source/callers and all eight
-mutation phases. `archive-index.json` binds every archive member and current
-production/test/replay bytes. `comparison.json` lists all existing failures.
+mutation phases. `archive-index.json` binds every archive member and the original
+production/test/replay snapshots. `comparison.json` lists all existing failures.
 Keepalive owns fresh hosted checks/reviews; closer owns unchanged-head complete
 check topology, full active threads/zero-active gate, seven-minute floor, guarded
 merge, actual verify:compare and bounded chunk disposition. No deployment,
