@@ -1,0 +1,462 @@
+{
+  "base": "aa5785fd5ac0ecfe13c1464b9a166c7440e619b4",
+  "history_window": 500,
+  "repair_subject_regex": "fix|bug|repair|regress|recover",
+  "proxy_is_not_escaped_defect_count": true,
+  "ranked": [
+    {
+      "path": "api/managers.py",
+      "repair_proxy": 9,
+      "touches": 16,
+      "missing": 25
+    },
+    {
+      "path": "ui/dashboard.py",
+      "repair_proxy": 5,
+      "touches": 8,
+      "missing": 104
+    },
+    {
+      "path": "etl/manager_similarity_flow.py",
+      "repair_proxy": 5,
+      "touches": 7,
+      "missing": 3
+    },
+    {
+      "path": "etl/edgar_flow.py",
+      "repair_proxy": 4,
+      "touches": 10,
+      "missing": 25
+    },
+    {
+      "path": "alerts/engine.py",
+      "repair_proxy": 4,
+      "touches": 8,
+      "missing": 15
+    },
+    {
+      "path": "llm/client.py",
+      "repair_proxy": 4,
+      "touches": 5,
+      "missing": 31
+    },
+    {
+      "path": "ui/alerts.py",
+      "repair_proxy": 4,
+      "touches": 4,
+      "missing": 67
+    },
+    {
+      "path": "api/chat.py",
+      "repair_proxy": 3,
+      "touches": 11,
+      "missing": 91
+    },
+    {
+      "path": "embeddings.py",
+      "repair_proxy": 3,
+      "touches": 9,
+      "missing": 12
+    },
+    {
+      "path": "etl/ingest_flow.py",
+      "repair_proxy": 2,
+      "touches": 8,
+      "missing": 59
+    },
+    {
+      "path": "api/signals.py",
+      "repair_proxy": 2,
+      "touches": 7,
+      "missing": 34
+    },
+    {
+      "path": "api/activism.py",
+      "repair_proxy": 2,
+      "touches": 6,
+      "missing": 29
+    },
+    {
+      "path": "api/search.py",
+      "repair_proxy": 2,
+      "touches": 6,
+      "missing": 28
+    },
+    {
+      "path": "alerts/models.py",
+      "repair_proxy": 2,
+      "touches": 4,
+      "missing": 7
+    },
+    {
+      "path": "ui/__init__.py",
+      "repair_proxy": 2,
+      "touches": 3,
+      "missing": 17
+    },
+    {
+      "path": "adapters/insider.py",
+      "repair_proxy": 2,
+      "touches": 3,
+      "missing": 8
+    },
+    {
+      "path": "ui/upload.py",
+      "repair_proxy": 2,
+      "touches": 2,
+      "missing": 36
+    },
+    {
+      "path": "adapters/base.py",
+      "repair_proxy": 1,
+      "touches": 8,
+      "missing": 1
+    },
+    {
+      "path": "etl/activism_flow.py",
+      "repair_proxy": 1,
+      "touches": 6,
+      "missing": 20
+    },
+    {
+      "path": "adapters/edgar.py",
+      "repair_proxy": 1,
+      "touches": 5,
+      "missing": 47
+    },
+    {
+      "path": "etl/activism_detection.py",
+      "repair_proxy": 1,
+      "touches": 5,
+      "missing": 47
+    },
+    {
+      "path": "etl/conviction_flow.py",
+      "repair_proxy": 1,
+      "touches": 4,
+      "missing": 51
+    },
+    {
+      "path": "chains/filing_summary.py",
+      "repair_proxy": 1,
+      "touches": 3,
+      "missing": 37
+    },
+    {
+      "path": "chains/rag_search.py",
+      "repair_proxy": 1,
+      "touches": 3,
+      "missing": 26
+    },
+    {
+      "path": "ui/daily_report.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 69
+    },
+    {
+      "path": "adapters/prices.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 49
+    },
+    {
+      "path": "chains/holdings_analysis.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 30
+    },
+    {
+      "path": "alerts/db.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 29
+    },
+    {
+      "path": "api/alerts.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 19
+    },
+    {
+      "path": "etl/point_in_time.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 11
+    },
+    {
+      "path": "alembic/env.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 7
+    },
+    {
+      "path": "api/cache.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 2
+    },
+    {
+      "path": "llm/cost_tracking.py",
+      "repair_proxy": 1,
+      "touches": 2,
+      "missing": 1
+    },
+    {
+      "path": "services/manager_deletion.py",
+      "repair_proxy": 1,
+      "touches": 1,
+      "missing": 88
+    },
+    {
+      "path": "adapters/uk.py",
+      "repair_proxy": 1,
+      "touches": 1,
+      "missing": 75
+    },
+    {
+      "path": "alerts/dispatch.py",
+      "repair_proxy": 1,
+      "touches": 1,
+      "missing": 2
+    },
+    {
+      "path": "alembic/versions/023_manager_deletion_ledger.py",
+      "repair_proxy": 1,
+      "touches": 1,
+      "missing": 1
+    },
+    {
+      "path": "etl/daily_diff_flow.py",
+      "repair_proxy": 0,
+      "touches": 7,
+      "missing": 21
+    },
+    {
+      "path": "chains/nl_query.py",
+      "repair_proxy": 0,
+      "touches": 4,
+      "missing": 22
+    },
+    {
+      "path": "etl/news_flow.py",
+      "repair_proxy": 0,
+      "touches": 4,
+      "missing": 21
+    },
+    {
+      "path": "diff_holdings.py",
+      "repair_proxy": 0,
+      "touches": 4,
+      "missing": 9
+    },
+    {
+      "path": "etl/digest_flow.py",
+      "repair_proxy": 0,
+      "touches": 3,
+      "missing": 33
+    },
+    {
+      "path": "etl/activism_campaign_flow.py",
+      "repair_proxy": 0,
+      "touches": 3,
+      "missing": 30
+    },
+    {
+      "path": "etl/evaluation_flow.py",
+      "repair_proxy": 0,
+      "touches": 3,
+      "missing": 27
+    },
+    {
+      "path": "config.py",
+      "repair_proxy": 0,
+      "touches": 3,
+      "missing": 2
+    },
+    {
+      "path": "alembic/versions/001_canonical_schema.py",
+      "repair_proxy": 0,
+      "touches": 2,
+      "missing": 16
+    },
+    {
+      "path": "api/_compat.py",
+      "repair_proxy": 0,
+      "touches": 2,
+      "missing": 7
+    },
+    {
+      "path": "ui/search.py",
+      "repair_proxy": 0,
+      "touches": 2,
+      "missing": 5
+    },
+    {
+      "path": "adapters/news.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 70
+    },
+    {
+      "path": "llm/evaluation.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 60
+    },
+    {
+      "path": "ui/research.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 43
+    },
+    {
+      "path": "etl/attribution_flow.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 38
+    },
+    {
+      "path": "alerts/channels.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 31
+    },
+    {
+      "path": "etl/backtest_flow.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 31
+    },
+    {
+      "path": "adapters/short_interest.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 29
+    },
+    {
+      "path": "docs/evidence/issue-1750-json-decoding/replay_json_boundaries.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 27
+    },
+    {
+      "path": "etl/insider_flow.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 15
+    },
+    {
+      "path": "docs/evidence/issue-1750-legacy-schema/replay_schema_boundaries.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 14
+    },
+    {
+      "path": "adapters/openfigi.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 11
+    },
+    {
+      "path": "alerts/data_quality.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 5
+    },
+    {
+      "path": "chains/evidence.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 5
+    },
+    {
+      "path": "chains/utils.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 5
+    },
+    {
+      "path": "etl/summariser_flow.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 5
+    },
+    {
+      "path": "alembic/versions/010_schema_sql_parity_fixes.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 4
+    },
+    {
+      "path": "adapters/asic.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 3
+    },
+    {
+      "path": "etl/short_interest_flow.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 3
+    },
+    {
+      "path": "utils/identifiers.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 3
+    },
+    {
+      "path": "alerts/integration.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 1
+    },
+    {
+      "path": "llm/langsmith_fleet.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 1
+    },
+    {
+      "path": "ui/launch.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 1
+    },
+    {
+      "path": "utils/numeric.py",
+      "repair_proxy": 0,
+      "touches": 1,
+      "missing": 1
+    }
+  ],
+  "selected": "api/managers.py ingress: invalid configured limit, empty CSV, invalid update CIK, malformed Content-Length with oversized actual body",
+  "missing_lines": [
+    330,
+    406,
+    461,
+    469,
+    503,
+    504,
+    514,
+    596,
+    602,
+    639,
+    706,
+    837,
+    838,
+    839,
+    847,
+    1079,
+    1096,
+    1106,
+    1310,
+    1311,
+    1436,
+    1519,
+    1520,
+    1792,
+    1862
+  ]
+}

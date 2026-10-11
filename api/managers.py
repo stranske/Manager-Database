@@ -1318,14 +1318,19 @@ async def bulk_import_managers(
             )
             return _bulk_request_payload_too_large(max_bytes)
 
-    raw_bytes = await request.body()
-    if len(raw_bytes) > max_bytes:
-        logger.warning(
-            "Bulk import payload too large: %s bytes (max %s).",
-            len(raw_bytes),
-            max_bytes,
-        )
-        return _bulk_request_payload_too_large(max_bytes)
+    chunks: list[bytes] = []
+    received_bytes = 0
+    async for chunk in request.stream():
+        received_bytes += len(chunk)
+        if received_bytes > max_bytes:
+            logger.warning(
+                "Bulk import payload too large: %s bytes (max %s).",
+                received_bytes,
+                max_bytes,
+            )
+            return _bulk_request_payload_too_large(max_bytes)
+        chunks.append(chunk)
+    raw_bytes = b"".join(chunks)
 
     source = "csv" if "csv" in content_type else "json"
     if "csv" in content_type:
