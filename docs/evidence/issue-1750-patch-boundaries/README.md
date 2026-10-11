@@ -19,7 +19,7 @@ Use Python 3.12 or newer with this repository's test dependencies:
 
 ```sh
 python3 -m pytest tests/test_manager_patch_boundaries.py -q -o addopts= -m "not slow"
-python3 docs/evidence/issue-1750-patch-boundaries/replay.py --output /tmp/new-manager-patch-proof
+python3 docs/evidence/issue-1750-patch-boundaries/replay_patch_boundaries.py --output /tmp/new-manager-patch-proof
 python3 -m pytest tests -q --cov --cov-report=json:coverage.json
 ```
 
@@ -48,7 +48,7 @@ Reproduce the final focused check:
 ```sh
 python3 -m pytest tests/test_manager_patch_boundaries.py tests/test_manager_write_failures.py tests/test_manager_cache.py tests/test_manager_legacy_decoding.py -q -m "not slow" --cov=api.managers --cov-report=term-missing --cov-fail-under=0
 black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
-ruff check tests/test_manager_patch_boundaries.py docs/evidence/issue-1750-patch-boundaries/replay.py
+ruff check tests/test_manager_patch_boundaries.py docs/evidence/issue-1750-patch-boundaries/replay_patch_boundaries.py
 git diff --check
 ```
 
@@ -78,3 +78,7 @@ was created. The GitHub connector also rejected the blocker comment and
 `never`. A runner with Git metadata write access must stage and commit the test,
 this README, the manifest and `acceptance-validation.tar.gz`. PR #1764 was
 verified open and ready for review; its remote head was unchanged by this run.
+
+## Mypy entry-point recovery
+
+The entry point is now `replay_patch_boundaries.py` to avoid mypy discovering two modules named `replay`. Its bytes retain SHA256 `42995b1b758d04565ab6bbb7dfe5a6e86d0adf02630da956433881836629bf46`. Historical archive contents and historical bindings are unchanged. The exact full command passes module discovery locally but exits 1 on unrelated local installed-stub/type errors; hosted confirmation remains pending. Both replay files typecheck together successfully, and all four manager patch tests pass. Full logs and commands are in `mypy-recovery/`.

@@ -1,0 +1,14 @@
+{
+  "change": "Rename replay entrypoint only; identical SHA256 bytes; historical archives and bindings retained",
+  "replay_sha256": "42995b1b758d04565ab6bbb7dfe5a6e86d0adf02630da956433881836629bf46",
+  "exact_command": "python3 -m mypy --config-file pyproject.toml --exclude .workflows-lib .",
+  "local_full_result": "exit 1; duplicate replay discovery removed; local global environment reports unrelated installed-stub/type errors. Hosted confirmation pending.",
+  "focused_command": "python3 -m mypy --config-file pyproject.toml docs/evidence/issue-1750-ranked-next/replay.py docs/evidence/issue-1750-patch-boundaries/replay_patch_boundaries.py",
+  "focused_result": "exit 0; no issues found in 2 source files",
+  "tests": "4 passed; black/ruff/diff pass",
+  "files_sha256": {
+    "local-full-mypy.txt": "d6d2f5692dc96bd662097c727a0b53d58e2b802d2ededd2609abcd02365a86c1",
+    "focused.txt": "10308980617d096d50c9265d83134efeeefb1697b8ab41dc84f67c41d66fc925",
+    "hosted-mypy.txt": "b92fa5f410002cf6e88176115bf295402a6c8b1a2df53a91ac88c77f370361db"
+  }
+}
