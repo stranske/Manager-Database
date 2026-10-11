@@ -39,7 +39,9 @@ unchanged. The proposed reconciled body is preserved inside the new archive.
 ## Verification and reproduction
 
 Python 3.14.8 verification: **81 focused checks pass**, including the 30 new cases,
-with slow tests excluded. Focused Ruff and mypy over all seven test/replay modules
+with slow tests excluded. These 81 checks used Python 3.14.8 rather than the
+Python 3.12.2 interpreter used for the historical full-suite results below; no
+interpreter parity is claimed. Focused Ruff and mypy over all seven test/replay modules
 (`--follow-imports=silent`) pass, as does `git diff --check`. The new Python file
 was formatted with Black at line length 100. The required repository-wide Black
 check reports **404 files unchanged**. Its ordinary invocation timed out after
