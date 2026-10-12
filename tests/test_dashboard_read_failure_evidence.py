@@ -91,6 +91,33 @@ def test_dashboard_archive_and_current_source_bindings(archive):
     )
 
 
+def test_dashboard_review_recovery_archive_and_six_current_inputs():
+    recovery = EVIDENCE / "review-recovery-20261012"
+    manifest = json.loads((recovery / "manifest.json").read_text())
+    proof = recovery / "proof.tar.gz"
+    assert digest(proof.read_bytes()) == manifest["archive_sha256"]
+    with tarfile.open(proof) as bundle:
+        members = bundle.getmembers()
+        assert len(members) == len(manifest["members"]) == 88
+        assert all(member.isfile() for member in members)
+        assert len({member.name for member in members}) == len(members)
+        assert {member.name for member in members} == set(manifest["members"])
+        for member in members:
+            raw = bundle.extractfile(member).read()
+            assert len(raw) == manifest["members"][member.name]["bytes"], member.name
+            assert digest(raw) == manifest["members"][member.name]["sha256"], member.name
+    assert set(manifest["current_inputs"]) == {
+        SOURCE,
+        TEST,
+        DRIVER,
+        "tests/test_dashboard_read_failure_replay.py",
+        "tests/test_dashboard_read_failure_evidence.py",
+        "pyproject.toml",
+    }
+    for name, expected in manifest["current_inputs"].items():
+        assert digest((ROOT / name).read_bytes()) == expected, name
+
+
 @pytest.mark.parametrize("loader", SQL + DOMAIN)
 def test_dashboard_ten_intended_red_and_restored_green_pairs(archive, loader):
     controls = json.loads(archive["mutations/controls.json"])["controls"]
