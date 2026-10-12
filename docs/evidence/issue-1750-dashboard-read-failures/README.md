@@ -106,3 +106,17 @@ The requested blocker comment and `needs-human` label were rejected for the same
 reason. Committing the tested changes also failed because `.git/index.lock` cannot
 be created on the read-only Git filesystem. A permitted run must commit these
 changes and apply the prepared PR body; PR #1770 remains open and ready for review.
+
+Four receipt-persistence controls now cover `OSError` while writing the RED or
+GREEN command receipt, on the first and final mutation. Even with valid pytest
+JUnit, each abort restores private production before cleanup, preserves caller
+bytes, and publishes neither completed controls nor PASS. All 72 replay/phase
+controls pass; the preceding 94-case run verified the ten real mutation pairs,
+both archives and all current bindings. Full Black checks 412 files, focused
+Ruff and diff checks pass. Targeted loader coverage remains 21%; no new
+full-suite result or coverage comparison is claimed. PR-body reconciliation,
+the blocker comment and `needs-human` label were all rejected because connector
+writes require approval under this run's `never` policy.
+The commit attempt also failed because `.git/index.lock` is on a read-only
+filesystem. A permitted run must commit the tested changes and apply the
+prepared PR body. PR #1770 remains open and ready for review.

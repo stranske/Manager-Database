@@ -166,6 +166,7 @@ def test_replay_refuses_uncommitted_production_before_starting_any_phase(
             "malformed-junit",
             "missing-junit",
             "wrong-identity",
+            "receipt-write-error",
         )
     ]
     + [("red", "wrong-assertion")],
@@ -205,6 +206,13 @@ def test_replay_restores_private_production_after_failed_phase(
 
     output = tmp_path / "proof"
     phases = []
+
+    write_text = Path.write_text
+
+    def write_receipt(path, data, *args, **kwargs):
+        if fault == "receipt-write-error" and path == output / f"{loader}-{phase}.json":
+            raise OSError("Phase receipt could not be persisted")
+        return write_text(path, data, *args, **kwargs)
 
     def run_phase(argv, *, cwd, stdout, stderr, timeout, check):
         assert cwd == private
@@ -252,6 +260,7 @@ def test_replay_restores_private_production_after_failed_phase(
     monkeypatch.setattr(replay.subprocess, "check_output", committed_archive)
     monkeypatch.setattr(replay.tempfile, "TemporaryDirectory", private_tree)
     monkeypatch.setattr(replay.subprocess, "run", run_phase)
+    monkeypatch.setattr(Path, "write_text", write_receipt)
     monkeypatch.setattr(replay.sys, "argv", [replay.__file__, "--output", str(output)])
     exception = {
         "timeout": replay.subprocess.TimeoutExpired,
@@ -262,11 +271,13 @@ def test_replay_restores_private_production_after_failed_phase(
         "missing-junit": FileNotFoundError,
         "wrong-identity": ValueError,
         "wrong-assertion": ValueError,
+        "receipt-write-error": OSError,
     }[fault]
     message = {
         "wrong-exit": "Wrong phase exit",
         "wrong-identity": "Wrong test identity",
         "wrong-assertion": "intended empty-frame assertion",
+        "receipt-write-error": "Phase receipt could not be persisted",
     }.get(fault)
     with pytest.raises(exception, match=message):
         replay.main()
@@ -297,4 +308,14 @@ def test_replay_restores_private_production_after_failed_phase(
         prefix = output / f"{loader}-{phase}"
         assert not prefix.with_suffix(".json").exists()
         assert not prefix.with_suffix(".xml").exists()
+    if fault == "receipt-write-error":
+        # Successful pytest output cannot complete proof without its command receipt.
+        prefix = output / f"{loader}-{phase}"
+        assert not prefix.with_suffix(".json").exists()
+        replay.validate_junit(
+            prefix.with_suffix(".xml"),
+            ET.parse(prefix.with_suffix(".xml")).find("testsuite/testcase").get("name"),
+            phase,
+            1 if phase == "red" else 0,
+        )
     assert "PASS:" not in capsys.readouterr().out
