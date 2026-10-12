@@ -3,6 +3,8 @@
 import ast
 import hashlib
 import json
+import subprocess
+import sys
 import tarfile
 from collections import Counter
 from pathlib import Path
@@ -154,6 +156,32 @@ def test_dashboard_ten_intended_red_and_restored_green_pairs(archive, loader):
             assert ">       assert result.empty" in failure.text
             assert "AssertionError" in failure.text
         assert archive[f"{prefix}.log"], "Missing raw pytest output"
+
+
+def test_dashboard_current_replay_proves_ten_pairs_and_refuses_output_reuse(tmp_path):
+    """Exercise the real driver and production mutants, independently of saved receipts."""
+    bound_files = (SOURCE, TEST, DRIVER)
+    before = {name: (ROOT / name).read_bytes() for name in bound_files}
+    output = tmp_path / "fresh-proof"
+    argv = [sys.executable, str(ROOT / DRIVER), "--output", str(output)]
+    run = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, timeout=300, check=False)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "ten intended assertion RED1/restored GREEN0 pairs" in run.stdout
+    receipts = {path.name: path.read_bytes() for path in output.iterdir()}
+    fresh = {f"mutations/{name}": raw for name, raw in receipts.items()}
+    fresh[f"source/{SOURCE}"] = before[SOURCE]
+    controls = json.loads(receipts["controls.json"])
+    assert controls["caller_identity"] == {name: digest(before[name]) for name in (SOURCE, TEST)}
+    assert controls["replay_sha256"] == digest(before[DRIVER])
+    for loader in SQL + DOMAIN:
+        test_dashboard_ten_intended_red_and_restored_green_pairs(fresh, loader)
+
+    reuse = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, timeout=30, check=False)
+    assert reuse.returncode == 1
+    assert "FileExistsError" in reuse.stderr
+    assert "PASS:" not in reuse.stdout
+    assert {path.name: path.read_bytes() for path in output.iterdir()} == receipts
+    assert {name: (ROOT / name).read_bytes() for name in bound_files} == before
 
 
 def test_dashboard_archived_full_suites_preserve_all_old_outcomes(archive):
