@@ -65,8 +65,13 @@ def validate_junit(path, name, phase, returncode):
         "Error, skip or misplaced outcome is not proof",
     )
     if phase == "red":
+        failure = outcomes[0]
         require(
-            "assert result.empty" in (outcomes[0].text or ""),
+            failure.get("message", "").split("\n", 1)[0] == "assert False"
+            and any(
+                line.startswith(">") and line[1:].strip() == "assert result.empty"
+                for line in (failure.text or "").splitlines()
+            ),
             "RED was not the intended empty-frame assertion",
         )
 
