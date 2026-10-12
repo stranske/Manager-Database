@@ -1,6 +1,10 @@
 """A plausible assertion receipt cannot override failed replay phase controls."""
 
+import io
+import tarfile
 import xml.etree.ElementTree as ET
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
@@ -73,3 +77,87 @@ def test_replay_rejects_red_failure_outside_selected_case(tmp_path):
 
     with pytest.raises(ValueError, match="Error, skip or misplaced outcome"):
         replay.validate_junit(path, NAME, "red", 1)
+
+
+@pytest.mark.parametrize("phase", ["red", "green"])
+@pytest.mark.parametrize("fault", ["timeout", "wrong-exit", "malformed-junit"])
+def test_replay_restores_private_production_after_failed_phase(
+    tmp_path, monkeypatch, capsys, phase, fault
+):
+    """An aborted proof must restore production and never publish completed controls."""
+    root = Path(replay.__file__).resolve().parents[3]
+    caller = {name: (root / name).read_bytes() for name in (replay.SOURCE, replay.TEST)}
+    original = caller[replay.SOURCE]
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as bundle:
+        for name, raw in caller.items():
+            member = tarfile.TarInfo(name)
+            member.size = len(raw)
+            bundle.addfile(member, io.BytesIO(raw))
+
+    def committed_archive(argv, *, timeout):
+        assert argv == ["git", "-C", str(root), "archive", "HEAD"]
+        assert timeout == 60
+        return archive.getvalue()
+
+    private = tmp_path / "private"
+    private.mkdir()
+    source = private / replay.SOURCE
+
+    @contextmanager
+    def private_tree(*, prefix):
+        assert prefix == "dashboard-fallback-proof-"
+        try:
+            yield str(private)
+        finally:
+            # Check before temporary-tree cleanup can hide an unrestored mutant.
+            assert source.read_bytes() == original
+
+    output = tmp_path / "proof"
+    phases = []
+
+    def run_phase(argv, *, cwd, stdout, stderr, timeout, check):
+        assert cwd == private
+        assert timeout == 120
+        assert check is False
+        assert stderr == replay.subprocess.STDOUT
+        xml = Path(next(arg.split("=", 1)[1] for arg in argv if arg.startswith("--junitxml=")))
+        current_phase = xml.stem.rsplit("-", 1)[1]
+        phases.append(current_phase)
+        expected = (
+            output / f"{replay.SQL[0]}-{'mutant' if current_phase == 'red' else 'original'}.py"
+        )
+        assert source.read_bytes() == expected.read_bytes()
+        assert (source.read_bytes() == original) is (current_phase == "green")
+        if current_phase == phase and fault == "timeout":
+            raise replay.subprocess.TimeoutExpired(argv, timeout)
+        name = argv[argv.index("pytest") + 1].split("::", 1)[1]
+        report(tmp_path, name=name, outcome="failure" if current_phase == "red" else "").replace(
+            xml
+        )
+        code = 1 if current_phase == "red" else 0
+        if current_phase == phase:
+            if fault == "wrong-exit":
+                code = 5
+            else:
+                xml.write_text("<testsuites>")
+        stdout.write("controlled phase output\n")
+        return replay.subprocess.CompletedProcess(argv, code)
+
+    monkeypatch.setattr(replay.subprocess, "check_output", committed_archive)
+    monkeypatch.setattr(replay.tempfile, "TemporaryDirectory", private_tree)
+    monkeypatch.setattr(replay.subprocess, "run", run_phase)
+    monkeypatch.setattr(replay.sys, "argv", [replay.__file__, "--output", str(output)])
+    exception = {
+        "timeout": replay.subprocess.TimeoutExpired,
+        "wrong-exit": ValueError,
+        "malformed-junit": ET.ParseError,
+    }[fault]
+    with pytest.raises(exception):
+        replay.main()
+
+    assert phases == (["red"] if phase == "red" else ["red", "green"])
+    assert source.read_bytes() == original
+    assert {name: (root / name).read_bytes() for name in caller} == caller
+    assert not (output / "controls.json").exists()
+    assert "PASS:" not in capsys.readouterr().out

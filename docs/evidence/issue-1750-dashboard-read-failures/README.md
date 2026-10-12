@@ -49,3 +49,13 @@ pytest tests/test_dashboard_read_failure_phase_guards.py tests/test_dashboard_re
 ```
 
 Both raw archives, manifests, production, driver and loader tests remain byte-identical. Full Black 26.10.0 checks all 412 current files at line length 100 with the required exclusions using its normal CLI and formatter with synchronous executor completion. The asynchronous dispatch stalls in this sandbox; its checks were not skipped. Focused Ruff and diff checks pass. No new full-suite run or coverage measurement is claimed.
+
+Six further phase controls exercise private production restoration when RED or GREEN
+times out, exits with no tests, or emits malformed JUnit. Each checks restoration before
+temporary-tree cleanup, unchanged caller bytes, and absence of completed controls or a
+PASS report. The 28 phase-guard cases pass. The preceding 62-case validation also
+passes, including a fresh ten-pair production replay. Full Black checks all 412 current
+files with the required CLI after sequential formatting checks populate a writable
+temporary cache; focused Ruff and diff checks pass. Archived suite counts and coverage
+remain historical. PR-body checkbox reconciliation was rejected because connector
+writes require approval and this run's approval policy is `never`.
