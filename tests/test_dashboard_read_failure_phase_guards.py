@@ -159,6 +159,8 @@ def test_replay_refuses_uncommitted_production_before_starting_any_phase(
         for phase in ("red", "green")
         for fault in (
             "timeout",
+            "spawn-error",
+            "interrupted",
             "wrong-exit",
             "malformed-junit",
             "missing-junit",
@@ -217,6 +219,10 @@ def test_replay_restores_private_production_after_failed_phase(
         assert (source.read_bytes() == original) is (current_phase == "green")
         if current_phase == phase and fault == "timeout":
             raise replay.subprocess.TimeoutExpired(argv, timeout)
+        if current_phase == phase and fault == "spawn-error":
+            raise OSError("Pytest process could not start")
+        if current_phase == phase and fault == "interrupted":
+            raise KeyboardInterrupt("Replay interrupted during pytest")
         name = argv[argv.index("pytest") + 1].split("::", 1)[1]
         receipt_options = {}
         if current_phase == phase:
@@ -246,6 +252,8 @@ def test_replay_restores_private_production_after_failed_phase(
     monkeypatch.setattr(replay.sys, "argv", [replay.__file__, "--output", str(output)])
     exception = {
         "timeout": replay.subprocess.TimeoutExpired,
+        "spawn-error": OSError,
+        "interrupted": KeyboardInterrupt,
         "wrong-exit": ValueError,
         "malformed-junit": ET.ParseError,
         "missing-junit": FileNotFoundError,
@@ -264,4 +272,9 @@ def test_replay_restores_private_production_after_failed_phase(
     assert source.read_bytes() == original
     assert {name: (root / name).read_bytes() for name in caller} == caller
     assert not (output / "controls.json").exists()
+    if fault in {"timeout", "spawn-error", "interrupted"}:
+        # A process that never returns cannot supply a completed phase receipt.
+        prefix = output / f"{replay.SQL[0]}-{phase}"
+        assert not prefix.with_suffix(".json").exists()
+        assert not prefix.with_suffix(".xml").exists()
     assert "PASS:" not in capsys.readouterr().out

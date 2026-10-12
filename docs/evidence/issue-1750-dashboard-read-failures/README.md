@@ -81,3 +81,14 @@ focused Ruff and diff checks pass. Targeted loader coverage reports 21% for
 The reconciled seven-checkbox PR body is preserved in [pr-body.md](pr-body.md).
 The connector rejected its remote update because writes require approval and the
 run's approval policy is `never`. PR #1770 remains open and ready for review.
+
+Four additional restoration cases cover subprocess launch `OSError` and
+`KeyboardInterrupt` during both RED and GREEN. They verify byte-identical private
+production before cleanup, unchanged caller bytes, and no completed phase receipt,
+controls or PASS report. The 53 replay/phase controls and 26 loader/evidence checks
+pass, including a fresh ten-pair replay and reuse refusal. Full Black checks all
+412 current files after sequential verification populates a writable temporary
+cache; focused Ruff and diff checks pass. Targeted loader coverage remains 21%;
+the archived full-suite coverage comparison remains historical. The reconciled
+PR-body update was rejected again because connector writes require approval under
+this run's `never` policy; the checked body remains available in `pr-body.md`.
