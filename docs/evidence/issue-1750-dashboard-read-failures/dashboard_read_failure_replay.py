@@ -36,6 +36,41 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def validate_junit(path, name, phase, returncode):
+    """Require the selected assertion outcome, never a different failing test."""
+    require(phase in {"red", "green"}, "Unknown phase")
+    require(returncode == (1 if phase == "red" else 0), "Wrong phase exit")
+    root = ET.parse(path).getroot()
+    suites = list(root.iter("testsuite"))
+    require(len(suites) == 1, "Expected one suite")
+    suite = suites[0]
+    require(
+        {key: suite.get(key) for key in ("tests", "failures", "errors", "skipped")}
+        == {"tests": "1", "failures": str(int(phase == "red")), "errors": "0", "skipped": "0"},
+        "Wrong suite outcomes",
+    )
+    cases = list(root.iter("testcase"))
+    require(
+        len(cases) == 1
+        and cases[0] in list(suite)
+        and cases[0].get("name") == name
+        and cases[0].get("classname") == "tests.test_dashboard_loader_failures",
+        "Wrong test identity",
+    )
+    case = cases[0]
+    outcomes = [node for node in root.iter() if node.tag in {"failure", "error", "skipped"}]
+    require(
+        [node.tag for node in outcomes] == (["failure"] if phase == "red" else [])
+        and all(node in list(case) for node in outcomes),
+        "Error, skip or misplaced outcome is not proof",
+    )
+    if phase == "red":
+        require(
+            "assert result.empty" in (outcomes[0].text or ""),
+            "RED was not the intended empty-frame assertion",
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
@@ -43,7 +78,7 @@ def main():
     output.mkdir(parents=True, exist_ok=False)
     root = Path(__file__).resolve().parents[3]
     caller = {name: digest((root / name).read_bytes()) for name in (SOURCE, TEST)}
-    archive = subprocess.check_output(["git", "-C", str(root), "archive", "HEAD"])
+    archive = subprocess.check_output(["git", "-C", str(root), "archive", "HEAD"], timeout=60)
     controls = []
     with tempfile.TemporaryDirectory(prefix="dashboard-fallback-proof-") as tmp:
         tree = Path(tmp)
@@ -93,7 +128,7 @@ def main():
                 "original_sha256": digest(original),
                 "mutant_sha256": digest(mutant),
             }
-            for phase, data, expected in (("red", mutant, 1), ("green", original, 0)):
+            for phase, data in (("red", mutant), ("green", original)):
                 try:
                     source.write_bytes(data)
                     xml = output / (function + "-" + phase + ".xml")
@@ -121,20 +156,7 @@ def main():
                     (output / (function + "-" + phase + ".json")).write_text(
                         json.dumps(receipt, indent=2)
                     )
-                    cases = list(ET.parse(xml).getroot().iter("testcase"))
-                    require(r.returncode == expected, (function, phase, r.returncode))
-                    require(len(cases) == 1 and cases[0].get("name") == name, "Wrong test identity")
-                    require(
-                        not list(cases[0].iter("error")) and not list(cases[0].iter("skipped")),
-                        "Error or skip is not proof",
-                    )
-                    failures = list(cases[0].iter("failure"))
-                    require(bool(failures) == (phase == "red"), "Wrong phase result")
-                    if phase == "red":
-                        require(
-                            "assert result.empty" in (failures[0].text or ""),
-                            "RED was not the intended empty-frame assertion",
-                        )
+                    validate_junit(xml, name, phase, r.returncode)
                     control[phase] = receipt
                 finally:
                     source.write_bytes(original)

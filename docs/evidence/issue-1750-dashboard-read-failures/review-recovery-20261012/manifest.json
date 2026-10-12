@@ -1,0 +1,367 @@
+{
+  "base_head": "a801e766ee62f365133a8cbbacb435f3eca3db6a",
+  "archive_sha256": "2204105d4a9239531d5d7c65c49fba86ce551e9d714d47e4d2f97c965e434dd1",
+  "members": {
+    "1770-repair-final.log": {
+      "sha256": "98e58a0e2bb72850d439ca65c9d27a18dc83c94c5a9d6ca818995a27c685d8d1",
+      "bytes": 3860
+    },
+    "1770-repair-final.xml": {
+      "sha256": "7f63c50e267a536551dc91846e8afd4dbdd197fba9a8d2f227b74be7cc001ad2",
+      "bytes": 5545
+    },
+    "1770-ruff-final.log": {
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19
+    },
+    "1770-mypy-exact.log": {
+      "sha256": "9c50ef105c6b7744139d2bca9752227cde68ed50d837c68541c5b1a2d19b0205",
+      "bytes": 12487
+    },
+    "1770-mypy-baseline.log": {
+      "sha256": "d28c942a1118fcfc5d4cda297404c6880fa1297c0a6c8b24227b9e86213a9ccd",
+      "bytes": 12487
+    },
+    "1770-black.log": {
+      "sha256": "048d10cbd4c9a1a86a5d0b33f9c304770fe445da7a36f5fe5192acd2545ad248",
+      "bytes": 58
+    },
+    "1770-repair-replay.log": {
+      "sha256": "50d08a783ab8c0ccb58137952458f6768f93eb058a8b26a51c4b24ab2ff14f08",
+      "bytes": 80
+    },
+    "replay/load_filing_timeline-red.log": {
+      "sha256": "594f855daabcdc8c5df3f463c9894e83f9f16823fa0d422fbba1d54808d50939",
+      "bytes": 6018
+    },
+    "replay/load_active_campaigns_summary-red.xml": {
+      "sha256": "390b0a9358d09d5dba44661d8ab2c12fef84af87d64a39018a57b5f85aed6b6d",
+      "bytes": 3539
+    },
+    "replay/load_manager_conviction_scores-red.xml": {
+      "sha256": "6ca627f9aa5490a75cbfe1c2b4f401ef5172ef5636b91860395e4a4c7eafa0b6",
+      "bytes": 3565
+    },
+    "replay/load_active_campaigns_summary-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_manager_activism_filings-red.json": {
+      "sha256": "00593757465adea0c58b6a39a3280bf5a16eba0d555001faeccaf9aaa386729e",
+      "bytes": 514
+    },
+    "replay/load_manager_conviction_scores-green.log": {
+      "sha256": "c2e5bfc408116ff69cc7359c8cdf361a3fc3bd8a86f3e1eb25ca74ebfd9dee80",
+      "bytes": 3829
+    },
+    "replay/load_active_campaigns_summary-green.xml": {
+      "sha256": "55f6686b8a0b875f2cc7d5dcdd59a5557ac6d7e01c4b4656efed126632acd2ed",
+      "bytes": 428
+    },
+    "replay/load_top_deltas-red.xml": {
+      "sha256": "0841d04852908a95dd0e8926a5cd79f9ea9ff75ac48b2e08f639961d0b779b6b",
+      "bytes": 2345
+    },
+    "replay/load_latest_holdings_snapshot-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/controls.json": {
+      "sha256": "1e6482fe5f8729681515c3a1bd8315f13374a24e71415858f7fac7a75d6c3d03",
+      "bytes": 16970
+    },
+    "replay/load_manager_activism_events-green.log": {
+      "sha256": "aba0031934f827a28ffc19d811d49a1e8d882876fff229f2bcb2e0ecb1d76c25",
+      "bytes": 3829
+    },
+    "replay/load_manager_activism_filings-mutant.py": {
+      "sha256": "c6ff09b60f0c35f2bf888f2e98eb425b9883892d13c924d6a8223ff120e87470",
+      "bytes": 45536
+    },
+    "replay/load_active_campaigns_summary-red.json": {
+      "sha256": "b165ec14d3d856a3600d9b6bbd237a6ecf176a3f2ea491b536bf8e1d422268ba",
+      "bytes": 514
+    },
+    "replay/load_manager_crowded_trades-red.xml": {
+      "sha256": "90e370713849e57b5f2d7822e5fdb5ecd3e41a27d919804156d731c92965a66e",
+      "bytes": 3544
+    },
+    "replay/load_top_deltas-green.xml": {
+      "sha256": "55f1f69fdfc366bedc083e9b97a77f7df2c0dd2983b2570f3da35133367fd0ee",
+      "bytes": 420
+    },
+    "replay/load_manager_activism_events-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_manager_crowded_trades-green.json": {
+      "sha256": "26f51c8e75f456720d3eb54edb44b17a8af4fff4777ed72597ed2a8d5efc296a",
+      "bytes": 512
+    },
+    "replay/load_manager_activism_timeline-mutant.py": {
+      "sha256": "e8c50e3f59a5626013c0bfb0f0b23f6adb6ac48ef23bd16135763e8d5b9cf254",
+      "bytes": 45536
+    },
+    "replay/load_filing_timeline-green.xml": {
+      "sha256": "69497f4e27074a0af78941dab0fabecd23530f156369b964e13d872928c070c1",
+      "bytes": 425
+    },
+    "replay/load_manager_contrarian_signals-green.json": {
+      "sha256": "b29c69cf29962af193229532ef68396a59130bf7d028c7f7c5bd9b312d920eda",
+      "bytes": 520
+    },
+    "replay/load_manager_activism_timeline-red.xml": {
+      "sha256": "46138ec7f15f415677b5d819e8f7da21c751078e1c3e5aba1d3942c135ae8333",
+      "bytes": 3508
+    },
+    "replay/load_top_deltas-mutant.py": {
+      "sha256": "9e34deb56581c632b379361a7f6b747e7daa0e70fed41dd71392533ec7476a30",
+      "bytes": 45268
+    },
+    "replay/load_latest_holdings_snapshot-green.json": {
+      "sha256": "fb10f5c90166e0d144848f6e52ed1daf22caa402381bdeedf98e70aaf2bf0714",
+      "bytes": 522
+    },
+    "replay/load_filing_timeline-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_manager_activism_filings-green.xml": {
+      "sha256": "bd7224f734c5d1b297ebd8157170aac0f5b836a827249f9ae638da96569e4042",
+      "bytes": 428
+    },
+    "replay/load_latest_holdings_snapshot-red.xml": {
+      "sha256": "aaa3d8d797dc4e01478c4b4b758aac5c514daa6eecbdfede1d006991a66b3439",
+      "bytes": 2333
+    },
+    "replay/load_filing_timeline-mutant.py": {
+      "sha256": "4cb38950baaaedc24bdd201004b54847a7103ce5dbab1ac80cd9c55937b56afa",
+      "bytes": 45424
+    },
+    "replay/load_manager_activism_timeline-green.xml": {
+      "sha256": "993c31a838f2ac80e306599d219c46704c5f94b94c844bfd306de389d2ecf08f",
+      "bytes": 429
+    },
+    "replay/load_manager_contrarian_signals-green.log": {
+      "sha256": "6e08ab7a5514f0d9deb666135aae340cb4eb4edbd879243b49bed7b94eedf2bd",
+      "bytes": 3829
+    },
+    "replay/load_manager_activism_filings-red.log": {
+      "sha256": "9c89650678022f26cb1e6509cf6862731ae153fef99941979a3b933e189ce8f8",
+      "bytes": 7218
+    },
+    "replay/load_active_campaigns_summary-green.json": {
+      "sha256": "7c66463a8c8788971db2d031a69c7a25fed48640044e23cb2b37550bc258d326",
+      "bytes": 516
+    },
+    "replay/load_manager_conviction_scores-red.json": {
+      "sha256": "f8ae5339375e540e34619ffaf9bf3d34ddf9e08daca960dacdc24e79f75ab181",
+      "bytes": 516
+    },
+    "replay/load_active_campaigns_summary-mutant.py": {
+      "sha256": "896b6a4177a45d4208dbb198b671262c6ec8641d9735ad7a1dd1e587b93327e2",
+      "bytes": 45536
+    },
+    "replay/load_manager_activism_events-red.xml": {
+      "sha256": "f1abfef7664817641866bbec817d73fe0fd8e155ffd3bca8cd1276e364dc4abd",
+      "bytes": 3529
+    },
+    "replay/load_latest_holdings_snapshot-green.log": {
+      "sha256": "de226eaebbe2f8fbd782e63479e49c32f240d03b3e4c046220393a05d9949461",
+      "bytes": 3829
+    },
+    "replay/load_manager_contrarian_signals-red.log": {
+      "sha256": "2c52827f4631e6816d9d47ad213c9084a5c4bc2c0b6e44e9c4eb09fa29b3bc68",
+      "bytes": 7225
+    },
+    "replay/load_manager_activism_timeline-green.json": {
+      "sha256": "ae4710792f30847acef79b0848dd97f0ae14126317c261721202a9103a270d7d",
+      "bytes": 518
+    },
+    "replay/load_top_deltas-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_top_deltas-red.json": {
+      "sha256": "3e00d8b865cab9fd5b753f77368f53dace0f5dad925886dcb82d13ed5a2d6acf",
+      "bytes": 492
+    },
+    "replay/load_top_deltas-green.json": {
+      "sha256": "eed0276127be4e04c3215f10063a428b5636769bd15c33a7462c21f91c05caa4",
+      "bytes": 494
+    },
+    "replay/load_manager_crowded_trades-green.log": {
+      "sha256": "00dfb19b1a9692e5005851192f1fcc5abba7faca60bcfd5c25f8a2c5b3f20897",
+      "bytes": 3829
+    },
+    "replay/load_manager_activism_timeline-red.log": {
+      "sha256": "ee7d37115449b37ca2de65c9eded975e4282241c8fb4191ec5a9e6eb5d25ca5f",
+      "bytes": 7195
+    },
+    "replay/load_manager_activism_filings-green.log": {
+      "sha256": "b829e1fd822d36d8b63988370a2f5b933887af1e718ebeb7b1f069e9ee1bd8f9",
+      "bytes": 3829
+    },
+    "replay/load_manager_activism_events-mutant.py": {
+      "sha256": "038898a2112cd1fc0eb179367c572294263715319e4618071b07fccb2f979b90",
+      "bytes": 45536
+    },
+    "replay/load_filing_timeline-red.json": {
+      "sha256": "6b4568b10c905de266b029de502fda37b8856793d8a5c5035bfc4d119ff09300",
+      "bytes": 502
+    },
+    "replay/load_manager_activism_timeline-green.log": {
+      "sha256": "c2e5bfc408116ff69cc7359c8cdf361a3fc3bd8a86f3e1eb25ca74ebfd9dee80",
+      "bytes": 3829
+    },
+    "replay/load_manager_contrarian_signals-green.xml": {
+      "sha256": "bceec834c9ede27fee2e41d67110671c988d9e7665e0957e036579c4f29d4f29",
+      "bytes": 430
+    },
+    "replay/load_latest_holdings_snapshot-red.log": {
+      "sha256": "86db362c85c5c86e0998d0a19ff9190f247b78ab787fd02e71bc8480f6ba9712",
+      "bytes": 6025
+    },
+    "replay/load_manager_activism_filings-red.xml": {
+      "sha256": "529556cce645a8809fc5bf21ffa4cb5a90ab83a6388ac21b053995b1536f1505",
+      "bytes": 3532
+    },
+    "replay/load_manager_conviction_scores-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_manager_activism_events-red.log": {
+      "sha256": "6719dcde79cf1ae9c01dd6ddc149a49897761496ea0941d2bfa7599d5c8afe25",
+      "bytes": 7214
+    },
+    "replay/load_manager_activism_timeline-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_manager_conviction_scores-mutant.py": {
+      "sha256": "e3d9d19642fd8ed23dd5af2fbc2844a19636fb1a4d68c70216405588c0f26c20",
+      "bytes": 45536
+    },
+    "replay/load_latest_holdings_snapshot-green.xml": {
+      "sha256": "0e8bf83d534f3f52e26a316da026ddb8246343a516ecd73a32683d910468d8df",
+      "bytes": 434
+    },
+    "replay/load_manager_contrarian_signals-red.xml": {
+      "sha256": "3435a8305b349e31a0f187ad4177534e8e48bd565bc4bdd808003893b48ec87a",
+      "bytes": 3537
+    },
+    "replay/load_manager_contrarian_signals-red.json": {
+      "sha256": "c340767361fca538cc2a784a4b208375ff5f069cbdf42e68608ed00c996bd495",
+      "bytes": 518
+    },
+    "replay/load_manager_crowded_trades-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_manager_crowded_trades-red.json": {
+      "sha256": "9fe6aea997e8b7bb0ab60752341080fd49c80fba12aa9b8dfd1dec0297d7c76a",
+      "bytes": 510
+    },
+    "replay/load_manager_crowded_trades-green.xml": {
+      "sha256": "28f0d7ea0082ce4d77a568f79ef3afea825456b338b35f3b3c6faf98a0fd77e1",
+      "bytes": 426
+    },
+    "replay/load_manager_activism_events-red.json": {
+      "sha256": "0d0fa8a891034d5ca4464f3af86e243baa1b5c565e028bbc32525f2900624f9c",
+      "bytes": 512
+    },
+    "replay/load_active_campaigns_summary-red.log": {
+      "sha256": "b9892b1b81236b1854fd0cd3911eee62f149f20fb260880e182b802b40d712f4",
+      "bytes": 7225
+    },
+    "replay/load_filing_timeline-red.xml": {
+      "sha256": "f06d0ae3790ae62ff64eb7fa341bd57e1e360c7516e7533efcb55681de4a51be",
+      "bytes": 2335
+    },
+    "replay/load_manager_conviction_scores-red.log": {
+      "sha256": "cc7441da382adf1683cfe1f1a4a4499a325670d74b502a0fd9189c8a395731a3",
+      "bytes": 7252
+    },
+    "replay/load_latest_holdings_snapshot-mutant.py": {
+      "sha256": "f381a9b5ec7d47d1166dd66a8a59d1f9f7ab4cb02a9d2a8d841be4d231da4337",
+      "bytes": 45466
+    },
+    "replay/load_manager_conviction_scores-green.xml": {
+      "sha256": "6bcb7289ae8411ca6ea3884d254e8f484ff861c52e91e054a18525a8ea6aaa66",
+      "bytes": 429
+    },
+    "replay/load_manager_activism_timeline-red.json": {
+      "sha256": "0e1661fbb03f83503ca8893b26cf1270e1b3489ff67a57aa9600ca74729f7ada",
+      "bytes": 516
+    },
+    "replay/load_active_campaigns_summary-green.log": {
+      "sha256": "aba0031934f827a28ffc19d811d49a1e8d882876fff229f2bcb2e0ecb1d76c25",
+      "bytes": 3829
+    },
+    "replay/load_manager_conviction_scores-green.json": {
+      "sha256": "5edbc954d3412d3e54f72f68beb48523415c840dc43082e7d560ef9798d6d0e2",
+      "bytes": 518
+    },
+    "replay/load_top_deltas-red.log": {
+      "sha256": "12482a924bbc8a2c8a6a940e2f7449439eb85e3c976d4627acddf6f1e2ec5e68",
+      "bytes": 6023
+    },
+    "replay/load_manager_crowded_trades-mutant.py": {
+      "sha256": "8838e614caa819d8d5f42b780d9d45eddb0d813464eff43d38e45717af2aaa93",
+      "bytes": 45536
+    },
+    "replay/load_manager_contrarian_signals-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_manager_activism_events-green.xml": {
+      "sha256": "39ad53a39eddf1ce7ba540794013fb9541cc857b311cd8c016d785d5b59a4184",
+      "bytes": 427
+    },
+    "replay/load_manager_crowded_trades-red.log": {
+      "sha256": "6742ac83043b2afa228d33d8554cee49d463e159dc984de7a1a523ed162cfe6b",
+      "bytes": 7228
+    },
+    "replay/load_manager_activism_filings-original.py": {
+      "sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+      "bytes": 45505
+    },
+    "replay/load_manager_activism_filings-green.json": {
+      "sha256": "417fc31c0de8335996e1bca671750e722fe401799852739b6884297c49117217",
+      "bytes": 516
+    },
+    "replay/load_top_deltas-green.log": {
+      "sha256": "7f1c585826a55e63baddcb64f01236fa34b0e6346437107062c46a132368a8a4",
+      "bytes": 3829
+    },
+    "replay/load_manager_activism_events-green.json": {
+      "sha256": "87c1b3bb7bbeb1e7f883f4dc8f721efe26ca8921f292d5d552316074625c7a3e",
+      "bytes": 514
+    },
+    "replay/load_filing_timeline-green.json": {
+      "sha256": "37773695f8f5f39afe4b07645f9db65f8013b6e07fe6584b4684b75c951a4e6b",
+      "bytes": 504
+    },
+    "replay/load_latest_holdings_snapshot-red.json": {
+      "sha256": "f6ed8b400fb8ef21eadd671cd6ef95c413f7a70e86591a2f3358854a3933025e",
+      "bytes": 520
+    },
+    "replay/load_filing_timeline-green.log": {
+      "sha256": "e23e62fab36959ee9790f217dd9df09de8be726aad76bc59e15b656ac90777ca",
+      "bytes": 3829
+    },
+    "replay/load_manager_contrarian_signals-mutant.py": {
+      "sha256": "aa063807c4a14c14da8d279a2699a7526bb7d79058800f995a1fd9b6e04fbcf0",
+      "bytes": 45536
+    }
+  },
+  "current_inputs": {
+    "docs/evidence/issue-1750-dashboard-read-failures/dashboard_read_failure_replay.py": "f2bc2cb4d249b911869dc1f8c0ddb41c6b63d02301a4d7fbcca9f36ce20069db",
+    "tests/test_dashboard_read_failure_replay.py": "b7a25e1fa8e6c09db08b127e2e10ad26aa13922743b9b0ccc648f501b11a1391",
+    "tests/test_dashboard_read_failure_evidence.py": "57329e9ba74f4a7743e518713619c3b3dda6c930e09e9d3bc3e13a50f1590552",
+    "pyproject.toml": "8069f8a24b7995a866613454ae2f2268cf601c9b5a1fcbab3c0788cb94dd5c4f",
+    "ui/dashboard.py": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
+    "tests/test_dashboard_loader_failures.py": "38162a832fee14d1c64eb55b09f449260800acc3154d026d00c38345e482b21c"
+  },
+  "scope": "Three existing active review findings; original96-member archive and production unchanged; complete original suite evidence retained separately."
+}

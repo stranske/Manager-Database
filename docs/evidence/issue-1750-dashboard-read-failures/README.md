@@ -8,14 +8,14 @@ Current full baseline/candidate: {'passed': 1959, 'skipped': 21, 'failure': 24} 
 
 Each of ten private production mutations replaces exactly one error fallback with a nonempty result. Exact new test fails on `assert result.empty` (RED exit 1; one failure / no errors or skips), then passes after byte-identical restoration (GREEN exit 0). Raw original/mutant source, logs, JUnit, commands/cwd/exits and hashes are in validation.tar.gz. Replay output reuse was refused before mutation, with all prior evidence and caller production bytes unchanged. The replay uses committed production from `git archive HEAD` and overlays the current test; uncommitted production is refused. It never mutates the calling checkout.
 
-Reproduce from this committed checkout:
+Activate a Python environment that satisfies the project requirements, then reproduce from this committed checkout:
 
 ```sh
-/opt/anaconda3/bin/python3 -m pytest tests/test_dashboard_loader_failures.py -q -o addopts=
-/opt/anaconda3/bin/python3 docs/evidence/issue-1750-dashboard-read-failures/replay.py --output /tmp/new-dashboard-proof
-/opt/anaconda3/bin/python3 -m pytest tests -q --cov --cov-report=json:coverage.json
-/opt/anaconda3/bin/python3 -m black --check .
-/opt/anaconda3/bin/python3 -m ruff check tests/test_dashboard_loader_failures.py docs/evidence/issue-1750-dashboard-read-failures/replay.py
+python -m pytest tests/test_dashboard_loader_failures.py -q -o addopts=
+python docs/evidence/issue-1750-dashboard-read-failures/dashboard_read_failure_replay.py --output /tmp/new-dashboard-proof
+python -m pytest tests -q --cov --cov-report=json:coverage.json
+python -m black --check .
+python -m ruff check tests/test_dashboard_loader_failures.py docs/evidence/issue-1750-dashboard-read-failures/dashboard_read_failure_replay.py
 git diff --check
 ```
 
@@ -30,3 +30,7 @@ The checks also confirm the archived full suites show 1959 → 1969 PASS, identi
 Run the independent checks with `pytest tests/test_dashboard_read_failure_evidence.py tests/test_dashboard_loader_failures.py -m "not slow"`. They also verify all 96 raw archive members, the archive itself, three current source/test/driver SHA256 bindings, the output-reuse refusal, and the historical Black receipt for 409 files. The archive and its manifest are unchanged.
 
 Local revalidation on Python 3.14.8: 24 focused cases pass; a fresh private replay produces all ten intended RED1/restored GREEN0 pairs, and reuse is refused without changing any receipt or caller source. Focused Ruff and diff checks pass. Full Black checks all 410 current files successfully using Black 26.10.0's single-file formatter sequentially with the required line length and exclusions; its usual asynchronous dispatch stalled here. The local full-suite rerun also stalled after three cases and was interrupted, so no new full-suite result or coverage comparison is claimed. The new targeted loader run reports 21% for `ui/dashboard.py`; it exercises only these ten failure cases and does not reproduce the archived full-suite coverage target.
+
+## Current review recovery
+
+See [review-recovery-20261012](review-recovery-20261012/README.md) for32focusedPASS, current ten-case replay, timeout/rejection controls, unique driver module and baseline-equivalent exact mypy result. Historical archive members and original input bindings remain preserved; current driver bindings are separate.

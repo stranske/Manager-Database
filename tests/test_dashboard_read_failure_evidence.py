@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "docs/evidence/issue-1750-dashboard-read-failures"
 SOURCE = "ui/dashboard.py"
 TEST = "tests/test_dashboard_loader_failures.py"
-DRIVER = "docs/evidence/issue-1750-dashboard-read-failures/replay.py"
+DRIVER = "docs/evidence/issue-1750-dashboard-read-failures/dashboard_read_failure_replay.py"
 SQL = ("load_filing_timeline", "load_latest_holdings_snapshot", "load_top_deltas")
 DOMAIN = (
     "load_manager_activism_filings",
@@ -73,12 +73,20 @@ def test_dashboard_archive_and_current_source_bindings(archive):
     assert set(manifest["current_bindings"]) == {SOURCE, TEST, DRIVER}
     for name, expected in manifest["current_bindings"].items():
         assert digest((ROOT / name).read_bytes()) == expected, name
-        assert archive[f"source/{name}"] == (ROOT / name).read_bytes(), name
+    for name, expected in manifest["historical_bindings"].items():
+        assert digest(archive[f"source/{name}"]) == expected, name
+        if name in (SOURCE, TEST):
+            assert archive[f"source/{name}"] == (ROOT / name).read_bytes(), name
     proof = json.loads(archive["mutations/controls.json"])
     assert proof["caller_identity"] == {
         name: manifest["current_bindings"][name] for name in (SOURCE, TEST)
     }
-    assert proof["replay_sha256"] == manifest["current_bindings"][DRIVER]
+    assert (
+        proof["replay_sha256"]
+        == manifest["historical_bindings"][
+            "docs/evidence/issue-1750-dashboard-read-failures/replay.py"
+        ]
+    )
 
 
 @pytest.mark.parametrize("loader", SQL + DOMAIN)
