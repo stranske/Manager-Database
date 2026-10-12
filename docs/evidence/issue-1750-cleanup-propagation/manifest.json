@@ -1,0 +1,43 @@
+{
+  "archive_sha256": "d284353865b7d20b251c70106390adb0803638e530bfef466cda870306f054f7",
+  "members": {
+    "manager-baseline/console.log": "3d29b7be6c1475eb3294e16b9884fed8599a28a4db6473efd9bf0ed21632f336",
+    "manager-baseline/command.json": "5f02b491ed793d40c948dface521bbeb683bf27b7dd8b2a8b328ce4d3517561c",
+    "manager-baseline/coverage.json": "2b83694972762c0d0aa8e55162b54247ad1912c0652b4c7e6fa38f5d0ae4a5b1",
+    "manager-baseline/junit.xml": "9f701eb3e1fae5b639522f2364de13fab4eab149db5d239473d3f9db8612f6c2",
+    "manager-candidate/console.log": "8178952d20736edc1e83dd1111d3df605d54f2e8745b94b3e83c1c0866154721",
+    "manager-candidate/command.json": "20812b017ad5910e9309c14f9d1db407ccf6043a1dd96f74fc5829a92a76ab14",
+    "manager-candidate/coverage.json": "bef3da4e0f4f42250412ffcf5a0d0199b4b26c5d73cdd12fb3cddad8d7969056",
+    "manager-candidate/junit.xml": "01f0412f3c271b3b28e234b9eb4337951347302d4198a40d724cc7baa48c15a8",
+    "cleanup-final/test_bulk_import_reports_autocommit_restore_failure_after_commit-green.json": "d52df2a13936372861e48704f57c7a7bc3ade77abaad8708eac8c4dbc54df979",
+    "cleanup-final/controls.json": "b6959088ebb7a07c1658363c2eece9e81b133a87ea5338c78573e4b5e5f3163f",
+    "cleanup-final/test_bulk_import_reports_autocommit_restore_failure_after_commit-green.xml": "69c48f3d681cdfe6513f7a22286dd24654b74727d4772025c44a10b2fdf29cd9",
+    "cleanup-final/test_bulk_import_reports_autocommit_restore_failure_after_commit-red.log": "15792d63e3e067d0fbd6ab6d5fe42c16a477305ec6688116711fb5b6002bb499",
+    "cleanup-final/test_bulk_import_reports_autocommit_restore_failure_after_commit-red.xml": "5f2a3a4ab7806e37975dc8a6ab7edb5d220bd5eb7c241100ffa55f188c83c54e",
+    "cleanup-final/test_bulk_import_reports_autocommit_restore_failure_after_commit-red.json": "8863fa8274a5187e9f51eefea772e78127d4b0ce0ba9d193e8156955d4284169",
+    "cleanup-final/test_bulk_import_reports_autocommit_restore_failure_after_commit-green.log": "65c09ce4edb32fbf38cc6f174ae5230ae270de8aa0b2536315d56ee8f5e6f41e",
+    "cleanup-final-optimized/test_bulk_import_reports_autocommit_restore_failure_after_commit-green.json": "c49739fa5f16951cc74ea547410f2d5bbd1eb20936bf49750efb7e2487af5d31",
+    "cleanup-final-optimized/controls.json": "ea2d475150659869d53283c7b8da483575eff901c416725a6d83f0899949ee81",
+    "cleanup-final-optimized/test_bulk_import_reports_autocommit_restore_failure_after_commit-green.xml": "b23d0ce1a3f9dc81876833fca831f780595e1b932639fd30d8f5b410966a6d31",
+    "cleanup-final-optimized/test_bulk_import_reports_autocommit_restore_failure_after_commit-red.log": "401dca33730b8b877255410dddf8b5b84e63cdb807137a16c621f71d9548be18",
+    "cleanup-final-optimized/test_bulk_import_reports_autocommit_restore_failure_after_commit-red.xml": "c86cee04b7dd1bd620d0467ee35ae1b077ca7419d920e21375d0c9159ce607eb",
+    "cleanup-final-optimized/test_bulk_import_reports_autocommit_restore_failure_after_commit-red.json": "624f9f321ddab61f8aa6b02942b093142e0c215a32ded64009181a75e4c41ed8",
+    "cleanup-final-optimized/test_bulk_import_reports_autocommit_restore_failure_after_commit-green.log": "a4874e8a143239c592bec452c0d0f342f9b9d2734e193bacc241a0261c648745",
+    "focused.log": "1595e96f4b4ada9767b0b02251826f05e1d338a3d6aae745f633ef123812b06b",
+    "focused.xml": "417656c65169a5b9aabe1c978ef9367243fa2f006dfe7c3939a4093fae76bbb6",
+    "black.log": "6ea992c3560359202e4419c98a4116dc0ab5d0737dbf319f6deb810f5beb1562",
+    "replay-final.log": "5d008a070cafcf93201baa01b683d4dd624c0d845d1fc14fe93e65473ae0202d",
+    "replay-final-optimized.log": "5d008a070cafcf93201baa01b683d4dd624c0d845d1fc14fe93e65473ae0202d",
+    "reuse-refusal.json": "e0a66f721e0ba622ee3747d5c6b42b431a11f078809c0d931cd164c41f115212",
+    "comparison.json": "6932d65acbb6a1073d12aab0f522205d319133c25d55dd6c43d55c38010917ec",
+    "ranking.json": "73ee1a603944fe217f3951a2fdbcbace532c679c2771f0b29479edd4d3e25e22",
+    "inputs/managers.py": "51d52e5042bbe8ae4a7ea66cf56952dbdf515a16a42c4b7fdc10528479c276c3",
+    "inputs/test_manager_bulk_cleanup_failure.py": "f54ae734a5079520ada7bd25eea67bee4208d9d1c9015dd1a7eac1643ab1c3d6",
+    "inputs/replay_cleanup.py": "bb67c326a1761f63d09bcea62349a117d10ff59521ffb9e0187676642c783455"
+  },
+  "current_inputs": {
+    "api/managers.py": "51d52e5042bbe8ae4a7ea66cf56952dbdf515a16a42c4b7fdc10528479c276c3",
+    "tests/test_manager_bulk_cleanup_failure.py": "f54ae734a5079520ada7bd25eea67bee4208d9d1c9015dd1a7eac1643ab1c3d6",
+    "docs/evidence/issue-1750-cleanup-propagation/replay_cleanup.py": "bb67c326a1761f63d09bcea62349a117d10ff59521ffb9e0187676642c783455"
+  }
+}

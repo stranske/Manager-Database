@@ -1,0 +1,44 @@
+{
+  "baseline": {
+    "covered_lines": 12446,
+    "num_statements": 14309,
+    "percent_covered": 86.98022223775246,
+    "percent_covered_display": "87",
+    "missing_lines": 1863,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.98022223775246,
+    "percent_statements_covered_display": "87"
+  },
+  "candidate": {
+    "covered_lines": 12447,
+    "num_statements": 14309,
+    "percent_covered": 86.9872108463205,
+    "percent_covered_display": "87",
+    "missing_lines": 1862,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.9872108463205,
+    "percent_statements_covered_display": "87"
+  },
+  "baseline_outcomes": {
+    "passed": 1956,
+    "skipped": 21,
+    "failure": 24
+  },
+  "candidate_outcomes": {
+    "passed": 1957,
+    "skipped": 21,
+    "failure": 24
+  },
+  "new_nodes": {
+    "('tests.test_manager_bulk_cleanup_failure', 'test_bulk_import_reports_autocommit_restore_failure_after_commit')": "passed"
+  },
+  "old_outcome_changes": {},
+  "covered_line_regressions": {},
+  "identical_source_universe": true,
+  "source_file_count": 117,
+  "limitations": [
+    "Both full suites exit1 with the same24UI-auth failures and21skips.",
+    "Recording PostgreSQL connection, in-process ASGI endpoint; no live PostgreSQL/deployment/provider acceptance.",
+    "Broader source1750 remainsOPEN below90%."
+  ]
+}

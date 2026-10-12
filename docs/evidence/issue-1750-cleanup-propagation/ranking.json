@@ -1,0 +1,551 @@
+{
+  "method": "last 500 commits; whole-word repair-subject proxy, touches, uncovered statements. Proxy is not escaped-defect count.",
+  "ranking": [
+    {
+      "path": "api/managers.py",
+      "touches": 17,
+      "repair_subject_proxy": 8,
+      "uncovered": 2
+    },
+    {
+      "path": "ui/dashboard.py",
+      "touches": 8,
+      "repair_subject_proxy": 5,
+      "uncovered": 104
+    },
+    {
+      "path": "etl/edgar_flow.py",
+      "touches": 10,
+      "repair_subject_proxy": 4,
+      "uncovered": 25
+    },
+    {
+      "path": "alerts/engine.py",
+      "touches": 8,
+      "repair_subject_proxy": 4,
+      "uncovered": 15
+    },
+    {
+      "path": "etl/manager_similarity_flow.py",
+      "touches": 7,
+      "repair_subject_proxy": 4,
+      "uncovered": 3
+    },
+    {
+      "path": "llm/client.py",
+      "touches": 5,
+      "repair_subject_proxy": 4,
+      "uncovered": 31
+    },
+    {
+      "path": "ui/alerts.py",
+      "touches": 4,
+      "repair_subject_proxy": 4,
+      "uncovered": 67
+    },
+    {
+      "path": "api/chat.py",
+      "touches": 10,
+      "repair_subject_proxy": 3,
+      "uncovered": 91
+    },
+    {
+      "path": "embeddings.py",
+      "touches": 8,
+      "repair_subject_proxy": 3,
+      "uncovered": 12
+    },
+    {
+      "path": "etl/ingest_flow.py",
+      "touches": 8,
+      "repair_subject_proxy": 2,
+      "uncovered": 59
+    },
+    {
+      "path": "api/signals.py",
+      "touches": 7,
+      "repair_subject_proxy": 2,
+      "uncovered": 34
+    },
+    {
+      "path": "api/activism.py",
+      "touches": 6,
+      "repair_subject_proxy": 2,
+      "uncovered": 29
+    },
+    {
+      "path": "api/search.py",
+      "touches": 6,
+      "repair_subject_proxy": 2,
+      "uncovered": 28
+    },
+    {
+      "path": "alerts/models.py",
+      "touches": 4,
+      "repair_subject_proxy": 2,
+      "uncovered": 7
+    },
+    {
+      "path": "ui/__init__.py",
+      "touches": 3,
+      "repair_subject_proxy": 2,
+      "uncovered": 17
+    },
+    {
+      "path": "adapters/insider.py",
+      "touches": 3,
+      "repair_subject_proxy": 2,
+      "uncovered": 8
+    },
+    {
+      "path": "ui/upload.py",
+      "touches": 2,
+      "repair_subject_proxy": 2,
+      "uncovered": 36
+    },
+    {
+      "path": "adapters/base.py",
+      "touches": 8,
+      "repair_subject_proxy": 1,
+      "uncovered": 1
+    },
+    {
+      "path": "etl/activism_flow.py",
+      "touches": 6,
+      "repair_subject_proxy": 1,
+      "uncovered": 20
+    },
+    {
+      "path": "adapters/edgar.py",
+      "touches": 5,
+      "repair_subject_proxy": 1,
+      "uncovered": 47
+    },
+    {
+      "path": "etl/activism_detection.py",
+      "touches": 5,
+      "repair_subject_proxy": 1,
+      "uncovered": 47
+    },
+    {
+      "path": "etl/conviction_flow.py",
+      "touches": 4,
+      "repair_subject_proxy": 1,
+      "uncovered": 51
+    },
+    {
+      "path": "chains/filing_summary.py",
+      "touches": 3,
+      "repair_subject_proxy": 1,
+      "uncovered": 37
+    },
+    {
+      "path": "chains/rag_search.py",
+      "touches": 3,
+      "repair_subject_proxy": 1,
+      "uncovered": 26
+    },
+    {
+      "path": "ui/daily_report.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 69
+    },
+    {
+      "path": "adapters/prices.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 49
+    },
+    {
+      "path": "chains/holdings_analysis.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 30
+    },
+    {
+      "path": "alerts/db.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 29
+    },
+    {
+      "path": "api/alerts.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 19
+    },
+    {
+      "path": "etl/point_in_time.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 11
+    },
+    {
+      "path": "alembic/env.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 7
+    },
+    {
+      "path": "api/cache.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 2
+    },
+    {
+      "path": "llm/cost_tracking.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 1
+    },
+    {
+      "path": "ui/app.py",
+      "touches": 2,
+      "repair_subject_proxy": 1,
+      "uncovered": 0
+    },
+    {
+      "path": "services/manager_deletion.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 88
+    },
+    {
+      "path": "adapters/uk.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 75
+    },
+    {
+      "path": "alerts/dispatch.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 2
+    },
+    {
+      "path": "alembic/versions/023_manager_deletion_ledger.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 1
+    },
+    {
+      "path": "alembic/versions/013_manager_similarity.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/021_activism_documents.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/022_document_managers.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 0
+    },
+    {
+      "path": "llm/provider.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 0
+    },
+    {
+      "path": "services/__init__.py",
+      "touches": 1,
+      "repair_subject_proxy": 1,
+      "uncovered": 0
+    },
+    {
+      "path": "etl/daily_diff_flow.py",
+      "touches": 7,
+      "repair_subject_proxy": 0,
+      "uncovered": 21
+    },
+    {
+      "path": "chains/nl_query.py",
+      "touches": 4,
+      "repair_subject_proxy": 0,
+      "uncovered": 22
+    },
+    {
+      "path": "etl/news_flow.py",
+      "touches": 4,
+      "repair_subject_proxy": 0,
+      "uncovered": 21
+    },
+    {
+      "path": "diff_holdings.py",
+      "touches": 4,
+      "repair_subject_proxy": 0,
+      "uncovered": 9
+    },
+    {
+      "path": "etl/digest_flow.py",
+      "touches": 3,
+      "repair_subject_proxy": 0,
+      "uncovered": 33
+    },
+    {
+      "path": "etl/activism_campaign_flow.py",
+      "touches": 3,
+      "repair_subject_proxy": 0,
+      "uncovered": 30
+    },
+    {
+      "path": "etl/evaluation_flow.py",
+      "touches": 3,
+      "repair_subject_proxy": 0,
+      "uncovered": 27
+    },
+    {
+      "path": "config.py",
+      "touches": 3,
+      "repair_subject_proxy": 0,
+      "uncovered": 2
+    },
+    {
+      "path": "alembic/versions/001_canonical_schema.py",
+      "touches": 2,
+      "repair_subject_proxy": 0,
+      "uncovered": 16
+    },
+    {
+      "path": "api/_compat.py",
+      "touches": 2,
+      "repair_subject_proxy": 0,
+      "uncovered": 7
+    },
+    {
+      "path": "ui/search.py",
+      "touches": 2,
+      "repair_subject_proxy": 0,
+      "uncovered": 5
+    },
+    {
+      "path": "adapters/news.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 70
+    },
+    {
+      "path": "llm/evaluation.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 60
+    },
+    {
+      "path": "ui/research.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 43
+    },
+    {
+      "path": "etl/attribution_flow.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 38
+    },
+    {
+      "path": "alerts/channels.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 31
+    },
+    {
+      "path": "etl/backtest_flow.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 31
+    },
+    {
+      "path": "adapters/short_interest.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 29
+    },
+    {
+      "path": "docs/evidence/issue-1750-json-decoding/replay_json_boundaries.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 27
+    },
+    {
+      "path": "etl/insider_flow.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 15
+    },
+    {
+      "path": "docs/evidence/issue-1750-legacy-schema/replay_schema_boundaries.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 14
+    },
+    {
+      "path": "adapters/openfigi.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 11
+    },
+    {
+      "path": "alerts/data_quality.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 5
+    },
+    {
+      "path": "chains/evidence.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 5
+    },
+    {
+      "path": "chains/utils.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 5
+    },
+    {
+      "path": "etl/summariser_flow.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 5
+    },
+    {
+      "path": "alembic/versions/010_schema_sql_parity_fixes.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 4
+    },
+    {
+      "path": "docs/evidence/issue-1750-dialect-boundaries/replay_dialect_boundaries.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 4
+    },
+    {
+      "path": "adapters/asic.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 3
+    },
+    {
+      "path": "etl/short_interest_flow.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 3
+    },
+    {
+      "path": "utils/identifiers.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 3
+    },
+    {
+      "path": "alerts/integration.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 1
+    },
+    {
+      "path": "ui/launch.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 1
+    },
+    {
+      "path": "utils/numeric.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 1
+    },
+    {
+      "path": "alembic/versions/006_activism_events.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/009_chat_feedback.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/011_openfigi_identifier_resolution.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/012_bitemporal_holdings.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/014_insider_transactions.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/015_backtest_harness.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/016_activism_campaigns.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/017_manager_similarity_cosine.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/018_short_interest.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/019_activism_campaign_returns.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alembic/versions/020_manager_attribution.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "alerts/__init__.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "api/models.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    },
+    {
+      "path": "utils/extract.py",
+      "touches": 1,
+      "repair_subject_proxy": 0,
+      "uncovered": 0
+    }
+  ]
+}
