@@ -92,3 +92,17 @@ cache; focused Ruff and diff checks pass. Targeted loader coverage remains 21%;
 the archived full-suite coverage comparison remains historical. The reconciled
 PR-body update was rejected again because connector writes require approval under
 this run's `never` policy; the checked body remains available in `pr-body.md`.
+
+Restoration controls now inject each abort on both the first and final mutation.
+The final-mutation cases use controlled subprocess receipts for nine successful
+pairs and verify that the tenth abort restores private production before cleanup
+without publishing completed controls or PASS. All 68 replay/phase controls and 26 loader/evidence
+checks pass, including a fresh ten-pair production replay. Full Black checks 412
+files after sequential verification fills a writable cache; focused Ruff and diff
+checks pass. Targeted `ui.dashboard` coverage is 21%; the archived full-suite
+coverage comparison remains historical. Remote checkbox reconciliation remains
+blocked by the connector's approval requirement under this run's `never` policy.
+The requested blocker comment and `needs-human` label were rejected for the same
+reason. Committing the tested changes also failed because `.git/index.lock` cannot
+be created on the read-only Git filesystem. A permitted run must commit these
+changes and apply the prepared PR body; PR #1770 remains open and ready for review.

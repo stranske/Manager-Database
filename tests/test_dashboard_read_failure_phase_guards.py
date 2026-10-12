@@ -1,6 +1,7 @@
 """A plausible assertion receipt cannot override failed replay phase controls."""
 
 import io
+import json
 import tarfile
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
@@ -169,8 +170,9 @@ def test_replay_refuses_uncommitted_production_before_starting_any_phase(
     ]
     + [("red", "wrong-assertion")],
 )
+@pytest.mark.parametrize("loader", [replay.SQL[0], replay.DOMAIN[-1]], ids=["first", "last"])
 def test_replay_restores_private_production_after_failed_phase(
-    tmp_path, monkeypatch, capsys, phase, fault
+    tmp_path, monkeypatch, capsys, phase, fault, loader
 ):
     """An aborted proof must restore production and never publish completed controls."""
     root = Path(replay.__file__).resolve().parents[3]
@@ -210,27 +212,28 @@ def test_replay_restores_private_production_after_failed_phase(
         assert check is False
         assert stderr == replay.subprocess.STDOUT
         xml = Path(next(arg.split("=", 1)[1] for arg in argv if arg.startswith("--junitxml=")))
-        current_phase = xml.stem.rsplit("-", 1)[1]
-        phases.append(current_phase)
+        current_loader, current_phase = xml.stem.rsplit("-", 1)
+        phases.append((current_loader, current_phase))
         expected = (
-            output / f"{replay.SQL[0]}-{'mutant' if current_phase == 'red' else 'original'}.py"
+            output / f"{current_loader}-{'mutant' if current_phase == 'red' else 'original'}.py"
         )
         assert source.read_bytes() == expected.read_bytes()
         assert (source.read_bytes() == original) is (current_phase == "green")
-        if current_phase == phase and fault == "timeout":
+        inject_fault = current_loader == loader and current_phase == phase
+        if inject_fault and fault == "timeout":
             raise replay.subprocess.TimeoutExpired(argv, timeout)
-        if current_phase == phase and fault == "spawn-error":
+        if inject_fault and fault == "spawn-error":
             raise OSError("Pytest process could not start")
-        if current_phase == phase and fault == "interrupted":
+        if inject_fault and fault == "interrupted":
             raise KeyboardInterrupt("Replay interrupted during pytest")
         name = argv[argv.index("pytest") + 1].split("::", 1)[1]
         receipt_options = {}
-        if current_phase == phase:
+        if inject_fault:
             if fault == "wrong-identity":
                 receipt_options["classname"] = "tests.another_module"
             elif fault == "wrong-assertion":
                 receipt_options["text"] = ">       assert unrelated == 1\nE       assert False"
-        if current_phase != phase or fault != "missing-junit":
+        if not inject_fault or fault != "missing-junit":
             report(
                 tmp_path,
                 name=name,
@@ -238,7 +241,7 @@ def test_replay_restores_private_production_after_failed_phase(
                 **receipt_options,
             ).replace(xml)
         code = 1 if current_phase == "red" else 0
-        if current_phase == phase:
+        if inject_fault:
             if fault == "wrong-exit":
                 code = 5
             elif fault == "malformed-junit":
@@ -268,13 +271,30 @@ def test_replay_restores_private_production_after_failed_phase(
     with pytest.raises(exception, match=message):
         replay.main()
 
-    assert phases == (["red"] if phase == "red" else ["red", "green"])
+    preceding = (replay.SQL + replay.DOMAIN)[: (replay.SQL + replay.DOMAIN).index(loader)]
+    expected_phases = [(name, step) for name in preceding for step in ("red", "green")]
+    expected_phases += [
+        (loader, step) for step in (["red"] if phase == "red" else ["red", "green"])
+    ]
+    assert phases == expected_phases
+    for name in preceding:
+        for step, code in (("red", 1), ("green", 0)):
+            prefix = output / f"{name}-{step}"
+            assert prefix.with_suffix(".json").is_file()
+            assert json.loads(prefix.with_suffix(".json").read_text())["exit"] == code
+            assert prefix.with_suffix(".xml").is_file()
+            replay.validate_junit(
+                prefix.with_suffix(".xml"),
+                ET.parse(prefix.with_suffix(".xml")).find("testsuite/testcase").get("name"),
+                step,
+                code,
+            )
     assert source.read_bytes() == original
     assert {name: (root / name).read_bytes() for name in caller} == caller
     assert not (output / "controls.json").exists()
     if fault in {"timeout", "spawn-error", "interrupted"}:
         # A process that never returns cannot supply a completed phase receipt.
-        prefix = output / f"{replay.SQL[0]}-{phase}"
+        prefix = output / f"{loader}-{phase}"
         assert not prefix.with_suffix(".json").exists()
         assert not prefix.with_suffix(".xml").exists()
     assert "PASS:" not in capsys.readouterr().out
