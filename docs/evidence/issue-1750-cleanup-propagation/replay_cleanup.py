@@ -78,9 +78,12 @@ def main():
                     xml = output / f"{name}-{phase}.xml"
                     argv = [
                         sys.executable,
+                        *(["-O"] if sys.flags.optimize else []),
                         "-m",
                         "pytest",
                         control["node"],
+                        "-m",
+                        "not slow",
                         "-q",
                         "-o",
                         "addopts=",
