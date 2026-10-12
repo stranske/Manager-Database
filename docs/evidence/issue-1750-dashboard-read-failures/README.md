@@ -120,3 +120,14 @@ writes require approval under this run's `never` policy.
 The commit attempt also failed because `.git/index.lock` is on a read-only
 filesystem. A permitted run must commit the tested changes and apply the
 prepared PR body. PR #1770 remains open and ready for review.
+
+Eight additional restoration controls reject skipped JUnit results and duplicate
+test cases during RED and GREEN, on the first and final mutation. The complete
+focused command now passes 106 cases, including a fresh ten-pair production replay,
+reuse refusal, both archives and all current source bindings. Full Black checks
+412 files; focused Ruff and diff checks pass. Targeted loader coverage is 21%;
+the archived full-suite statement coverage comparison remains unchanged.
+The commit attempt failed because `.git/index.lock` is on a read-only filesystem.
+The PR-body update, blocker comment and `needs-human` label were rejected because
+connector writes require approval under this run's `never` policy. A permitted
+run must commit the working-tree changes and apply the prepared `pr-body.md`.

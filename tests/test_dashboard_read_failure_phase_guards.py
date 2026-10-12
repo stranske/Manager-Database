@@ -166,6 +166,8 @@ def test_replay_refuses_uncommitted_production_before_starting_any_phase(
             "malformed-junit",
             "missing-junit",
             "wrong-identity",
+            "skipped-junit",
+            "duplicate-case",
             "receipt-write-error",
         )
     ]
@@ -242,12 +244,21 @@ def test_replay_restores_private_production_after_failed_phase(
             elif fault == "wrong-assertion":
                 receipt_options["text"] = ">       assert unrelated == 1\nE       assert False"
         if not inject_fault or fault != "missing-junit":
+            outcome = "failure" if current_phase == "red" else ""
+            if inject_fault and fault == "skipped-junit":
+                outcome = "skipped"
             report(
                 tmp_path,
                 name=name,
-                outcome="failure" if current_phase == "red" else "",
+                outcome=outcome,
                 **receipt_options,
             ).replace(xml)
+            if inject_fault and fault == "duplicate-case":
+                tree = ET.parse(xml)
+                suite = tree.getroot().find("testsuite")
+                case = suite.find("testcase")
+                suite.append(ET.fromstring(ET.tostring(case)))
+                tree.write(xml)
         code = 1 if current_phase == "red" else 0
         if inject_fault:
             if fault == "wrong-exit":
@@ -270,12 +281,16 @@ def test_replay_restores_private_production_after_failed_phase(
         "malformed-junit": ET.ParseError,
         "missing-junit": FileNotFoundError,
         "wrong-identity": ValueError,
+        "skipped-junit": ValueError,
+        "duplicate-case": ValueError,
         "wrong-assertion": ValueError,
         "receipt-write-error": OSError,
     }[fault]
     message = {
         "wrong-exit": "Wrong phase exit",
         "wrong-identity": "Wrong test identity",
+        "skipped-junit": "Wrong suite outcomes",
+        "duplicate-case": "Wrong test identity",
         "wrong-assertion": "intended empty-frame assertion",
         "receipt-write-error": "Phase receipt could not be persisted",
     }.get(fault)
