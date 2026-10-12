@@ -66,14 +66,38 @@ Verified acceptance checklist:
 
 - [x] Tests
 - [x] Regression checks the cleanup-failure response, operation order, and error reporting.
+- [x] Replay verifies the regression detects the cleanup failure.
 - [x] Documentation
 - [x] Reproducible evidence includes test outcomes, comparison results, and coverage details.
 - [x] Results explicitly exclude broader issue resolution and live deployment validation.
+
+## Automated replay acceptance check
+
+`tests/test_manager_cleanup_replay.py` runs the actual replay driver in standard
+and optimized modes. Each case checks the named HTTP 200-versus-503 JUnit failure,
+the restored passing result, mutation/restoration hashes, child interpreter flags,
+and caller source/test preservation. It then retries the same output path and
+requires refusal with all seven proof files unchanged. No subprocess is mocked.
+
+The current manager selection passes all 310 tests on Python 3.14.8. Targeted
+manager statement coverage remains 819/826 (99.152542%, displayed as 99%), with
+line 1441 covered. These targeted results do not replace the historical matched
+full-suite comparison. Black passes for all 407 Python files after serial
+verification populated its temporary cache; focused Ruff and diff checks pass.
+
+`automated/validation.tar.gz` and `automated/manifest.json` retain the current
+targeted command, console, coverage JSON, JUnit, both modes' actual replay receipts,
+formatting results, and input snapshots. Original and follow-up evidence remains
+unchanged. `pr-body.md` contains the reconciled acceptance checklist: updating the
+remote PR body was blocked because the GitHub connector requires approval and
+this run's approval policy is `never`. The PR was verified open and ready for review.
+Broader #1750 remains open; no live database or deployment was validated.
 
 ## Reproduce
 
 ```sh
 python -m pytest tests/test_manager_bulk_cleanup_failure.py -m "not slow" -q -o addopts=
+python -m pytest tests/test_manager_cleanup_replay.py -m "not slow" -q -o addopts=
 python -m pytest tests/test_manager*.py -m "not slow" -q -o addopts= --cov=api.managers --cov-report=term-missing --cov-report=json:targeted-coverage.json --cov-fail-under=0
 python docs/evidence/issue-1750-cleanup-propagation/replay_cleanup.py --output /tmp/new-cleanup-proof
 python -O docs/evidence/issue-1750-cleanup-propagation/replay_cleanup.py --output /tmp/new-cleanup-proof-optimized
