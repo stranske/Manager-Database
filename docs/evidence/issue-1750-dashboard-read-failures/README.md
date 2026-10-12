@@ -59,3 +59,15 @@ files with the required CLI after sequential formatting checks populate a writab
 temporary cache; focused Ruff and diff checks pass. Archived suite counts and coverage
 remain historical. PR-body checkbox reconciliation was rejected because connector
 writes require approval and this run's approval policy is `never`.
+
+Two additional replay controls verify that an existing output directory is refused
+before archive creation or mutation, and that a mismatch between committed production
+and caller bytes is refused before any pytest phase starts. Both preserve caller
+bytes, prior receipts and private production, and neither publishes a PASS report.
+All 70 focused cases pass, including the 30 phase controls and a fresh ten-pair replay.
+Current full Black checks 412 files using the writable
+temporary cache; focused Ruff and diff checks pass. Targeted loader coverage remains
+21%; the archived full-suite statement coverage comparison remains historical.
+PR #1770 is open and ready for review. Reconciliation of its four verified acceptance
+checkboxes was again rejected by the GitHub connector's approval requirement under
+the `never` approval policy; a remote PR-body update still requires a permitted run.

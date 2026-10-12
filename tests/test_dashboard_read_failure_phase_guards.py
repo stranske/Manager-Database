@@ -79,6 +79,79 @@ def test_replay_rejects_red_failure_outside_selected_case(tmp_path):
         replay.validate_junit(path, NAME, "red", 1)
 
 
+def test_replay_refuses_output_reuse_before_reading_or_mutating_production(
+    tmp_path, monkeypatch, capsys
+):
+    root = Path(replay.__file__).resolve().parents[3]
+    caller = {name: (root / name).read_bytes() for name in (replay.SOURCE, replay.TEST)}
+    output = tmp_path / "proof"
+    output.mkdir()
+    receipt = output / "controls.json"
+    receipt.write_bytes(b"prior evidence must remain unchanged\n")
+    before = {path.name: path.read_bytes() for path in output.iterdir()}
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Output reuse must be refused before archive creation or mutation")
+
+    monkeypatch.setattr(replay.subprocess, "check_output", forbidden)
+    monkeypatch.setattr(replay.subprocess, "run", forbidden)
+    monkeypatch.setattr(replay.tempfile, "TemporaryDirectory", forbidden)
+    monkeypatch.setattr(replay.sys, "argv", [replay.__file__, "--output", str(output)])
+
+    with pytest.raises(FileExistsError):
+        replay.main()
+
+    assert {path.name: path.read_bytes() for path in output.iterdir()} == before
+    assert {name: (root / name).read_bytes() for name in caller} == caller
+    assert "PASS:" not in capsys.readouterr().out
+
+
+def test_replay_refuses_uncommitted_production_before_starting_any_phase(
+    tmp_path, monkeypatch, capsys
+):
+    root = Path(replay.__file__).resolve().parents[3]
+    caller = {name: (root / name).read_bytes() for name in (replay.SOURCE, replay.TEST)}
+    committed = caller[replay.SOURCE] + b"\n# Different committed production bytes\n"
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as bundle:
+        for name, raw in {**caller, replay.SOURCE: committed}.items():
+            member = tarfile.TarInfo(name)
+            member.size = len(raw)
+            bundle.addfile(member, io.BytesIO(raw))
+
+    def committed_archive(argv, *, timeout):
+        assert argv == ["git", "-C", str(root), "archive", "HEAD"]
+        assert timeout == 60
+        return archive.getvalue()
+
+    private = tmp_path / "private"
+    private.mkdir()
+
+    @contextmanager
+    def private_tree(*, prefix):
+        assert prefix == "dashboard-fallback-proof-"
+        try:
+            yield str(private)
+        finally:
+            assert (private / replay.SOURCE).read_bytes() == committed
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Uncommitted production must be refused before pytest runs")
+
+    output = tmp_path / "proof"
+    monkeypatch.setattr(replay.subprocess, "check_output", committed_archive)
+    monkeypatch.setattr(replay.tempfile, "TemporaryDirectory", private_tree)
+    monkeypatch.setattr(replay.subprocess, "run", forbidden)
+    monkeypatch.setattr(replay.sys, "argv", [replay.__file__, "--output", str(output)])
+
+    with pytest.raises(ValueError, match="Committed source differs from checkout"):
+        replay.main()
+
+    assert list(output.iterdir()) == []
+    assert {name: (root / name).read_bytes() for name in caller} == caller
+    assert "PASS:" not in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("phase", ["red", "green"])
 @pytest.mark.parametrize("fault", ["timeout", "wrong-exit", "malformed-junit"])
 def test_replay_restores_private_production_after_failed_phase(
