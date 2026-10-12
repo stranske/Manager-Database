@@ -115,7 +115,7 @@ warn_unused_ignores = false
 ignore_missing_imports = true
 check_untyped_defs = false
 disallow_untyped_defs = false
-exclude = "(^|.*/)(scripts|etl|adapters|api)/|(^|.*/)embeddings\\.py$"
+exclude = "(^|.*/)(scripts|etl|adapters|api)/|(^|.*/)embeddings\\.py$|(^|.*/)docs/evidence/issue-1750-dashboard-read-failures/replay\\.py$"
 
 [tool.coverage.run]
 source = ["adapters", "api", "etl", "ui"]
