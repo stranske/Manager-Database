@@ -20,3 +20,13 @@ git diff --check
 ```
 
 FullBlack409 files/focusedRuff/diff-check passed. manifest.json binds all 96 raw members and three current source/test/driver files. No live PostgreSQL, real browser, deployment, hosted parity, providerPASS or whole-source 90% completion is claimed. Keep broad #1750 open. Matching keeper owns hosted CI/reviews; closer owns exact-head complete checks, full review-thread gate, seven-minute floor, guarded merge and actual comparison.
+
+Acceptance evidence is now checked by `tests/test_dashboard_read_failure_evidence.py`:
+
+- [x] Ten named cases have the intended assertion RED exit1 and restored GREEN exit0, with no errors or skips. Each archived mutant changes only its selected production fallback; all original/restored source hashes match.
+
+The checks also confirm the archived full suites show 1959 → 1969 PASS, identical 24 existing UI-auth FAIL / 21 SKIP, both exit1, and every old outcome preserved. These historical counts exclude the 14 new evidence-verification tests. Raw archived statement coverage is 86.98721085% → 87.12698302% (12447 → 12467 / 14309), with identical 117 source files / 82 excluded lines and no covered-line loss. Branch coverage was not measured.
+
+Run the independent checks with `pytest tests/test_dashboard_read_failure_evidence.py tests/test_dashboard_loader_failures.py -m "not slow"`. They also verify all 96 raw archive members, the archive itself, three current source/test/driver SHA256 bindings, the output-reuse refusal, and the historical Black receipt for 409 files. The archive and its manifest are unchanged.
+
+Local revalidation on Python 3.14.8: 24 focused cases pass; a fresh private replay produces all ten intended RED1/restored GREEN0 pairs, and reuse is refused without changing any receipt or caller source. Focused Ruff and diff checks pass. Full Black checks all 410 current files successfully using Black 26.10.0's single-file formatter sequentially with the required line length and exclusions; its usual asynchronous dispatch stalled here. The local full-suite rerun also stalled after three cases and was interrupted, so no new full-suite result or coverage comparison is claimed. The new targeted loader run reports 21% for `ui/dashboard.py`; it exercises only these ten failure cases and does not reproduce the archived full-suite coverage target.
