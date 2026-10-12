@@ -71,3 +71,13 @@ temporary cache; focused Ruff and diff checks pass. Targeted loader coverage rem
 PR #1770 is open and ready for review. Reconciliation of its four verified acceptance
 checkboxes was again rejected by the GitHub connector's approval requirement under
 the `never` approval policy; a remote PR-body update still requires a permitted run.
+
+Five further restoration cases cover missing JUnit and wrong test identity in both
+phases, plus an unrelated RED assertion. All 49 replay/phase controls pass; the 26
+loader/evidence checks also pass, including a fresh ten-pair private replay and
+reuse refusal. Full Black checks 412 files using the verified writable cache;
+focused Ruff and diff checks pass. Targeted loader coverage reports 21% for
+`ui/dashboard.py`; the full-suite coverage comparison above remains historical.
+The reconciled seven-checkbox PR body is preserved in [pr-body.md](pr-body.md).
+The connector rejected its remote update because writes require approval and the
+run's approval policy is `never`. PR #1770 remains open and ready for review.

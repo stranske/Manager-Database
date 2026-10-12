@@ -152,8 +152,21 @@ def test_replay_refuses_uncommitted_production_before_starting_any_phase(
     assert "PASS:" not in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("phase", ["red", "green"])
-@pytest.mark.parametrize("fault", ["timeout", "wrong-exit", "malformed-junit"])
+@pytest.mark.parametrize(
+    "phase,fault",
+    [
+        (phase, fault)
+        for phase in ("red", "green")
+        for fault in (
+            "timeout",
+            "wrong-exit",
+            "malformed-junit",
+            "missing-junit",
+            "wrong-identity",
+        )
+    ]
+    + [("red", "wrong-assertion")],
+)
 def test_replay_restores_private_production_after_failed_phase(
     tmp_path, monkeypatch, capsys, phase, fault
 ):
@@ -205,14 +218,24 @@ def test_replay_restores_private_production_after_failed_phase(
         if current_phase == phase and fault == "timeout":
             raise replay.subprocess.TimeoutExpired(argv, timeout)
         name = argv[argv.index("pytest") + 1].split("::", 1)[1]
-        report(tmp_path, name=name, outcome="failure" if current_phase == "red" else "").replace(
-            xml
-        )
+        receipt_options = {}
+        if current_phase == phase:
+            if fault == "wrong-identity":
+                receipt_options["classname"] = "tests.another_module"
+            elif fault == "wrong-assertion":
+                receipt_options["text"] = ">       assert unrelated == 1\nE       assert False"
+        if current_phase != phase or fault != "missing-junit":
+            report(
+                tmp_path,
+                name=name,
+                outcome="failure" if current_phase == "red" else "",
+                **receipt_options,
+            ).replace(xml)
         code = 1 if current_phase == "red" else 0
         if current_phase == phase:
             if fault == "wrong-exit":
                 code = 5
-            else:
+            elif fault == "malformed-junit":
                 xml.write_text("<testsuites>")
         stdout.write("controlled phase output\n")
         return replay.subprocess.CompletedProcess(argv, code)
@@ -225,8 +248,16 @@ def test_replay_restores_private_production_after_failed_phase(
         "timeout": replay.subprocess.TimeoutExpired,
         "wrong-exit": ValueError,
         "malformed-junit": ET.ParseError,
+        "missing-junit": FileNotFoundError,
+        "wrong-identity": ValueError,
+        "wrong-assertion": ValueError,
     }[fault]
-    with pytest.raises(exception):
+    message = {
+        "wrong-exit": "Wrong phase exit",
+        "wrong-identity": "Wrong test identity",
+        "wrong-assertion": "intended empty-frame assertion",
+    }.get(fault)
+    with pytest.raises(exception, match=message):
         replay.main()
 
     assert phases == (["red"] if phase == "red" else ["red", "green"])
