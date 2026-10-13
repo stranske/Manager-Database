@@ -136,6 +136,10 @@ def main():
             for phase, data in (("red", mutant), ("green", original)):
                 try:
                     source.write_bytes(data)
+                    require(
+                        source.read_bytes() == data,
+                        "Phase production differs from intended source",
+                    )
                     xml = output / (function + "-" + phase + ".xml")
                     argv = [
                         sys.executable,

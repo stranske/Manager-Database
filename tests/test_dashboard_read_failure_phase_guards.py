@@ -171,6 +171,7 @@ def test_replay_refuses_uncommitted_production_before_starting_any_phase(
             "teardown-error",
             "receipt-write-error",
             "partial-source-write",
+            "silent-source-write",
         )
     ]
     + [("red", "wrong-assertion")],
@@ -220,10 +221,15 @@ def test_replay_restores_private_production_after_failed_phase(
             # Each pair writes RED, restores, writes GREEN, then restores again.
             target_write = 4 * (replay.SQL + replay.DOMAIN).index(loader)
             target_write += 2 * (phase == "green")
-            if fault == "partial-source-write" and len(source_writes) == target_write + 1:
+            if (
+                fault in {"partial-source-write", "silent-source-write"}
+                and len(source_writes) == target_write + 1
+            ):
                 partial = data[: len(data) // 2]
-                write_bytes(path, partial)
+                written = write_bytes(path, partial)
                 assert path.read_bytes() == partial != original
+                if fault == "silent-source-write":
+                    return written
                 raise OSError("Private production write interrupted")
         return write_bytes(path, data)
 
@@ -316,6 +322,7 @@ def test_replay_restores_private_production_after_failed_phase(
         "wrong-assertion": ValueError,
         "receipt-write-error": OSError,
         "partial-source-write": OSError,
+        "silent-source-write": ValueError,
     }[fault]
     message = {
         "wrong-exit": "Wrong phase exit",
@@ -326,6 +333,7 @@ def test_replay_restores_private_production_after_failed_phase(
         "wrong-assertion": "intended empty-frame assertion",
         "receipt-write-error": "Phase receipt could not be persisted",
         "partial-source-write": "Private production write interrupted",
+        "silent-source-write": "Phase production differs from intended source",
     }.get(fault)
     with pytest.raises(exception, match=message):
         replay.main()
@@ -333,7 +341,7 @@ def test_replay_restores_private_production_after_failed_phase(
     preceding = (replay.SQL + replay.DOMAIN)[: (replay.SQL + replay.DOMAIN).index(loader)]
     expected_phases = [(name, step) for name in preceding for step in ("red", "green")]
     steps = ["red"] if phase == "red" else ["red", "green"]
-    if fault == "partial-source-write":
+    if fault in {"partial-source-write", "silent-source-write"}:
         steps = steps[:-1]  # Pytest cannot start after a failed production write.
     expected_phases += [(loader, step) for step in steps]
     assert phases == expected_phases
@@ -352,7 +360,7 @@ def test_replay_restores_private_production_after_failed_phase(
     assert source.read_bytes() == original
     assert {name: (root / name).read_bytes() for name in caller} == caller
     assert not (output / "controls.json").exists()
-    if fault == "partial-source-write":
+    if fault in {"partial-source-write", "silent-source-write"}:
         assert source_writes[-1] == original
         prefix = output / f"{loader}-{phase}"
         for suffix in (".log", ".json", ".xml"):

@@ -157,3 +157,13 @@ historical. The connector rejected PR-body reconciliation, the blocker comment a
 The Git metadata in this checkout is read-only; the tested changes are committed
 in `/tmp/dashboard-teardown-handoff` with a Git bundle for handoff. The prepared
 seven-checkbox body remains in `pr-body.md` for a permitted run to apply.
+
+The replay now reads back private production immediately after each RED/GREEN
+write and refuses to launch pytest unless those bytes match the intended source.
+Four silent partial-write controls (both phases, first and final mutation) fail
+before this guard and pass with it, proving restoration and absence of phase
+receipts or PASS for an aborted write. All 118 focused cases pass, including a
+fresh ten-pair replay, reuse refusal, both archives and current bindings. Current
+driver SHA256 bindings were updated; archived members and historical hashes are
+preserved. Full Black checks 412 files; focused Ruff and diff checks pass.
+Targeted loader coverage is 21%; the full-suite comparison remains historical.
