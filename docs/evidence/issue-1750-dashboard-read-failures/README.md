@@ -143,3 +143,17 @@ coverage comparison remains historical. The reconciled PR-body update, blocker
 comment and `needs-human` label were rejected because connector writes require
 approval under the `never` policy. The checkout's `.git` remains read-only;
 a separate writable local clone supplies the commit and Git bundle for handoff.
+
+Four teardown-error controls now preserve the intended RED assertion or GREEN
+result while adding a pytest teardown error, during both phases on the first and
+final mutation. Each verifies rejection, byte-identical private restoration before
+cleanup, unchanged caller bytes, and no completed controls or PASS report. All
+114 focused cases pass, including a fresh ten-pair production replay, reuse refusal,
+both archives and current bindings. Full Black checks 412 files using a writable
+cache populated by sequential Black checks; focused Ruff and diff checks pass.
+Targeted loader coverage is 21%; the archived full-suite coverage comparison remains
+historical. The connector rejected PR-body reconciliation, the blocker comment and
+`needs-human` label because writes require approval under the `never` policy.
+The Git metadata in this checkout is read-only; the tested changes are committed
+in `/tmp/dashboard-teardown-handoff` with a Git bundle for handoff. The prepared
+seven-checkbox body remains in `pr-body.md` for a permitted run to apply.

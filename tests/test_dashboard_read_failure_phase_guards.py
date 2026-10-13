@@ -168,6 +168,7 @@ def test_replay_refuses_uncommitted_production_before_starting_any_phase(
             "wrong-identity",
             "skipped-junit",
             "duplicate-case",
+            "teardown-error",
             "receipt-write-error",
             "partial-source-write",
         )
@@ -276,6 +277,16 @@ def test_replay_restores_private_production_after_failed_phase(
                 case = suite.find("testcase")
                 suite.append(ET.fromstring(ET.tostring(case)))
                 tree.write(xml)
+            if inject_fault and fault == "teardown-error":
+                # Pytest can produce the expected assertion result and also fail teardown.
+                tree = ET.parse(xml)
+                suite = tree.getroot().find("testsuite")
+                suite.set("errors", "1")
+                case = suite.find("testcase")
+                ET.SubElement(case, "error", message="failed on teardown").text = (
+                    "RuntimeError: database cleanup failed"
+                )
+                tree.write(xml)
         code = 1 if current_phase == "red" else 0
         if inject_fault:
             if fault == "wrong-exit":
@@ -301,6 +312,7 @@ def test_replay_restores_private_production_after_failed_phase(
         "wrong-identity": ValueError,
         "skipped-junit": ValueError,
         "duplicate-case": ValueError,
+        "teardown-error": ValueError,
         "wrong-assertion": ValueError,
         "receipt-write-error": OSError,
         "partial-source-write": OSError,
@@ -310,6 +322,7 @@ def test_replay_restores_private_production_after_failed_phase(
         "wrong-identity": "Wrong test identity",
         "skipped-junit": "Wrong suite outcomes",
         "duplicate-case": "Wrong test identity",
+        "teardown-error": "Wrong suite outcomes",
         "wrong-assertion": "intended empty-frame assertion",
         "receipt-write-error": "Phase receipt could not be persisted",
         "partial-source-write": "Private production write interrupted",
@@ -358,5 +371,14 @@ def test_replay_restores_private_production_after_failed_phase(
             ET.parse(prefix.with_suffix(".xml")).find("testsuite/testcase").get("name"),
             phase,
             1 if phase == "red" else 0,
+        )
+    if fault == "teardown-error":
+        prefix = output / f"{loader}-{phase}"
+        case = ET.parse(prefix.with_suffix(".xml")).find("testsuite/testcase")
+        assert (case.find("failure") is not None) is (phase == "red")
+        assert case.find("error").get("message") == "failed on teardown"
+        # A phase exit and its intended assertion cannot override a teardown error.
+        assert json.loads(prefix.with_suffix(".json").read_text())["exit"] == (
+            1 if phase == "red" else 0
         )
     assert "PASS:" not in capsys.readouterr().out
