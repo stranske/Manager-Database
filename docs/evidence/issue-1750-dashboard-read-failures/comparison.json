@@ -1,0 +1,56 @@
+{
+  "base_head": "e2116a0bee72caf257b3513145d2f86c24e33958",
+  "baseline": {
+    "covered_lines": 12447,
+    "num_statements": 14309,
+    "percent_covered": 86.9872108463205,
+    "percent_covered_display": "87",
+    "missing_lines": 1862,
+    "excluded_lines": 82,
+    "percent_statements_covered": 86.9872108463205,
+    "percent_statements_covered_display": "87"
+  },
+  "candidate": {
+    "covered_lines": 12467,
+    "num_statements": 14309,
+    "percent_covered": 87.12698301768118,
+    "percent_covered_display": "87",
+    "missing_lines": 1842,
+    "excluded_lines": 82,
+    "percent_statements_covered": 87.12698301768118,
+    "percent_statements_covered_display": "87"
+  },
+  "baseline_outcomes": {
+    "passed": 1959,
+    "skipped": 21,
+    "failure": 24
+  },
+  "candidate_outcomes": {
+    "passed": 1969,
+    "skipped": 21,
+    "failure": 24
+  },
+  "new_nodes": {
+    "tests.test_dashboard_loader_failures::test_sql_loader_returns_typed_empty_frame_and_closes_missing_schema[load_filing_timeline]": "passed",
+    "tests.test_dashboard_loader_failures::test_sql_loader_returns_typed_empty_frame_and_closes_missing_schema[load_latest_holdings_snapshot]": "passed",
+    "tests.test_dashboard_loader_failures::test_sql_loader_returns_typed_empty_frame_and_closes_missing_schema[load_top_deltas]": "passed",
+    "tests.test_dashboard_loader_failures::test_domain_loader_returns_empty_and_closes_after_query_error[load_manager_activism_filings]": "passed",
+    "tests.test_dashboard_loader_failures::test_domain_loader_returns_empty_and_closes_after_query_error[load_manager_activism_events]": "passed",
+    "tests.test_dashboard_loader_failures::test_domain_loader_returns_empty_and_closes_after_query_error[load_manager_activism_timeline]": "passed",
+    "tests.test_dashboard_loader_failures::test_domain_loader_returns_empty_and_closes_after_query_error[load_active_campaigns_summary]": "passed",
+    "tests.test_dashboard_loader_failures::test_domain_loader_returns_empty_and_closes_after_query_error[load_manager_conviction_scores]": "passed",
+    "tests.test_dashboard_loader_failures::test_domain_loader_returns_empty_and_closes_after_query_error[load_manager_crowded_trades]": "passed",
+    "tests.test_dashboard_loader_failures::test_domain_loader_returns_empty_and_closes_after_query_error[load_manager_contrarian_signals]": "passed"
+  },
+  "old_outcome_changes": {},
+  "covered_line_regressions": {},
+  "identical_source_universe": true,
+  "source_file_count": 117,
+  "same_exclusions": true,
+  "coverage_branch_measured": false,
+  "limitations": [
+    "Both full suites exit1 with the same24existingUI-auth failures and21skips; no full-suitePASS.",
+    "Real in-process pandas/SQLite errors and controlled domain-query boundary failures; no live PostgreSQL/browser/deployment/provider or90% acceptance.",
+    "Original1769 CONCERNS/CONCERNS remains unchanged. Current baseline includes the final merged replay/test nodes omitted by its historical fullsuite."
+  ]
+}
