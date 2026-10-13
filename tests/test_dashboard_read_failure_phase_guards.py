@@ -169,6 +169,7 @@ def test_replay_refuses_uncommitted_production_before_starting_any_phase(
             "skipped-junit",
             "duplicate-case",
             "receipt-write-error",
+            "partial-source-write",
         )
     ]
     + [("red", "wrong-assertion")],
@@ -208,6 +209,22 @@ def test_replay_restores_private_production_after_failed_phase(
 
     output = tmp_path / "proof"
     phases = []
+    source_writes = []
+
+    write_bytes = Path.write_bytes
+
+    def write_source(path, data):
+        if path == source:
+            source_writes.append(data)
+            # Each pair writes RED, restores, writes GREEN, then restores again.
+            target_write = 4 * (replay.SQL + replay.DOMAIN).index(loader)
+            target_write += 2 * (phase == "green")
+            if fault == "partial-source-write" and len(source_writes) == target_write + 1:
+                partial = data[: len(data) // 2]
+                write_bytes(path, partial)
+                assert path.read_bytes() == partial != original
+                raise OSError("Private production write interrupted")
+        return write_bytes(path, data)
 
     write_text = Path.write_text
 
@@ -271,6 +288,7 @@ def test_replay_restores_private_production_after_failed_phase(
     monkeypatch.setattr(replay.subprocess, "check_output", committed_archive)
     monkeypatch.setattr(replay.tempfile, "TemporaryDirectory", private_tree)
     monkeypatch.setattr(replay.subprocess, "run", run_phase)
+    monkeypatch.setattr(Path, "write_bytes", write_source)
     monkeypatch.setattr(Path, "write_text", write_receipt)
     monkeypatch.setattr(replay.sys, "argv", [replay.__file__, "--output", str(output)])
     exception = {
@@ -285,6 +303,7 @@ def test_replay_restores_private_production_after_failed_phase(
         "duplicate-case": ValueError,
         "wrong-assertion": ValueError,
         "receipt-write-error": OSError,
+        "partial-source-write": OSError,
     }[fault]
     message = {
         "wrong-exit": "Wrong phase exit",
@@ -293,15 +312,17 @@ def test_replay_restores_private_production_after_failed_phase(
         "duplicate-case": "Wrong test identity",
         "wrong-assertion": "intended empty-frame assertion",
         "receipt-write-error": "Phase receipt could not be persisted",
+        "partial-source-write": "Private production write interrupted",
     }.get(fault)
     with pytest.raises(exception, match=message):
         replay.main()
 
     preceding = (replay.SQL + replay.DOMAIN)[: (replay.SQL + replay.DOMAIN).index(loader)]
     expected_phases = [(name, step) for name in preceding for step in ("red", "green")]
-    expected_phases += [
-        (loader, step) for step in (["red"] if phase == "red" else ["red", "green"])
-    ]
+    steps = ["red"] if phase == "red" else ["red", "green"]
+    if fault == "partial-source-write":
+        steps = steps[:-1]  # Pytest cannot start after a failed production write.
+    expected_phases += [(loader, step) for step in steps]
     assert phases == expected_phases
     for name in preceding:
         for step, code in (("red", 1), ("green", 0)):
@@ -318,6 +339,11 @@ def test_replay_restores_private_production_after_failed_phase(
     assert source.read_bytes() == original
     assert {name: (root / name).read_bytes() for name in caller} == caller
     assert not (output / "controls.json").exists()
+    if fault == "partial-source-write":
+        assert source_writes[-1] == original
+        prefix = output / f"{loader}-{phase}"
+        for suffix in (".log", ".json", ".xml"):
+            assert not prefix.with_suffix(suffix).exists()
     if fault in {"timeout", "spawn-error", "interrupted"}:
         # A process that never returns cannot supply a completed phase receipt.
         prefix = output / f"{loader}-{phase}"

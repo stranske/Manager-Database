@@ -131,3 +131,15 @@ The commit attempt failed because `.git/index.lock` is on a read-only filesystem
 The PR-body update, blocker comment and `needs-human` label were rejected because
 connector writes require approval under this run's `never` policy. A permitted
 run must commit the working-tree changes and apply the prepared `pr-body.md`.
+
+Four partial-source-write cases now truncate private production before raising
+`OSError`, during RED and GREEN on the first and final mutation. They verify
+byte-identical restoration before cleanup, unchanged caller bytes, and no pytest
+launch, phase receipts, completed controls or PASS for the aborted phase. All
+110 focused cases pass, including a fresh ten-pair production replay and both
+archive/binding checks. Full Black checks 412 current files; focused Ruff and
+diff checks pass. Targeted loader coverage is 21%; the archived full-suite
+coverage comparison remains historical. The reconciled PR-body update, blocker
+comment and `needs-human` label were rejected because connector writes require
+approval under the `never` policy. The checkout's `.git` remains read-only;
+a separate writable local clone supplies the commit and Git bundle for handoff.
