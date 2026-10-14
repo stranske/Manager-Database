@@ -1,0 +1,11 @@
+{
+  "archive_sha256": "1927997f72eb1f9c7194a53f5f82975f5f1fa6f5c4ae87c18c5671d13bff03b9",
+  "members": 88,
+  "members_manifest_sha256": "474909bbb45a30f713d01b0cdd899cefec769554e64937a196e4c53340a04348",
+  "current_inputs": {
+    "api/chat.py": "0e11ed9b2fee12c2cc0ce78cb01d85a11708e31c01d89403381af2e73bc71815",
+    "tests/test_chat_payload_boundaries.py": "0472299fa63fd22c739031904ee8dd95d68f14ea88a6dd29c53c4aa93d95e56e",
+    "docs/evidence/issue-1750-chat-payload/chat_payload_replay.py": "a480e7f9bfa61320a9d250830aee718a5fe14782e05b7eda128195d036bfbf79"
+  },
+  "comparison_sha256": "0712812c212afc4e5bd5dda8a25558201e91a1fb94ffe205d95bfcb458ffe3c5"
+}

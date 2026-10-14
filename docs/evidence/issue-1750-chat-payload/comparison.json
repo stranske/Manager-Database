@@ -1,0 +1,64 @@
+{
+  "base_sha": "1291e3f9a53e0586378cf6bf223f24855e829df0",
+  "baseline_outcomes": {
+    "passed": 2077,
+    "failure": 24,
+    "error": 0,
+    "skipped": 21
+  },
+  "candidate_outcomes": {
+    "passed": 2085,
+    "failure": 24,
+    "error": 0,
+    "skipped": 21
+  },
+  "new_tests": {
+    "tests.test_chat_payload_boundaries::test_chain_string_answer_keeps_empty_metadata": "passed",
+    "tests.test_chat_payload_boundaries::test_chain_source_list_preserves_dicts_and_describes_non_dicts": "passed",
+    "tests.test_chat_payload_boundaries::test_chain_unsupported_source_container_stays_empty[none]": "passed",
+    "tests.test_chat_payload_boundaries::test_chain_unsupported_source_container_stays_empty[text]": "passed",
+    "tests.test_chat_payload_boundaries::test_chain_unsupported_source_container_stays_empty[number]": "passed",
+    "tests.test_chat_payload_boundaries::test_chain_unsupported_source_container_stays_empty[tuple]": "passed",
+    "tests.test_chat_payload_boundaries::test_chain_object_response_fallback_preserves_all_metadata": "passed",
+    "tests.test_chat_payload_boundaries::test_chain_object_without_optional_attributes_has_empty_metadata": "passed"
+  },
+  "old_outcome_changes": [],
+  "source_universe_files": 118,
+  "baseline_coverage": {
+    "covered_lines": 12550,
+    "num_statements": 14396,
+    "percent_covered": 87.17699360933592,
+    "percent_covered_display": "87",
+    "missing_lines": 1846,
+    "excluded_lines": 82,
+    "percent_statements_covered": 87.17699360933592,
+    "percent_statements_covered_display": "87"
+  },
+  "candidate_coverage": {
+    "covered_lines": 12560,
+    "num_statements": 14396,
+    "percent_covered": 87.24645734926368,
+    "percent_covered_display": "87",
+    "missing_lines": 1836,
+    "excluded_lines": 82,
+    "percent_statements_covered": 87.24645734926368,
+    "percent_statements_covered_display": "87"
+  },
+  "covered_line_gains": {
+    "api/chat.py": [
+      782,
+      783,
+      785,
+      789,
+      795,
+      803,
+      804,
+      805,
+      806,
+      807
+    ]
+  },
+  "covered_line_regressions": [],
+  "production_unchanged": true,
+  "source_sha256": "0e11ed9b2fee12c2cc0ce78cb01d85a11708e31c01d89403381af2e73bc71815"
+}
