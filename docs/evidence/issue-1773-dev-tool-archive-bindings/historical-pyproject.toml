@@ -1,0 +1,151 @@
+[project]
+name = "manager-database"
+version = "0.1.0"
+description = "Manager Database Application"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "stranske" }]
+
+dependencies = [
+    "alembic",
+    "edgartools>=5.44,<5.45",
+    "httpx",
+    "feedparser",
+    "prefect",
+    "jsonschema>=4.26.0,<4.27.0",
+    "beautifulsoup4",
+    "boto3",
+    "python-json-logger",
+    "psycopg[binary]",
+    "streamlit==1.60.0",
+    "pandas",
+    "streamlit-authenticator==0.4.2",
+    "altair",
+    # Prefect requires newer FastAPI; avoid conflicting pin.
+    "fastapi",
+    "uvicorn",
+    "stranske-pdf-extract[baseline] @ git+https://github.com/stranske/Workflows.git@pdf-extract-v0.1.0#subdirectory=packages/stranske_pdf_extract",
+    "langchain>=1.2,<2.0",
+    "langchain-core>=1.2,<2.0",
+    "langchain-openai>=0.3,<2.0",
+    "langchain-anthropic>=0.3,<2.0",
+    "langsmith>=0.7.30,<1.0",
+]
+
+[project.scripts]
+# Internal/local launch for the analyst UI shell (see ui/launch.py and `make app`).
+mgrdb-app = "ui.launch:main"
+
+[project.optional-dependencies]
+app = []
+dev = [
+    "extra-streamlit-components==0.1.81",
+    "starlette",
+    "pytest==9.1.1",
+    "pytest-asyncio",
+    "pytest-cov==7.1.0",
+    "black==26.10.0",
+    "ruff==0.16.10",
+    "pre-commit",
+    "mypy==2.4.0",
+    "langchain>=1.2,<2.0",
+    "langchain-core>=1.2,<2.0",
+    "langchain-openai>=0.3,<2.0",
+    "langchain-anthropic>=0.3,<2.0",
+    "langsmith>=0.7.30,<1.0",
+    "types-PyYAML",
+    "coverage==7.16.2",
+    "defusedxml==0.7.1",
+    "referencing",
+    "PyYAML",
+    "fakeredis",
+    # Shared app-behavior baseline harness (api-snapshot kit under tests/baseline).
+    # Pattern A: unpinned @main, excluded from requirements.lock via the
+    # [tool.uv.pip] no-emit-package below. See docs/baseline-kit-dependency.md.
+    "app-baseline-kit @ git+https://github.com/stranske/Workflows.git#subdirectory=packages/app-baseline-kit",
+    # Transitive dep of app-baseline-kit; declared explicitly so the lock-presence
+    # test (tests/test_dependency_version_alignment.py) is satisfied.
+    "pytest-regressions>=2.8",
+    "sqlalchemy",
+]
+
+[build-system]
+requires = ["setuptools>=82.0.1"]
+build-backend = "setuptools.build_meta"
+
+# Do not freeze a commit SHA for the monorepo app-baseline-kit package in
+# requirements.lock. Pattern A: the unpinned @main pyproject URL and the lock
+# must never disagree, or uv aborts on a cold-cache resolve with "conflicting
+# URLs for package app-baseline-kit". See docs/baseline-kit-dependency.md.
+[tool.uv.pip]
+no-emit-package = ["app-baseline-kit"]
+
+# Explicit package discovery for flat layout with multiple top-level packages
+[tool.setuptools.packages.find]
+include = ["adapters*", "alerts*", "api*", "etl*", "llm*", "ui*"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["."]
+markers = [
+    "nightly: nightly regression tests",
+    "integration: integration tests",
+    "golden: offline credential-free golden/threshold gate runs",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+workers = 1
+force-exclude = "(^|.*/)(\\.git|\\.hg|\\.mypy_cache|\\.nox|\\.tox|\\.venv|_build|buck-out|build|dist|node_modules|\\.workflows-lib)(/|$)"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = false
+warn_unused_ignores = false
+ignore_missing_imports = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+exclude = "(^|.*/)(scripts|etl|adapters|api)/|(^|.*/)embeddings\\.py$"
+
+[tool.coverage.run]
+source = ["adapters", "api", "etl", "ui"]
+branch = true
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+
+[[tool.mypy.overrides]]
+module = ["adapters.*", "api.*", "etl.*", "embeddings"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["scripts.langchain.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = [
+    "semantic_matcher",
+    "label_matcher",
+    "issue_dedup",
+    "integration_layer",
+    "issue_formatter",
+    "task_validator",
+    "injection_guard",
+]
+ignore_errors = true

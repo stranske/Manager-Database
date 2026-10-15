@@ -1,0 +1,91 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_dashboard_review_recovery_archive_and_six_current_inputs _________
+
+    def test_dashboard_review_recovery_archive_and_six_current_inputs():
+        recovery = EVIDENCE / "review-recovery-20261012"
+        manifest = json.loads((recovery / "manifest.json").read_text())
+        proof = recovery / "proof.tar.gz"
+        assert digest(proof.read_bytes()) == manifest["archive_sha256"]
+        with tarfile.open(proof) as bundle:
+            members = bundle.getmembers()
+            assert len(members) == len(manifest["members"]) == 88
+            assert all(member.isfile() for member in members)
+            assert len({member.name for member in members}) == len(members)
+            assert {member.name for member in members} == set(manifest["members"])
+            for member in members:
+                raw = bundle.extractfile(member).read()
+                assert len(raw) == manifest["members"][member.name]["bytes"], member.name
+                assert digest(raw) == manifest["members"][member.name]["sha256"], member.name
+        assert set(manifest["current_inputs"]) == {
+            SOURCE,
+            TEST,
+            DRIVER,
+            "tests/test_dashboard_read_failure_replay.py",
+            "tests/test_dashboard_read_failure_evidence.py",
+            "pyproject.toml",
+        }
+        for name, expected in manifest["current_inputs"].items():
+>           assert digest((ROOT / name).read_bytes()) == expected, name
+E           AssertionError: pyproject.toml
+E           assert '90a215cb26ba...bc385e8cff2e3' == '8069f8a24b79...788cb94dd5c4f'
+E             
+E             - 8069f8a24b7995a866613454ae2f2268cf601c9b5a1fcbab3c0788cb94dd5c4f
+E             + 90a215cb26ba3a90a88e88c6684678ba4ab5897b666cf7935eebc385e8cff2e3
+
+tests/test_dashboard_read_failure_evidence.py:118: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1501
+  /Users/teacher/.codex/automations/sync-dependency-pr-closer/worktrees/manager-database-1773/api/chat.py:1501: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1801
+  /Users/teacher/.codex/automations/sync-dependency-pr-closer/worktrees/manager-database-1773/api/chat.py:1801: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1808
+  /Users/teacher/.codex/automations/sync-dependency-pr-closer/worktrees/manager-database-1773/api/chat.py:1808: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_dashboard_read_failure_evidence.py::test_dashboard_review_recovery_archive_and_six_current_inputs
+1 failed, 9 warnings in 0.22s
