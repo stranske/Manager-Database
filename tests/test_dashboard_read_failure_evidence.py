@@ -3,6 +3,7 @@
 import ast
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tarfile
@@ -12,9 +13,6 @@ from pathlib import Path
 
 import pytest
 from defusedxml import ElementTree as ET
-from packaging.requirements import Requirement
-from packaging.specifiers import SpecifierSet
-from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "docs/evidence/issue-1750-dashboard-read-failures"
@@ -309,18 +307,18 @@ def normalized_dashboard_project(raw):
     seen = set()
     normalized = []
     for value in dependencies:
-        requirement = Requirement(value)
-        name = requirement.name.lower().replace("_", "-")
-        if name in {"black", "ruff"}:
+        tool = re.match(r"(black|ruff)(?=[^A-Za-z0-9_-]|$)", value, re.IGNORECASE)
+        if tool:
+            name = tool.group(1).lower()
             assert name not in seen, f"Duplicate formatter requirement: {name}"
             seen.add(name)
-            specifiers = list(requirement.specifier)
-            assert len(specifiers) == 1 and not requirement.url, name
-            pin = specifiers[0]
-            assert pin.operator == "==" and "*" not in pin.version, name
-            Version(pin.version)
-            requirement.specifier = SpecifierSet("==0")
-            normalized.append(str(requirement))
+            # The retained/current contract uses plain numeric release pins.
+            # Other operators, URLs, extras, markers or wildcard pins are not
+            # an allowed version-only change to that historical input.
+            assert re.fullmatch(
+                r"(black|ruff)==[0-9]+(?:\.[0-9]+){1,3}", value, re.IGNORECASE
+            ), name
+            normalized.append(name + "==0")
         else:
             normalized.append(value)
     assert seen == {"black", "ruff"}
@@ -366,6 +364,7 @@ def test_review_recovery_accepts_generated_formatter_pins_without_rewriting_hist
         ('"pytest==9.1.1"', '"pytest==9.1.0"'),
         ('"black==26.10.1"', '"black>=26.10.1"'),
         ('"ruff==0.17.0"', '"ruff==0.17.*"'),
+        ('"black==26.10.1"', '"black[extra]==26.10.1"'),
     ],
 )
 def test_review_recovery_rejects_non_formatter_or_non_exact_changes(old, new):
