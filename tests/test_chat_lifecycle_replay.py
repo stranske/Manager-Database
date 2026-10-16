@@ -159,6 +159,62 @@ def test_archive_uses_selected_repository_with_poisoned_git_environment(tmp_path
             env=clean_env,
             check=True,
         )
+    intended = tmp_path / "intended"
+    checkout_head = subprocess.check_output(
+        ["git", "-C", str(intended), "rev-parse", "HEAD"], env=clean_env, text=True
+    ).strip()
+    (intended / "identity.txt").write_text("namespaced foreign")
+    subprocess.run(["git", "-C", str(intended), "add", "."], env=clean_env, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(intended),
+            "-c",
+            "user.name=Proof",
+            "-c",
+            "user.email=proof@example.invalid",
+            "commit",
+            "-qm",
+            "namespace fixture",
+        ],
+        env=clean_env,
+        check=True,
+    )
+    namespace_head = subprocess.check_output(
+        ["git", "-C", str(intended), "rev-parse", "HEAD"], env=clean_env, text=True
+    ).strip()
+    assert namespace_head != checkout_head
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(intended),
+            "update-ref",
+            "refs/namespaces/poison/refs/heads/other",
+            namespace_head,
+        ],
+        env=clean_env,
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(intended),
+            "symbolic-ref",
+            "refs/namespaces/poison/HEAD",
+            "refs/namespaces/poison/refs/heads/other",
+        ],
+        env=clean_env,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(intended), "checkout", "-q", "--detach", checkout_head],
+        env=clean_env,
+        check=True,
+    )
+    monkeypatch.setenv("GIT_NAMESPACE", "poison")
     foreign = tmp_path / "foreign"
     for key, value in {
         "GIT_DIR": str(foreign / ".git"),

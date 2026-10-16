@@ -55,7 +55,7 @@ Keepalive owns hosted CI and review after ready PR creation. Closer retains comp
 
 ```sh
 python -m pytest tests/test_chat_chain_lifecycle.py tests/test_chat_lifecycle_replay.py -m 'not slow' -q -o addopts=
-PYTEST_ADDOPTS='-m "not slow"' "$MD_PYTHON" docs/evidence/issue-1750-chat-lifecycle/chat_lifecycle_replay.py --output /tmp/new-chat-lifecycle-proof
+PYTEST_ADDOPTS='-m "not slow"' "$MD_PYTHON" docs/evidence/issue-1750-chat-lifecycle/chat_lifecycle_replay.py --output /tmp/new-chat-lifecycle-guard-proof
 ```
 
 The original archive SHA256, all 82 manifest members, the three current source/test/driver bindings, and all sixteen archived phase identities/exits/assertions were verified again. The archive and its bound inputs remain unchanged. Full-suite and coverage totals above describe the original eight-test chunk; this follow-up adds guard cases and does not claim a new full-suite or coverage result. Those acceptance tasks remain pending for the current candidate.
@@ -86,3 +86,5 @@ Focused Ruff and whitespace checks passed. Black checked all 424 current Python 
 ## Review recovery
 
 The current driver is uniquely named `chat_lifecycle_replay.py`, avoiding mypy's duplicate `replay` module collision without excluding evidence from checking. Its Git archive child strips inherited repository-location settings; a real two-repository poisoned-environment test verifies selection of the intended archive. The original driver is preserved byte-for-byte as `historical-replay.py.txt`; the historical archive and its manifest remain immutable. `current-bindings.json` separately binds the historical and current driver. The dashboard validator again requires the historical mypy exclusion configuration exactly, allowing only its previously documented generated formatter-pin normalization.
+
+Follow-up review removes every inherited `GIT_*` variable from the local archive child, including `GIT_NAMESPACE`. The real poison fixture also constructs a different namespaced HEAD and preserves checkout identity. The two documented replay invocations use distinct output directories.

@@ -129,18 +129,9 @@ def validate_junit(path, name, phase, code, assertion):
 
 
 def archive_current_tree(root):
-    child_env = os.environ.copy()
-    for name in (
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_COMMON_DIR",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_CEILING_DIRECTORIES",
-        "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-    ):
-        child_env.pop(name, None)
+    # Git's environment can redirect refs, objects, namespaces or configuration.
+    # A local archive needs none of the caller's Git-specific settings.
+    child_env = {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
     return subprocess.check_output(
         ["git", "-C", str(root), "archive", "HEAD"], env=child_env, timeout=60
     )
