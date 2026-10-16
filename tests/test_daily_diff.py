@@ -1,7 +1,11 @@
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import date
 from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -328,3 +332,206 @@ def test_daily_diff_flow_refreshes_matview_on_postgres(monkeypatch):
     assert "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_report" in executed_sql
     assert all("AUTOINCREMENT" not in sql for sql in executed_sql)
     assert all("CREATE TABLE IF NOT EXISTS daily_diffs" not in sql for sql in executed_sql)
+
+
+def test_daily_diff_empty_database_emits_empty_artifact(monkeypatch):
+    """No-manager runs stay replayable with a header-only CSV."""
+    import etl.daily_diff_flow as ddf
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY)")
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(ddf, "connect_db", lambda: conn)
+    monkeypatch.setattr(ddf, "new_run_id", lambda: "run-empty")
+    monkeypatch.setattr(
+        ddf,
+        "write_artifact_bundle",
+        lambda run_id, tool, files, *, inputs: captured.update(
+            {"run_id": run_id, "tool": tool, "files": files, "inputs": inputs}
+        )
+        or [{"name": "deltas.csv"}],
+    )
+
+    result = daily_diff_flow.fn(date="2024-05-01")
+
+    assert result.outputs == {
+        "managers_processed": 0,
+        "managers_skipped": 0,
+        "total_changes": 0,
+        "data_quality": {"missing_fields": [], "conflicts": [], "confidence": "unknown"},
+    }
+    assert result.warnings == ["No managers found in database"]
+    assert captured == {
+        "run_id": "run-empty",
+        "tool": "daily_diff",
+        "files": {
+            "deltas.csv": (
+                "cusip,name_of_issuer,delta_type,shares_prev,shares_curr,value_prev,value_curr\n"
+            )
+        },
+        "inputs": {"date": "2024-05-01"},
+    }
+
+    assert result.run_id == "run-empty"
+    assert result.artifacts == [{"name": "deltas.csv"}]
+    assert result.status == "success"
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        conn.execute("SELECT 1")
+
+
+@pytest.mark.parametrize(
+    ("delta_type", "value_prev", "value_curr", "normalized", "value_usd"),
+    [
+        ("add", None, -8, "buy", 8.0),
+        ("INCREASE", 4, 10, "buy", 6.0),
+        ("EXIT", -9, None, "sell", 9.0),
+        ("DECREASE", 10, 4, "sell", 6.0),
+        ("UNCHANGED", 9, 4, "unchanged", 5.0),
+        ("OTHER", None, None, "other", None),
+    ],
+)
+def test_daily_diff_normalizes_alerts(delta_type, value_prev, value_curr, normalized, value_usd):
+    import etl.daily_diff_flow as ddf
+
+    row = {
+        "manager_id": 7,
+        "report_date": "2024-05-01",
+        "cusip": "AAA",
+        "name_of_issuer": "CorpA",
+        "delta_type": delta_type,
+        "shares_prev": 3,
+        "shares_curr": 5,
+        "value_prev": value_prev,
+        "value_curr": value_curr,
+    }
+    event = ddf._large_delta_event_from_diff(row)
+
+    assert event.event_type == "large_delta"
+    assert event.manager_id == 7
+    assert event.payload == {
+        **row,
+        "raw_delta_type": delta_type.upper(),
+        "delta_type": normalized,
+        "value_usd": value_usd,
+    }
+
+
+@pytest.mark.parametrize("error_kind", ["message", "pgcode", "class_name"])
+def test_daily_diff_missing_table_requires_migrations(error_kind):
+    import etl.daily_diff_flow as ddf
+
+    if error_kind == "pgcode":
+
+        class MissingTableError(Exception):
+            pgcode = "42P01"
+
+        error = MissingTableError("missing")
+    elif error_kind == "class_name":
+
+        class UndefinedTable(Exception):
+            pass
+
+        error = UndefinedTable("missing")
+    else:
+        error = RuntimeError("relation daily_diffs does not exist")
+    conn = Mock()
+    conn.execute.side_effect = error
+
+    with pytest.raises(RuntimeError, match="daily_diffs table is missing") as caught:
+        ddf._ensure_daily_diffs_table(conn)
+
+    assert caught.value.__cause__ is error
+    conn.execute.assert_called_once_with("SELECT 1 FROM daily_diffs LIMIT 1")
+
+
+def test_daily_diff_table_check_preserves_other_database_errors():
+    import etl.daily_diff_flow as ddf
+
+    error = RuntimeError("permission denied")
+    conn = Mock()
+    conn.execute.side_effect = error
+    with pytest.raises(RuntimeError) as caught:
+        ddf._ensure_daily_diffs_table(conn)
+    assert caught.value is error
+
+
+@pytest.mark.parametrize("missing", [False, True], ids=["permission-error", "missing-view"])
+@pytest.mark.parametrize("statement", [1, 2], ids=["index", "refresh"])
+def test_daily_diff_view_refresh_only_suppresses_missing_view(missing, statement):
+    import etl.daily_diff_flow as ddf
+
+    error = RuntimeError("relation DOES NOT EXIST" if missing else "permission denied")
+    conn = Mock()
+    conn.execute.side_effect = [None] * (statement - 1) + [error]
+
+    if missing:
+        ddf._refresh_matview(conn)
+    else:
+        with pytest.raises(RuntimeError) as caught:
+            ddf._refresh_matview(conn)
+        assert caught.value is error
+    assert conn.execute.call_count == statement
+
+
+def test_daily_diff_manager_failure_propagates_and_closes_connection(monkeypatch):
+    import etl.daily_diff_flow as ddf
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY)")
+    conn.executemany("INSERT INTO managers VALUES (?)", [(1,), (2,)])
+    monkeypatch.setattr(ddf, "connect_db", lambda: conn)
+    error = RuntimeError("diff computation failed")
+    compute = Mock(side_effect=error)
+    monkeypatch.setattr(ddf, "compute_manager_diffs", type("Task", (), {"fn": compute})())
+    artifacts = Mock()
+    monkeypatch.setattr(ddf, "write_artifact_bundle", artifacts)
+
+    with pytest.raises(RuntimeError) as caught:
+        daily_diff_flow.fn(date="2024-05-01")
+
+    assert caught.value is error
+    compute.assert_called_once_with(1, "2024-05-01", conn)
+    artifacts.assert_not_called()
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        conn.execute("SELECT 1")
+
+
+def test_daily_diff_continues_after_manager_with_insufficient_filings(tmp_path, monkeypatch):
+    import etl.daily_diff_flow as ddf
+
+    db_path = _setup_db(tmp_path)
+    with closing(sqlite3.connect(db_path)) as conn:
+        # Manager 1 is skipped; manager 2 must still be processed.
+        conn.execute("DELETE FROM holdings WHERE filing_id = 101")
+        conn.execute("DELETE FROM filings WHERE filing_id = 101")
+        conn.commit()
+    monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setattr(ddf, "write_artifact_bundle", Mock(return_value=[]))
+
+    result = daily_diff_flow.fn(date="2024-05-01")
+
+    assert result.status == "success"
+    assert result.warnings == ["manager 1 skipped (< 2 filings)"]
+    assert result.outputs["managers_skipped"] == 1
+    assert result.outputs["managers_processed"] == 1
+    assert result.outputs["total_changes"] == 1
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT manager_id, cusip FROM daily_diffs").fetchall() == [(2, "YYY")]
+
+
+def test_daily_diff_timezone_falls_back_to_utc(monkeypatch):
+    import etl.daily_diff_flow as ddf
+
+    class NoTimezoneDateTime:
+        @classmethod
+        def now(cls):
+            return cls()
+
+        def astimezone(self):
+            return type("Local", (), {"tzinfo": None})()
+
+    monkeypatch.delenv("TZ", raising=False)
+    monkeypatch.setattr(ddf.dt, "datetime", NoTimezoneDateTime)
+    monkeypatch.setattr(ddf.os.path, "realpath", lambda _path: "/etc/localtime")
+    assert ddf._resolve_local_timezone() == "UTC"
