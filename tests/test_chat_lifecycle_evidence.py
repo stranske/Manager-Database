@@ -54,7 +54,19 @@ def archive():
     }
     for name, expected in binding["bindings"].items():
         assert manifest[name] == expected, name
-        assert files[name] == (ROOT / name.removeprefix("bound-inputs/")).read_bytes(), name
+        current = ROOT / name.removeprefix("bound-inputs/")
+        if current.name == "replay.py":
+            current = EVIDENCE / "historical-replay.py.txt"
+        assert files[name] == current.read_bytes(), name
+    successor = json.loads((EVIDENCE / "current-bindings.json").read_text())
+    assert (
+        successor["historical_driver_sha256"]
+        == hashlib.sha256((EVIDENCE / "historical-replay.py.txt").read_bytes()).hexdigest()
+    )
+    assert (
+        successor["current_driver_sha256"]
+        == hashlib.sha256((EVIDENCE / "chat_lifecycle_replay.py").read_bytes()).hexdigest()
+    )
     return files
 
 

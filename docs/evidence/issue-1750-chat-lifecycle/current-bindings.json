@@ -1,0 +1,5 @@
+{
+  "schema": "chat-lifecycle-review-successor/v1",
+  "historical_driver_sha256": "5a420e9cf06cfede85b2dcb574f343a64a666932377367f346ae3791be1518ca",
+  "current_driver_sha256": "92b18f80319ed498205bf7e5b73e594b37eb1dd03ae2a4e61ee528c71e96709f"
+}

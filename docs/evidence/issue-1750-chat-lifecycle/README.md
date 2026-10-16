@@ -28,10 +28,19 @@ The full suite is **not green**. The pre-existing UI-auth failures are retained 
 
 `comparison.json` contains exact totals, new node identities and added lines; `ranking.json` records selection inputs. `validation.tar.gz` contains both full-suite consoles/JUnit/coverage/argv/cwd/exits, all eight mutant/original source images and sixteen phase logs/JUnit/commands, misuse controls, static-check outputs and bound source/test/driver inputs. Its `manifest.json` lists SHA256 and byte length for all 82 members; `archive.json` binds the archive and current inputs.
 
-Run from a fresh checkout using the selected Python:
+Run from a fresh checkout with Python 3.12+ and the repository's installed test dependencies. Set `MD_PYTHON` to the absolute interpreter selected for your environment (for example, obtain it from `python3 -c 'import sys; print(sys.executable)'` after activating that environment). The verified local interpreter is `/opt/anaconda3/bin/python3`.
+
+Verify the selected executable before running:
 
 ```sh
-/opt/anaconda3/bin/python3 docs/evidence/issue-1750-chat-lifecycle/replay.py --output /tmp/new-chat-lifecycle-proof
+test -x "$MD_PYTHON"
+"$MD_PYTHON" --version
+```
+
+Run the current replay:
+
+```sh
+"$MD_PYTHON" docs/evidence/issue-1750-chat-lifecycle/chat_lifecycle_replay.py --output /tmp/new-chat-lifecycle-proof
 ```
 
 The destination must not exist. The replay uses a temporary Git archive, overlays only the current test, scopes unique mutation anchors to actual production functions, validates the exact named assertion and zero errors/skips, restores bytes in finally blocks, and verifies the calling checkout is unchanged. It removes the temporary archive checkout after execution.
@@ -46,7 +55,7 @@ Keepalive owns hosted CI and review after ready PR creation. Closer retains comp
 
 ```sh
 python -m pytest tests/test_chat_chain_lifecycle.py tests/test_chat_lifecycle_replay.py -m 'not slow' -q -o addopts=
-PYTEST_ADDOPTS='-m "not slow"' python docs/evidence/issue-1750-chat-lifecycle/replay.py --output /tmp/new-chat-lifecycle-proof
+PYTEST_ADDOPTS='-m "not slow"' "$MD_PYTHON" docs/evidence/issue-1750-chat-lifecycle/chat_lifecycle_replay.py --output /tmp/new-chat-lifecycle-proof
 ```
 
 The original archive SHA256, all 82 manifest members, the three current source/test/driver bindings, and all sixteen archived phase identities/exits/assertions were verified again. The archive and its bound inputs remain unchanged. Full-suite and coverage totals above describe the original eight-test chunk; this follow-up adds guard cases and does not claim a new full-suite or coverage result. Those acceptance tasks remain pending for the current candidate.
@@ -72,3 +81,8 @@ python -m pytest tests/test_chat_chain_lifecycle.py tests/test_chat_lifecycle_re
 The checkbox above applies to the archived original comparison. A current complete-suite attempt stopped making progress after three tests and was interrupted. An isolated diagnostic of `tests/baseline/test_directional.py` timed out after 45 seconds; the stack capture shows the first directional case waiting in Starlette `TestClient.__enter__` through AnyIO. The broader targeted chat run returned 86 passed / 1 failed: `test_deterministic_surface_unaffected_when_zone_disabled` received health status 503 instead of 200. Both that existing test and production `api/chat.py` are byte-identical to the recorded base. Targeted `--cov=api.chat --cov-report=term-missing` reported 70%; it does not establish the repository percentage in the original comparison. Current complete-suite and repository-coverage acceptance remain pending; no new full-suite PASS or coverage gain is claimed.
 
 Focused Ruff and whitespace checks passed. Black checked all 424 current Python files successfully with the required repository-wide command, using `BLACK_CACHE_DIR=/tmp/chat-lifecycle-comparison-black-cache` after serial single-file checks populated that cache.
+
+
+## Review recovery
+
+The current driver is uniquely named `chat_lifecycle_replay.py`, avoiding mypy's duplicate `replay` module collision without excluding evidence from checking. Its Git archive child strips inherited repository-location settings; a real two-repository poisoned-environment test verifies selection of the intended archive. The original driver is preserved byte-for-byte as `historical-replay.py.txt`; the historical archive and its manifest remain immutable. `current-bindings.json` separately binds the historical and current driver. The dashboard validator again requires the historical mypy exclusion configuration exactly, allowing only its previously documented generated formatter-pin normalization.

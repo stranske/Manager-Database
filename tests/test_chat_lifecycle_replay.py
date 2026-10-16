@@ -6,7 +6,10 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 
 import pytest
 
-DRIVER = Path(__file__).resolve().parents[1] / "docs/evidence/issue-1750-chat-lifecycle/replay.py"
+DRIVER = (
+    Path(__file__).resolve().parents[1]
+    / "docs/evidence/issue-1750-chat-lifecycle/chat_lifecycle_replay.py"
+)
 SPEC = importlib.util.spec_from_file_location("chat_lifecycle_replay", DRIVER)
 assert SPEC is not None and SPEC.loader is not None
 replay = importlib.util.module_from_spec(SPEC)
@@ -125,3 +128,46 @@ def test_replay_refuses_existing_output_before_archive_or_mutation(tmp_path, mon
     if kind == "directory":
         assert list(output.iterdir()) == [proof]
     assert {name: (root / name).read_bytes() for name in before} == before
+
+
+def test_archive_uses_selected_repository_with_poisoned_git_environment(tmp_path, monkeypatch):
+    import io
+    import os
+    import subprocess
+    import tarfile
+
+    clean_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    for name in ("intended", "foreign"):
+        tree = tmp_path / name
+        tree.mkdir()
+        subprocess.run(["git", "init", "-q", str(tree)], env=clean_env, check=True)
+        (tree / "identity.txt").write_text(name)
+        subprocess.run(["git", "-C", str(tree), "add", "."], env=clean_env, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(tree),
+                "-c",
+                "user.name=Proof",
+                "-c",
+                "user.email=proof@example.invalid",
+                "commit",
+                "-qm",
+                "fixture",
+            ],
+            env=clean_env,
+            check=True,
+        )
+    foreign = tmp_path / "foreign"
+    for key, value in {
+        "GIT_DIR": str(foreign / ".git"),
+        "GIT_WORK_TREE": str(foreign),
+        "GIT_INDEX_FILE": str(foreign / ".git/index"),
+        "GIT_OBJECT_DIRECTORY": str(foreign / ".git/objects"),
+    }.items():
+        monkeypatch.setenv(key, value)
+    with tarfile.open(
+        fileobj=io.BytesIO(replay.archive_current_tree(tmp_path / "intended"))
+    ) as archive:
+        assert archive.extractfile("identity.txt").read() == b"intended"

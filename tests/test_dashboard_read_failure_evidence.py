@@ -349,12 +349,6 @@ def validate_review_recovery_current_inputs(root, manifest):
     historical = normalized_dashboard_project(
         (successor / "historical-pyproject.toml").read_bytes()
     )
-    historical_exclude = historical["tool"]["mypy"]["exclude"]
-    assert current["tool"]["mypy"]["exclude"] in {
-        historical_exclude,
-        historical_exclude + r"|(^|.*/)docs/evidence/issue-1750-chat-lifecycle/replay\.py$",
-    }
-    current["tool"]["mypy"]["exclude"] = historical_exclude
     assert current == historical
 
 
@@ -419,7 +413,7 @@ def test_review_recovery_retains_live_product_and_validator_bindings(tmp_path, c
     "extra,accepted",
     [
         ("", True),
-        (r"|(^|.*/)docs/evidence/issue-1750-chat-lifecycle/replay\.py$", True),
+        (r"|(^|.*/)docs/evidence/issue-1750-chat-lifecycle/replay\.py$", False),
         (r"|(^|.*/)api/chat\.py$", False),
         (r"|(^|.*/)docs/evidence/.*", False),
     ],
@@ -432,9 +426,10 @@ def test_review_recovery_limits_mypy_exclusion_changes(tmp_path, extra, accepted
         target.write_bytes((ROOT / name).read_bytes())
     project = tmp_path / "pyproject.toml"
     raw = project.read_text()
-    current_extra = r"|(^|.*/)docs/evidence/issue-1750-chat-lifecycle/replay\\.py$"
-    assert raw.count(current_extra) == 1
-    project.write_text(raw.replace(current_extra, extra.replace("\\", "\\\\")))
+    historical = tomllib.loads(raw)["tool"]["mypy"]["exclude"]
+    original = "exclude = " + json.dumps(historical)
+    assert raw.count(original) == 1
+    project.write_text(raw.replace(original, "exclude = " + json.dumps(historical + extra)))
     if accepted:
         validate_review_recovery_current_inputs(tmp_path, manifest)
     else:
