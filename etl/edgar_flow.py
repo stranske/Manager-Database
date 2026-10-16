@@ -333,8 +333,9 @@ def _replace_holdings_for_filing(
             ingest_module._supersede_current_holdings(
                 conn, filing_id=filing_id, knowledge_time=stamp
             )
+            is_authority = True
             if manager_id is not None:
-                ingest_module._supersede_prior_period_holdings(
+                is_authority = ingest_module._supersede_prior_period_holdings(
                     conn,
                     manager_id=manager_id,
                     filing_id=filing_id,
@@ -344,6 +345,7 @@ def _replace_holdings_for_filing(
             _delete_holdings_for_filing(conn, filing_id)
             stamp = None
             version = 1
+            is_authority = True
         try:
             resolve_holding_identifiers(conn, rows, filing_id=filing_id, source="edgar")
         except Exception:
@@ -360,6 +362,11 @@ def _replace_holdings_for_filing(
                 knowledge_time=stamp if bitemporal else None,
                 version=version if bitemporal else 1,
                 content_hash=digest if bitemporal else None,
+            )
+        if bitemporal and not is_authority:
+            # Lower-authority reverse-order ingest: keep history, not current.
+            ingest_module._supersede_current_holdings(
+                conn, filing_id=filing_id, knowledge_time=stamp
             )
 
     _run_in_transaction(conn, _work)

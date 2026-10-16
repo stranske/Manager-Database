@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from etl import ingest_flow, point_in_time
 
@@ -159,6 +162,19 @@ def test_identical_reingest_is_noop(tmp_path):
     )
     assert first == 1
     assert second == 0
+    conn.execute("UPDATE holdings SET superseded_at = '2024-09-01T00:00:00Z' WHERE filing_id = 20")
+    conn.commit()
+    third = ingest_flow._replace_holdings_rows(
+        conn,
+        filing_id=20,
+        manager_id=1,
+        identifier="0000789019",
+        external_id="acc-same",
+        filed_date="2024-08-01",
+        parsed_rows=rows,
+        jurisdiction="us",
+    )
+    assert third == 0
     versions = conn.execute(
         "SELECT COUNT(*), MAX(version) FROM holdings WHERE filing_id = 20"
     ).fetchone()
@@ -286,3 +302,205 @@ def test_later_filed_original_outranks_earlier_amendment(same_day_amendment_db):
     conn.execute("UPDATE filings SET filed_date = '2024-05-16' WHERE filing_id = 2")
     rows = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 2, tzinfo=UTC))
     assert {row["cusip"] for row in rows} == {"PRIOR", "ORIGINAL"}
+
+
+def _stamp_filing_knowledge(
+    conn: sqlite3.Connection, *, filing_id: int, knowledge_time: str
+) -> None:
+    conn.execute(
+        "UPDATE holdings SET knowledge_time = ? WHERE filing_id = ?",
+        (knowledge_time, filing_id),
+    )
+    conn.commit()
+
+
+def _seed_original_amendment_period(conn: sqlite3.Connection) -> tuple[list[dict], list[dict]]:
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source, raw_key) "
+        "VALUES (10, 1, '13F-HR', '2024-03-31', '2024-05-15', 'us', 'acc-orig')"
+    )
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source, raw_key) "
+        "VALUES (11, 1, '13F-HR/A', '2024-03-31', '2024-05-15', 'us', 'acc-amend')"
+    )
+    original_rows = [
+        {"cusip": "037833100", "nameOfIssuer": "APPLE INC", "sshPrnamt": 100, "value": 1000},
+    ]
+    amendment_rows = [
+        {"cusip": "037833100", "nameOfIssuer": "APPLE INC", "sshPrnamt": 250, "value": 2500},
+    ]
+    return original_rows, amendment_rows
+
+
+def test_original_replay_after_amendment_keeps_amendment_current(tmp_path):
+    conn = _connect(tmp_path)
+    original_rows, amendment_rows = _seed_original_amendment_period(conn)
+    ingest_flow._replace_holdings_rows(
+        conn,
+        filing_id=10,
+        manager_id=1,
+        identifier="0000320193",
+        external_id="acc-orig",
+        filed_date="2024-05-15",
+        parsed_rows=original_rows,
+        jurisdiction="us",
+    )
+    ingest_flow._replace_holdings_rows(
+        conn,
+        filing_id=11,
+        manager_id=1,
+        identifier="0000320193",
+        external_id="acc-amend",
+        filed_date="2024-05-15",
+        parsed_rows=amendment_rows,
+        jurisdiction="us",
+    )
+    t_original = "2024-05-15T12:00:00Z"
+    t_amendment = "2024-06-01T12:00:00Z"
+    _stamp_filing_knowledge(conn, filing_id=10, knowledge_time=t_original)
+    _stamp_filing_knowledge(conn, filing_id=11, knowledge_time=t_amendment)
+    conn.execute(
+        "UPDATE holdings SET superseded_at = ? WHERE filing_id = 10 AND superseded_at IS NOT NULL",
+        (t_amendment,),
+    )
+    conn.commit()
+    counts_before = conn.execute("SELECT COUNT(*) FROM holdings WHERE filing_id = 10").fetchone()[0]
+    replayed = ingest_flow._replace_holdings_rows(
+        conn,
+        filing_id=10,
+        manager_id=1,
+        identifier="0000320193",
+        external_id="acc-orig",
+        filed_date="2024-05-15",
+        parsed_rows=original_rows,
+        jurisdiction="us",
+    )
+    assert replayed == 0
+    counts_after = conn.execute("SELECT COUNT(*) FROM holdings WHERE filing_id = 10").fetchone()[0]
+    assert int(counts_before) == int(counts_after)
+
+    current = point_in_time.current_holdings(conn, manager_id=1)
+    period_rows = [row for row in current if row["cusip"] == "037833100"]
+    assert len(period_rows) == 1
+    assert int(period_rows[0]["shares"]) == 250
+    assert int(period_rows[0]["filing_id"]) == 11
+
+    pre_amend = point_in_time.holdings_as_of(conn, 1, datetime(2024, 5, 16, tzinfo=UTC))
+    assert len(pre_amend) == 1
+    assert int(pre_amend[0]["shares"]) == 100
+    post_amend = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 2, tzinfo=UTC))
+    assert len(post_amend) == 1
+    assert int(post_amend[0]["shares"]) == 250
+
+
+def test_reverse_order_ingestion_preserves_authority(tmp_path):
+    conn = _connect(tmp_path)
+    original_rows, amendment_rows = _seed_original_amendment_period(conn)
+    ingest_flow._replace_holdings_rows(
+        conn,
+        filing_id=11,
+        manager_id=1,
+        identifier="0000320193",
+        external_id="acc-amend",
+        filed_date="2024-05-15",
+        parsed_rows=amendment_rows,
+        jurisdiction="us",
+    )
+    ingest_flow._replace_holdings_rows(
+        conn,
+        filing_id=10,
+        manager_id=1,
+        identifier="0000320193",
+        external_id="acc-orig",
+        filed_date="2024-05-15",
+        parsed_rows=original_rows,
+        jurisdiction="us",
+    )
+
+    current = point_in_time.current_holdings(conn, manager_id=1)
+    period_rows = [row for row in current if row["cusip"] == "037833100"]
+    assert len(period_rows) == 1
+    assert int(period_rows[0]["shares"]) == 250
+    assert int(period_rows[0]["filing_id"]) == 11
+
+
+@pytest.mark.skipif(
+    not os.environ.get("MGRDB_PG_TEST_URL"),
+    reason="MGRDB_PG_TEST_URL not set",
+)
+def test_original_replay_after_amendment_postgres():
+    from tests.test_chain_postgres_integration import _apply_schema_sql, _reset_public_schema
+
+    psycopg = pytest.importorskip("psycopg")
+
+    with psycopg.connect(os.environ["MGRDB_PG_TEST_URL"], autocommit=False) as conn:
+        _reset_public_schema(conn)
+        _apply_schema_sql(conn)
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO managers(name, cik) VALUES (%s, %s) RETURNING manager_id",
+                ("Test", "0000000001"),
+            )
+            manager_id = int(cur.fetchone()[0])
+            cur.execute(
+                "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source, raw_key) "
+                "VALUES (10, %s, '13F-HR', '2024-03-31', '2024-05-15', 'us', 'acc-orig')",
+                (manager_id,),
+            )
+            cur.execute(
+                "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source, raw_key) "
+                "VALUES (11, %s, '13F-HR/A', '2024-03-31', '2024-05-15', 'us', 'acc-amend')",
+                (manager_id,),
+            )
+        conn.commit()
+
+        original_rows = [
+            {"cusip": "037833100", "nameOfIssuer": "APPLE INC", "sshPrnamt": 100, "value": 1000},
+        ]
+        amendment_rows = [
+            {"cusip": "037833100", "nameOfIssuer": "APPLE INC", "sshPrnamt": 250, "value": 2500},
+        ]
+        ingest_flow._replace_holdings_rows(
+            conn,
+            filing_id=10,
+            manager_id=manager_id,
+            identifier="0000320193",
+            external_id="acc-orig",
+            filed_date="2024-05-15",
+            parsed_rows=original_rows,
+            jurisdiction="us",
+        )
+        ingest_flow._replace_holdings_rows(
+            conn,
+            filing_id=11,
+            manager_id=manager_id,
+            identifier="0000320193",
+            external_id="acc-amend",
+            filed_date="2024-05-15",
+            parsed_rows=amendment_rows,
+            jurisdiction="us",
+        )
+        before = conn.execute(
+            "SELECT COUNT(*) FROM holdings WHERE filing_id = %s", (10,)
+        ).fetchone()[0]
+        ingest_flow._replace_holdings_rows(
+            conn,
+            filing_id=10,
+            manager_id=manager_id,
+            identifier="0000320193",
+            external_id="acc-orig",
+            filed_date="2024-05-15",
+            parsed_rows=original_rows,
+            jurisdiction="us",
+        )
+        after = conn.execute(
+            "SELECT COUNT(*) FROM holdings WHERE filing_id = %s", (10,)
+        ).fetchone()[0]
+        assert int(before) == int(after)
+
+        current = point_in_time.current_holdings(conn, manager_id=manager_id)
+        apple = [row for row in current if row.get("cusip") == "037833100"]
+        assert len(apple) == 1
+        assert int(apple[0]["shares"]) == 250
+        assert int(apple[0]["filing_id"]) == 11

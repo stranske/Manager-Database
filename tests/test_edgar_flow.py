@@ -3,6 +3,7 @@ import json
 import sqlite3
 import sys
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import etl.edgar_flow as flow
+from etl import point_in_time
 
 
 class DummyAdapter:
@@ -451,6 +453,115 @@ def test_latest_filed_date_for_cik_reads_existing_watermark(monkeypatch, tmp_pat
     monkeypatch.setattr(flow, "DB_PATH", str(db_path))
 
     assert flow._latest_filed_date_for_cik("0") == "2024-05-01"
+
+
+def _connect_bitemporal_holdings_db(tmp_path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(tmp_path / "edgar_bitemporal.db")
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE managers (
+            manager_id INTEGER PRIMARY KEY,
+            name TEXT,
+            cik TEXT
+        );
+        CREATE TABLE filings (
+            filing_id INTEGER PRIMARY KEY,
+            manager_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            period_end TEXT,
+            filed_date TEXT,
+            source TEXT NOT NULL,
+            raw_key TEXT
+        );
+        CREATE TABLE holdings (
+            holding_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filing_id INTEGER NOT NULL,
+            cusip TEXT,
+            name_of_issuer TEXT,
+            shares INTEGER,
+            value_usd REAL,
+            content_hash TEXT,
+            knowledge_time TEXT NOT NULL,
+            superseded_at TEXT,
+            version INTEGER NOT NULL DEFAULT 1
+        );
+        INSERT INTO managers(manager_id, name, cik) VALUES (1, 'Test', '0');
+    """)
+    return conn
+
+
+def test_edgar_replay_original_amendment_original_keeps_amendment(tmp_path):
+    conn = _connect_bitemporal_holdings_db(tmp_path)
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source, raw_key) "
+        "VALUES (10, 1, '13F-HR', '2024-03-31', '2024-05-15', 'edgar', 'acc-orig')"
+    )
+    conn.execute(
+        "INSERT INTO filings(filing_id, manager_id, type, period_end, filed_date, source, raw_key) "
+        "VALUES (11, 1, '13F-HR/A', '2024-03-31', '2024-05-15', 'edgar', 'acc-amend')"
+    )
+    conn.commit()
+    original = [
+        {"nameOfIssuer": "APPLE INC", "cusip": "037833100", "value": 1000, "sshPrnamt": 100},
+    ]
+    amendment = [
+        {"nameOfIssuer": "APPLE INC", "cusip": "037833100", "value": 2500, "sshPrnamt": 250},
+    ]
+    flow._replace_holdings_for_filing(
+        conn,
+        filing_id=10,
+        rows=original,
+        manager_id=1,
+        cik="0",
+        accession="acc-orig",
+        filed_date="2024-05-15",
+    )
+    flow._replace_holdings_for_filing(
+        conn,
+        filing_id=11,
+        rows=amendment,
+        manager_id=1,
+        cik="0",
+        accession="acc-amend",
+        filed_date="2024-05-15",
+    )
+    t_original = "2024-05-15T12:00:00Z"
+    t_amendment = "2024-06-01T12:00:00Z"
+    conn.execute(
+        "UPDATE holdings SET knowledge_time = ? WHERE filing_id = 10",
+        (t_original,),
+    )
+    conn.execute(
+        "UPDATE holdings SET knowledge_time = ? WHERE filing_id = 11",
+        (t_amendment,),
+    )
+    conn.execute(
+        "UPDATE holdings SET superseded_at = ? WHERE filing_id = 10 AND superseded_at IS NOT NULL",
+        (t_amendment,),
+    )
+    conn.commit()
+    before = conn.execute("SELECT COUNT(*) FROM holdings WHERE filing_id = 10").fetchone()[0]
+    flow._replace_holdings_for_filing(
+        conn,
+        filing_id=10,
+        rows=original,
+        manager_id=1,
+        cik="0",
+        accession="acc-orig",
+        filed_date="2024-05-15",
+    )
+    after = conn.execute("SELECT COUNT(*) FROM holdings WHERE filing_id = 10").fetchone()[0]
+    assert int(before) == int(after)
+
+    current = point_in_time.current_holdings(conn, manager_id=1)
+    apple = [row for row in current if row["cusip"] == "037833100"]
+    assert len(apple) == 1
+    assert int(apple[0]["shares"]) == 250
+    assert int(apple[0]["filing_id"]) == 11
+
+    post = point_in_time.holdings_as_of(conn, 1, datetime(2024, 6, 2, tzinfo=UTC))
+    assert len(post) == 1
+    assert int(post[0]["shares"]) == 250
 
 
 def test_replace_holdings_for_filing_uses_postgres_transaction():

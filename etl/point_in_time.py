@@ -23,6 +23,17 @@ def _as_of_literal(as_of: datetime) -> str:
     return as_of.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def period_authority_sort_key(
+    filed_date: Any,
+    filing_type: Any,
+    filing_id: int,
+) -> tuple[str, bool, int]:
+    """Sort key for period authority (higher wins). Matches diff_holdings selection."""
+    filed_key = "" if filed_date is None else str(filed_date)
+    amendment = str(filing_type or "").strip().upper().endswith("/A")
+    return (filed_key, amendment, int(filing_id))
+
+
 def current_holdings_sql(table_alias: str = "h") -> str:
     """SQL predicate selecting non-superseded holdings rows."""
     return f"{table_alias}.superseded_at IS NULL"
@@ -120,7 +131,7 @@ def holdings_as_of(
     if not filing_rows:
         return []
 
-    latest_by_period: dict[str, tuple[int, str, bool]] = {}
+    latest_by_period: dict[str, tuple[int, tuple[str, bool, int]]] = {}
     for row in filing_rows:
         if hasattr(row, "keys"):
             filing_id = row["filing_id"]
@@ -130,12 +141,10 @@ def holdings_as_of(
         else:
             filing_id, filed_date, event_time, filing_type = row[0], row[1], row[2], row[3]
         period_key = str(event_time)
-        filed_key = str(filed_date)
-        # Match diff_holdings: filed date, amendment status, then numeric ID.
-        amendment = str(filing_type or "").strip().upper().endswith("/A")
-        candidate = (int(filing_id), filed_key, amendment)
+        rank = period_authority_sort_key(filed_date, filing_type, int(filing_id))
+        candidate = (int(filing_id), rank)
         prev = latest_by_period.get(period_key)
-        if prev is None or (filed_key, amendment, candidate[0]) > (prev[1], prev[2], prev[0]):
+        if prev is None or rank > prev[1]:
             latest_by_period[period_key] = candidate
 
     selected_ids = [int(item[0]) for item in latest_by_period.values()]
