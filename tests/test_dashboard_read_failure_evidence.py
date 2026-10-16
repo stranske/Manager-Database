@@ -352,9 +352,13 @@ def validate_review_recovery_current_inputs(root, manifest):
 
 def test_review_recovery_accepts_generated_formatter_pins_without_rewriting_history():
     folder = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
-    assert normalized_dashboard_project(
-        (folder / "generated-pyproject.toml").read_bytes()
-    ) == normalized_dashboard_project((folder / "historical-pyproject.toml").read_bytes())
+    raw = (folder / "generated-pyproject.toml").read_bytes()
+    provenance = json.loads((folder / "generated-provenance.json").read_text())
+    assert len(raw) == provenance["bytes"]
+    assert digest(raw) == provenance["sha256"]
+    assert normalized_dashboard_project(raw) == normalized_dashboard_project(
+        (folder / "historical-pyproject.toml").read_bytes()
+    )
 
 
 @pytest.mark.parametrize(
