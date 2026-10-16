@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -176,6 +177,103 @@ def test_evaluation_flow_reports_failures_and_alerts(monkeypatch):
 
     assert summary["failures"] == {"filing_summary_accuracy": 0.5}
     assert summary["alerts_fired"] == 1
+
+
+def test_evaluation_flow_tasks_load_persist_and_orchestrate(tmp_path, monkeypatch):
+    """The scheduled flows must wire datasets, persistence, and alerts in order."""
+    dataset_dir = tmp_path / "datasets"
+    dataset_dir.mkdir()
+    for name in ("filing_summary_eval.json", "nl_query_eval.json", "rag_search_eval.json"):
+        (dataset_dir / name).write_text("[]", encoding="utf-8")
+
+    assert evaluation_flow.load_evaluation_datasets.fn(dataset_dir) == {
+        "filing_summary": [],
+        "nl_query": [],
+        "rag_search": [],
+    }
+    assert evaluation_flow._DeterministicFilingSummaryLLM()("unused") == "{}"
+    assert "Elliott" in evaluation_flow._DeterministicNLQueryLLM().invoke("other question")
+
+    conn = sqlite3.connect(tmp_path / "usage.db")
+    evaluation_flow.log_evaluation_summary.fn(
+        {"metrics": {"sql_safety": 1.0}, "failures": {}}, db_conn=conn
+    )
+    evaluation_flow.log_evaluation_summary.fn(
+        {"metrics": {}, "failures": {"sql_safety": 0.0}}, db_conn=conn
+    )
+    assert conn.execute("SELECT status FROM api_usage ORDER BY rowid").fetchall() == [(200,), (503,)]
+    assert evaluation_flow.fire_quality_alerts.fn({"failures": {}}, db_conn=conn) == 0
+    conn.close()
+
+    closed: list[str] = []
+
+    class NonSqliteConnection:
+        def close(self):
+            closed.append("closed")
+
+    with pytest.raises(TypeError, match="requires a SQLite"):
+        evaluation_flow.run_live_evaluation_suite.fn(db_conn=NonSqliteConnection())
+
+    owned_conn = NonSqliteConnection()
+    monkeypatch.setattr(evaluation_flow, "connect_db", lambda: owned_conn)
+    monkeypatch.setattr(evaluation_flow, "ensure_api_usage_schema", lambda _conn: None)
+    monkeypatch.setattr(evaluation_flow, "get_placeholder", lambda _conn: "?")
+    monkeypatch.setattr(owned_conn, "execute", lambda *_args: None, raising=False)
+    evaluation_flow.log_evaluation_summary.fn({"metrics": {}}, db_conn=None)
+    assert closed == ["closed"]
+
+    class EmptyEvaluator:
+        def close(self):
+            closed.append("evaluator-closed")
+
+    evaluation_flow.run_evaluation_suite.fn(
+        evaluator=EmptyEvaluator(),
+        datasets={"filing_summary": [], "nl_query": [], "rag_search": []},
+    )
+    assert evaluation_flow.run_live_evaluation_suite.fn()["failures"] == {}
+
+    alert_conn = NonSqliteConnection()
+    monkeypatch.setattr(evaluation_flow, "connect_db", lambda: alert_conn)
+    monkeypatch.setattr(evaluation_flow, "evaluate_and_record_alerts", lambda *_args: [1, 2])
+    assert evaluation_flow.fire_quality_alerts.fn({"failures": {"sql_safety": 0.0}}) == 2
+    assert closed[-1] == "closed"
+
+    calls: list[tuple[str, object]] = []
+
+    def run_suite(*, datasets):
+        calls.append(("run", datasets))
+        return {"metrics": {"sql_safety": 1.0}, "failures": {}}
+
+    def run_live():
+        calls.append(("live-run", None))
+        return {"metrics": {"sql_safety": 1.0}, "failures": {}}
+
+    monkeypatch.setattr(
+        evaluation_flow, "load_evaluation_datasets", SimpleNamespace(fn=lambda: {"fixture": []})
+    )
+    monkeypatch.setattr(evaluation_flow, "run_evaluation_suite", SimpleNamespace(fn=run_suite))
+    monkeypatch.setattr(evaluation_flow, "run_live_evaluation_suite", SimpleNamespace(fn=run_live))
+    monkeypatch.setattr(
+        evaluation_flow,
+        "log_evaluation_summary",
+        SimpleNamespace(fn=lambda summary: calls.append(("log", summary.copy()))),
+    )
+    monkeypatch.setattr(
+        evaluation_flow,
+        "fire_quality_alerts",
+        SimpleNamespace(fn=lambda summary: calls.append(("alerts", summary.copy())) or 2),
+    )
+
+    assert evaluation_flow.evaluation_flow.fn()["alerts_fired"] == 2
+    assert evaluation_flow.live_evaluation_flow.fn()["alerts_fired"] == 2
+    assert calls == [
+        ("run", {"fixture": []}),
+        ("log", {"metrics": {"sql_safety": 1.0}, "failures": {}}),
+        ("alerts", {"metrics": {"sql_safety": 1.0}, "failures": {}}),
+        ("live-run", None),
+        ("log", {"metrics": {"sql_safety": 1.0}, "failures": {}}),
+        ("alerts", {"metrics": {"sql_safety": 1.0}, "failures": {}}),
+    ]
 
 
 def test_live_evaluation_builds_outputs_from_actual_chains(tmp_path):

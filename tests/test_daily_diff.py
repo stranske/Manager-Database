@@ -3,6 +3,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from alerts.db import ensure_alert_tables
@@ -328,3 +330,113 @@ def test_daily_diff_flow_refreshes_matview_on_postgres(monkeypatch):
     assert "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_report" in executed_sql
     assert all("AUTOINCREMENT" not in sql for sql in executed_sql)
     assert all("CREATE TABLE IF NOT EXISTS daily_diffs" not in sql for sql in executed_sql)
+
+
+def test_daily_diff_empty_database_emits_empty_artifact_and_normalizes_alerts(monkeypatch):
+    """No-manager runs stay replayable, and alert payloads retain the real delta semantics."""
+    import etl.daily_diff_flow as ddf
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY)")
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(ddf, "connect_db", lambda: conn)
+    monkeypatch.setattr(ddf, "new_run_id", lambda: "run-empty")
+    monkeypatch.setattr(
+        ddf,
+        "write_artifact_bundle",
+        lambda run_id, tool, files, *, inputs: captured.update(
+            {"run_id": run_id, "tool": tool, "files": files, "inputs": inputs}
+        )
+        or [{"name": "deltas.csv"}],
+    )
+
+    result = daily_diff_flow.fn(date="2024-05-01")
+
+    assert result.outputs == {
+        "managers_processed": 0,
+        "managers_skipped": 0,
+        "total_changes": 0,
+        "data_quality": {"missing_fields": [], "conflicts": [], "confidence": "unknown"},
+    }
+    assert result.warnings == ["No managers found in database"]
+    assert captured == {
+        "run_id": "run-empty",
+        "tool": "daily_diff",
+        "files": {
+            "deltas.csv": (
+                "cusip,name_of_issuer,delta_type,shares_prev,shares_curr,value_prev,value_curr\n"
+            )
+        },
+        "inputs": {"date": "2024-05-01"},
+    }
+
+    add = ddf._large_delta_event_from_diff(
+        {"manager_id": 1, "report_date": "2024-05-01", "cusip": "ADD", "delta_type": "ADD", "value_curr": 8}
+    )
+    exit_event = ddf._large_delta_event_from_diff(
+        {"manager_id": 1, "report_date": "2024-05-01", "cusip": "EXIT", "delta_type": "EXIT", "value_prev": 9}
+    )
+    unchanged = ddf._large_delta_event_from_diff(
+        {"manager_id": 1, "report_date": "2024-05-01", "cusip": "UNCHANGED", "delta_type": "UNCHANGED", "value_prev": 9, "value_curr": 4}
+    )
+    assert (add.payload["delta_type"], add.payload["value_usd"]) == ("buy", 8.0)
+    assert (exit_event.payload["delta_type"], exit_event.payload["value_usd"]) == ("sell", 9.0)
+    assert (unchanged.payload["delta_type"], unchanged.payload["value_usd"]) == ("unchanged", 5.0)
+    assert ddf._large_delta_event_from_diff(
+        {"manager_id": 1, "report_date": "2024-05-01", "cusip": "EMPTY", "delta_type": "OTHER"}
+    ).payload["value_usd"] is None
+
+    class MissingTableError(Exception):
+        pgcode = "42P01"
+
+    class FailingPostgres:
+        def __init__(self, error):
+            self.error = error
+
+        def execute(self, _sql):
+            raise self.error
+
+    monkeypatch.setattr(ddf, "is_sqlite", lambda _conn: False)
+    with pytest.raises(RuntimeError, match="daily_diffs table is missing"):
+        ddf._ensure_daily_diffs_table(FailingPostgres(MissingTableError("missing")))
+    permission_error = RuntimeError("permission denied")
+    with pytest.raises(RuntimeError, match="permission denied"):
+        ddf._ensure_daily_diffs_table(FailingPostgres(permission_error))
+
+    class MissingView:
+        def execute(self, _sql):
+            raise RuntimeError("relation does not exist")
+
+    ddf._refresh_matview(MissingView())
+
+    class BrokenView:
+        def execute(self, _sql):
+            raise RuntimeError("permission denied")
+
+    with pytest.raises(RuntimeError, match="permission denied"):
+        ddf._refresh_matview(BrokenView())
+
+    failing_conn = sqlite3.connect(":memory:")
+    failing_conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY)")
+    failing_conn.execute("INSERT INTO managers VALUES (1)")
+    monkeypatch.setattr(ddf, "is_sqlite", lambda value: isinstance(value, sqlite3.Connection))
+    monkeypatch.setattr(ddf, "connect_db", lambda: failing_conn)
+
+    def fail_diffs(*_args):
+        raise RuntimeError("diff computation failed")
+
+    monkeypatch.setattr(ddf, "compute_manager_diffs", type("Task", (), {"fn": fail_diffs})())
+    with pytest.raises(RuntimeError, match="diff computation failed"):
+        daily_diff_flow.fn(date="2024-05-01")
+
+    class NoTimezoneDateTime:
+        @classmethod
+        def now(cls):
+            return cls()
+
+        def astimezone(self):
+            return type("Local", (), {"tzinfo": None})()
+
+    monkeypatch.setattr(ddf.dt, "datetime", NoTimezoneDateTime)
+    monkeypatch.setattr(ddf.os.path, "realpath", lambda _path: "/etc/localtime")
+    assert ddf._resolve_local_timezone() == "UTC"
