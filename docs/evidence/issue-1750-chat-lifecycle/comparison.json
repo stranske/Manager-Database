@@ -1,0 +1,63 @@
+{
+  "base_revision": "369ea9c399dbbd5b145d71e36cfb6862251a8a6b",
+  "baseline_outcomes": {
+    "pass": 2093,
+    "skipped": 21,
+    "failure": 24
+  },
+  "candidate_outcomes": {
+    "pass": 2101,
+    "skipped": 21,
+    "failure": 24
+  },
+  "old_outcome_differences": [],
+  "added_nodes": [
+    "tests.test_chat_chain_lifecycle::test_build_chain_constructor_failure_closes_connection",
+    "tests.test_chat_chain_lifecycle::test_build_chain_unexpected_import_error_fails_closed",
+    "tests.test_chat_chain_lifecycle::test_chain_without_executor_fails_and_closes_connection",
+    "tests.test_chat_chain_lifecycle::test_cleanup_error_does_not_replace_successful_chain_payload",
+    "tests.test_chat_chain_lifecycle::test_coroutine_chain_answer_is_awaited_before_normalization",
+    "tests.test_chat_chain_lifecycle::test_invoke_only_chain_preserves_context_payload_and_cleanup[empty]",
+    "tests.test_chat_chain_lifecycle::test_invoke_only_chain_preserves_context_payload_and_cleanup[populated]",
+    "tests.test_chat_chain_lifecycle::test_missing_filing_id_returns_400_and_closes_connection"
+  ],
+  "source_file_count": 118,
+  "source_universe_changes": [],
+  "lost_covered_lines": {},
+  "gained_covered_lines": {
+    "api/chat.py": [
+      773,
+      774,
+      775,
+      971,
+      973,
+      974,
+      989,
+      990,
+      992,
+      998,
+      999,
+      1002
+    ]
+  },
+  "baseline_totals": {
+    "covered_lines": 12560,
+    "num_statements": 14396,
+    "percent_covered": 87.24645734926368,
+    "percent_covered_display": "87",
+    "missing_lines": 1836,
+    "excluded_lines": 82,
+    "percent_statements_covered": 87.24645734926368,
+    "percent_statements_covered_display": "87"
+  },
+  "candidate_totals": {
+    "covered_lines": 12572,
+    "num_statements": 14396,
+    "percent_covered": 87.329813837177,
+    "percent_covered_display": "87",
+    "missing_lines": 1824,
+    "excluded_lines": 82,
+    "percent_statements_covered": 87.329813837177,
+    "percent_statements_covered_display": "87"
+  }
+}

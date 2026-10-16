@@ -1,0 +1,39 @@
+# Chat chain lifecycle coverage for issue 1750
+
+The chunk adds eight test cases for fail-closed module loading, constructor cleanup, invoke-only context/payload fidelity (empty and populated context), missing executors, suppressed cleanup errors, missing filing IDs and asynchronous answers. Production `api/chat.py` is unchanged from base `369ea9c399dbbd5b145d71e36cfb6862251a8a6b`.
+
+The fresh 500-source-commit ranking puts `api/managers.py` first (31 repair-subject proxy matches / 61 touches), with only its previously documented structurally unreachable schema-add statement uncovered. `api/chat.py` is the next bounded source (21 proxy matches / 71 touches / 79 initially uncovered statements). These are subject/churn proxies, not escaped-defect counts. The measured gain is 12 previously uncovered chat statements; import-failure checks also add causal regression protection without a measured full-suite gain.
+
+## Validation
+
+Interpreter: `/opt/anaconda3/bin/python3` (Python 3.12.2). No runtime installation, provider calls, workflow changes, exclusion changes or production edits.
+
+| Gate | Result |
+| --- | --- |
+| `python3 -m pytest tests/test_chat_chain_lifecycle.py -q -o addopts=` | 8 passed |
+| Baseline full `python3 -m pytest tests -q --cov --cov-report=json:coverage.json` | 2093 passed, 24 existing UI-auth failures, 21 skipped; exit 1 |
+| Candidate same complete suite | 2101 passed, same 24 failures, same 21 skips; exit 1 |
+| Old outcome identity comparison | No changed/removed old nodes; exactly 8 new passing nodes |
+| Source/exclusion universe | Same 118 files / 14396 statements / 82 exclusions |
+| Statement coverage | 87.2464573493% to 87.3298138372%; 12 added covered lines, none lost |
+| Eight private production mutations | Each exact named assertion RED exit 1, restored GREEN exit 0; no errors/skips; byte-identical restoration |
+| Output reuse | FileExistsError before mutation; all 65 existing proof files unchanged |
+| Malformed JUnit identity | Rejected |
+| Full repository Black | 422 files unchanged, exit 0 |
+| Focused Ruff / `git diff --check` | Exit 0 |
+
+The full suite is **not green**. The pre-existing UI-auth failures are retained with complete consoles and JUnit; no provider PASS, hosted CI success, deployment or repository 90% completion is claimed. Broader issue 1750 stays open.
+
+## Inspect and replay
+
+`comparison.json` contains exact totals, new node identities and added lines; `ranking.json` records selection inputs. `validation.tar.gz` contains both full-suite consoles/JUnit/coverage/argv/cwd/exits, all eight mutant/original source images and sixteen phase logs/JUnit/commands, misuse controls, static-check outputs and bound source/test/driver inputs. Its `manifest.json` lists SHA256 and byte length for all 82 members; `archive.json` binds the archive and current inputs.
+
+Run from a fresh checkout using the selected Python:
+
+```sh
+/opt/anaconda3/bin/python3 docs/evidence/issue-1750-chat-lifecycle/replay.py --output /tmp/new-chat-lifecycle-proof
+```
+
+The destination must not exist. The replay uses a temporary Git archive, overlays only the current test, scopes unique mutation anchors to actual production functions, validates the exact named assertion and zero errors/skips, restores bytes in finally blocks, and verifies the calling checkout is unchanged. It removes the temporary archive checkout after execution.
+
+Keepalive owns hosted CI and review after ready PR creation. Closer retains complete current exact-head check topology, all active thread bodies/zero-active gate, seven-minute review floor, guarded merge, actual compare and bounded acceptance. This test chunk cannot close the broader coverage initiative.
