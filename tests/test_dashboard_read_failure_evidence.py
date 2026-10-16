@@ -362,18 +362,31 @@ def test_review_recovery_accepts_generated_formatter_pins_without_rewriting_hist
 
 
 @pytest.mark.parametrize(
-    "old,new",
+    "package,mutation",
     [
-        ('name = "manager-database"', 'name = "different-product"'),
-        ('"pytest==9.1.1"', '"pytest==9.1.0"'),
-        ('"black==26.10.1"', '"black>=26.10.1"'),
-        ('"ruff==0.17.0"', '"ruff==0.17.*"'),
-        ('"black==26.10.1"', '"black[extra]==26.10.1"'),
+        ("project-name", "rename"),
+        ("pytest", "version"),
+        ("black", "range"),
+        ("ruff", "wildcard"),
+        ("black", "extras"),
     ],
 )
-def test_review_recovery_rejects_non_formatter_or_non_exact_changes(old, new):
+def test_review_recovery_rejects_non_formatter_or_non_exact_changes(package, mutation):
     folder = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
     original = (folder / "generated-pyproject.toml").read_text()
+    if package == "project-name":
+        old, new = 'name = "manager-database"', 'name = "different-product"'
+    else:
+        dependencies = tomllib.loads(original)["project"]["optional-dependencies"]["dev"]
+        pin = next(value for value in dependencies if value.startswith(package + "=="))
+        version = pin.split("==", 1)[1]
+        replacements = {
+            "version": package + "==" + version + "0",
+            "range": package + ">=" + version,
+            "wildcard": package + "==" + version.rsplit(".", 1)[0] + ".*",
+            "extras": package + "[extra]==" + version,
+        }
+        old, new = json.dumps(pin), json.dumps(replacements[mutation])
     assert old in original
     with pytest.raises(AssertionError):
         assert normalized_dashboard_project(
