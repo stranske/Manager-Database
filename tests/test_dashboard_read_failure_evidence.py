@@ -345,9 +345,17 @@ def validate_review_recovery_current_inputs(root, manifest):
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
         == binding["current_validator_sha256"]
     )
-    assert normalized_dashboard_project(
-        (root / "pyproject.toml").read_bytes()
-    ) == normalized_dashboard_project((successor / "historical-pyproject.toml").read_bytes())
+    current = normalized_dashboard_project((root / "pyproject.toml").read_bytes())
+    historical = normalized_dashboard_project(
+        (successor / "historical-pyproject.toml").read_bytes()
+    )
+    historical_exclude = historical["tool"]["mypy"]["exclude"]
+    assert current["tool"]["mypy"]["exclude"] in {
+        historical_exclude,
+        historical_exclude + r"|(^|.*/)docs/evidence/issue-1750-chat-lifecycle/replay\.py$",
+    }
+    current["tool"]["mypy"]["exclude"] = historical_exclude
+    assert current == historical
 
 
 def test_review_recovery_accepts_generated_formatter_pins_without_rewriting_history():
@@ -405,3 +413,30 @@ def test_review_recovery_retains_live_product_and_validator_bindings(tmp_path, c
     target.write_bytes(target.read_bytes() + b"\n# unreviewed change\n")
     with pytest.raises(AssertionError):
         validate_review_recovery_current_inputs(tmp_path, manifest)
+
+
+@pytest.mark.parametrize(
+    "extra,accepted",
+    [
+        ("", True),
+        (r"|(^|.*/)docs/evidence/issue-1750-chat-lifecycle/replay\.py$", True),
+        (r"|(^|.*/)api/chat\.py$", False),
+        (r"|(^|.*/)docs/evidence/.*", False),
+    ],
+)
+def test_review_recovery_limits_mypy_exclusion_changes(tmp_path, extra, accepted):
+    manifest = json.loads((EVIDENCE / "review-recovery-20261012/manifest.json").read_text())
+    for name in manifest["current_inputs"]:
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / name).read_bytes())
+    project = tmp_path / "pyproject.toml"
+    raw = project.read_text()
+    current_extra = r"|(^|.*/)docs/evidence/issue-1750-chat-lifecycle/replay\\.py$"
+    assert raw.count(current_extra) == 1
+    project.write_text(raw.replace(current_extra, extra.replace("\\", "\\\\")))
+    if accepted:
+        validate_review_recovery_current_inputs(tmp_path, manifest)
+    else:
+        with pytest.raises(AssertionError):
+            validate_review_recovery_current_inputs(tmp_path, manifest)
