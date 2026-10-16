@@ -3,9 +3,11 @@
 import ast
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tarfile
+import tomllib
 from collections import Counter
 from pathlib import Path
 
@@ -114,8 +116,7 @@ def test_dashboard_review_recovery_archive_and_six_current_inputs():
         "tests/test_dashboard_read_failure_evidence.py",
         "pyproject.toml",
     }
-    for name, expected in manifest["current_inputs"].items():
-        assert digest((ROOT / name).read_bytes()) == expected, name
+    validate_review_recovery_current_inputs(ROOT, manifest)
 
 
 @pytest.mark.parametrize("loader", SQL + DOMAIN)
@@ -297,3 +298,110 @@ def test_dashboard_archived_reuse_refusal_and_black_receipt(archive):
     assert refusal["original_evidence_hashes_unchanged"] is True
     assert refusal["production_bytes_unchanged"] is True
     assert "409 files would be left unchanged." in archive["md-black.log"].decode()
+
+
+def normalized_dashboard_project(raw):
+    """Only exact Black/Ruff version values are mutable infrastructure inputs."""
+    project = tomllib.loads(raw.decode())
+    dependencies = project["project"]["optional-dependencies"]["dev"]
+    seen = set()
+    normalized = []
+    for value in dependencies:
+        tool = re.match(r"(black|ruff)(?=[^A-Za-z0-9_-]|$)", value, re.IGNORECASE)
+        if tool:
+            name = tool.group(1).lower()
+            assert name not in seen, f"Duplicate formatter requirement: {name}"
+            seen.add(name)
+            # The retained/current contract uses plain numeric release pins.
+            # Other operators, URLs, extras, markers or wildcard pins are not
+            # an allowed version-only change to that historical input.
+            assert re.fullmatch(
+                r"(black|ruff)==[0-9]+(?:\.[0-9]+){1,3}", value, re.IGNORECASE
+            ), name
+            normalized.append(name + "==0")
+        else:
+            normalized.append(value)
+    assert seen == {"black", "ruff"}
+    project["project"]["optional-dependencies"]["dev"] = normalized
+    return project
+
+
+def validate_review_recovery_current_inputs(root, manifest):
+    successor = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
+    binding = json.loads((successor / "current-bindings.json").read_text())
+    assert binding["schema"] == "dashboard-review-recovery-successor/v1"
+    recovery_manifest = EVIDENCE / "review-recovery-20261012/manifest.json"
+    assert digest(recovery_manifest.read_bytes()) == binding["historical_manifest_sha256"]
+    mutable = {"pyproject.toml", "tests/test_dashboard_read_failure_evidence.py"}
+    for name, expected in manifest["current_inputs"].items():
+        if name not in mutable:
+            assert digest((root / name).read_bytes()) == expected, name
+    for name, snapshot in [
+        ("pyproject.toml", "historical-pyproject.toml"),
+        ("tests/test_dashboard_read_failure_evidence.py", "historical-validator.py"),
+    ]:
+        assert digest((successor / snapshot).read_bytes()) == manifest["current_inputs"][name]
+    assert (
+        digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
+        == binding["current_validator_sha256"]
+    )
+    assert normalized_dashboard_project(
+        (root / "pyproject.toml").read_bytes()
+    ) == normalized_dashboard_project((successor / "historical-pyproject.toml").read_bytes())
+
+
+def test_review_recovery_accepts_generated_formatter_pins_without_rewriting_history():
+    folder = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
+    raw = (folder / "generated-pyproject.toml").read_bytes()
+    provenance = json.loads((folder / "generated-provenance.json").read_text())
+    assert len(raw) == provenance["bytes"]
+    assert digest(raw) == provenance["sha256"]
+    assert normalized_dashboard_project(raw) == normalized_dashboard_project(
+        (folder / "historical-pyproject.toml").read_bytes()
+    )
+
+
+@pytest.mark.parametrize(
+    "package,mutation",
+    [
+        ("project-name", "rename"),
+        ("pytest", "version"),
+        ("black", "range"),
+        ("ruff", "wildcard"),
+        ("black", "extras"),
+    ],
+)
+def test_review_recovery_rejects_non_formatter_or_non_exact_changes(package, mutation):
+    folder = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
+    original = (folder / "generated-pyproject.toml").read_text()
+    if package == "project-name":
+        old, new = 'name = "manager-database"', 'name = "different-product"'
+    else:
+        dependencies = tomllib.loads(original)["project"]["optional-dependencies"]["dev"]
+        pin = next(value for value in dependencies if value.startswith(package + "=="))
+        version = pin.split("==", 1)[1]
+        replacements = {
+            "version": package + "==" + version + "0",
+            "range": package + ">=" + version,
+            "wildcard": package + "==" + version.rsplit(".", 1)[0] + ".*",
+            "extras": package + "[extra]==" + version,
+        }
+        old, new = json.dumps(pin), json.dumps(replacements[mutation])
+    assert old in original
+    with pytest.raises(AssertionError):
+        assert normalized_dashboard_project(
+            original.replace(old, new).encode()
+        ) == normalized_dashboard_project((folder / "historical-pyproject.toml").read_bytes())
+
+
+@pytest.mark.parametrize("changed", [SOURCE, "tests/test_dashboard_read_failure_evidence.py"])
+def test_review_recovery_retains_live_product_and_validator_bindings(tmp_path, changed):
+    manifest = json.loads((EVIDENCE / "review-recovery-20261012/manifest.json").read_text())
+    for name in manifest["current_inputs"]:
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / name).read_bytes())
+    target = tmp_path / changed
+    target.write_bytes(target.read_bytes() + b"\n# unreviewed change\n")
+    with pytest.raises(AssertionError):
+        validate_review_recovery_current_inputs(tmp_path, manifest)
