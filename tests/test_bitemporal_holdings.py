@@ -162,9 +162,7 @@ def test_identical_reingest_is_noop(tmp_path):
     )
     assert first == 1
     assert second == 0
-    conn.execute(
-        "UPDATE holdings SET superseded_at = '2024-09-01T00:00:00Z' WHERE filing_id = 20"
-    )
+    conn.execute("UPDATE holdings SET superseded_at = '2024-09-01T00:00:00Z' WHERE filing_id = 20")
     conn.commit()
     third = ingest_flow._replace_holdings_rows(
         conn,
@@ -366,9 +364,7 @@ def test_original_replay_after_amendment_keeps_amendment_current(tmp_path):
         (t_amendment,),
     )
     conn.commit()
-    counts_before = conn.execute(
-        "SELECT COUNT(*) FROM holdings WHERE filing_id = 10"
-    ).fetchone()[0]
+    counts_before = conn.execute("SELECT COUNT(*) FROM holdings WHERE filing_id = 10").fetchone()[0]
     replayed = ingest_flow._replace_holdings_rows(
         conn,
         filing_id=10,
@@ -380,9 +376,7 @@ def test_original_replay_after_amendment_keeps_amendment_current(tmp_path):
         jurisdiction="us",
     )
     assert replayed == 0
-    counts_after = conn.execute(
-        "SELECT COUNT(*) FROM holdings WHERE filing_id = 10"
-    ).fetchone()[0]
+    counts_after = conn.execute("SELECT COUNT(*) FROM holdings WHERE filing_id = 10").fetchone()[0]
     assert int(counts_before) == int(counts_after)
 
     current = point_in_time.current_holdings(conn, manager_id=1)

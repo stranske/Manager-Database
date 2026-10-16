@@ -496,14 +496,20 @@ def _supersede_prior_period_holdings(
     manager_id: int,
     filing_id: int,
     knowledge_time: str,
-) -> None:
-    """Mark prior filings' current holdings superseded for the same event period."""
+) -> bool:
+    """Mark prior filings' current holdings superseded for the same event period.
+
+    Returns True when ``filing_id`` is the period authority (priors superseded).
+    Returns False when a more authoritative filing already covers the period so
+    callers can mark the newly written rows superseded instead of leaving them
+    current.
+    """
     holdings_columns = _table_columns(conn, "holdings")
     filing_columns = _table_columns(conn, "filings")
     if not _bitemporal_enabled(holdings_columns):
-        return
+        return True
     if "period_end" not in filing_columns and "filed_date" not in filing_columns:
-        return
+        return True
     marker = get_placeholder(conn)
     period_expr = (
         "COALESCE(period_end, filed_date)" if "period_end" in filing_columns else "filed_date"
@@ -513,7 +519,7 @@ def _supersede_prior_period_holdings(
         (filing_id,),
     ).fetchone()
     if not period_row or period_row[0] is None:
-        return
+        return True
     event_time = period_row[0]
     owner_id = int(period_row[1]) if period_row[1] is not None else manager_id
     authority_id = _authority_filing_id_for_period(
@@ -524,7 +530,7 @@ def _supersede_prior_period_holdings(
         filing_columns=filing_columns,
     )
     if authority_id is None or authority_id != filing_id:
-        return
+        return False
     prior_ids = conn.execute(
         f"SELECT filing_id FROM filings "
         f"WHERE manager_id = {marker} "
@@ -539,6 +545,7 @@ def _supersede_prior_period_holdings(
             f"WHERE filing_id = {marker} AND superseded_at IS NULL",
             (knowledge_time, prior_id),
         )
+    return True
 
 
 def _insert_holdings_rows(
@@ -706,13 +713,13 @@ def _replace_holdings_rows(
             stamp = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
             version = _next_holdings_version(conn, filing_id=filing_id)
             _supersede_current_holdings(conn, filing_id=filing_id, knowledge_time=stamp)
-            _supersede_prior_period_holdings(
+            is_authority = _supersede_prior_period_holdings(
                 conn,
                 manager_id=manager_id,
                 filing_id=filing_id,
                 knowledge_time=stamp,
             )
-            return _insert_holdings_rows(
+            inserted = _insert_holdings_rows(
                 conn,
                 filing_id=filing_id,
                 manager_id=manager_id,
@@ -725,6 +732,10 @@ def _replace_holdings_rows(
                 version=version,
                 content_hash=digest,
             )
+            if not is_authority:
+                # Lower-authority reverse-order ingest: keep history, not current.
+                _supersede_current_holdings(conn, filing_id=filing_id, knowledge_time=stamp)
+            return inserted
         _delete_holdings_rows(conn, filing_id=filing_id)
         return _insert_holdings_rows(
             conn,
