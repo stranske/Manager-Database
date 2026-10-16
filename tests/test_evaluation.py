@@ -201,7 +201,10 @@ def test_evaluation_flow_tasks_load_persist_and_orchestrate(tmp_path, monkeypatc
     evaluation_flow.log_evaluation_summary.fn(
         {"metrics": {}, "failures": {"sql_safety": 0.0}}, db_conn=conn
     )
-    assert conn.execute("SELECT status FROM api_usage ORDER BY rowid").fetchall() == [(200,), (503,)]
+    assert conn.execute("SELECT status FROM api_usage ORDER BY rowid").fetchall() == [
+        (200,),
+        (503,),
+    ]
     assert evaluation_flow.fire_quality_alerts.fn({"failures": {}}, db_conn=conn) == 0
     conn.close()
 

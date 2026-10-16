@@ -371,20 +371,42 @@ def test_daily_diff_empty_database_emits_empty_artifact_and_normalizes_alerts(mo
     }
 
     add = ddf._large_delta_event_from_diff(
-        {"manager_id": 1, "report_date": "2024-05-01", "cusip": "ADD", "delta_type": "ADD", "value_curr": 8}
+        {
+            "manager_id": 1,
+            "report_date": "2024-05-01",
+            "cusip": "ADD",
+            "delta_type": "ADD",
+            "value_curr": 8,
+        }
     )
     exit_event = ddf._large_delta_event_from_diff(
-        {"manager_id": 1, "report_date": "2024-05-01", "cusip": "EXIT", "delta_type": "EXIT", "value_prev": 9}
+        {
+            "manager_id": 1,
+            "report_date": "2024-05-01",
+            "cusip": "EXIT",
+            "delta_type": "EXIT",
+            "value_prev": 9,
+        }
     )
     unchanged = ddf._large_delta_event_from_diff(
-        {"manager_id": 1, "report_date": "2024-05-01", "cusip": "UNCHANGED", "delta_type": "UNCHANGED", "value_prev": 9, "value_curr": 4}
+        {
+            "manager_id": 1,
+            "report_date": "2024-05-01",
+            "cusip": "UNCHANGED",
+            "delta_type": "UNCHANGED",
+            "value_prev": 9,
+            "value_curr": 4,
+        }
     )
     assert (add.payload["delta_type"], add.payload["value_usd"]) == ("buy", 8.0)
     assert (exit_event.payload["delta_type"], exit_event.payload["value_usd"]) == ("sell", 9.0)
     assert (unchanged.payload["delta_type"], unchanged.payload["value_usd"]) == ("unchanged", 5.0)
-    assert ddf._large_delta_event_from_diff(
-        {"manager_id": 1, "report_date": "2024-05-01", "cusip": "EMPTY", "delta_type": "OTHER"}
-    ).payload["value_usd"] is None
+    assert (
+        ddf._large_delta_event_from_diff(
+            {"manager_id": 1, "report_date": "2024-05-01", "cusip": "EMPTY", "delta_type": "OTHER"}
+        ).payload["value_usd"]
+        is None
+    )
 
     class MissingTableError(Exception):
         pgcode = "42P01"
