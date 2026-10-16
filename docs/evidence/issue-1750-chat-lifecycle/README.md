@@ -37,3 +37,22 @@ Run from a fresh checkout using the selected Python:
 The destination must not exist. The replay uses a temporary Git archive, overlays only the current test, scopes unique mutation anchors to actual production functions, validates the exact named assertion and zero errors/skips, restores bytes in finally blocks, and verifies the calling checkout is unchanged. It removes the temporary archive checkout after execution.
 
 Keepalive owns hosted CI and review after ready PR creation. Closer retains complete current exact-head check topology, all active thread bodies/zero-active gate, seven-minute review floor, guarded merge, actual compare and bounded acceptance. This test chunk cannot close the broader coverage initiative.
+
+## Keepalive replay guard follow-up
+
+- [x] First task revalidated: eight focused tests passed; a fresh private replay produced eight intended assertion failures (exit 1) and eight restored passes (exit 0), with no errors/skips and unchanged caller bytes.
+
+`tests/test_chat_lifecycle_replay.py` adds 32 regression cases for the replay contract: all eight named red/green reports, malformed identities and case ownership, errors/skips, unrelated assertions, incorrect process exits, and refusal of existing output files/directories before archive creation or mutation. The combined lifecycle and replay-guard run passed all 40 cases on Python 3.14.8:
+
+```sh
+python -m pytest tests/test_chat_chain_lifecycle.py tests/test_chat_lifecycle_replay.py -m 'not slow' -q -o addopts=
+PYTEST_ADDOPTS='-m "not slow"' python docs/evidence/issue-1750-chat-lifecycle/replay.py --output /tmp/new-chat-lifecycle-proof
+```
+
+The original archive SHA256, all 82 manifest members, the three current source/test/driver bindings, and all sixteen archived phase identities/exits/assertions were verified again. The archive and its bound inputs remain unchanged. Full-suite and coverage totals above describe the original eight-test chunk; this follow-up adds guard cases and does not claim a new full-suite or coverage result. Those acceptance tasks remain pending for the current candidate.
+
+Focused Ruff and whitespace checks passed. Black 26.10.1 checked all 423 current Python files successfully. Its asynchronous worker run stalled in this sandbox, so serial single-file checks populated a writable standard Black cache before the required repository-wide command exited 0:
+
+```sh
+BLACK_CACHE_DIR=/tmp/chat-lifecycle-black-cache black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
+```
