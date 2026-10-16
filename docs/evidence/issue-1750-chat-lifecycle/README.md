@@ -56,3 +56,19 @@ Focused Ruff and whitespace checks passed. Black 26.10.1 checked all 423 current
 ```sh
 BLACK_CACHE_DIR=/tmp/chat-lifecycle-black-cache black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
 ```
+
+## Keepalive full-suite comparison follow-up
+
+- [x] Revalidated the original eight-test chunk's complete baseline/candidate evidence: 2093/2101 passed, the same 24 UI-auth failures and 21 skips, every old node outcome unchanged, exactly eight new passing nodes, and both full-suite exits 1.
+
+`tests/test_chat_lifecycle_evidence.py` adds 16 cases that independently read the retained full-suite JUnit and command receipts. Before comparing outcomes, its fixture verifies the unchanged archive SHA256, all 82 manifest members and all three current source/test/driver bindings. The comparison checks suite counts against individual outcomes, exact added node identities, complete-suite arguments, report destinations, interpreter and checkout identity. Negative controls reject swapped old outcomes with unchanged aggregate counts, removed/renamed nodes, a skipped new case, a false exit 0, narrowed commands, misbound reports, differing checkouts and malformed JUnit.
+
+The combined lifecycle, replay and evidence tests passed all 56 cases on Python 3.14.8:
+
+```sh
+python -m pytest tests/test_chat_chain_lifecycle.py tests/test_chat_lifecycle_replay.py tests/test_chat_lifecycle_evidence.py -m 'not slow' -q -o addopts=
+```
+
+The checkbox above applies to the archived original comparison. A current complete-suite attempt stopped making progress after three tests and was interrupted. An isolated diagnostic of `tests/baseline/test_directional.py` timed out after 45 seconds; the stack capture shows the first directional case waiting in Starlette `TestClient.__enter__` through AnyIO. The broader targeted chat run returned 86 passed / 1 failed: `test_deterministic_surface_unaffected_when_zone_disabled` received health status 503 instead of 200. Both that existing test and production `api/chat.py` are byte-identical to the recorded base. Targeted `--cov=api.chat --cov-report=term-missing` reported 70%; it does not establish the repository percentage in the original comparison. Current complete-suite and repository-coverage acceptance remain pending; no new full-suite PASS or coverage gain is claimed.
+
+Focused Ruff and whitespace checks passed. Black checked all 424 current Python files successfully with the required repository-wide command, using `BLACK_CACHE_DIR=/tmp/chat-lifecycle-comparison-black-cache` after serial single-file checks populated that cache.
