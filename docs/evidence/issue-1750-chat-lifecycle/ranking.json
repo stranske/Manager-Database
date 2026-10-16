@@ -1,0 +1,403 @@
+{
+  "revision": "369ea9c399dbbd5b145d71e36cfb6862251a8a6b",
+  "command": [
+    "git",
+    "log",
+    "-500",
+    "--format=COMMIT %H %s",
+    "--name-only",
+    "--",
+    "api",
+    "adapters",
+    "etl",
+    "ui"
+  ],
+  "repair_subject_proxy": "case-insensitive subject contains fix, repair, bug or regression; not verified escaped incidents",
+  "ranking": [
+    [
+      "api/managers.py",
+      {
+        "touches": 61,
+        "repair_subject_proxy": 31
+      }
+    ],
+    [
+      "api/chat.py",
+      {
+        "touches": 71,
+        "repair_subject_proxy": 21
+      }
+    ],
+    [
+      "etl/edgar_flow.py",
+      {
+        "touches": 39,
+        "repair_subject_proxy": 17
+      }
+    ],
+    [
+      "adapters/base.py",
+      {
+        "touches": 31,
+        "repair_subject_proxy": 13
+      }
+    ],
+    [
+      "etl/daily_diff_flow.py",
+      {
+        "touches": 28,
+        "repair_subject_proxy": 10
+      }
+    ],
+    [
+      "api/memory_profiler.py",
+      {
+        "touches": 17,
+        "repair_subject_proxy": 7
+      }
+    ],
+    [
+      "ui/dashboard.py",
+      {
+        "touches": 15,
+        "repair_subject_proxy": 6
+      }
+    ],
+    [
+      "adapters/edgar.py",
+      {
+        "touches": 16,
+        "repair_subject_proxy": 5
+      }
+    ],
+    [
+      "etl/manager_similarity_flow.py",
+      {
+        "touches": 7,
+        "repair_subject_proxy": 5
+      }
+    ],
+    [
+      "ui/daily_report.py",
+      {
+        "touches": 14,
+        "repair_subject_proxy": 4
+      }
+    ],
+    [
+      "ui/__init__.py",
+      {
+        "touches": 8,
+        "repair_subject_proxy": 4
+      }
+    ],
+    [
+      "ui/alerts.py",
+      {
+        "touches": 7,
+        "repair_subject_proxy": 4
+      }
+    ],
+    [
+      "ui/upload.py",
+      {
+        "touches": 7,
+        "repair_subject_proxy": 4
+      }
+    ],
+    [
+      "adapters/uk.py",
+      {
+        "touches": 12,
+        "repair_subject_proxy": 3
+      }
+    ],
+    [
+      "api/signals.py",
+      {
+        "touches": 10,
+        "repair_subject_proxy": 3
+      }
+    ],
+    [
+      "api/cache.py",
+      {
+        "touches": 5,
+        "repair_subject_proxy": 3
+      }
+    ],
+    [
+      "etl/ingest_flow.py",
+      {
+        "touches": 13,
+        "repair_subject_proxy": 2
+      }
+    ],
+    [
+      "api/search.py",
+      {
+        "touches": 9,
+        "repair_subject_proxy": 2
+      }
+    ],
+    [
+      "etl/conviction_flow.py",
+      {
+        "touches": 9,
+        "repair_subject_proxy": 2
+      }
+    ],
+    [
+      "api/activism.py",
+      {
+        "touches": 7,
+        "repair_subject_proxy": 2
+      }
+    ],
+    [
+      "adapters/insider.py",
+      {
+        "touches": 3,
+        "repair_subject_proxy": 2
+      }
+    ],
+    [
+      "etl/activism_flow.py",
+      {
+        "touches": 10,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "etl/activism_detection.py",
+      {
+        "touches": 9,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "ui/search.py",
+      {
+        "touches": 8,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "etl/news_flow.py",
+      {
+        "touches": 7,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "etl/summariser_flow.py",
+      {
+        "touches": 7,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "api/models.py",
+      {
+        "touches": 7,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "api/alerts.py",
+      {
+        "touches": 6,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "ui/research.py",
+      {
+        "touches": 5,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "etl/logging_setup.py",
+      {
+        "touches": 4,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "adapters/__init__.py",
+      {
+        "touches": 4,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "ui/app.py",
+      {
+        "touches": 3,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "etl/point_in_time.py",
+      {
+        "touches": 2,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "adapters/prices.py",
+      {
+        "touches": 2,
+        "repair_subject_proxy": 1
+      }
+    ],
+    [
+      "etl/evaluation_flow.py",
+      {
+        "touches": 7,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "etl/digest_flow.py",
+      {
+        "touches": 4,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "etl/activism_campaign_flow.py",
+      {
+        "touches": 3,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "adapters/news.py",
+      {
+        "touches": 3,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "api/_compat.py",
+      {
+        "touches": 2,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "adapters/asic.py",
+      {
+        "touches": 2,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "adapters/canada.py",
+      {
+        "touches": 2,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "etl/attribution_flow.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "adapters/short_interest.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "etl/short_interest_flow.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "etl/backtest_flow.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "etl/insider_flow.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "adapters/openfigi.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "ui/launch.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "adapters/mas.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "etl/uk_flow.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "api/data.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "api/handler.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "api/parser.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "etl/__init__.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ],
+    [
+      "api/__init__.py",
+      {
+        "touches": 1,
+        "repair_subject_proxy": 0
+      }
+    ]
+  ]
+}

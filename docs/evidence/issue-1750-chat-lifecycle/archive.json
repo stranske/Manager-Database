@@ -1,0 +1,18 @@
+{
+  "archive_sha256": "0a7dffe103f538990cc2186436701535622d2a9ac4d91ec08c2eefdef2e41dd6",
+  "members_validated": 82,
+  "bindings": {
+    "bound-inputs/api/chat.py": {
+      "sha256": "0e11ed9b2fee12c2cc0ce78cb01d85a11708e31c01d89403381af2e73bc71815",
+      "bytes": 67337
+    },
+    "bound-inputs/tests/test_chat_chain_lifecycle.py": {
+      "sha256": "0b0bb95ae079ad653496c9f18a627f354538d744ea80c8b731d51075642523ce",
+      "bytes": 5369
+    },
+    "bound-inputs/docs/evidence/issue-1750-chat-lifecycle/replay.py": {
+      "sha256": "5a420e9cf06cfede85b2dcb574f343a64a666932377367f346ae3791be1518ca",
+      "bytes": 8547
+    }
+  }
+}
