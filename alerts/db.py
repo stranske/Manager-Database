@@ -233,7 +233,8 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
             fired.rule.rule_id,
             fired.event.event_type,
             serialize_json(fired.event.payload),
-            serialize_channels(conn, fired.channels),
+            # Persisting the inbox is delivery; external channels need outcomes.
+            serialize_channels(conn, [name for name in fired.channels if name == "streamlit"]),
         )
         if is_sqlite(conn):
             cursor = conn.execute(

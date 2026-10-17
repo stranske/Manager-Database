@@ -62,7 +62,9 @@ def evaluate_and_record_alerts(conn: Any, event: AlertEvent) -> list[int]:
     """Evaluate one event and persist any matches to `alert_history`.
 
     This is the generic persistence hook for ETL flows. It intentionally records
-    matches only; downstream delivery will be added separately.
+    inbox matches only; it never claims an unattempted external delivery.
+    Producers that notify external channels use fire_alerts_for_event after
+    committing their domain writes.
     """
 
     fired = AlertEngine(conn).evaluate(event)

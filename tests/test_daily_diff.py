@@ -535,3 +535,106 @@ def test_daily_diff_timezone_falls_back_to_utc(monkeypatch):
     monkeypatch.setattr(ddf.dt, "datetime", NoTimezoneDateTime)
     monkeypatch.setattr(ddf.os.path, "realpath", lambda _path: "/etc/localtime")
     assert ddf._resolve_local_timezone() == "UTC"
+
+
+@pytest.mark.parametrize("failure", ["none", "channel", "outcome", "unconfigured"])
+def test_large_delta_dispatch_commits_before_send_and_suppresses_replay(
+    tmp_path, monkeypatch, failure
+):
+    import json
+
+    import alerts.integration as integration
+    import etl.daily_diff_flow as flow_module
+    from alerts.channels import DeliveryResult, NotificationChannel
+
+    db_path = _setup_db(tmp_path)
+    with sqlite3.connect(db_path) as conn:
+        ensure_alert_tables(conn)
+        conn.execute(
+            "INSERT INTO alert_rules(name,event_type,condition_json,channels,enabled,manager_id) VALUES (?,?,?,?,?,?)",
+            (
+                "Dispatch buy",
+                "large_delta",
+                '{"delta_type":"buy","value_usd_gt":350}',
+                '["email","slack"]',
+                1,
+                1,
+            ),
+        )
+    sends = []
+    connections = []
+    injected = False
+
+    class Connection(sqlite3.Connection):
+        armed = False
+
+        def commit(self):
+            if self.armed:
+                self.armed = False
+                raise RuntimeError("injected outcome commit failure")
+            super().commit()
+
+    def connect():
+        conn = sqlite3.connect(db_path, factory=Connection)
+        connections.append(conn)
+        return conn
+
+    class Channel(NotificationChannel):
+        def __init__(self, name):
+            self.channel_name = name
+
+        async def deliver(self, alert):
+            nonlocal injected
+            with sqlite3.connect(db_path) as observer:
+                assert (
+                    observer.execute(
+                        "SELECT COUNT(*) FROM daily_diffs WHERE report_date=?", ("2024-05-01",)
+                    ).fetchone()[0]
+                    > 0
+                )
+                assert (
+                    observer.execute(
+                        "SELECT COUNT(*) FROM alert_delivery_attempts WHERE channel=?",
+                        (self.channel_name,),
+                    ).fetchone()[0]
+                    >= 1
+                )
+            sends.append(self.channel_name)
+            if not injected and failure in ["channel", "outcome"]:
+                injected = True
+                if failure == "channel":
+                    raise RuntimeError("injected channel failure")
+                connections[-1].armed = True
+            return DeliveryResult(channel=self.channel_name, success=True)
+
+    channels = {
+        name: Channel(name)
+        for name in (["email"] if failure == "unconfigured" else ["email", "slack"])
+    }
+    monkeypatch.setattr(flow_module, "connect_db", connect)
+    monkeypatch.setattr(integration, "build_configured_channels", lambda: channels)
+    first = daily_diff_flow.fn(date="2024-05-01")
+    daily_diff_flow.fn(date="2024-05-01")
+    daily_diff_flow.fn(date="2024-05-01")
+    assert sends.count("email") == 1
+    assert sends.count("slack") == (0 if failure == "unconfigured" else 1)
+    with sqlite3.connect(db_path) as observer:
+        delivered = json.loads(
+            observer.execute(
+                "SELECT delivered_channels FROM alert_history WHERE event_type='large_delta'"
+            ).fetchone()[0]
+        )
+        expected = (
+            ["email", "slack"]
+            if failure == "none"
+            else ["email"] if failure == "unconfigured" else ["slack"]
+        )
+        assert delivered == expected
+        assert observer.execute("SELECT COUNT(*) FROM daily_diffs").fetchone()[0] > 0
+        if failure == "none":
+            observer.execute("UPDATE holdings SET value_usd=500 WHERE cusip='CCC'")
+    if failure == "none":
+        daily_diff_flow.fn(date="2024-05-01")
+        assert sends.count("email") == sends.count("slack") == 2
+    if failure in ["channel", "outcome"]:
+        assert first.warnings

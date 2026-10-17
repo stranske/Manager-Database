@@ -50,3 +50,17 @@ filing is still required to recover that gap.
 
 The task remains unchecked pending successful live PostgreSQL verification.
 Independent review-thread disposition remains with the closer.
+
+## Large-delta producer boundary
+
+Daily diffs commit their complete domain batch before invoking the existing
+dispatcher. A large-delta event uses the persisted report date at midnight UTC
+plus its manager/security/change payload as the stable replay identity. Replaying
+an identical diff reuses history and durable per-channel claims; a changed diff
+payload remains independent. Persistence-only callers record only the in-app
+streamlit inbox, never unattempted email or Slack delivery.
+
+External delivery or outcome persistence failures produce flow warnings and
+retain committed diffs and claims. Existing claims still suppress automatic
+resends; an ambiguous outcome requires reconciliation. This does not retry
+historical alerts or change the dispatcher's at-most-once claim contract.
