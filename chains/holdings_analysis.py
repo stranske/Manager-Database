@@ -21,6 +21,7 @@ from chains.utils import (
     rows_to_dicts,
     truncate_context,
 )
+from etl.point_in_time import holdings_visibility_sql
 from scripts.langchain.injection_guard import check_prompt_injection
 from tools.langchain_client import ClientInfo
 from tools.llm_provider import build_langsmith_metadata
@@ -163,6 +164,7 @@ class HoldingsAnalysisChain:
         manager_ids: list[int] | None,
         cusips: list[str] | None,
         date_range: tuple[date, date] | None,
+        as_of: date | datetime | None = None,
         use_filings_join: bool = True,
     ) -> tuple[str, tuple[Any, ...]]:
         placeholder = get_placeholder(self.db)
@@ -189,6 +191,12 @@ class HoldingsAnalysisChain:
                 clauses.append(f"report_date BETWEEN {placeholder} AND {placeholder}")
             params.extend([date_range[0], date_range[1]])
 
+        visible, visible_params = holdings_visibility_sql(
+            self.db, as_of, "h" if use_filings_join else "holdings"
+        )
+        if visible != "1=1":
+            clauses.append(visible)
+            params.extend(visible_params)
         where_sql = " AND ".join(clauses) if clauses else "1=1"
         if use_filings_join:
             query = (
@@ -212,6 +220,7 @@ class HoldingsAnalysisChain:
         *,
         manager_ids: list[int] | None,
         cusips: list[str] | None,
+        as_of: date | datetime | None = None,
     ) -> tuple[str, tuple[Any, ...]]:
         placeholder = get_placeholder(self.db)
         clauses: list[str] = []
@@ -227,6 +236,10 @@ class HoldingsAnalysisChain:
             clauses.append(f"cusip IN ({cusip_placeholders})")
             params.extend(cusips)
 
+        visible, visible_params = holdings_visibility_sql(self.db, as_of, "holdings")
+        if visible != "1=1":
+            clauses.append(visible)
+            params.extend(visible_params)
         where_sql = " AND ".join(clauses) if clauses else "1=1"
         query = "SELECT * FROM holdings " f"WHERE {where_sql} " "ORDER BY value_usd DESC LIMIT 200"
         return query, tuple(params)
@@ -237,9 +250,10 @@ class HoldingsAnalysisChain:
         manager_ids: list[int] | None,
         cusips: list[str] | None,
         date_range: tuple[date, date] | None,
+        as_of: date | datetime | None = None,
     ) -> list[dict[str, Any]]:
         holdings_query, holdings_params = self._build_holdings_query(
-            manager_ids=manager_ids, cusips=cusips, date_range=date_range
+            manager_ids=manager_ids, cusips=cusips, date_range=date_range, as_of=as_of
         )
         try:
             return self._execute_fetchall(holdings_query, holdings_params)
@@ -254,6 +268,7 @@ class HoldingsAnalysisChain:
             manager_ids=manager_ids,
             cusips=cusips,
             date_range=date_range,
+            as_of=as_of,
             use_filings_join=False,
         )
         try:
@@ -266,6 +281,7 @@ class HoldingsAnalysisChain:
         no_date_query, no_date_params = self._build_holdings_query_without_report_date(
             manager_ids=manager_ids,
             cusips=cusips,
+            as_of=as_of,
         )
         return self._execute_fetchall(no_date_query, no_date_params)
 
@@ -275,13 +291,20 @@ class HoldingsAnalysisChain:
         manager_ids: list[int] | None = None,
         cusips: list[str] | None = None,
         date_range: tuple[date, date] | None = None,
+        as_of: date | datetime | None = None,
     ) -> str:
         """Build prompt context from holdings, diffs, conviction, and overlap tables."""
         holdings = self._load_holdings_for_context(
-            manager_ids=manager_ids, cusips=cusips, date_range=date_range
+            manager_ids=manager_ids, cusips=cusips, date_range=date_range, as_of=as_of
         )
 
         sections: list[str] = ["Holdings:", format_holdings_table(holdings, max_rows=50)]
+
+        if as_of is not None:
+            # Derived current-only tables have no knowledge-time contract. Do not
+            # leak their later corrections into a historical answer.
+            sections.append(f"Knowledge cutoff: {as_of.isoformat()}")
+            return "\n".join(sections)
 
         placeholder = get_placeholder(self.db)
         where_parts: list[str] = []
@@ -553,12 +576,13 @@ class HoldingsAnalysisChain:
         manager_ids: list[int] | None = None,
         cusips: list[str] | None = None,
         date_range: tuple[date, date] | None = None,
+        as_of: date | datetime | None = None,
     ) -> HoldingsAnalysis:
         """Answer holdings analysis questions using database-backed context."""
         self._guard_input(question)
         self._guard_filter_inputs(manager_ids=manager_ids, cusips=cusips, date_range=date_range)
         data_context = self._build_data_context(
-            manager_ids=manager_ids, cusips=cusips, date_range=date_range
+            manager_ids=manager_ids, cusips=cusips, date_range=date_range, as_of=as_of
         )
         payload = {
             "question": question,
@@ -581,6 +605,9 @@ class HoldingsAnalysisChain:
             trace_inputs["cusips"] = cusips
         if date_range is not None:
             trace_inputs["date_range"] = [date_range[0].isoformat(), date_range[1].isoformat()]
+
+        if as_of is not None:
+            trace_inputs["as_of"] = as_of.isoformat()
 
         with langsmith_tracing_context(name="holdings-analysis", inputs=trace_inputs):
             if self._structured_chain is not None:

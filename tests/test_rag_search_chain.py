@@ -339,6 +339,8 @@ class _FakePostgresConn:
             return _FakeCursor([("Apple Inc.", "SC 13D", "2026-03-03", "https://example.com/a/21")])
         if "FROM crowded_trades" in query:
             return _FakeCursor([("037833100", "Apple Inc.", 4, 2500000.0, "2026-03-05")])
+        if "information_schema.columns" in query:
+            return _FakeCursor([])
         raise AssertionError(f"Unexpected query: {query}")
 
     def close(self) -> None:
@@ -396,3 +398,16 @@ def test_run_rejects_prompt_injection_in_context(monkeypatch):
         )
 
     conn.close()
+
+
+def test_correction_superseded_positions_excluded_from_latest_context():
+    from tests.temporal_holdings_fixture import correction_db
+
+    with correction_db() as conn:
+        chain = RAGSearchChain(db_conn=conn)
+        context, _ = chain._structured_search(
+            {"manager_ids": [1], "cusips": [], "date_range": None}
+        )
+        assert "shares=2000" in context
+        assert "shares=1000" not in context
+        assert conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0] == 5

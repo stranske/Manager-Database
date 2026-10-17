@@ -319,3 +319,65 @@ def test_filing_summary_chain_postgres(pg_conn: PgFixture) -> None:
 def _assert_to_regclass_reachable(conn: Any) -> None:
     row = conn.execute("SELECT to_regclass(%s)", ("managers",)).fetchone()
     assert row and row[0] == "managers"
+
+
+def test_postgres_superseded_correction_visibility(pg_conn):
+    from datetime import datetime
+
+    from etl.point_in_time import current_holdings_for_filing
+
+    conn = pg_conn.conn
+    # Other chain probes can leave a recoverable transaction error.
+    conn.rollback()
+    filing_id = pg_conn.seed["filing_id"]
+    row = conn.execute(
+        "SELECT holding_id, shares, knowledge_time, superseded_at FROM holdings "
+        "WHERE filing_id=%s ORDER BY holding_id LIMIT 1",
+        (filing_id,),
+    ).fetchone()
+    assert row is not None
+    holding_id, old_shares, old_known, old_superseded = row
+    conn.execute(
+        "UPDATE holdings SET knowledge_time='2026-04-15T00:00:00Z', "
+        "superseded_at='2026-05-01T00:00:00Z' WHERE holding_id=%s",
+        (holding_id,),
+    )
+    inserted = conn.execute(
+        "INSERT INTO holdings(filing_id,cusip,name_of_issuer,shares,value_usd,knowledge_time) "
+        "SELECT filing_id,cusip,name_of_issuer,2000,value_usd,'2026-05-01T00:00:00Z' "
+        "FROM holdings WHERE holding_id=%s RETURNING holding_id",
+        (holding_id,),
+    ).fetchone()[0]
+    conn.commit()
+    try:
+        current = current_holdings_for_filing(conn, filing_id)
+        past = current_holdings_for_filing(
+            conn, filing_id, datetime.fromisoformat("2026-04-20T00:00:00+00:00")
+        )
+        assert any(r["shares"] == 2000 for r in current)
+        assert not any(r["shares"] == old_shares for r in current)
+        assert any(r["shares"] == old_shares for r in past)
+        assert not any(r["shares"] == 2000 for r in past)
+        chain = HoldingsAnalysisChain(
+            client_info=ClientInfo(
+                client=RunnableLambda(lambda _: "{}"), provider="test", model="test"
+            ),
+            db_conn=conn,
+        )
+        current_context = chain._build_data_context(manager_ids=[pg_conn.seed["manager_id"]])
+        assert "2,000" in current_context
+        rag = RAGSearchChain(db_conn=conn)
+        rag_context, _ = rag._structured_search({"manager_ids": [pg_conn.seed["manager_id"]]})
+        assert "shares=2000" in rag_context
+    finally:
+        conn.rollback()
+        conn.execute("DELETE FROM holdings WHERE holding_id=%s", (inserted,))
+        conn.execute(
+            "UPDATE holdings SET knowledge_time=%s, superseded_at=%s WHERE holding_id=%s",
+            (old_known, old_superseded, holding_id),
+        )
+        conn.commit()
+    assert conn.execute(
+        "SELECT shares, knowledge_time, superseded_at FROM holdings WHERE holding_id=%s",
+        (holding_id,),
+    ).fetchone() == (old_shares, old_known, old_superseded)

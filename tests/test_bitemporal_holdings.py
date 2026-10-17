@@ -504,3 +504,20 @@ def test_original_replay_after_amendment_postgres():
         assert len(apple) == 1
         assert int(apple[0]["shares"]) == 250
         assert int(apple[0]["filing_id"]) == 11
+
+
+def test_superseded_correction_retains_stored_history():
+    from datetime import datetime
+
+    from etl.point_in_time import current_holdings_for_filing
+    from tests.temporal_holdings_fixture import correction_db
+
+    with correction_db() as conn:
+        assert [r["shares"] for r in current_holdings_for_filing(conn, 20)] == [2000]
+        assert [
+            r["shares"]
+            for r in current_holdings_for_filing(
+                conn, 20, datetime.fromisoformat("2026-04-20T00:00:00+00:00")
+            )
+        ] == [1000, 300]
+        assert conn.execute("SELECT COUNT(*) FROM holdings WHERE filing_id=20").fetchone()[0] == 3

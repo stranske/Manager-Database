@@ -53,8 +53,8 @@ class _MockDB:
     def cursor(self) -> _MockCursor:
         return self._cursor
 
-    def execute(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
+    def execute(self, *_args: Any, **_kwargs: Any):
+        return types.SimpleNamespace(fetchall=lambda: [])
 
     def commit(self) -> None:
         return None
@@ -502,3 +502,19 @@ def test_run_logs_usage_to_api_usage_table() -> None:
     assert row["status"] == 1
     assert row["bytes"] > 0
     assert row["latency_ms"] >= 0
+
+
+def test_superseded_correction_filing_summary_context():
+    from tests.temporal_holdings_fixture import correction_db
+
+    with correction_db() as conn:
+        chain = FilingSummaryChain(
+            client_info=ClientInfo(
+                client=RunnableLambda(lambda _: "{}"), provider="test", model="test"
+            ),
+            db_conn=conn,
+        )
+        data = chain._load_filing_data(20)
+        assert "2,000" in data["top_holdings_table"]
+        assert "1,000" not in data["top_holdings_table"]
+        assert "Removed" not in data["top_holdings_table"]

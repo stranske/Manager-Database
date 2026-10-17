@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Any
 
-from adapters.base import get_placeholder, get_table_columns
+from adapters.base import get_placeholder, get_table_columns, is_sqlite
 
 
 def _normalize_as_of(as_of: date | datetime) -> datetime:
@@ -32,6 +32,57 @@ def period_authority_sort_key(
     filed_key = "" if filed_date is None else str(filed_date)
     amendment = str(filing_type or "").strip().upper().endswith("/A")
     return (filed_key, amendment, int(filing_id))
+
+
+def holdings_visibility_sql(
+    conn: Any, as_of: date | datetime | None = None, table_alias: str = "h"
+) -> tuple[str, tuple[Any, ...]]:
+    """Shared current/as-of predicate; legacy schemas retain their plain reads."""
+    columns = get_table_columns(conn, "holdings")
+    clauses: list[str] = []
+    params: list[Any] = []
+    if as_of is None:
+        if "superseded_at" in columns:
+            clauses.append(f"{table_alias}.superseded_at IS NULL")
+    else:
+        cutoff = _normalize_as_of(as_of).isoformat().replace("+00:00", "Z")
+        marker = get_placeholder(conn)
+
+        def timestamp(column: str) -> str:
+            value = f"{table_alias}.{column}"
+            return f"julianday({value})" if is_sqlite(conn) else value
+
+        bound = f"julianday({marker})" if is_sqlite(conn) else marker
+        if "knowledge_time" in columns:
+            clauses.append(f"{timestamp('knowledge_time')} <= {bound}")
+            params.append(cutoff)
+        if "superseded_at" in columns:
+            clauses.append(
+                f"({table_alias}.superseded_at IS NULL OR {timestamp('superseded_at')} > {bound})"
+            )
+            params.append(cutoff)
+    return " AND ".join(clauses) or "1=1", tuple(params)
+
+
+def current_holdings_for_filing(
+    conn: Any, filing_id: int, as_of: date | datetime | None = None
+) -> list[dict[str, Any]]:
+    """Select visible positions without deleting historical observations."""
+    predicate, params = holdings_visibility_sql(conn, as_of)
+    result = conn.execute(
+        f"SELECT h.cusip, h.shares, h.value_usd, h.name_of_issuer "
+        f"FROM holdings h WHERE h.filing_id = {get_placeholder(conn)} "
+        f"AND {predicate} ORDER BY h.cusip",
+        (filing_id, *params),
+    )
+    return [
+        (
+            dict(zip(("cusip", "shares", "value_usd", "name_of_issuer"), row, strict=True))
+            if not hasattr(row, "keys")
+            else dict(row)
+        )
+        for row in result.fetchall()
+    ]
 
 
 def current_holdings_sql(table_alias: str = "h") -> str:
