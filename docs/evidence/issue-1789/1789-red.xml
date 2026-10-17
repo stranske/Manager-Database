@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.574" timestamp="2026-10-17T02:45:30.294615-05:00" hostname="server.trs.private"><testcase classname="tests.test_daily_diff" name="test_etl_failure_dispatch_uses_real_entrypoint_and_serialized_replay" time="0.125"><failure message="AssertionError: assert [] == ['email', 'slack']&#10;  &#10;  Right contains 2 more items, first extra item: 'email'&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4627/test_etl_failure_dispatch_uses0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x17cbc3ad0&gt;
+
+    def test_etl_failure_dispatch_uses_real_entrypoint_and_serialized_replay(tmp_path, monkeypatch):
+        import json
+    
+        import alerts.integration as integration
+        from alerts.channels import DeliveryResult, NotificationChannel
+        from etl.evaluation_flow import fire_quality_alerts
+    
+        db_path = _setup_db(tmp_path)
+        conn = sqlite3.connect(db_path)
+        ensure_alert_tables(conn)
+        conn.execute(
+            "INSERT INTO alert_rules(name,event_type,condition_json,channels,enabled) VALUES (?,?,?,?,?)",
+            ("ETL failure", "etl_failure", "{}", '["email","slack"]', 1),
+        )
+        conn.execute("CREATE TABLE evaluation_observations(id INTEGER PRIMARY KEY)")
+        conn.commit()
+        conn.execute("INSERT INTO evaluation_observations VALUES (1)")
+        sends = []
+    
+        class Channel(NotificationChannel):
+            def __init__(self, name):
+                self.channel_name = name
+    
+            async def deliver(self, alert):
+                with sqlite3.connect(db_path) as observer:
+                    assert (
+                        observer.execute("SELECT COUNT(*) FROM evaluation_observations").fetchone()[0]
+                        == 1
+                    )
+                    assert (
+                        observer.execute(
+                            "SELECT COUNT(*) FROM alert_delivery_attempts WHERE channel=?",
+                            (self.channel_name,),
+                        ).fetchone()[0]
+                        &gt;= 1
+                    )
+                sends.append(self.channel_name)
+                return DeliveryResult(channel=self.channel_name, success=True)
+    
+        monkeypatch.setattr(
+            integration,
+            "build_configured_channels",
+            lambda: {name: Channel(name) for name in ["email", "slack"]},
+        )
+        summary = {"failures": {"sql_safety": 0.0}}
+        try:
+            assert fire_quality_alerts.fn(summary, db_conn=conn) == 1
+            replay = json.loads(json.dumps(summary))
+            assert replay["alert_observed_at"] == summary["alert_observed_at"]
+            assert fire_quality_alerts.fn(replay, db_conn=conn) == 1
+&gt;           assert sends == ["email", "slack"]
+E           AssertionError: assert [] == ['email', 'slack']
+E             
+E             Right contains 2 more items, first extra item: 'email'
+E             Use -v to get more diff
+
+tests/test_daily_diff.py:208: AssertionError</failure></testcase></testsuite></testsuites>

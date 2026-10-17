@@ -1,0 +1,16 @@
+{
+  "red_exit": 1,
+  "restored_exit": 0,
+  "source": "etl/evaluation_flow.py",
+  "restored_sha256": "ebdd3d73526318eda6fb37b362baba414319bb87206cfdf3ab524b4c8226b72c",
+  "byte_identical_restoration": true,
+  "command": [
+    ".venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_daily_diff.py::test_etl_failure_dispatch_uses_real_entrypoint_and_serialized_replay",
+    "-q",
+    "--disable-warnings"
+  ],
+  "provenance_note": "Exact path retained locally; prior273e receipts remain historical."
+}

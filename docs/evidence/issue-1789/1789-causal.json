@@ -1,0 +1,16 @@
+{
+  "red_exit": 1,
+  "restored_exit": 0,
+  "source": "etl/evaluation_flow.py",
+  "restored_sha256": "d3b9285a947cc2e1a30a4aab89008465ac9d2835f7e28512b311fea469600221",
+  "byte_identical_restoration": true,
+  "command": [
+    ".venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_daily_diff.py::test_etl_failure_dispatch_uses_real_entrypoint_and_serialized_replay",
+    "-q",
+    "--disable-warnings"
+  ],
+  "provenance_note": "Exact local executable path retained in automation receipts."
+}
