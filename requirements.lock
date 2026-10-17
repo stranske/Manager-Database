@@ -539,7 +539,7 @@ ruamel-yaml==0.19.1
     # via prefect
 ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
     # via prefect
-ruff==0.17.0
+ruff==0.17.1
     # via manager-database (pyproject.toml)
 s3transfer==0.19.2
     # via boto3
