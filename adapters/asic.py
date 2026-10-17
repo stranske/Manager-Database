@@ -55,7 +55,7 @@ async def list_new_filings(identifier: str, since: str):
 
 async def download(filing: dict[str, object]):
     """Return the register snapshot text for audit storage."""
-    return b""
+    return str(filing.get("raw", "")).encode("utf-8")
 
 
 async def parse(raw: bytes):
