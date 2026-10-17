@@ -6,6 +6,7 @@ import io
 import logging
 import os
 import time
+from decimal import Decimal
 from typing import Any
 
 from prefect import flow, task
@@ -232,8 +233,14 @@ def _large_delta_event_from_diff(row: dict[str, Any]) -> AlertEvent:
         "EXIT": "sell",
         "DECREASE": "sell",
     }.get(raw_delta_type, raw_delta_type.lower())
-    value_prev = float(row["value_prev"]) if row.get("value_prev") is not None else None
-    value_curr = float(row["value_curr"]) if row.get("value_curr") is not None else None
+    value_prev = row.get("value_prev")
+    value_curr = row.get("value_curr")
+    # PostgreSQL NUMERIC values need a JSON-native representation. Preserve
+    # legacy string/int/float inputs rather than changing their payload types.
+    if isinstance(value_prev, Decimal):
+        value_prev = float(value_prev)
+    if isinstance(value_curr, Decimal):
+        value_curr = float(value_curr)
     value_usd = None
     if value_prev is not None and value_curr is not None:
         value_usd = abs(float(value_curr) - float(value_prev))

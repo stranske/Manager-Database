@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.464" timestamp="2026-10-17T02:57:11.782199-05:00" hostname="server.trs.private"><testcase classname="tests.test_daily_diff" name="test_large_delta_dispatch_commits_before_send_and_suppresses_replay[none]" time="0.052"><failure message="AssertionError: assert 0 == 1&#10; +  where 0 = &lt;built-in method count of list object at 0x13f194680&gt;('email')&#10; +    where &lt;built-in method count of list object at 0x13f194680&gt; = [].count">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4630/test_large_delta_dispatch_comm0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x16a42a270&gt;
+failure = 'none'
+
+    @pytest.mark.parametrize("failure", ["none", "channel", "outcome", "unconfigured"])
+    def test_large_delta_dispatch_commits_before_send_and_suppresses_replay(
+        tmp_path, monkeypatch, failure
+    ):
+        import json
+    
+        import alerts.integration as integration
+        import etl.daily_diff_flow as flow_module
+        from alerts.channels import DeliveryResult, NotificationChannel
+    
+        db_path = _setup_db(tmp_path)
+        with sqlite3.connect(db_path) as conn:
+            ensure_alert_tables(conn)
+            conn.execute(
+                "INSERT INTO alert_rules(name,event_type,condition_json,channels,enabled,manager_id) VALUES (?,?,?,?,?,?)",
+                (
+                    "Dispatch buy",
+                    "large_delta",
+                    '{"delta_type":"buy","value_usd_gt":350}',
+                    '["email","slack"]',
+                    1,
+                    1,
+                ),
+            )
+        sends = []
+        connections = []
+        injected = False
+    
+        class Connection(sqlite3.Connection):
+            armed = False
+    
+            def commit(self):
+                if self.armed:
+                    self.armed = False
+                    raise RuntimeError("injected outcome commit failure")
+                super().commit()
+    
+        def connect():
+            conn = sqlite3.connect(db_path, factory=Connection)
+            connections.append(conn)
+            return conn
+    
+        class Channel(NotificationChannel):
+            def __init__(self, name):
+                self.channel_name = name
+    
+            async def deliver(self, alert):
+                nonlocal injected
+                with sqlite3.connect(db_path) as observer:
+                    assert (
+                        observer.execute(
+                            "SELECT COUNT(*) FROM daily_diffs WHERE report_date=?", ("2024-05-01",)
+                        ).fetchone()[0]
+                        &gt; 0
+                    )
+                    assert (
+                        observer.execute(
+                            "SELECT COUNT(*) FROM alert_delivery_attempts WHERE channel=?",
+                            (self.channel_name,),
+                        ).fetchone()[0]
+                        &gt;= 1
+                    )
+                sends.append(self.channel_name)
+                if not injected and failure in ["channel", "outcome"]:
+                    injected = True
+                    if failure == "channel":
+                        raise RuntimeError("injected channel failure")
+                    connections[-1].armed = True
+                return DeliveryResult(channel=self.channel_name, success=True)
+    
+        channels = {
+            name: Channel(name)
+            for name in (["email"] if failure == "unconfigured" else ["email", "slack"])
+        }
+        monkeypatch.setattr(flow_module, "connect_db", connect)
+        monkeypatch.setattr(integration, "build_configured_channels", lambda: channels)
+        first = daily_diff_flow.fn(date="2024-05-01")
+        daily_diff_flow.fn(date="2024-05-01")
+        daily_diff_flow.fn(date="2024-05-01")
+&gt;       assert sends.count("email") == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = &lt;built-in method count of list object at 0x13f194680&gt;('email')
+E        +    where &lt;built-in method count of list object at 0x13f194680&gt; = [].count
+
+tests/test_daily_diff.py:619: AssertionError</failure></testcase></testsuite></testsuites>
