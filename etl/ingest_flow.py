@@ -464,6 +464,7 @@ def _authority_filing_id_for_period(
     event_time: Any,
     period_expr: str,
     filing_columns: set[str],
+    incoming_filing_id: int,
 ) -> int | None:
     from etl.point_in_time import period_authority_sort_key
 
@@ -471,8 +472,11 @@ def _authority_filing_id_for_period(
     type_expr = "type" if "type" in filing_columns else "NULL"
     rows = conn.execute(
         f"SELECT filing_id, filed_date, {type_expr} AS filing_type FROM filings "
-        f"WHERE manager_id = {marker} AND {period_expr} = {marker}",
-        (manager_id, event_time),
+        f"WHERE manager_id = {marker} AND {period_expr} = {marker} "
+        f"AND (filing_id = {marker} OR EXISTS ("
+        f"SELECT 1 FROM holdings h_authority "
+        f"WHERE h_authority.filing_id = filings.filing_id))",
+        (manager_id, event_time, incoming_filing_id),
     ).fetchall()
     best_id: int | None = None
     best_key: tuple[str, bool, int] | None = None
@@ -528,6 +532,7 @@ def _supersede_prior_period_holdings(
         event_time=event_time,
         period_expr=period_expr,
         filing_columns=filing_columns,
+        incoming_filing_id=filing_id,
     )
     if authority_id is None or authority_id != filing_id:
         return False

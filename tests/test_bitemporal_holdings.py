@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from etl import ingest_flow, point_in_time
+from etl import edgar_flow, ingest_flow, point_in_time
 
 
 def _connect(tmp_path: Path) -> sqlite3.Connection:
@@ -330,6 +330,51 @@ def _seed_original_amendment_period(conn: sqlite3.Connection) -> tuple[list[dict
         {"cusip": "037833100", "nameOfIssuer": "APPLE INC", "sshPrnamt": 250, "value": 2500},
     ]
     return original_rows, amendment_rows
+
+
+@pytest.mark.parametrize("writer", ["ingest", "edgar"])
+def test_metadata_only_amendment_does_not_suppress_original_holdings(tmp_path, writer):
+    conn = _connect(tmp_path)
+    original_rows, amendment_rows = _seed_original_amendment_period(conn)
+
+    def write(filing_id, rows):
+        if writer == "ingest":
+            ingest_flow._replace_holdings_rows(
+                conn,
+                filing_id=filing_id,
+                manager_id=1,
+                identifier="0000320193",
+                external_id=f"acc-{filing_id}",
+                filed_date="2024-05-15",
+                parsed_rows=rows,
+                jurisdiction="us",
+            )
+        else:
+            edgar_flow._replace_holdings_for_filing(
+                conn,
+                filing_id=filing_id,
+                rows=rows,
+                manager_id=1,
+                cik="0000320193",
+                accession=f"acc-{filing_id}",
+                filed_date="2024-05-15",
+            )
+
+    try:
+        # The higher-ranked amendment exists only as metadata, without holdings.
+        write(10, original_rows)
+        current = point_in_time.current_holdings(conn, manager_id=1)
+        assert [(row["filing_id"], int(row["shares"])) for row in current] == [(10, 100)]
+        known_at = datetime(2024, 5, 16, tzinfo=UTC)
+        _stamp_filing_knowledge(conn, filing_id=10, knowledge_time="2024-05-15T12:00:00Z")
+        assert [row["filing_id"] for row in point_in_time.holdings_as_of(conn, 1, known_at)] == [10]
+
+        # Once the amendment's holdings arrive it must still win the same-day tie.
+        write(11, amendment_rows)
+        current = point_in_time.current_holdings(conn, manager_id=1)
+        assert [(row["filing_id"], int(row["shares"])) for row in current] == [(11, 250)]
+    finally:
+        conn.close()
 
 
 def test_original_replay_after_amendment_keeps_amendment_current(tmp_path):
