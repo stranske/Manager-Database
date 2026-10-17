@@ -794,7 +794,7 @@ def test_condition_inputs_empty_condition_actually_matches_a_real_etl_failure_ev
 
 
 class _BuilderColumn:
-    def __init__(self, parent: "_RuleBuilderStreamlit"):
+    def __init__(self, parent: _RuleBuilderStreamlit):
         self._parent = parent
 
     def markdown(self, text: str) -> None:
@@ -893,11 +893,11 @@ def _legacy_missing_filing_rule() -> dict[str, Any]:
 
 def test_unsupported_rule_regression_missing_filing_creation_is_rejected(monkeypatch):
     """New missing_filing rules are refused, not created as apparently active rules."""
-    from pydantic import ValidationError
-
     assert "missing_filing" in ALERT_EVENT_TYPES
     assert "missing_filing" not in CREATABLE_EVENT_TYPES
-    with pytest.raises(ValidationError, match="missing_filing is unsupported"):
+    # pydantic's ValidationError is a ValueError; avoid a direct pydantic
+    # test import, which would require declaring it as a test dependency.
+    with pytest.raises(ValueError, match="missing_filing is unsupported"):
         AlertRuleCreate(name="New", event_type="missing_filing")
 
     fake_st = _RuleBuilderStreamlit(event_type="missing_filing", submitted=True)

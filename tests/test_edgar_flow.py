@@ -869,8 +869,6 @@ def test_missing_filing_unsupported_rule_regression_for_edgar_contract():
     """
     from datetime import UTC, datetime
 
-    from pydantic import ValidationError
-
     from alerts.models import (
         ALERT_EVENT_TYPES,
         CREATABLE_EVENT_TYPES,
@@ -880,7 +878,9 @@ def test_missing_filing_unsupported_rule_regression_for_edgar_contract():
 
     assert "missing_filing" in ALERT_EVENT_TYPES
     assert "missing_filing" not in CREATABLE_EVENT_TYPES
-    with pytest.raises(ValidationError, match="missing_filing is unsupported"):
+    # pydantic's ValidationError is a ValueError; avoid a direct pydantic
+    # test import, which would require declaring it as a test dependency.
+    with pytest.raises(ValueError, match="missing_filing is unsupported"):
         AlertRuleCreate(name="New Missing", event_type="missing_filing")
     stored = AlertRule(
         rule_id=42,
