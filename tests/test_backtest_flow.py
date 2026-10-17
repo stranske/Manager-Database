@@ -446,3 +446,62 @@ def test_price_adapter_survives_a_raising_fetcher(tmp_path):
 
     adapter = PriceAdapter(conn, source="test", fetcher=broken)
     assert adapter.close_on_or_before("AAA", date(2024, 5, 2)) is None
+
+
+def _three_quarter_reentry_fixture(tmp_path):
+    conn = _connect(tmp_path)
+    for filing_id, period, filed in [
+        (10, "2024-03-31", "2024-05-01"),
+        (11, "2024-06-30", "2024-08-01"),
+        (12, "2024-09-30", "2024-11-01"),
+    ]:
+        _add_filing(conn, filing_id, period, filed)
+    _add_holding(conn, 10, "AAA000000", "AAA", 50_000_000, "2024-05-01T12:00:00Z")
+    _add_holding(conn, 11, "BBB000000", "BBB", 9_000_000, "2024-08-01T12:00:00Z")
+    _add_holding(conn, 12, "AAA000000", "AAA", 3_000_000, "2024-11-01T12:00:00Z")
+    conn.commit()
+    return conn
+
+
+def test_select_new_buys_reenters_after_intervening_exit(tmp_path):
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+    assert [(r["resolved_ticker"], r["value_usd"]) for r in selected] == [("AAA", 3_000_000)]
+
+
+def test_historical_larger_position_does_not_outrank_current(tmp_path):
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    _add_holding(conn, 12, "CCC000000", "CCC", 4_000_000, "2024-11-01T12:00:00Z")
+    conn.commit()
+    selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+    assert [(r["resolved_ticker"], r["value_usd"]) for r in selected] == [
+        ("CCC", 4_000_000),
+        ("AAA", 3_000_000),
+    ]
+
+
+def test_reenters_persisted_entry_and_metrics(tmp_path):
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    prices = {ticker: dict(values) for ticker, values in PRICES.items()}
+    prices["AAA"].update({date(2024, 11, 2): 100, date(2025, 2, 1): 130})
+    prices["SPY"].update({date(2024, 11, 2): 110, date(2025, 2, 1): 121})
+    report = run_backtest(
+        conn,
+        1,
+        date(2024, 1, 1),
+        date(2024, 12, 31),
+        price_adapter=_adapter(conn, prices),
+        decision_dates=[*DECISION_DATES, date(2024, 11, 1)],
+        entry_lag_days=1,
+        holding_period_days=91,
+    )
+    rows = conn.execute(
+        "SELECT ticker, entry_date, position_return FROM backtest_results WHERE run_id=? AND ticker=? ORDER BY entry_date",
+        (report.run_id, "AAA"),
+    ).fetchall()
+    assert [(r["ticker"], r["entry_date"]) for r in rows] == [
+        ("AAA", "2024-05-02"),
+        ("AAA", "2024-11-02"),
+    ]
+    assert rows[1]["position_return"] == pytest.approx(0.3)
+    assert report.total_return == pytest.approx(1.2 * 1.1 * 1.3 - 1)

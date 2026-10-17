@@ -245,7 +245,40 @@ def _ticker_for(row: dict[str, Any]) -> str | None:
 def visible_holdings(conn: Any, manager_id: int, as_of: date) -> list[dict[str, Any]]:
     """Holdings knowable by the end of ``as_of``, with the look-ahead guard reapplied."""
     rows = holdings_as_of(conn, manager_id, decision_cutoff(as_of))
-    return enforce_no_lookahead(rows, as_of)
+    rows = enforce_no_lookahead(rows, as_of)
+    filing_ids = sorted({int(row["filing_id"]) for row in rows})
+    if not filing_ids:
+        return []
+    columns = get_table_columns(conn, "filings")
+    period = "COALESCE(period_end, filed_date)" if "period_end" in columns else "filed_date"
+    markers = ", ".join(get_placeholder(conn) for _ in filing_ids)
+    periods = dict(
+        conn.execute(
+            f"SELECT filing_id, {period} FROM filings WHERE filing_id IN ({markers})",
+            tuple(filing_ids),
+        ).fetchall()
+    )
+    # Enrich only the backtest's private copy; holdings_as_of keeps its API shape.
+    return [{**row, "_reporting_period": periods.get(int(row["filing_id"]))} for row in rows]
+
+
+def select_adjacent_periods(
+    rows: Sequence[dict[str, Any]], decision_date: date
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Current and immediately preceding visible reporting periods.
+
+    Strategy Contract: a re-entry is new relative to the adjacent period, even
+    when it was held in older history. Only current-period sizes inform ranking.
+    """
+    by_period: dict[date, list[dict[str, Any]]] = {}
+    for row in enforce_no_lookahead(rows, decision_date):
+        period = _coerce_date(row.get("_reporting_period"))
+        if period is not None and period <= decision_date:
+            by_period.setdefault(period, []).append(row)
+    ordered = sorted(by_period, reverse=True)
+    current = by_period[ordered[0]] if ordered else []
+    prior = by_period[ordered[1]] if len(ordered) > 1 else []
+    return current, prior
 
 
 def select_new_buys(
@@ -258,21 +291,19 @@ def select_new_buys(
 ) -> list[dict[str, Any]]:
     """Securities newly disclosed at ``decision_date``, ranked by position size.
 
-    "High-conviction new buys" = securities present in the as-of snapshot that were
-    absent from the prior snapshot, largest reported value first.
+    "High-conviction new buys" compares the current and adjacent prior visible
+    reporting periods, ranked by the current reported value.
     """
-    current = visible_holdings(conn, manager_id, decision_date)
+    current, prior = select_adjacent_periods(
+        visible_holdings(conn, manager_id, decision_date), decision_date
+    )
     if not current:
         return []
-    prior_keys: set[str] = set()
-    if prior_date is not None:
-        for row in visible_holdings(conn, manager_id, prior_date):
-            key = _security_key(row)
-            if key:
-                prior_keys.add(key)
+    # prior_date remains a compatible caller argument. Period adjacency is
+    # determined from the visible snapshot, not all history at an earlier run.
+    prior_keys = {key for row in prior if (key := _security_key(row)) is not None}
 
-    # An as-of snapshot can carry the same security from several reporting
-    # periods; keep the largest disclosed position so one buy is one position.
+    # Collapse duplicate current-period security rows only.
     best_by_key: dict[str, dict[str, Any]] = {}
     for row in current:
         key = _security_key(row)

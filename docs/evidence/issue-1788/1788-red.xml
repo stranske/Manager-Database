@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.105" timestamp="2026-10-17T02:20:47.032763-05:00" hostname="server.trs.private"><testcase classname="tests.test_backtest_flow" name="test_select_new_buys_reenters_after_intervening_exit" time="0.038"><failure message="AssertionError: assert [] == [('AAA', 3000000)]&#10;  &#10;  Right contains one more item: ('AAA', 3000000)&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4617/test_select_new_buys_reenters_0')
+
+    def test_select_new_buys_reenters_after_intervening_exit(tmp_path):
+        conn = _three_quarter_reentry_fixture(tmp_path)
+        selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+&gt;       assert [(r["resolved_ticker"], r["value_usd"]) for r in selected] == [("AAA", 3_000_000)]
+E       AssertionError: assert [] == [('AAA', 3000000)]
+E         
+E         Right contains one more item: ('AAA', 3000000)
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:469: AssertionError</failure></testcase></testsuite></testsuites>
