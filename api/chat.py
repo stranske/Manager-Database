@@ -15,7 +15,7 @@ from collections import defaultdict, deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from threading import Lock
 from typing import Any, cast
 
@@ -706,6 +706,7 @@ class _FallbackHoldingsAnalysisChain:
         manager_ids: list[int] | None = None,
         cusips: list[str] | None = None,
         date_range: tuple[date, date] | None = None,
+        as_of: date | datetime | None = None,
     ) -> dict[str, Any]:
         context: dict[str, Any] = {}
         if manager_ids:
@@ -714,6 +715,8 @@ class _FallbackHoldingsAnalysisChain:
             context["cusips"] = cusips
         if date_range is not None:
             context["date_range"] = [item.isoformat() for item in date_range]
+        if as_of is not None:
+            context["as_of"] = as_of.isoformat()
         return {"answer": f"Holdings analysis: {question}", "sources": [context] if context else []}
 
 
@@ -962,6 +965,18 @@ async def _run_chain(
             normalized_context
         )
 
+    holdings_as_of = None
+    if chain_name == "holdings_analysis" and normalized_context.get("as_of") is not None:
+        raw_cutoff = normalized_context["as_of"]
+        try:
+            if not isinstance(raw_cutoff, str):
+                raise ValueError("as_of must be ISO text")
+            holdings_as_of = datetime.fromisoformat(raw_cutoff.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail="as_of must be a valid ISO date or timestamp"
+            ) from exc
+
     chain = _build_chain(chain_name, client_info)
     try:
         if chain_name == "filing_summary":
@@ -982,6 +997,7 @@ async def _run_chain(
                 manager_ids=holdings_manager_ids,
                 cusips=holdings_cusips,
                 date_range=holdings_date_range,
+                **({"as_of": holdings_as_of} if holdings_as_of is not None else {}),
             )
             result = _format_holdings_analysis_payload(result)
         elif hasattr(chain, "run"):

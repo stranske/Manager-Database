@@ -55,6 +55,11 @@ def archive():
     for name, expected in binding["bindings"].items():
         assert manifest[name] == expected, name
         current = ROOT / name.removeprefix("bound-inputs/")
+        if name == "bound-inputs/api/chat.py":
+            # This archive proves a historical run, not an immutable product API.
+            # The original lifecycle tests below remain byte-bound to the
+            # archive and execute the current API in the normal test suite.
+            current = EVIDENCE / "historical-api-chat.py.txt"
         if current.name == "replay.py":
             current = EVIDENCE / "historical-replay.py.txt"
         assert files[name] == current.read_bytes(), name

@@ -844,3 +844,72 @@ def test_chat_api_rate_limiting_11th_request_returns_429(monkeypatch):
     assert all(resp.status_code == 200 for resp in responses[:10])
     assert responses[10].status_code == 429
     assert responses[10].json()["detail"] == "Rate limit exceeded"
+
+
+def test_holdings_correction_as_of_request_uses_pre_correction_snapshot(tmp_path, monkeypatch):
+    from langchain_core.runnables import RunnableLambda
+
+    from chains.holdings_analysis import HoldingsAnalysisChain
+    from tests.temporal_holdings_fixture import correction_db
+    from tools.langchain_client import ClientInfo
+
+    db_path = tmp_path / "correction.db"
+    with correction_db() as source, sqlite3.connect(db_path) as dest:
+        source.backup(dest)
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(db_path))
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+
+    def build(_name, _client):
+        chain = HoldingsAnalysisChain(
+            client_info=ClientInfo(
+                client=RunnableLambda(lambda _: "{}"), provider="test", model="test"
+            ),
+            db_conn=sqlite3.connect(db_path),
+        )
+        chain._structured_chain = RunnableLambda(
+            lambda payload: {
+                "thesis": payload["data_context"],
+                "top_positions": [],
+                "period_changes": [],
+                "concentration_metrics": {},
+            }
+        )
+        return chain
+
+    monkeypatch.setattr(chat_api_module, "_build_chain", build)
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat/holdings-analysis",
+            json={
+                "question": "Analyze positions",
+                "context": {
+                    "manager_ids": [1],
+                    "as_of": "2026-04-20T00:00:00Z",
+                    "date_range": ["2026-03-01", "2026-04-30"],
+                },
+            },
+        )
+    )
+    assert response.status_code == 200, response.text
+    assert "1,000" in response.json()["answer"]
+    assert "2,000" not in response.json()["answer"]
+
+
+@pytest.mark.parametrize("cutoff", ["not-a-date", "2026-99-99", 1787])
+def test_holdings_as_of_rejects_invalid_cutoff(tmp_path, monkeypatch, cutoff):
+    path = tmp_path / "empty.db"
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: sqlite3.connect(path))
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: object())
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat/holdings-analysis",
+            json={
+                "question": "Analyze positions",
+                "context": {"as_of": cutoff},
+            },
+        )
+    )
+    assert response.status_code == 400, response.text
+    assert "as_of" in response.json()["detail"]

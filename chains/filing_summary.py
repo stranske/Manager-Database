@@ -21,6 +21,7 @@ from chains.utils import (
     format_holdings_table,
     rows_to_dicts,
 )
+from etl.point_in_time import holdings_visibility_sql
 from scripts.langchain.injection_guard import check_prompt_injection
 from tools.langchain_client import ClientInfo
 from tools.llm_provider import build_langsmith_metadata
@@ -214,12 +215,14 @@ class FilingSummaryChain:
         if not filing:
             raise ValueError(f"Filing {filing_id} not found")
 
+        visible, visible_params = holdings_visibility_sql(self.db, table_alias="holdings")
+        visibility_clause = f"AND {visible} " if visible != "1=1" else ""
         holdings_query = (
             "SELECT * FROM holdings "
             f"WHERE filing_id = {placeholder} "
-            "ORDER BY value_usd DESC LIMIT 20"
+            f"{visibility_clause}ORDER BY value_usd DESC LIMIT 20"
         )
-        top_holdings = self._execute_fetchall(holdings_query, (filing_id,))
+        top_holdings = self._execute_fetchall(holdings_query, (filing_id, *visible_params))
 
         manager_id = filing.get("manager_id")
         manager_name = "Unknown Manager"

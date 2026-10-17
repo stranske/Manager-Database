@@ -5,9 +5,11 @@ from __future__ import annotations
 import sqlite3
 import sys
 import time
+from datetime import date, datetime
 from typing import Any
 
 from adapters.base import connect_db, get_table_columns, resolve_manager_id_column
+from etl.point_in_time import _normalize_as_of, current_holdings_for_filing
 from tools.registry import run_contract_fields
 from tools.run_contract import RunResult
 
@@ -25,7 +27,9 @@ def _sort_key(value: Any) -> str:
     return "" if value is None else str(value)
 
 
-def _select_authoritative_filings(manager_id: int, conn: Any) -> list[tuple[Any, int]]:
+def _select_authoritative_filings(
+    manager_id: int, conn: Any, as_of: date | datetime | None = None
+) -> list[tuple[Any, int]]:
     """Return authoritative filing IDs for the latest two reporting periods.
 
     Raw EDGAR rows remain queryable in ``filings``/``holdings``. This selector is
@@ -35,6 +39,23 @@ def _select_authoritative_filings(manager_id: int, conn: Any) -> list[tuple[Any,
     ph = _placeholder(conn)
     filing_columns = get_table_columns(conn, "filings")
     period_column = "period_end" if "period_end" in filing_columns else "filed_date"
+    # Filing authority survives removal of its final current position. For an
+    # as-of read, require evidence known by the cutoff, even if it was later
+    # superseded; row visibility is enforced separately by the shared selector.
+    holdings_columns = get_table_columns(conn, "holdings")
+    visible = "1=1"
+    visible_params: tuple[Any, ...] = ()
+    if as_of is not None and "knowledge_time" in holdings_columns:
+        visible = (
+            f"julianday(h.knowledge_time) <= julianday({ph})"
+            if isinstance(conn, sqlite3.Connection)
+            else f"h.knowledge_time <= {ph}"
+        )
+        visible_params = (_normalize_as_of(as_of).isoformat(),)
+    filing_cutoff = f"AND f.filed_date <= {ph}" if as_of is not None else ""
+    params = (manager_id, *visible_params)
+    if as_of is not None:
+        params = (*params, _normalize_as_of(as_of).date().isoformat())
     cursor = conn.execute(
         f"""
         SELECT f.filing_id, f.{period_column}, f.filed_date, f.type
@@ -43,10 +64,11 @@ def _select_authoritative_filings(manager_id: int, conn: Any) -> list[tuple[Any,
           AND EXISTS (
             SELECT 1
             FROM holdings h
-            WHERE h.filing_id = f.filing_id
+            WHERE h.filing_id = f.filing_id AND {visible}
           )
+          {filing_cutoff}
         """,
-        (manager_id,),
+        params,
     )
 
     by_period: dict[Any, tuple[int, Any, Any]] = {}
@@ -82,44 +104,40 @@ def _select_authoritative_filings(manager_id: int, conn: Any) -> list[tuple[Any,
     ]
 
 
-def _fetch_holdings_for_filing(conn: Any, filing_id: int) -> dict[str, dict[str, Any]]:
-    ph = _placeholder(conn)
-    cursor = conn.execute(
-        f"""
-        SELECT h.cusip, h.shares, h.value_usd, h.name_of_issuer
-        FROM holdings h
-        WHERE h.filing_id = {ph}
-        ORDER BY h.cusip
-        """,
-        (filing_id,),
-    )
+def _fetch_holdings_for_filing(
+    conn: Any, filing_id: int, as_of: date | datetime | None = None
+) -> dict[str, dict[str, Any]]:
     return {
-        cusip: {
-            "shares": shares,
-            "value_usd": value_usd,
-            "name_of_issuer": name_of_issuer,
+        row["cusip"]: {
+            "shares": row["shares"],
+            "value_usd": row["value_usd"],
+            "name_of_issuer": row["name_of_issuer"],
         }
-        for cusip, shares, value_usd, name_of_issuer in cursor
+        for row in current_holdings_for_filing(conn, filing_id, as_of)
     }
 
 
 def _fetch_latest_sets(
-    manager_id: int, conn: Any
+    manager_id: int, conn: Any, as_of: date | datetime | None = None
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
     """Fetch holdings keyed by CUSIP for the latest two authoritative periods.
 
     Returns ``(current, prior)`` where each is
     ``{cusip: {"shares": int|None, "value_usd": float|None, "name_of_issuer": str|None}}``.
     """
-    authoritative = _select_authoritative_filings(manager_id, conn)
+    authoritative = (
+        _select_authoritative_filings(manager_id, conn)
+        if as_of is None
+        else _select_authoritative_filings(manager_id, conn, as_of)
+    )
     if not authoritative:
         raise SystemExit("Manager not found or has no filings")
     if len(authoritative) < 2:
         raise SystemExit("Need at least two filings to compute a diff")
     current_filing_id = authoritative[0][1]
     prior_filing_id = authoritative[1][1]
-    return _fetch_holdings_for_filing(conn, current_filing_id), _fetch_holdings_for_filing(
-        conn, prior_filing_id
+    return _fetch_holdings_for_filing(conn, current_filing_id, as_of), _fetch_holdings_for_filing(
+        conn, prior_filing_id, as_of
     )
 
 
@@ -154,7 +172,9 @@ def _compare_optional(curr: int | float | None, prev: int | float | None) -> int
     return 0
 
 
-def diff_holdings(manager_id: int | str, conn: Any = None) -> RunResult:
+def diff_holdings(
+    manager_id: int | str, conn: Any = None, *, as_of: date | datetime | None = None
+) -> RunResult:
     """Compute structured diffs between the two most-recent filings.
 
     Parameters
@@ -184,7 +204,11 @@ def diff_holdings(manager_id: int | str, conn: Any = None) -> RunResult:
 
     try:
         resolved = _resolve_manager_id(manager_id, conn)
-        current, prior = _fetch_latest_sets(resolved, conn)
+        current, prior = (
+            _fetch_latest_sets(resolved, conn)
+            if as_of is None
+            else _fetch_latest_sets(resolved, conn, as_of)
+        )
     finally:
         if owns_connection:
             conn.close()
@@ -245,7 +269,7 @@ def diff_holdings(manager_id: int | str, conn: Any = None) -> RunResult:
 
     return RunResult(
         tool="diff_holdings",
-        inputs={"manager_id": resolved},
+        inputs={"manager_id": resolved, **({"as_of": as_of.isoformat()} if as_of else {})},
         outputs=results,
         **run_contract_fields("diff_holdings"),
         provenance={"manager_id": resolved},

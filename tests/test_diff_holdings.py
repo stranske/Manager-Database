@@ -534,3 +534,45 @@ def test_same_day_amendment_agrees_with_point_in_time(same_day_amendment_db):
     assert {row["cusip"] for row in as_of if row["filing_id"] != 3} == set(current)
     before = holdings_as_of(conn, 1, datetime(2024, 6, 1, 11, 59, 59, tzinfo=UTC))
     assert {row["cusip"] for row in before if row["filing_id"] != 3} == {"ORIGINAL"}
+
+
+def test_correction_current_and_historical_diff():
+    from datetime import datetime
+
+    from tests.temporal_holdings_fixture import correction_db
+
+    with correction_db() as conn:
+        current = {row["cusip"]: row for row in diff_holdings(1, conn).deltas}
+        assert current["KEEP"]["shares_curr"] == 2000
+        assert current["REMOVE"]["delta_type"] == "EXIT"
+        past = {
+            row["cusip"]: row
+            for row in diff_holdings(
+                1, conn, as_of=datetime.fromisoformat("2026-04-20T00:00:00+00:00")
+            ).deltas
+        }
+        assert past["KEEP"]["shares_curr"] == 1000
+        assert "REMOVE" not in past
+        assert conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0] == 5
+
+
+def test_correction_removing_all_current_positions_keeps_filing_authority():
+    from tests.temporal_holdings_fixture import correction_db
+
+    with correction_db() as conn:
+        conn.execute("UPDATE holdings SET superseded_at='2026-06-01T00:00:00Z' WHERE filing_id=20")
+        rows = diff_holdings(1, conn).deltas
+        assert {r["cusip"] for r in rows} == {"KEEP", "REMOVE"}
+        assert all(r["delta_type"] == "EXIT" for r in rows)
+
+
+def test_correction_exact_knowledge_boundary_includes_new_version():
+    from datetime import datetime
+
+    from tests.temporal_holdings_fixture import correction_db
+
+    with correction_db() as conn:
+        rows = diff_holdings(
+            1, conn, as_of=datetime.fromisoformat("2026-05-01T00:00:00+00:00")
+        ).deltas
+        assert next(r for r in rows if r["cusip"] == "KEEP")["shares_curr"] == 2000
