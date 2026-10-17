@@ -561,3 +561,107 @@ async def test_external_delivery_commit_failure_retry(
             (["streamlit"], pg_conn.rule_id),
         )
         pg_conn.conn.commit()
+
+
+@pytest.mark.parametrize("failure", ["none", "channel", "outcome"])
+def test_large_delta_daily_producer_durable_dispatch(
+    pg_conn, pg_url, psycopg_module, monkeypatch, failure
+):
+    import alerts.integration as integration
+    import etl.daily_diff_flow as daily
+
+    conn = pg_conn.conn
+    conn.execute(
+        "UPDATE alert_rules SET event_type=%s, condition_json=%s::jsonb, channels=%s WHERE rule_id=%s",
+        (
+            "large_delta",
+            '{"delta_type":"buy","value_usd_gt":350}',
+            ["email", "slack"],
+            pg_conn.rule_id,
+        ),
+    )
+    for period, filed, positions in [
+        ("2023-12-31", "2024-01-15", [("AAA", 100, 1000)]),
+        ("2024-03-31", "2024-04-15", [("AAA", 120, 1200), ("CCC", 40, 400)]),
+    ]:
+        filing = conn.execute(
+            "INSERT INTO filings(manager_id,type,period_end,filed_date,source) VALUES (%s,%s,%s,%s,%s) RETURNING filing_id",
+            (pg_conn.manager_id, "13F-HR", period, filed, "test"),
+        ).fetchone()[0]
+        for cusip, shares, value in positions:
+            conn.execute(
+                "INSERT INTO holdings(filing_id,cusip,name_of_issuer,shares,value_usd) VALUES (%s,%s,%s,%s,%s)",
+                (filing, cusip, cusip, shares, value),
+            )
+    conn.commit()
+    sends = []
+    connections = []
+    injected = False
+
+    class Connection:
+        def __init__(self):
+            self.connection = psycopg_module.connect(pg_url, autocommit=True)
+            self.armed = False
+
+        def __getattr__(self, name):
+            return getattr(self.connection, name)
+
+        def commit(self):
+            if self.armed:
+                self.armed = False
+                raise RuntimeError("injected outcome commit failure")
+            self.connection.commit()
+
+    def connect():
+        result = Connection()
+        connections.append(result)
+        return result
+
+    class Channel(NotificationChannel):
+        def __init__(self, name):
+            self.channel_name = name
+
+        async def deliver(self, alert):
+            nonlocal injected
+            with psycopg_module.connect(pg_url, autocommit=True) as observer:
+                assert (
+                    observer.execute(
+                        "SELECT COUNT(*) FROM daily_diffs WHERE report_date=%s", ("2024-05-01",)
+                    ).fetchone()[0]
+                    > 0
+                )
+                assert (
+                    observer.execute(
+                        "SELECT COUNT(*) FROM alert_delivery_attempts WHERE channel=%s",
+                        (self.channel_name,),
+                    ).fetchone()[0]
+                    >= 1
+                )
+            sends.append(self.channel_name)
+            if not injected and failure in ["channel", "outcome"]:
+                injected = True
+                if failure == "channel":
+                    raise RuntimeError("injected channel failure")
+                connections[-1].connection.autocommit = False
+                connections[-1].armed = True
+            return DeliveryResult(channel=self.channel_name, success=True)
+
+    monkeypatch.setattr(daily, "connect_db", connect)
+    monkeypatch.setattr(
+        integration,
+        "build_configured_channels",
+        lambda: {name: Channel(name) for name in ["email", "slack"]},
+    )
+    first = daily.daily_diff_flow.fn(date="2024-05-01")
+    daily.daily_diff_flow.fn(date="2024-05-01")
+    daily.daily_diff_flow.fn(date="2024-05-01")
+    assert sends == ["email", "slack"]
+    with psycopg_module.connect(pg_url, autocommit=True) as observer:
+        delivered = observer.execute(
+            "SELECT delivered_channels FROM alert_history WHERE event_type='large_delta'"
+        ).fetchone()[0]
+        assert delivered == (["email", "slack"] if failure == "none" else ["slack"])
+        assert observer.execute("SELECT COUNT(*) FROM daily_diffs").fetchone()[0] == 2
+        assert observer.execute("SELECT COUNT(*) FROM alert_delivery_attempts").fetchone()[0] == 2
+    if failure != "none":
+        assert first.warnings

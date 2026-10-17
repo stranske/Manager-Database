@@ -6,6 +6,7 @@ import io
 import logging
 import os
 import time
+from decimal import Decimal
 from typing import Any
 
 from prefect import flow, task
@@ -18,7 +19,7 @@ from adapters.base import (
     is_sqlite,
     resolve_manager_id_column,
 )
-from alerts.integration import evaluate_and_record_alerts
+from alerts.integration import fire_alerts_for_event_sync
 from alerts.models import AlertEvent
 from diff_holdings import diff_holdings
 from etl.logging_setup import configure_logging, log_outcome
@@ -234,6 +235,12 @@ def _large_delta_event_from_diff(row: dict[str, Any]) -> AlertEvent:
     }.get(raw_delta_type, raw_delta_type.lower())
     value_prev = row.get("value_prev")
     value_curr = row.get("value_curr")
+    # PostgreSQL NUMERIC values need a JSON-native representation. Preserve
+    # legacy string/int/float inputs rather than changing their payload types.
+    if isinstance(value_prev, Decimal):
+        value_prev = float(value_prev)
+    if isinstance(value_curr, Decimal):
+        value_curr = float(value_curr)
     value_usd = None
     if value_prev is not None and value_curr is not None:
         value_usd = abs(float(value_curr) - float(value_prev))
@@ -244,7 +251,7 @@ def _large_delta_event_from_diff(row: dict[str, Any]) -> AlertEvent:
 
     payload = {
         "manager_id": row["manager_id"],
-        "report_date": row["report_date"],
+        "report_date": str(row["report_date"]),
         "cusip": row["cusip"],
         "name_of_issuer": row.get("name_of_issuer"),
         "delta_type": normalized_delta_type,
@@ -259,13 +266,15 @@ def _large_delta_event_from_diff(row: dict[str, Any]) -> AlertEvent:
         event_type="large_delta",
         manager_id=int(row["manager_id"]),
         payload=payload,
+        # Persisted report date + payload identifies the same diff on replay.
+        occurred_at=dt.datetime.fromisoformat(str(row["report_date"])).replace(tzinfo=dt.UTC),
     )
 
 
 def _record_large_delta_alerts(conn: Any, manager_id: int, report_date: str) -> list[int]:
     alert_ids: list[int] = []
     for row in _fetch_inserted_diffs(conn, manager_id, report_date):
-        alert_ids.extend(evaluate_and_record_alerts(conn, _large_delta_event_from_diff(row)))
+        alert_ids.extend(fire_alerts_for_event_sync(conn, _large_delta_event_from_diff(row)))
     return alert_ids
 
 
@@ -333,12 +342,13 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
         managers_processed = 0
         managers_skipped = 0
         warnings: list[str] = []
+        changed_managers: list[int] = []
 
         for mid in manager_ids:
             try:
                 count = compute_manager_diffs.fn(mid, report_date, conn)
                 if count:
-                    _record_large_delta_alerts(conn, mid, report_date)
+                    changed_managers.append(mid)
                 total_changes += count
                 managers_processed += 1
                 log_outcome(
@@ -372,6 +382,20 @@ def daily_diff_flow(date: str | None = None) -> RunResult:
             conn.execute("COMMIT")
         else:
             conn.commit()
+
+        # The dispatcher owns its commits. Domain diffs must already be durable
+        # before an external attempt can occur or fail.
+        for mid in changed_managers:
+            try:
+                _record_large_delta_alerts(conn, mid, report_date)
+            except Exception:
+                conn.rollback()
+                warnings.append(
+                    f"manager {mid} alert delivery incomplete; reconcile durable claims"
+                )
+                logger.exception(
+                    "Large-delta delivery failed after diff commit", extra={"manager_id": mid}
+                )
 
         _refresh_matview(conn)
 
