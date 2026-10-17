@@ -299,9 +299,19 @@ def select_new_buys(
     )
     if not current:
         return []
-    # prior_date remains a compatible caller argument. Period adjacency is
-    # determined from the visible snapshot, not all history at an earlier run.
     prior_keys = {key for row in prior if (key := _security_key(row)) is not None}
+    # An unrelated disclosure can leave the adjacent-period signal unchanged.
+    # Suppress securities already visible in THIS reporting period at the prior
+    # decision, without excluding re-entries from older reporting periods.
+    if prior_date is not None:
+        current_period = _coerce_date(current[0].get("_reporting_period"))
+        already_disclosed = visible_holdings(conn, manager_id, prior_date)
+        prior_keys.update(
+            key
+            for row in already_disclosed
+            if _coerce_date(row.get("_reporting_period")) == current_period
+            and (key := _security_key(row)) is not None
+        )
 
     # Collapse duplicate current-period security rows only.
     best_by_key: dict[str, dict[str, Any]] = {}

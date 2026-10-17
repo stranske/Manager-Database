@@ -60,7 +60,10 @@ Selection semantics:
 
 1. Load visible holdings through the #1400 as-of helper.
 2. Compare the current visible period with the prior visible period for each
-   manager.
+   manager. An unrelated disclosure must not trade an unchanged current-period
+   signal again. Exclude securities already visible in that same reporting
+   period at the prior decision; an amendment can still disclose a new security,
+   and holdings from older periods do not suppress a genuine re-entry.
 3. Select new or materially increased positions that cross the conviction
    threshold.
 4. Enter at `filed_date + disclosure_lag`; `knowledge_time` only determines

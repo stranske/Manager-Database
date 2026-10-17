@@ -505,3 +505,43 @@ def test_reenters_persisted_entry_and_metrics(tmp_path):
     ]
     assert rows[1]["position_return"] == pytest.approx(0.3)
     assert report.total_return == pytest.approx(1.2 * 1.1 * 1.3 - 1)
+
+
+def test_older_period_amendment_does_not_retrade_persisted_current_signal(tmp_path):
+    conn = _two_quarter_fixture(tmp_path)
+    _add_filing(conn, 12, "2024-03-31", "2024-08-02")
+    conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=12")
+    _add_holding(conn, 12, "AAA000000", "AAA", 6_000_000, "2024-08-02T12:00:00Z")
+    conn.commit()
+    report = run_backtest(
+        conn,
+        1,
+        date(2024, 1, 1),
+        date(2024, 12, 31),
+        price_adapter=_adapter(conn),
+        entry_lag_days=1,
+        holding_period_days=91,
+    )
+    rows = conn.execute(
+        "SELECT ticker, entry_date FROM backtest_results WHERE run_id=? AND ticker=? ORDER BY entry_date",
+        (report.run_id, "BBB"),
+    ).fetchall()
+    assert [(r["ticker"], r["entry_date"]) for r in rows] == [("BBB", "2024-08-02")]
+    assert [p.ticker for p in report.positions] == ["AAA", "BBB"]
+    assert report.period_returns == pytest.approx([0.20, 0.10])
+    assert report.total_return == pytest.approx(0.32)
+
+
+def test_current_period_amendment_selects_only_newly_disclosed_security(tmp_path):
+    conn = _two_quarter_fixture(tmp_path)
+    _add_filing(conn, 12, "2024-06-30", "2024-08-03")
+    conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=12")
+    for cusip, ticker, value in [
+        ("AAA000000", "AAA", 6_000_000),
+        ("BBB000000", "BBB", 10_000_000),
+        ("CCC000000", "CCC", 4_000_000),
+    ]:
+        _add_holding(conn, 12, cusip, ticker, value, "2024-08-03T12:00:00Z")
+    conn.commit()
+    selected = select_new_buys(conn, 1, date(2024, 8, 3), date(2024, 8, 1))
+    assert [(r["resolved_ticker"], r["value_usd"]) for r in selected] == [("CCC", 4_000_000)]

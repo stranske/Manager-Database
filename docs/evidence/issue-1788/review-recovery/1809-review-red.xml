@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.141" timestamp="2026-10-17T03:14:41.832497-05:00" hostname="server.trs.private"><testcase classname="tests.test_backtest_flow" name="test_older_period_amendment_does_not_retrade_persisted_current_signal" time="0.041"><failure message="AssertionError: assert [('BBB', '202...'2024-08-03')] == [('BBB', '2024-08-02')]&#10;  &#10;  Left contains one more item: ('BBB', '2024-08-03')&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4636/test_older_period_amendment_do0')
+
+    def test_older_period_amendment_does_not_retrade_persisted_current_signal(tmp_path):
+        conn = _two_quarter_fixture(tmp_path)
+        _add_filing(conn, 12, "2024-03-31", "2024-08-02")
+        conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=12")
+        _add_holding(conn, 12, "AAA000000", "AAA", 6_000_000, "2024-08-02T12:00:00Z")
+        conn.commit()
+        report = run_backtest(
+            conn, 1, date(2024, 1, 1), date(2024, 12, 31),
+            price_adapter=_adapter(conn), entry_lag_days=1, holding_period_days=91,
+        )
+        rows = conn.execute(
+            "SELECT ticker, entry_date FROM backtest_results WHERE run_id=? AND ticker=? ORDER BY entry_date",
+            (report.run_id, "BBB"),
+        ).fetchall()
+&gt;       assert [(r["ticker"], r["entry_date"]) for r in rows] == [("BBB", "2024-08-02")]
+E       AssertionError: assert [('BBB', '202...'2024-08-03')] == [('BBB', '2024-08-02')]
+E         
+E         Left contains one more item: ('BBB', '2024-08-03')
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:524: AssertionError</failure></testcase><testcase classname="tests.test_backtest_flow" name="test_current_period_amendment_selects_only_newly_disclosed_security" time="0.004"><failure message="AssertionError: assert [('BBB', 1000...', 4000000.0)] == [('CCC', 4000000)]&#10;  &#10;  At index 0 diff: ('BBB', 10000000.0) != ('CCC', 4000000)&#10;  Left contains one more item: ('CCC', 4000000.0)&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4636/test_current_period_amendment_0')
+
+    def test_current_period_amendment_selects_only_newly_disclosed_security(tmp_path):
+        conn = _two_quarter_fixture(tmp_path)
+        _add_filing(conn, 12, "2024-06-30", "2024-08-03")
+        conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=12")
+        for cusip, ticker, value in [("AAA000000", "AAA", 6_000_000),
+                                     ("BBB000000", "BBB", 10_000_000),
+                                     ("CCC000000", "CCC", 4_000_000)]:
+            _add_holding(conn, 12, cusip, ticker, value, "2024-08-03T12:00:00Z")
+        conn.commit()
+        selected = select_new_buys(conn, 1, date(2024, 8, 3), date(2024, 8, 1))
+&gt;       assert [(r["resolved_ticker"], r["value_usd"]) for r in selected] == [("CCC", 4_000_000)]
+E       AssertionError: assert [('BBB', 1000...', 4000000.0)] == [('CCC', 4000000)]
+E         
+E         At index 0 diff: ('BBB', 10000000.0) != ('CCC', 4000000)
+E         Left contains one more item: ('CCC', 4000000.0)
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:540: AssertionError</failure></testcase></testsuite></testsuites>
