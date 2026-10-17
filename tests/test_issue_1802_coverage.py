@@ -304,6 +304,7 @@ def test_ingest_helpers_cover_authority_hashes_and_canonical_holdings(monkeypatc
             event_time="2026-01-01",
             period_expr="filed_date",
             filing_columns={"filing_id", "filed_date", "type"},
+            incoming_filing_id=2,
         )
         == 2
     )
