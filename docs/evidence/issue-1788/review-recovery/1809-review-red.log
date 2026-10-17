@@ -1,0 +1,104 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_older_period_amendment_does_not_retrade_persisted_current_signal _____
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4636/test_older_period_amendment_do0')
+
+    def test_older_period_amendment_does_not_retrade_persisted_current_signal(tmp_path):
+        conn = _two_quarter_fixture(tmp_path)
+        _add_filing(conn, 12, "2024-03-31", "2024-08-02")
+        conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=12")
+        _add_holding(conn, 12, "AAA000000", "AAA", 6_000_000, "2024-08-02T12:00:00Z")
+        conn.commit()
+        report = run_backtest(
+            conn, 1, date(2024, 1, 1), date(2024, 12, 31),
+            price_adapter=_adapter(conn), entry_lag_days=1, holding_period_days=91,
+        )
+        rows = conn.execute(
+            "SELECT ticker, entry_date FROM backtest_results WHERE run_id=? AND ticker=? ORDER BY entry_date",
+            (report.run_id, "BBB"),
+        ).fetchall()
+>       assert [(r["ticker"], r["entry_date"]) for r in rows] == [("BBB", "2024-08-02")]
+E       AssertionError: assert [('BBB', '202...'2024-08-03')] == [('BBB', '2024-08-02')]
+E         
+E         Left contains one more item: ('BBB', '2024-08-03')
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:524: AssertionError
+_____ test_current_period_amendment_selects_only_newly_disclosed_security ______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4636/test_current_period_amendment_0')
+
+    def test_current_period_amendment_selects_only_newly_disclosed_security(tmp_path):
+        conn = _two_quarter_fixture(tmp_path)
+        _add_filing(conn, 12, "2024-06-30", "2024-08-03")
+        conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=12")
+        for cusip, ticker, value in [("AAA000000", "AAA", 6_000_000),
+                                     ("BBB000000", "BBB", 10_000_000),
+                                     ("CCC000000", "CCC", 4_000_000)]:
+            _add_holding(conn, 12, cusip, ticker, value, "2024-08-03T12:00:00Z")
+        conn.commit()
+        selected = select_new_buys(conn, 1, date(2024, 8, 3), date(2024, 8, 1))
+>       assert [(r["resolved_ticker"], r["value_usd"]) for r in selected] == [("CCC", 4_000_000)]
+E       AssertionError: assert [('BBB', 1000...', 4000000.0)] == [('CCC', 4000000)]
+E         
+E         At index 0 diff: ('BBB', 10000000.0) != ('CCC', 4000000)
+E         Left contains one more item: ('CCC', 4000000.0)
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:540: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1501
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-1809-recovery-0810/api/chat.py:1501: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1801
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-1809-recovery-0810/api/chat.py:1801: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1808
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-1809-recovery-0810/api/chat.py:1808: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_backtest_flow.py::test_older_period_amendment_does_not_retrade_persisted_current_signal
+FAILED tests/test_backtest_flow.py::test_current_period_amendment_selects_only_newly_disclosed_security

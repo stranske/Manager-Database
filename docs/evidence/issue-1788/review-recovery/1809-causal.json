@@ -1,0 +1,17 @@
+{
+  "source": "etl/backtest_flow.py",
+  "old_sha256": "7e9cfcbb2295e4504c5f02e1b71dd69e1bb583cdd8883834eebb8bbcc6d4e24c",
+  "fixed_sha256": "538b4ab8399cdb16feb28a5aaa5339299e1a4af216174545c07e4403108f1c4a",
+  "restored_sha256": "538b4ab8399cdb16feb28a5aaa5339299e1a4af216174545c07e4403108f1c4a",
+  "red_exit": 1,
+  "restored_exit": 0,
+  "command": [
+    "/opt/anaconda3/bin/python3",
+    "-m",
+    "pytest",
+    "tests/test_backtest_flow.py",
+    "-k",
+    "older_period_amendment or current_period_amendment",
+    "-q"
+  ]
+}

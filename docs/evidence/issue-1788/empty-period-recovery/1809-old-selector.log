@@ -1,0 +1,98 @@
+FF.F.                                                                    [100%]
+=================================== FAILURES ===================================
+______ test_empty_visible_period_preserves_reentry_and_persisted_returns _______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4652/test_empty_visible_period_pres0')
+
+    def test_empty_visible_period_preserves_reentry_and_persisted_returns(tmp_path):
+        conn = _three_quarter_reentry_fixture(tmp_path)
+        conn.execute("DELETE FROM holdings WHERE filing_id=11")
+        conn.commit()
+        selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+>       assert [row["resolved_ticker"] for row in selected] == ["AAA"]
+E       AssertionError: assert [] == ['AAA']
+E         
+E         Right contains one more item: 'AAA'
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:555: AssertionError
+__________ test_latest_visible_empty_period_does_not_buy_old_holdings __________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4652/test_latest_visible_empty_peri0')
+
+    def test_latest_visible_empty_period_does_not_buy_old_holdings(tmp_path):
+        conn = _three_quarter_reentry_fixture(tmp_path)
+        conn.execute("DELETE FROM holdings WHERE filing_id=12")
+        conn.commit()
+>       assert select_new_buys(conn, 1, date(2024, 11, 1), None) == []
+E       AssertionError: assert [{'_reporting..._id': 2, ...}] == []
+E         
+E         Left contains one more item: {'_reporting_period': '2024-06-30', 'cusip': 'BBB000000', 'filing_id': 11, 'holding_id': 2, ...}
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:583: AssertionError
+____________ test_empty_amendment_replaces_original_period_holdings ____________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4652/test_empty_amendment_replaces_0')
+
+    def test_empty_amendment_replaces_original_period_holdings(tmp_path):
+        conn = _three_quarter_reentry_fixture(tmp_path)
+        _add_filing(conn, 13, "2024-09-30", "2024-11-02")
+        conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=13")
+        conn.commit()
+>       assert select_new_buys(conn, 1, date(2024, 11, 2), None) == []
+E       AssertionError: assert [{'_reporting..._id': 3, ...}] == []
+E         
+E         Left contains one more item: {'_reporting_period': '2024-09-30', 'cusip': 'AAA000000', 'filing_id': 12, 'holding_id': 3, ...}
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:599: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1517
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-1809-recovery-0810/api/chat.py:1517: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../Library/CloudStorage/Dropbox/Learning/Code/Manager-Database/.venv/lib/python3.12/site-packages/fastapi/applications.py:4573
+../../../../../Library/CloudStorage/Dropbox/Learning/Code/Manager-Database/.venv/lib/python3.12/site-packages/fastapi/applications.py:4573
+../../../../../Library/CloudStorage/Dropbox/Learning/Code/Manager-Database/.venv/lib/python3.12/site-packages/fastapi/applications.py:4573
+  /Users/teacher/Library/CloudStorage/Dropbox/Learning/Code/Manager-Database/.venv/lib/python3.12/site-packages/fastapi/applications.py:4573: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+api/chat.py:1817
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-1809-recovery-0810/api/chat.py:1817: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1824
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/manager-1809-recovery-0810/api/chat.py:1824: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_backtest_flow.py::test_empty_visible_period_preserves_reentry_and_persisted_returns
+FAILED tests/test_backtest_flow.py::test_latest_visible_empty_period_does_not_buy_old_holdings
+FAILED tests/test_backtest_flow.py::test_empty_amendment_replaces_original_period_holdings
+3 failed, 2 passed, 19 deselected, 7 warnings in 0.27s

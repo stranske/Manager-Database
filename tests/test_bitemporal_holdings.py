@@ -506,6 +506,19 @@ def test_original_replay_after_amendment_postgres():
         assert int(apple[0]["filing_id"]) == 11
 
 
+def test_backtest_late_amendment_invisible_at_adjacent_period_cutoff(tmp_path):
+    from datetime import date
+
+    from etl.backtest_flow import select_new_buys
+    from tests.test_backtest_flow import _add_holding, _three_quarter_reentry_fixture
+
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    _add_holding(conn, 12, "FUTURE000", "FUTURE", 99_000_000, "2024-12-01T12:00:00Z")
+    conn.commit()
+    selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+    assert [r["resolved_ticker"] for r in selected] == ["AAA"]
+
+
 def test_superseded_correction_retains_stored_history():
     from datetime import datetime
 

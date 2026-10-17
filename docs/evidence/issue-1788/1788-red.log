@@ -1,0 +1,18 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_select_new_buys_reenters_after_intervening_exit _____________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4617/test_select_new_buys_reenters_0')
+
+    def test_select_new_buys_reenters_after_intervening_exit(tmp_path):
+        conn = _three_quarter_reentry_fixture(tmp_path)
+        selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+>       assert [(r["resolved_ticker"], r["value_usd"]) for r in selected] == [("AAA", 3_000_000)]
+E       AssertionError: assert [] == [('AAA', 3000000)]
+E         
+E         Right contains one more item: ('AAA', 3000000)
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:469: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_backtest_flow.py::test_select_new_buys_reenters_after_intervening_exit
