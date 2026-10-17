@@ -1,0 +1,15 @@
+{
+  "red_exit": 1,
+  "restored_exit": 0,
+  "restored_sha256": "ed6de61f8112acbea538bc15d9b263c8e872ad2603eddec3f67157c5bfea5781",
+  "byte_identical_restoration": true,
+  "command": [
+    ".venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_daily_diff.py::test_large_delta_dispatch_commits_before_send_and_suppresses_replay[none]",
+    "-q",
+    "--disable-warnings"
+  ],
+  "provenance_note": "Exact local executable path retained in automation receipts."
+}

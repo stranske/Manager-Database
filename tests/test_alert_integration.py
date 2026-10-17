@@ -254,3 +254,23 @@ def test_insert_pending_alert_dedupes_edgar_accession_without_filing_id(tmp_path
         assert count == (1,)
     finally:
         conn.close()
+
+
+def test_persistence_only_does_not_report_unattempted_external_delivery(tmp_path):
+    conn = _setup_db(tmp_path / "unattempted.db")
+    try:
+        rule_id = _insert_rule(conn)
+        conn.execute(
+            "UPDATE alert_rules SET channels=? WHERE rule_id=?",
+            ('["streamlit","email","slack"]', rule_id),
+        )
+        event = build_new_filing_event(filing_id=1785, manager_id=1, filing_type="13F-HR")
+        alert_id = evaluate_and_record_alerts(conn, event)[0]
+        assert (
+            conn.execute(
+                "SELECT delivered_channels FROM alert_history WHERE alert_id=?", (alert_id,)
+            ).fetchone()[0]
+            == '["streamlit"]'
+        )
+    finally:
+        conn.close()
