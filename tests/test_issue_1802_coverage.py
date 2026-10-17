@@ -96,7 +96,8 @@ def test_digest_delivery_covers_sendgrid_statuses_smtp_and_flow_artifact(monkeyp
     result = asyncio.run(
         digest_flow.digest_flow.fn(output_path=str(output), dry_run=True, now=digest.generated_at)
     )
-    assert output.read_text() == result["rendered"]
+    assert output.read_text() == digest_flow.render_digest_plain_text(digest)
+    assert result["rendered"] == output.read_text()
     assert result["delivery"]["skipped"] is True
 
 
@@ -164,6 +165,7 @@ def test_daily_report_main_covers_populated_secondary_tabs(monkeypatch):
             return None
 
     markdown = []
+    dataframes = []
     monkeypatch.setattr(daily_report, "require_login", lambda: True)
     monkeypatch.setattr(daily_report, "latest_report_date", lambda: dt.date(2026, 1, 2))
     monkeypatch.setattr(
@@ -245,11 +247,23 @@ def test_daily_report_main_covers_populated_secondary_tabs(monkeypatch):
     monkeypatch.setattr(
         daily_report.st, "markdown", lambda value, **_kwargs: markdown.append(value)
     )
-    monkeypatch.setattr(daily_report.st, "dataframe", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        daily_report.st,
+        "dataframe",
+        lambda value, *_args, **_kwargs: dataframes.append(value),
+    )
     monkeypatch.setattr(daily_report.st, "download_button", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(daily_report.st, "caption", lambda *_args, **_kwargs: None)
     daily_report.main()
     assert any("Linked Headlines" in value for value in markdown)
+    assert any("Headline" in value for value in markdown)
+    assert any("Initial Stake" in value and "Unknown" in value for value in markdown)
+    assert any(
+        isinstance(value, pd.DataFrame)
+        and value["CUSIP"].eq("ABC").any()
+        and value["Issuer"].eq("Issuer").any()
+        for value in dataframes
+    )
 
 
 def test_ingest_helpers_cover_authority_hashes_and_canonical_holdings(monkeypatch):
