@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.110" timestamp="2026-10-17T02:14:50.593982-05:00" hostname="server.trs.private"><testcase classname="tests.test_diff_holdings" name="test_correction_current_and_historical_diff" time="0.028"><failure message="KeyError: 'REMOVE'">def test_correction_current_and_historical_diff():
+        from datetime import datetime
+    
+        from tests.temporal_holdings_fixture import correction_db
+    
+        with correction_db() as conn:
+            current = {row["cusip"]: row for row in diff_holdings(1, conn).deltas}
+            assert current["KEEP"]["shares_curr"] == 2000
+&gt;           assert current["REMOVE"]["delta_type"] == "EXIT"
+                   ^^^^^^^^^^^^^^^^^
+E           KeyError: 'REMOVE'
+
+tests/test_diff_holdings.py:547: KeyError</failure></testcase></testsuite></testsuites>

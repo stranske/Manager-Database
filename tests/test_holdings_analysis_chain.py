@@ -50,8 +50,11 @@ class _MockDB:
     def cursor(self) -> _MockCursor:
         return self._cursor
 
-    def execute(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
+    def execute(self, *_args: Any, **_kwargs: Any):
+        # Model a legacy schema without bitemporal columns.
+        from types import SimpleNamespace
+
+        return SimpleNamespace(fetchall=lambda: [])
 
     def commit(self) -> None:
         return None
@@ -1092,3 +1095,27 @@ def test_run_logs_usage_to_api_usage_table() -> None:
     assert row["status"] == 1
     assert row["bytes"] > 0
     assert row["latency_ms"] >= 0
+
+
+def test_correction_superseded_positions_are_not_model_context():
+    from datetime import datetime
+
+    from tests.temporal_holdings_fixture import correction_db
+
+    with correction_db() as conn:
+        chain = _make_chain(conn, _StructuredLLM(structured_result={}))
+        current = chain._build_data_context(
+            manager_ids=[1], date_range=(date(2026, 3, 1), date(2026, 4, 30))
+        )
+        assert "2,000" in current
+        assert "1,000" not in current
+        assert "Removed" not in current
+        past = chain._build_data_context(
+            manager_ids=[1],
+            date_range=(date(2026, 3, 1), date(2026, 4, 30)),
+            as_of=datetime.fromisoformat("2026-04-20T00:00:00+00:00"),
+        )
+        assert "1,000" in past
+        assert "2,000" not in past
+        assert "Removed" in past
+        assert conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0] == 5

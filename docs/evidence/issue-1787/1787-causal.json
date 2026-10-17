@@ -1,0 +1,14 @@
+{
+  "red_exit": 1,
+  "restored_exit": 0,
+  "restored_sha256": "5c985ccc993c7cd0360b501c4911083af31445731a18a2ae0bb43c7941dc768c",
+  "byte_identical_restoration": true,
+  "command": [
+    "/Users/teacher/Library/CloudStorage/Dropbox/Learning/Code/Manager-Database/.venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_diff_holdings.py::test_correction_current_and_historical_diff",
+    "-q",
+    "--disable-warnings"
+  ]
+}

@@ -12,6 +12,7 @@ from adapters.base import get_placeholder, is_sqlite, resolve_manager_id_column,
 from chains.evidence import Evidence
 from chains.utils import acquire_connection, guard_context_values
 from embeddings import search_documents
+from etl.point_in_time import holdings_visibility_sql
 from llm.injection import guard_input
 from tools.llm_provider import (
     build_langsmith_metadata,
@@ -241,6 +242,9 @@ class RAGSearchChain:
                 if date_range is not None:
                     holding_where += f" AND f.filed_date BETWEEN {ph} AND {ph}"
                     holding_params.extend(date_range)
+                visible, visible_params = holdings_visibility_sql(conn)
+                holding_where += f" AND {visible}"
+                holding_params.extend(visible_params)
                 holding_rows = conn.execute(
                     f"SELECT h.cusip, h.name_of_issuer, h.shares, h.value_usd, f.manager_id "
                     "FROM holdings h JOIN filings f ON f.filing_id = h.filing_id "
