@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="1.882" timestamp="2026-10-17T02:44:01.451105-05:00" hostname="server.trs.private"><testcase classname="tests.test_etl_failure_postgres" name="test_etl_quality_failure_dispatch_postgres_replay" time="0.309" /></testsuite></testsuites>

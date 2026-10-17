@@ -155,6 +155,68 @@ def _setup_db_with_fk(tmp_path: Path) -> str:
     return str(db_path)
 
 
+def test_etl_failure_dispatch_uses_real_entrypoint_and_serialized_replay(tmp_path, monkeypatch):
+    import json
+
+    import alerts.integration as integration
+    from alerts.channels import DeliveryResult, NotificationChannel
+    from etl.evaluation_flow import fire_quality_alerts
+
+    db_path = _setup_db(tmp_path)
+    conn = sqlite3.connect(db_path)
+    ensure_alert_tables(conn)
+    conn.execute(
+        "INSERT INTO alert_rules(name,event_type,condition_json,channels,enabled) VALUES (?,?,?,?,?)",
+        ("ETL failure", "etl_failure", "{}", '["email","slack"]', 1),
+    )
+    conn.execute("CREATE TABLE evaluation_observations(id INTEGER PRIMARY KEY)")
+    conn.commit()
+    conn.execute("INSERT INTO evaluation_observations VALUES (1)")
+    sends = []
+
+    class Channel(NotificationChannel):
+        def __init__(self, name):
+            self.channel_name = name
+
+        async def deliver(self, alert):
+            with sqlite3.connect(db_path) as observer:
+                assert (
+                    observer.execute("SELECT COUNT(*) FROM evaluation_observations").fetchone()[0]
+                    == 1
+                )
+                assert (
+                    observer.execute(
+                        "SELECT COUNT(*) FROM alert_delivery_attempts WHERE channel=?",
+                        (self.channel_name,),
+                    ).fetchone()[0]
+                    >= 1
+                )
+            sends.append(self.channel_name)
+            return DeliveryResult(channel=self.channel_name, success=True)
+
+    monkeypatch.setattr(
+        integration,
+        "build_configured_channels",
+        lambda: {name: Channel(name) for name in ["email", "slack"]},
+    )
+    summary = {"failures": {"sql_safety": 0.0}}
+    try:
+        assert fire_quality_alerts.fn(summary, db_conn=conn) == 1
+        replay = json.loads(json.dumps(summary))
+        assert replay["alert_observed_at"] == summary["alert_observed_at"]
+        assert fire_quality_alerts.fn(replay, db_conn=conn) == 1
+        assert sends == ["email", "slack"]
+        row = conn.execute(
+            "SELECT delivered_channels FROM alert_history WHERE event_type='etl_failure'"
+        ).fetchone()
+        assert json.loads(row[0]) == ["email", "slack"]
+        assert conn.execute("SELECT COUNT(*) FROM alert_delivery_attempts").fetchone()[0] == 2
+        assert fire_quality_alerts.fn({"failures": {"sql_safety": 0.0}}, db_conn=conn) == 1
+        assert sends == ["email", "slack", "email", "slack"]
+    finally:
+        conn.close()
+
+
 def test_compute_manager_diffs_persists_all_four_delta_types_with_values(tmp_path):
     """compute_manager_diffs writes all 4 delta types with correct prev/curr values."""
     db_path = _setup_db(tmp_path)
