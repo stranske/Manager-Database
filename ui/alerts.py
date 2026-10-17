@@ -12,9 +12,21 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from alerts import ALERT_CHANNELS, ALERT_EVENT_TYPES
+from alerts import ALERT_CHANNELS, ALERT_EVENT_TYPES, CREATABLE_EVENT_TYPES
+from alerts.models import UNSUPPORTED_EVENT_TYPES
 
 from . import require_login
+
+
+def _is_unsupported_event_type(event_type: str) -> bool:
+    return event_type in UNSUPPORTED_EVENT_TYPES
+
+
+def _unsupported_rule_notice(event_type: str) -> str:
+    return (
+        f"Unsupported / inactive: `{event_type}` has no detector and cannot fire. "
+        "This rule is retained for history; no new rules can be created for it."
+    )
 
 
 def _api_base_url() -> str:
@@ -126,6 +138,9 @@ def _clear_alert_caches() -> None:
 
 def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
     defaults = defaults or {}
+    if _is_unsupported_event_type(event_type):
+        st.caption(_unsupported_rule_notice(event_type))
+        return {}
     if event_type == "activism_event":
         subtype_options = [
             "any",
@@ -200,8 +215,8 @@ def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -
         )
         source = st.selectbox("source", source_options, index=source_index)
         return {"type": filing_type, "source": source}
-    # Every other ALERT_EVENT_TYPES member (news_spike, crowded_trade_change,
-    # contrarian_signal, missing_filing, etl_failure) falls through to here. This used to
+    # Every other creatable event type (news_spike, crowded_trade_change,
+    # contrarian_signal, etl_failure) falls through to here. This used to
     # render a "field"/"changed_to" filter and return it unconditionally -- but no event
     # payload for any of those types has ever carried a "field" or "changed_to" key (see
     # alerts/engine.py::_evaluate_condition, which falls back to an exact payload.get(key)
@@ -231,7 +246,7 @@ def _render_rule_builder() -> None:
 
     with st.form("create_alert_rule"):
         name = st.text_input("name", placeholder="Large Buy Delta")
-        event_type = str(st.selectbox("event_type", ALERT_EVENT_TYPES, index=0))
+        event_type = str(st.selectbox("event_type", CREATABLE_EVENT_TYPES, index=0))
         st.caption("Condition")
         condition_json = _condition_inputs(event_type)
         channels = st.multiselect("channels", ALERT_CHANNELS, default=["email"])
@@ -240,24 +255,27 @@ def _render_rule_builder() -> None:
         submitted = st.form_submit_button("Create Rule")
 
     if submitted:
-        manager_id: int | None = None
-        if manager_choice != "All managers":
-            manager_id = int(manager_choice.rsplit("#", 1)[-1].rstrip(")"))
-        body = {
-            "name": name,
-            "event_type": event_type,
-            "condition_json": condition_json,
-            "channels": channels,
-            "enabled": enabled,
-            "manager_id": manager_id,
-        }
-        ok, payload = _api_request("POST", "/api/alerts/rules", json_body=body)
-        if ok:
-            st.success(f"Created rule #{payload['rule_id']}")
-            _clear_alert_caches()
-            st.rerun()
+        if _is_unsupported_event_type(event_type):
+            st.error(_unsupported_rule_notice(event_type))
         else:
-            st.error(f"Failed to create rule: {payload}")
+            manager_id: int | None = None
+            if manager_choice != "All managers":
+                manager_id = int(manager_choice.rsplit("#", 1)[-1].rstrip(")"))
+            body = {
+                "name": name,
+                "event_type": event_type,
+                "condition_json": condition_json,
+                "channels": channels,
+                "enabled": enabled,
+                "manager_id": manager_id,
+            }
+            ok, payload = _api_request("POST", "/api/alerts/rules", json_body=body)
+            if ok:
+                st.success(f"Created rule #{payload['rule_id']}")
+                _clear_alert_caches()
+                st.rerun()
+            else:
+                st.error(f"Failed to create rule: {payload}")
 
     rules = _load_rules()
     if not rules:
@@ -267,8 +285,12 @@ def _render_rule_builder() -> None:
     st.markdown("#### Existing Rules")
     for rule in rules:
         cols = st.columns([4, 2, 2, 2])
+        status_line = ""
+        if _is_unsupported_event_type(str(rule["event_type"])):
+            status_line = f"  \n**{_unsupported_rule_notice(str(rule['event_type']))}**"
         cols[0].markdown(
-            f"**{rule['name']}**  \n`{rule['event_type']}`  \nchannels: `{', '.join(rule['channels'])}`"
+            f"**{rule['name']}** (#{rule['rule_id']})  \n`{rule['event_type']}`  \n"
+            f"channels: `{', '.join(rule['channels'])}`{status_line}"
         )
 
         enabled_target = cols[1].toggle(
