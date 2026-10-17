@@ -257,7 +257,7 @@ def test_daily_report_main_covers_populated_secondary_tabs(monkeypatch):
     daily_report.main()
     assert any("Linked Headlines" in value for value in markdown)
     assert any("Headline" in value for value in markdown)
-    assert any("Initial Stake" in value and "Unknown" in value for value in markdown)
+    assert any("initial_stake" in value and "Unknown" in value for value in markdown)
     assert any(
         isinstance(value, pd.DataFrame)
         and value["CUSIP"].eq("ABC").any()
