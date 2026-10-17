@@ -19,6 +19,20 @@ ALERT_EVENT_TYPES = (
     "etl_failure",
     "activism_event",
 )
+# Compatible retirement of ``missing_filing``: the name stays in
+# ``ALERT_EVENT_TYPES`` (and in the database checks that mirror it) so stored
+# rules, stored events, and alert-history rows written before retirement keep
+# loading and filtering. No code under ``etl/``, ``api/``, or ``services/``
+# constructs an ``AlertEvent`` with this type, and there is no missing-filing
+# detector, so a newly created rule for it could never fire. New rule creation
+# therefore rejects it (see ``AlertRuleCreate``); existing rules are retained
+# unchanged and surfaced by the UI as unsupported/inactive. This retirement
+# makes no filing-deadline assumption: it does not infer when a filing was
+# due, only that no detector emits the event.
+UNSUPPORTED_EVENT_TYPES = ("missing_filing",)
+CREATABLE_EVENT_TYPES = tuple(
+    event_type for event_type in ALERT_EVENT_TYPES if event_type not in UNSUPPORTED_EVENT_TYPES
+)
 ALERT_CHANNELS = ("email", "slack", "streamlit")
 _CHANNEL_ALIASES = {
     "in_app": "streamlit",
@@ -50,6 +64,22 @@ def normalize_event_type(value: str) -> str:
     normalized = value.strip()
     if normalized not in ALERT_EVENT_TYPES:
         raise ValueError(f"Unsupported event_type: {normalized}")
+    return normalized
+
+
+def is_supported_event_type(value: str) -> bool:
+    """Whether new rules may be created for ``value`` (historical names may not be)."""
+    return value.strip() not in UNSUPPORTED_EVENT_TYPES
+
+
+def validate_creatable_event_type(value: str) -> str:
+    """Normalize ``value`` and reject retired types that have no detector."""
+    normalized = normalize_event_type(value)
+    if normalized in UNSUPPORTED_EVENT_TYPES:
+        raise ValueError(
+            f"Unsupported event_type: {normalized} is unsupported and cannot be used "
+            "for new alert rules because no detector emits it"
+        )
     return normalized
 
 
@@ -128,7 +158,17 @@ class AlertRuleBase(BaseModel):
 
 
 class AlertRuleCreate(AlertRuleBase):
-    """Payload for creating an alert rule."""
+    """Payload for creating an alert rule.
+
+    Only creatable event types are accepted here. The stored ``AlertRule``
+    model keeps accepting every name in ``ALERT_EVENT_TYPES`` so historical
+    ``missing_filing`` rules remain loadable after retirement.
+    """
+
+    @field_validator("event_type")
+    @classmethod
+    def _validate_creatable_event_type(cls, value: str) -> str:
+        return validate_creatable_event_type(value)
 
     @field_validator("condition_json")
     @classmethod

@@ -21,18 +21,24 @@ from alerts.integration import (
 from alerts.models import (
     ALERT_CHANNELS,
     ALERT_EVENT_TYPES,
+    CREATABLE_EVENT_TYPES,
+    UNSUPPORTED_EVENT_TYPES,
     AlertEvent,
     AlertRule,
     AlertRuleCreate,
     AlertRuleUpdate,
     FiredAlert,
+    is_supported_event_type,
     normalize_channels,
     normalize_event_type,
+    validate_creatable_event_type,
 )
 
 __all__ = [
     "ALERT_CHANNELS",
     "ALERT_EVENT_TYPES",
+    "CREATABLE_EVENT_TYPES",
+    "UNSUPPORTED_EVENT_TYPES",
     "AlertEngine",
     "AlertDispatcher",
     "AlertEvent",
@@ -52,6 +58,8 @@ __all__ = [
     "evaluate_and_record_new_filing_alerts",
     "fire_alerts_for_event",
     "fire_alerts_for_event_sync",
+    "is_supported_event_type",
     "normalize_channels",
     "normalize_event_type",
+    "validate_creatable_event_type",
 ]

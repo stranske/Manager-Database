@@ -11,7 +11,13 @@ import streamlit as st
 
 from alerts.engine import AlertEngine
 from alerts.integration import build_new_filing_event
-from alerts.models import AlertEvent
+from alerts.models import (
+    ALERT_EVENT_TYPES,
+    CREATABLE_EVENT_TYPES,
+    AlertEvent,
+    AlertRule,
+    AlertRuleCreate,
+)
 from ui import alerts as alerts_ui
 
 
@@ -780,3 +786,269 @@ def test_condition_inputs_empty_condition_actually_matches_a_real_etl_failure_ev
     )
 
     assert engine._evaluate_condition(condition, event) is True
+
+
+# ---------------------------------------------------------------------------
+# missing_filing compatible retirement: no new rules, old records retained
+# ---------------------------------------------------------------------------
+
+
+class _BuilderColumn:
+    def __init__(self, parent: _RuleBuilderStreamlit):
+        self._parent = parent
+
+    def markdown(self, text: str) -> None:
+        self._parent.markdowns.append(text)
+
+    def toggle(self, label: str, value: bool = False, key=None, label_visibility=None):
+        return value
+
+    def button(self, label: str, key=None):
+        return False
+
+    def expander(self, label: str, expanded: bool = False):
+        return _BuilderForm()
+
+
+class _BuilderForm:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return None
+
+
+class _RuleBuilderStreamlit:
+    def __init__(self, *, event_type: str = "new_filing", submitted: bool = False):
+        self.event_type = event_type
+        self.submitted = submitted
+        self.selectbox_calls: list[tuple[str, tuple, int]] = []
+        self.captions: list[str] = []
+        self.errors: list[str] = []
+        self.successes: list[str] = []
+        self.infos: list[str] = []
+        self.markdowns: list[str] = []
+        self.codes: list[str] = []
+
+    def subheader(self, text: str) -> None:
+        pass
+
+    def form(self, name: str):
+        return _BuilderForm()
+
+    def text_input(self, label: str, placeholder=None, value: str = "", key=None):
+        return "Test Rule" if label == "name" else value
+
+    def selectbox(self, label: str, options, index: int = 0, key=None):
+        self.selectbox_calls.append((label, tuple(options), index))
+        if label == "event_type":
+            return self.event_type
+        return options[index]
+
+    def caption(self, text: str) -> None:
+        self.captions.append(text)
+
+    def multiselect(self, label: str, options, default=None, key=None):
+        return list(default or [])
+
+    def checkbox(self, label: str, value: bool = False, key=None):
+        return value
+
+    def form_submit_button(self, label: str):
+        return self.submitted
+
+    def columns(self, spec):
+        count = spec if isinstance(spec, int) else len(spec)
+        return [_BuilderColumn(self) for _ in range(count)]
+
+    def error(self, message: str) -> None:
+        self.errors.append(message)
+
+    def success(self, message: str) -> None:
+        self.successes.append(message)
+
+    def info(self, message: str) -> None:
+        self.infos.append(message)
+
+    def markdown(self, text: str) -> None:
+        self.markdowns.append(text)
+
+    def code(self, text: str) -> None:
+        self.codes.append(text)
+
+    def rerun(self) -> None:
+        raise _RerunTriggered()
+
+
+def _legacy_missing_filing_rule() -> dict[str, Any]:
+    return {
+        "rule_id": 42,
+        "name": "Legacy Missing Filing",
+        "event_type": "missing_filing",
+        "condition_json": {"manager_id": 7},
+        "channels": ["email"],
+        "enabled": True,
+    }
+
+
+def test_unsupported_rule_regression_missing_filing_creation_is_rejected(monkeypatch):
+    """New missing_filing rules are refused, not created as apparently active rules."""
+    assert "missing_filing" in ALERT_EVENT_TYPES
+    assert "missing_filing" not in CREATABLE_EVENT_TYPES
+    # pydantic's ValidationError is a ValueError; avoid a direct pydantic
+    # test import, which would require declaring it as a test dependency.
+    with pytest.raises(ValueError, match="missing_filing is unsupported"):
+        AlertRuleCreate(name="New", event_type="missing_filing")
+
+    fake_st = _RuleBuilderStreamlit(event_type="missing_filing", submitted=True)
+    monkeypatch.setattr(alerts_ui, "st", fake_st)
+    monkeypatch.setattr(alerts_ui, "_load_managers", lambda: [])
+    monkeypatch.setattr(alerts_ui, "_load_rules", lambda *a, **k: [])
+    api_calls: list = []
+    monkeypatch.setattr(
+        alerts_ui, "_api_request", lambda *a, **k: api_calls.append((a, k)) or (True, {})
+    )
+
+    alerts_ui._render_rule_builder()
+
+    event_options = next(
+        opts for label, opts, _ in fake_st.selectbox_calls if label == "event_type"
+    )
+    assert "missing_filing" not in event_options
+    assert api_calls == []
+    assert fake_st.successes == []
+    assert any("Unsupported / inactive" in e and "missing_filing" in e for e in fake_st.errors)
+
+
+def test_missing_filing_creation_rejected_through_api_boundary(tmp_path, monkeypatch):
+    import asyncio
+    from typing import cast
+
+    from api.chat import app
+
+    async def _request(method: str, path: str, **kwargs):
+        await cast(Any, app.router).startup()
+        try:
+            transport = httpx.ASGITransport(app=cast(Any, app))
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://test", timeout=5.0
+            ) as client:
+                return await client.request(method, path, **kwargs)
+        finally:
+            await cast(Any, app.router).shutdown()
+
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "alerts.db"))
+    payload = {
+        "name": "New Missing",
+        "event_type": "missing_filing",
+        "condition_json": {},
+        "channels": ["email"],
+        "enabled": True,
+        "manager_id": None,
+    }
+    response = asyncio.run(_request("POST", "/api/alerts/rules", json=payload))
+    assert response.status_code in (400, 422)
+    assert "missing_filing" in response.text
+    assert "unsupported" in response.text.lower()
+    assert asyncio.run(_request("GET", "/api/alerts/rules")).json() == []
+
+    payload["name"] = "New Filing"
+    payload["event_type"] = "new_filing"
+    created = asyncio.run(_request("POST", "/api/alerts/rules", json=payload))
+    assert created.status_code == 201
+    assert created.json()["event_type"] == "new_filing"
+
+
+def test_existing_missing_filing_rule_retained_and_shown_unsupported(monkeypatch):
+    from datetime import UTC, datetime
+
+    rule = _legacy_missing_filing_rule()
+    original = json.loads(json.dumps(rule))
+    stored = AlertRule(
+        rule_id=42,
+        name="Legacy Missing Filing",
+        event_type="missing_filing",
+        condition_json={"manager_id": 7},
+        channels=["email"],
+        enabled=True,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    assert stored.rule_id == 42
+    assert stored.condition_json == {"manager_id": 7}
+
+    fake_st = _RuleBuilderStreamlit(event_type="new_filing", submitted=False)
+    monkeypatch.setattr(alerts_ui, "st", fake_st)
+    monkeypatch.setattr(alerts_ui, "_load_managers", lambda: [])
+    monkeypatch.setattr(alerts_ui, "_load_rules", lambda *a, **k: [rule])
+    api_calls: list = []
+    monkeypatch.setattr(
+        alerts_ui, "_api_request", lambda *a, **k: api_calls.append((a, k)) or (True, {})
+    )
+
+    alerts_ui._render_rule_builder()
+
+    assert rule == original
+    assert api_calls == []
+    rendered = "\n".join(fake_st.markdowns)
+    assert "Legacy Missing Filing" in rendered
+    assert "#42" in rendered
+    assert "Unsupported / inactive" in rendered
+    assert "missing_filing" in rendered
+    assert '{"manager_id":7}' in fake_st.codes
+
+
+def test_missing_filing_history_rows_remain_visible(monkeypatch):
+    fake_st = _FakeStreamlit(
+        select_values={"event_type": "missing_filing", "acknowledged": "all"},
+        date_range=(date(2026, 3, 1), date(2026, 3, 2)),
+    )
+    monkeypatch.setattr(alerts_ui, "st", fake_st)
+    monkeypatch.setattr(
+        alerts_ui,
+        "_load_alerts",
+        lambda *_a, **_k: [
+            {
+                "alert_id": 5,
+                "rule_name": "Legacy Missing Filing",
+                "event_type": "missing_filing",
+                "payload_json": {},
+                "fired_at": "2026-03-02T12:00:00+00:00",
+                "acknowledged": True,
+            }
+        ],
+    )
+
+    alerts_ui._render_alert_inbox()
+
+    assert len(fake_st.dataframes) == 1
+    assert fake_st.dataframes[0][0].iloc[0]["event_type"] == "missing_filing"
+
+
+@pytest.mark.parametrize("event_type", list(CREATABLE_EVENT_TYPES))
+def test_supported_event_types_retain_creation(event_type):
+    rule = AlertRuleCreate(name="Ok", event_type=event_type)
+    assert rule.event_type == event_type
+
+
+def test_supported_new_filing_rule_creation_via_ui(monkeypatch):
+    fake_st = _RuleBuilderStreamlit(event_type="new_filing", submitted=True)
+    monkeypatch.setattr(alerts_ui, "st", fake_st)
+    monkeypatch.setattr(alerts_ui, "_load_managers", lambda: [])
+    monkeypatch.setattr(alerts_ui, "_load_rules", lambda *a, **k: [])
+    monkeypatch.setattr(alerts_ui, "_clear_alert_caches", lambda: None)
+    bodies: list = []
+    monkeypatch.setattr(
+        alerts_ui,
+        "_api_request",
+        lambda method, path, **k: bodies.append((method, path, k.get("json_body")))
+        or (True, {"rule_id": 9}),
+    )
+
+    with pytest.raises(_RerunTriggered):
+        alerts_ui._render_rule_builder()
+
+    assert bodies[0][0:2] == ("POST", "/api/alerts/rules")
+    assert bodies[0][2]["event_type"] == "new_filing"
+    assert fake_st.successes == ["Created rule #9"]
+    assert fake_st.errors == []
