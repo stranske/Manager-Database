@@ -27,6 +27,22 @@ erase those filings or previously committed claims. This does not add a worker
 that recovers a crash between the filing commit and alert creation; replaying the
 filing is still required to recover that gap.
 
+## ETL quality-failure observations
+
+`etl/evaluation_flow.py:fire_quality_alerts` uses the existing dispatcher for
+`etl_failure`. Evaluation producers stamp `alert_observed_at` in their returned
+summary before task dispatch. Retain that field when persisting/replaying a
+summary: its event timestamp plus unchanged failure/threshold payload reuses
+durable channel claims. A fresh evaluation summary has a new timestamp and is
+a distinct observation. Direct legacy calls stamp the supplied summary once;
+serialize that updated summary for a durable retry. The callback commits prior
+evaluation writes before delivery, and preserves its existing owned/borrowed
+connection cleanup contract.
+
+Large-delta delivery remains the separate source1785/PR1810 implementation and
+validation control. This ETL-failure change adds no channel or event type and
+does not alter durable claim semantics.
+
 ## Verification in this run
 
 - SQLite regression: four cases passed, covering a failed claim commit (no send),

@@ -166,7 +166,7 @@ def test_evaluation_flow_reports_failures_and_alerts(monkeypatch):
     monkeypatch.setattr(evaluation_flow, "connect_db", lambda: sqlite3.connect(":memory:"))
     monkeypatch.setattr(
         evaluation_flow,
-        "evaluate_and_record_alerts",
+        "fire_alerts_for_event_sync",
         lambda _conn, _event: [1],
     )
 
@@ -274,7 +274,11 @@ def test_run_evaluation_suite_cleans_up_only_owned_resources(monkeypatch, owned,
             evaluation_flow.run_evaluation_suite.fn(**kwargs)
         assert caught.value is error
     else:
-        assert evaluation_flow.run_evaluation_suite.fn(**kwargs) == {
+        actual = evaluation_flow.run_evaluation_suite.fn(**kwargs)
+        stamp = evaluation_flow.datetime.fromisoformat(actual["alert_observed_at"])
+        assert stamp.utcoffset().total_seconds() == 0
+        assert actual == {
+            "alert_observed_at": actual["alert_observed_at"],
             "datasets": {"filing_summary_accuracy": [0.75]},
             "metrics": {"filing_summary_accuracy": 0.75},
             "failures": {"filing_summary_accuracy": 0.75},
@@ -330,7 +334,7 @@ def test_fire_quality_alerts_does_not_connect_without_failures(monkeypatch):
     connect = Mock()
     record = Mock()
     monkeypatch.setattr(evaluation_flow, "connect_db", connect)
-    monkeypatch.setattr(evaluation_flow, "evaluate_and_record_alerts", record)
+    monkeypatch.setattr(evaluation_flow, "fire_alerts_for_event_sync", record)
     assert evaluation_flow.fire_quality_alerts.fn({"failures": {}}) == 0
     connect.assert_not_called()
     record.assert_not_called()
@@ -345,7 +349,7 @@ def test_fire_quality_alerts_records_payload_and_closes_owned_connection(monkeyp
     if fails:
         record.side_effect = error
     monkeypatch.setattr(evaluation_flow, "connect_db", lambda: conn)
-    monkeypatch.setattr(evaluation_flow, "evaluate_and_record_alerts", record)
+    monkeypatch.setattr(evaluation_flow, "fire_alerts_for_event_sync", record)
     kwargs = {} if owned else {"db_conn": conn}
     summary = {"failures": {"sql_safety": 0.0}}
     closes_before = conn.close.call_count

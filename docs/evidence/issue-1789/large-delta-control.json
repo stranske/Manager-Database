@@ -1,0 +1,12 @@
+{
+  "repository": "stranske/Manager-Database",
+  "source_issue": 1785,
+  "pr": "https://github.com/stranske/Manager-Database/pull/1810",
+  "control_head": "76f494aed7584a484e3295c92e16109ca25da31d",
+  "receipt_sha256": {
+    "1785-final-green.xml": "cd79501b85096b6bbbabd14e0c2d37d068104fc3a26bc60d5637fac4fa8bcb1c",
+    "1785-pg-fixed.xml": "ddd187b1a60e80dcc8ae27c2aac35fd2f0af27da21e5d3225672cc912d373937",
+    "1785-causal.json": "aa34df2166b7b6e784938642c7dfa434eced987a4cbcdc7eb9ae6f0c0d39a219"
+  },
+  "boundary": "Actual independent large-delta producer controls; original source acceptance still requires delivery of PR1810. This PR adds no duplicate large-delta implementation."
+}

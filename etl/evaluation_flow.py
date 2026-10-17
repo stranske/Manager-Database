@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,7 @@ from prefect import flow, task
 from prefect.schedules import Cron
 
 from adapters.base import connect_db, ensure_api_usage_schema, get_placeholder
-from alerts.integration import evaluate_and_record_alerts
+from alerts.integration import fire_alerts_for_event_sync
 from alerts.models import AlertEvent
 from llm.evaluation import ManagerDBEvaluator
 
@@ -225,7 +226,9 @@ def build_live_evaluation_datasets(db_conn: sqlite3.Connection) -> dict[str, lis
             "kind": "memo",
             "manager_id": manager_id,
         }
-    ][:k]
+    ][
+        :k
+    ]
 
     filing_summary = filing_chain.run(1).model_dump()
     nl_result = nl_chain.run("How many managers are in the database?")
@@ -297,7 +300,7 @@ def run_evaluation_suite(
     datasets = datasets or load_evaluation_datasets.fn()
     owned_evaluator = evaluator is None
     evaluator = evaluator or ManagerDBEvaluator(conn)
-    summary: dict[str, Any] = {"datasets": {}}
+    summary: dict[str, Any] = {"datasets": {}, "alert_observed_at": datetime.now(UTC).isoformat()}
 
     try:
         for entry in datasets.get("filing_summary", []):
@@ -388,13 +391,19 @@ def fire_quality_alerts(summary: dict[str, Any], db_conn: Any | None = None) -> 
     if not failures:
         return 0
 
+    # The production suite stamps this before task dispatch; retaining it in
+    # serialized summaries keeps Prefect/task replays on the same event identity.
+    observed_at = summary.setdefault("alert_observed_at", datetime.now(UTC).isoformat())
+    occurred_at = datetime.fromisoformat(observed_at)
     conn = db_conn or connect_db()
     owns_connection = db_conn is None
     try:
-        alert_ids = evaluate_and_record_alerts(
+        conn.commit()
+        alert_ids = fire_alerts_for_event_sync(
             conn,
             AlertEvent(
                 event_type="etl_failure",
+                occurred_at=occurred_at,
                 payload={
                     "pipeline": "research-assistant-evaluation",
                     "failures": failures,
