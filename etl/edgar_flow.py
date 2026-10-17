@@ -368,6 +368,7 @@ def _replace_holdings_for_filing(
             )
         if bitemporal and not is_authority:
             # Lower-authority reverse-order ingest: keep history, not current.
+            assert stamp is not None
             ingest_module._supersede_current_holdings(
                 conn, filing_id=filing_id, knowledge_time=stamp
             )
