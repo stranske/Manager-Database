@@ -1,0 +1,5 @@
+# Pinned formatter recovery
+
+CI run39015036086 failed the full-repository Black check at `etl/evaluation_flow.py`. The repository-selected Python environment contained Black26.1.0 while pyproject/CI pins26.10.1. An isolated per-run dependency target supplies the pinned formatter without changing the shared repository environment. Black26.10.1 restored the pre-existing compact `][:k]` slice; no behavior or acceptance contract changed.
+
+Exact failing command repeated with Black26.10.1 and the repository-selected Python runtime: `python -m black --check --line-length 100 --exclude '(\.venv|\.workflows-lib|node_modules)' .` — all430 files pass. The actual ETL persistence-only disconnection was repeated on the formatted source: RED then byte-identical restoredGREEN with current-source SHA256. New receipts use `1811-format-*`; prior273e semantic/PG captures remain untouched. Earlier generic local Black passes used26.1.0, not the CI pin; this receipt corrects that boundary. New-head hosted fullCI/review/comparison remains pending.
