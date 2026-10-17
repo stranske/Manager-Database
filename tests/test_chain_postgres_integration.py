@@ -331,22 +331,23 @@ def test_postgres_superseded_correction_visibility(pg_conn):
     conn.rollback()
     filing_id = pg_conn.seed["filing_id"]
     row = conn.execute(
-        "SELECT holding_id, shares FROM holdings WHERE filing_id=%s ORDER BY holding_id LIMIT 1",
+        "SELECT holding_id, shares, knowledge_time, superseded_at FROM holdings "
+        "WHERE filing_id=%s ORDER BY holding_id LIMIT 1",
         (filing_id,),
     ).fetchone()
     assert row is not None
-    holding_id, old_shares = row
+    holding_id, old_shares, old_known, old_superseded = row
     conn.execute(
         "UPDATE holdings SET knowledge_time='2026-04-15T00:00:00Z', "
         "superseded_at='2026-05-01T00:00:00Z' WHERE holding_id=%s",
         (holding_id,),
     )
-    conn.execute(
+    inserted = conn.execute(
         "INSERT INTO holdings(filing_id,cusip,name_of_issuer,shares,value_usd,knowledge_time) "
         "SELECT filing_id,cusip,name_of_issuer,2000,value_usd,'2026-05-01T00:00:00Z' "
-        "FROM holdings WHERE holding_id=%s",
+        "FROM holdings WHERE holding_id=%s RETURNING holding_id",
         (holding_id,),
-    )
+    ).fetchone()[0]
     conn.commit()
     try:
         current = current_holdings_for_filing(conn, filing_id)
@@ -370,3 +371,13 @@ def test_postgres_superseded_correction_visibility(pg_conn):
         assert "shares=2000" in rag_context
     finally:
         conn.rollback()
+        conn.execute("DELETE FROM holdings WHERE holding_id=%s", (inserted,))
+        conn.execute(
+            "UPDATE holdings SET knowledge_time=%s, superseded_at=%s WHERE holding_id=%s",
+            (old_known, old_superseded, holding_id),
+        )
+        conn.commit()
+    assert conn.execute(
+        "SELECT shares, knowledge_time, superseded_at FROM holdings WHERE holding_id=%s",
+        (holding_id,),
+    ).fetchone() == (old_shares, old_known, old_superseded)

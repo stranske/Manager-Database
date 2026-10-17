@@ -4,7 +4,7 @@ The shared dialect-aware predicate excludes superseded positions from current re
 
 Validation used the repository-selected `.venv/bin/python`:
 
-- `python -m pytest tests/test_diff_holdings.py tests/test_holdings_analysis_chain.py tests/test_rag_search_chain.py tests/test_chat_api.py tests/test_bitemporal_holdings.py tests/test_filing_summary_chain.py -q`: raw JUnit/log in `1787-all-final.*`; one existing optional tracing skip is retained.
+- `python -m pytest tests/test_diff_holdings.py tests/test_holdings_analysis_chain.py tests/test_rag_search_chain.py tests/test_chat_api.py tests/test_bitemporal_holdings.py tests/test_filing_summary_chain.py -q`: raw JUnit/log in `1787-all-final.*`; `test_original_replay_after_amendment_postgres` was skipped because MGRDB_PG_TEST_URL was not set for that run.
 - `MGRDB_PG_TEST_URL=<disposable-local-db> python -m pytest tests/test_chain_postgres_integration.py -q`: five passed with no skips, using PostgreSQL 17 + pgvector in a disposable Docker container, never an existing database.
 - `python -m pytest tests/test_diff_holdings.py::test_correction_current_and_historical_diff -q`: replaced the actual diff reader with its unfiltered historical read. It failed because the removed position did not produce EXIT. Restored exact original bytes and the same test passed. Raw JUnit/logs and SHA256/exit receipt are included.
 - Black check, Ruff and focused Mypy passed. `rg -n "FROM holdings" diff_holdings.py chains/` reviewed: all holdings readers use the shared predicate/selector; filing authority's EXISTS checks stored evidence rather than dropping an all-removed filing.

@@ -606,6 +606,9 @@ class HoldingsAnalysisChain:
         if date_range is not None:
             trace_inputs["date_range"] = [date_range[0].isoformat(), date_range[1].isoformat()]
 
+        if as_of is not None:
+            trace_inputs["as_of"] = as_of.isoformat()
+
         with langsmith_tracing_context(name="holdings-analysis", inputs=trace_inputs):
             if self._structured_chain is not None:
                 try:
