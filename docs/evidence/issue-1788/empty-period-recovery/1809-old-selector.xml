@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="5" time="0.157" timestamp="2026-10-17T04:00:28.883493-05:00" hostname="server.trs.private"><testcase classname="tests.test_backtest_flow" name="test_empty_visible_period_preserves_reentry_and_persisted_returns" time="0.042"><failure message="AssertionError: assert [] == ['AAA']&#10;  &#10;  Right contains one more item: 'AAA'&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4652/test_empty_visible_period_pres0')
+
+    def test_empty_visible_period_preserves_reentry_and_persisted_returns(tmp_path):
+        conn = _three_quarter_reentry_fixture(tmp_path)
+        conn.execute("DELETE FROM holdings WHERE filing_id=11")
+        conn.commit()
+        selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+&gt;       assert [row["resolved_ticker"] for row in selected] == ["AAA"]
+E       AssertionError: assert [] == ['AAA']
+E         
+E         Right contains one more item: 'AAA'
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:555: AssertionError</failure></testcase><testcase classname="tests.test_backtest_flow" name="test_latest_visible_empty_period_does_not_buy_old_holdings" time="0.005"><failure message="AssertionError: assert [{'_reporting..._id': 2, ...}] == []&#10;  &#10;  Left contains one more item: {'_reporting_period': '2024-06-30', 'cusip': 'BBB000000', 'filing_id': 11, 'holding_id': 2, ...}&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4652/test_latest_visible_empty_peri0')
+
+    def test_latest_visible_empty_period_does_not_buy_old_holdings(tmp_path):
+        conn = _three_quarter_reentry_fixture(tmp_path)
+        conn.execute("DELETE FROM holdings WHERE filing_id=12")
+        conn.commit()
+&gt;       assert select_new_buys(conn, 1, date(2024, 11, 1), None) == []
+E       AssertionError: assert [{'_reporting..._id': 2, ...}] == []
+E         
+E         Left contains one more item: {'_reporting_period': '2024-06-30', 'cusip': 'BBB000000', 'filing_id': 11, 'holding_id': 2, ...}
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:583: AssertionError</failure></testcase><testcase classname="tests.test_backtest_flow" name="test_future_empty_filing_does_not_hide_current_reentry" time="0.005" /><testcase classname="tests.test_backtest_flow" name="test_empty_amendment_replaces_original_period_holdings" time="0.004"><failure message="AssertionError: assert [{'_reporting..._id': 3, ...}] == []&#10;  &#10;  Left contains one more item: {'_reporting_period': '2024-09-30', 'cusip': 'AAA000000', 'filing_id': 12, 'holding_id': 3, ...}&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-4652/test_empty_amendment_replaces_0')
+
+    def test_empty_amendment_replaces_original_period_holdings(tmp_path):
+        conn = _three_quarter_reentry_fixture(tmp_path)
+        _add_filing(conn, 13, "2024-09-30", "2024-11-02")
+        conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=13")
+        conn.commit()
+&gt;       assert select_new_buys(conn, 1, date(2024, 11, 2), None) == []
+E       AssertionError: assert [{'_reporting..._id': 3, ...}] == []
+E         
+E         Left contains one more item: {'_reporting_period': '2024-09-30', 'cusip': 'AAA000000', 'filing_id': 12, 'holding_id': 3, ...}
+E         Use -v to get more diff
+
+tests/test_backtest_flow.py:599: AssertionError</failure></testcase><testcase classname="tests.test_backtest_flow" name="test_not_yet_known_nonempty_filing_is_not_an_empty_period" time="0.004" /></testsuite></testsuites>

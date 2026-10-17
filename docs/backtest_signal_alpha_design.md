@@ -215,3 +215,6 @@ The follow-up code issue should include:
   the local operator environment.
 - Activism signals may need campaign lifecycle dates before their backtests are
   comparable to pure holdings-conviction signals.
+
+
+Reporting-period adjacency includes disclosed empty filings. An empty latest period yields no buys, an empty intervening period permits later re-entry, and an authoritative empty amendment replaces earlier holdings for that period. A nonempty filing whose holdings are not yet known does not count as an empty disclosed period.

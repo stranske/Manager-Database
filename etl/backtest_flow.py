@@ -22,7 +22,7 @@ from typing import Any
 
 from adapters.base import get_placeholder, get_table_columns
 from adapters.prices import PriceAdapter
-from etl.point_in_time import holdings_as_of
+from etl.point_in_time import holdings_as_of, period_authority_sort_key
 from utils.numeric import finite_float_or_none
 
 logger = logging.getLogger(__name__)
@@ -262,15 +262,55 @@ def visible_holdings(conn: Any, manager_id: int, as_of: date) -> list[dict[str, 
     return [{**row, "_reporting_period": periods.get(int(row["filing_id"]))} for row in rows]
 
 
+def visible_reporting_filings(conn: Any, manager_id: int, as_of: date) -> dict[date, int]:
+    """Authoritative visible filings, including genuinely empty reporting periods.
+
+    A nonempty filing whose holdings are not known yet is not an empty filing.
+    Empty filings use their disclosure date, since they have no holding-level
+    knowledge timestamp. Authority follows the same amendment ordering as the
+    holdings snapshot, so an empty amendment also replaces its original rows.
+    """
+    columns = get_table_columns(conn, "filings")
+    period = "COALESCE(period_end, filed_date)" if "period_end" in columns else "filed_date"
+    filing_type = "type" if "type" in columns else "NULL"
+    marker = get_placeholder(conn)
+    query = (
+        f"SELECT filing_id, filed_date, {period}, {filing_type} FROM filings f "
+        f"WHERE manager_id = {marker} AND filed_date <= {marker}"
+    )
+    params: list[Any] = [manager_id, as_of.isoformat()]
+    if "knowledge_time" in get_table_columns(conn, "holdings"):
+        query += (
+            " AND (NOT EXISTS (SELECT 1 FROM holdings h WHERE h.filing_id=f.filing_id)"
+            " OR EXISTS (SELECT 1 FROM holdings h WHERE h.filing_id=f.filing_id"
+            f" AND h.knowledge_time <= {marker}))"
+        )
+        params.append(decision_cutoff(as_of).isoformat().replace("+00:00", "Z"))
+    selected: dict[date, tuple[int, tuple[str, bool, int]]] = {}
+    for filing_id, filed_date, period_value, kind in conn.execute(query, tuple(params)).fetchall():
+        reporting_period = _coerce_date(period_value)
+        if reporting_period is None or reporting_period > as_of:
+            continue
+        rank = period_authority_sort_key(filed_date, kind, int(filing_id))
+        incumbent = selected.get(reporting_period)
+        if incumbent is None or rank > incumbent[1]:
+            selected[reporting_period] = (int(filing_id), rank)
+    return {period: entry[0] for period, entry in selected.items()}
+
+
 def select_adjacent_periods(
-    rows: Sequence[dict[str, Any]], decision_date: date
+    rows: Sequence[dict[str, Any]],
+    decision_date: date,
+    reporting_periods: Sequence[date] = (),
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Current and immediately preceding visible reporting periods.
 
     Strategy Contract: a re-entry is new relative to the adjacent period, even
     when it was held in older history. Only current-period sizes inform ranking.
     """
-    by_period: dict[date, list[dict[str, Any]]] = {}
+    by_period: dict[date, list[dict[str, Any]]] = {
+        period: [] for period in reporting_periods if period <= decision_date
+    }
     for row in enforce_no_lookahead(rows, decision_date):
         period = _coerce_date(row.get("_reporting_period"))
         if period is not None and period <= decision_date:
@@ -294,9 +334,14 @@ def select_new_buys(
     "High-conviction new buys" compares the current and adjacent prior visible
     reporting periods, ranked by the current reported value.
     """
-    current, prior = select_adjacent_periods(
-        visible_holdings(conn, manager_id, decision_date), decision_date
-    )
+    filings = visible_reporting_filings(conn, manager_id, decision_date)
+    authoritative_ids = set(filings.values())
+    rows = [
+        row
+        for row in visible_holdings(conn, manager_id, decision_date)
+        if int(row["filing_id"]) in authoritative_ids
+    ]
+    current, prior = select_adjacent_periods(rows, decision_date, list(filings))
     if not current:
         return []
     prior_keys = {key for row in prior if (key := _security_key(row)) is not None}

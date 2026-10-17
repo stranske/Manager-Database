@@ -1,0 +1,15 @@
+{
+  "original_sha256": "538b4ab8399cdb16feb28a5aaa5339299e1a4af216174545c07e4403108f1c4a",
+  "fixed_sha256": "ac425a514fca812b6411bef0e0cb9ac10b33b3d02089b32d6d3845b189566ee9",
+  "restored_sha256": "ac425a514fca812b6411bef0e0cb9ac10b33b3d02089b32d6d3845b189566ee9",
+  "old_rc": 1,
+  "restored_rc": 0,
+  "command": [
+    "/Users/teacher/Library/CloudStorage/Dropbox/Learning/Code/Manager-Database/.venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_backtest_flow.py",
+    "-k",
+    "empty_visible_period or latest_visible_empty or future_empty_filing or empty_amendment or not_yet_known"
+  ]
+}

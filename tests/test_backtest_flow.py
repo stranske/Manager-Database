@@ -545,3 +545,62 @@ def test_current_period_amendment_selects_only_newly_disclosed_security(tmp_path
     conn.commit()
     selected = select_new_buys(conn, 1, date(2024, 8, 3), date(2024, 8, 1))
     assert [(r["resolved_ticker"], r["value_usd"]) for r in selected] == [("CCC", 4_000_000)]
+
+
+def test_empty_visible_period_preserves_reentry_and_persisted_returns(tmp_path):
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    conn.execute("DELETE FROM holdings WHERE filing_id=11")
+    conn.commit()
+    selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+    assert [row["resolved_ticker"] for row in selected] == ["AAA"]
+    prices = {ticker: dict(values) for ticker, values in PRICES.items()}
+    prices["AAA"].update({date(2024, 11, 2): 100, date(2025, 2, 1): 130})
+    prices["SPY"].update({date(2024, 11, 2): 110, date(2025, 2, 1): 121})
+    report = run_backtest(
+        conn,
+        1,
+        date(2024, 1, 1),
+        date(2024, 12, 31),
+        price_adapter=_adapter(conn, prices),
+        entry_lag_days=1,
+        holding_period_days=91,
+    )
+    rows = conn.execute(
+        "SELECT ticker, entry_date FROM backtest_results WHERE run_id=? ORDER BY entry_date",
+        (report.run_id,),
+    ).fetchall()
+    assert [(row["ticker"], row["entry_date"]) for row in rows] == [
+        ("AAA", "2024-05-02"),
+        ("AAA", "2024-11-02"),
+    ]
+    assert report.total_return == pytest.approx(1.2 * 1.3 - 1)
+
+
+def test_latest_visible_empty_period_does_not_buy_old_holdings(tmp_path):
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    conn.execute("DELETE FROM holdings WHERE filing_id=12")
+    conn.commit()
+    assert select_new_buys(conn, 1, date(2024, 11, 1), None) == []
+
+
+def test_future_empty_filing_does_not_hide_current_reentry(tmp_path):
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    _add_filing(conn, 13, "2024-12-31", "2025-02-01")
+    conn.commit()
+    selected = select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 8, 1))
+    assert [row["resolved_ticker"] for row in selected] == ["AAA"]
+
+
+def test_empty_amendment_replaces_original_period_holdings(tmp_path):
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    _add_filing(conn, 13, "2024-09-30", "2024-11-02")
+    conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=13")
+    conn.commit()
+    assert select_new_buys(conn, 1, date(2024, 11, 2), None) == []
+
+
+def test_not_yet_known_nonempty_filing_is_not_an_empty_period(tmp_path):
+    conn = _three_quarter_reentry_fixture(tmp_path)
+    conn.execute("UPDATE holdings SET knowledge_time='2024-12-01T12:00:00Z' WHERE filing_id=11")
+    conn.commit()
+    assert select_new_buys(conn, 1, date(2024, 11, 1), date(2024, 5, 1)) == []
