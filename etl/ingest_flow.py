@@ -707,6 +707,9 @@ def _replace_holdings_rows(
 ) -> int:
     from datetime import UTC, datetime
 
+    if not parsed_rows:
+        return 0
+
     def _work() -> int:
         holdings_columns = _table_columns(conn, "holdings")
         digest = _holdings_content_hash(parsed_rows)

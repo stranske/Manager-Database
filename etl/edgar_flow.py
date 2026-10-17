@@ -320,6 +320,9 @@ def _replace_holdings_for_filing(
 ) -> None:
     from datetime import UTC, datetime
 
+    if not rows:
+        return
+
     def _work() -> None:
         holdings_columns = get_table_columns(conn, "holdings")
         bitemporal = ingest_module._bitemporal_enabled(holdings_columns)

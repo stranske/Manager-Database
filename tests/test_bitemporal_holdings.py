@@ -369,6 +369,14 @@ def test_metadata_only_amendment_does_not_suppress_original_holdings(tmp_path, w
         _stamp_filing_knowledge(conn, filing_id=10, knowledge_time="2024-05-15T12:00:00Z")
         assert [row["filing_id"] for row in point_in_time.holdings_as_of(conn, 1, known_at)] == [10]
 
+        # Empty parser output is metadata-only, not a replacement portfolio.
+        write(11, [])
+        current = point_in_time.current_holdings(conn, manager_id=1)
+        assert [(row["filing_id"], int(row["shares"])) for row in current] == [(10, 100)]
+        write(10, [])
+        current = point_in_time.current_holdings(conn, manager_id=1)
+        assert [(row["filing_id"], int(row["shares"])) for row in current] == [(10, 100)]
+
         # Once the amendment's holdings arrive it must still win the same-day tie.
         write(11, amendment_rows)
         current = point_in_time.current_holdings(conn, manager_id=1)
