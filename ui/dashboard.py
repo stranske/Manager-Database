@@ -15,6 +15,7 @@ import streamlit as st
 from adapters.base import connect_db, resolve_manager_id_column, table_exists
 from api.activism import (
     query_active_campaigns,
+    query_activism_campaign_timeline,
     query_activism_events,
     query_activism_filings,
     query_activism_timeline,
@@ -232,6 +233,23 @@ def load_active_campaigns_summary(min_ownership_pct: float = 5.0, limit: int = 1
     finally:
         conn.close()
     return pd.DataFrame([row.model_dump() for row in rows])
+
+
+def load_campaign_timeline(campaign_id: int) -> pd.DataFrame:
+    conn = connect_db()
+    try:
+        rows = query_activism_campaign_timeline(conn, campaign_id)
+    finally:
+        conn.close()
+    return pd.DataFrame([row.model_dump() for row in rows])
+
+
+def render_campaign_timeline(campaign_id: int) -> None:
+    timeline = load_campaign_timeline(campaign_id)
+    if timeline.empty:
+        st.info("No materialized campaign timeline is available.")
+        return
+    st.dataframe(timeline, use_container_width=True, hide_index=True)
 
 
 def load_manager_conviction_scores(
@@ -572,7 +590,7 @@ def render_active_campaigns_widget(show_heading: bool = True) -> None:
 
     campaigns = load_active_campaigns_summary(limit=10)
     if campaigns.empty:
-        st.caption("No active activism campaigns.")
+        st.caption("No active materialized campaign snapshot is available.")
         return
 
     total_campaigns = len(campaigns)
@@ -590,8 +608,11 @@ def render_active_campaigns_widget(show_heading: bool = True) -> None:
         latest_event = row.latest_event_type or "filing_only"
         st.markdown(
             f"- **{manager_name}** -> {row.subject_company} ({pct_text}) | "
-            f"{row.latest_filing_date} | {latest_event}"
+            f"{row.latest_filing_date} | {latest_event} | {row.status} | "
+            f"{row.filing_count} linked filings"
         )
+        with st.expander(f"Campaign #{row.campaign_id}: {row.subject_company} timeline"):
+            render_campaign_timeline(int(row.campaign_id))
 
 
 def render_activism_timeline(selected_manager_id: int, show_heading: bool = True) -> None:

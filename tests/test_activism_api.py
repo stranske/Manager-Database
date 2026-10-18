@@ -386,6 +386,55 @@ def test_campaign_query_drops_non_finite_ownership(tmp_path):
     assert campaigns[0].latest_ownership_pct is None
 
 
+def test_compat_reads_passive_materialized_status_and_preserves_identity(tmp_path, monkeypatch):
+    db_path = tmp_path / "compat.db"
+    _seed_db(db_path)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    # The passive 13G is above the legacy ownership threshold, but not active.
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE activism_filings SET ownership_pct=8.0 WHERE manager_id=2")
+        materialize_activism_campaigns(conn)
+        passive = query_activism_campaigns(conn, manager_id=2)[0]
+        assert passive.status == "monitoring"
+    compat = asyncio.run(_request("/api/activism/active-campaigns")).json()
+    canonical = asyncio.run(_request("/api/activism/campaigns", params={"status": "active"})).json()
+    assert [row["campaign_id"] for row in compat] == [row["campaign_id"] for row in canonical]
+    assert all(row["status"] == "active" for row in compat)
+    assert passive.campaign_id not in [row["campaign_id"] for row in compat]
+    assert compat[0]["filing_count"] == canonical[0]["filing_count"]
+    assert compat[0]["opened_date"] == canonical[0]["first_filed"]
+    from ui.dashboard import load_active_campaigns_summary
+
+    dashboard_rows = load_active_campaigns_summary()
+    assert list(dashboard_rows["campaign_id"]) == [row["campaign_id"] for row in compat]
+    assert set(dashboard_rows["status"]) == {"active"}
+
+
+def test_compat_does_not_fall_back_to_raw_filings(tmp_path):
+    from api.activism import query_active_campaigns
+
+    db_path = tmp_path / "missing.db"
+    _seed_db(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("DELETE FROM activism_campaigns")
+        assert query_active_campaigns(conn) == []
+
+
+def test_compat_threshold_is_applied_before_limit_and_keeps_zero_semantics(tmp_path):
+    from api.activism import query_active_campaigns
+
+    path = tmp_path / "threshold.db"
+    _seed_db(path)
+    with sqlite3.connect(path) as conn:
+        # A newer below-threshold row must not use up the legacy result limit.
+        conn.execute(
+            "UPDATE activism_campaigns SET status='active', last_filed='2030-01-01', latest_ownership_pct=4.0 WHERE manager_id=2"
+        )
+        assert query_active_campaigns(conn, limit=1)[0].subject_company == "Apple Inc."
+        conn.execute("UPDATE activism_campaigns SET latest_ownership_pct=NULL WHERE manager_id=2")
+        assert len(query_active_campaigns(conn, min_ownership_pct=0)) == 2
+
+
 def test_identifier_correction_preserves_original_detail_and_timeline_routes(tmp_path, monkeypatch):
     db_path = tmp_path / "identity.db"
     _seed_db(db_path)

@@ -1,0 +1,248 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+______ test_campaign_lookup_without_manager_uses_available_scope[scope0] _______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6294/test_campaign_lookup_without_m0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1780e3b90>
+scope = {}
+
+    @pytest.mark.parametrize("scope", [{}, {"cusips": ["88160R101"]}])
+    def test_campaign_lookup_without_manager_uses_available_scope(tmp_path, monkeypatch, scope):
+        _, conn = _campaign_fixture(tmp_path)
+        llm = FakeLLM("Campaign answer")
+        chain = RAGSearchChain(llm=llm, db_conn=conn)
+        monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("canonical only"))
+        result = chain.run("Which campaigns are active?", context=scope)
+>       assert result["campaign_snapshot_status"] == "available"
+E       AssertionError: assert 'unavailable' == 'available'
+E         
+E         - available
+E         + unavailable
+E         ? ++
+
+tests/test_rag_search_chain.py:487: AssertionError
+______ test_campaign_lookup_without_manager_uses_available_scope[scope1] _______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6294/test_campaign_lookup_without_m1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x178043170>
+scope = {'cusips': ['88160R101']}
+
+    @pytest.mark.parametrize("scope", [{}, {"cusips": ["88160R101"]}])
+    def test_campaign_lookup_without_manager_uses_available_scope(tmp_path, monkeypatch, scope):
+        _, conn = _campaign_fixture(tmp_path)
+        llm = FakeLLM("Campaign answer")
+        chain = RAGSearchChain(llm=llm, db_conn=conn)
+        monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("canonical only"))
+        result = chain.run("Which campaigns are active?", context=scope)
+>       assert result["campaign_snapshot_status"] == "available"
+E       AssertionError: assert 'unavailable' == 'available'
+E         
+E         - available
+E         + unavailable
+E         ? ++
+
+tests/test_rag_search_chain.py:487: AssertionError
+_ test_campaign_invalid_dates_do_not_fail_request[Campaigns from 2024-02-30 to 2024-13-01-scope0] _
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6294/test_campaign_invalid_dates_do0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x178043d70>
+question = 'Campaigns from 2024-02-30 to 2024-13-01'
+scope = {'manager_ids': [2]}
+
+    @pytest.mark.parametrize("question,scope", [
+        ("Campaigns from 2024-02-30 to 2024-13-01", {"manager_ids": [2]}),
+        ("Describe campaigns", {"manager_ids": [2], "date_range": ["bad", "2024-01-01"]}),
+    ])
+    def test_campaign_invalid_dates_do_not_fail_request(tmp_path, monkeypatch, question, scope):
+        _, conn = _campaign_fixture(tmp_path)
+        chain = RAGSearchChain(llm=FakeLLM("Campaign answer"), db_conn=conn)
+        monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("canonical only"))
+>       assert chain.run(question, context=scope)["campaign_snapshot_status"] == "available"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_rag_search_chain.py:502: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+chains/rag_search.py:495: in run
+    structured_context, structured_sources = self._structured_search(entities)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+chains/rag_search.py:269: in _structured_search
+    return self._campaign_context(conn, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <chains.rag_search.RAGSearchChain object at 0x1780438c0>
+conn = <sqlite3.Connection object at 0x17670f100>
+entities = {'manager_ids': [2], 'manager_names': [], 'cusips': [], 'date_range': ('2024-02-30', '2024-13-01'), ...}
+
+    def _campaign_context(self, conn: Any, entities: dict[str, Any]) -> tuple[str, list[Evidence]]:
+        sections: list[str] = []
+        sources: list[Evidence] = []
+        date_range = self._parse_date_range(entities.get("date_range"))
+        for manager_id in entities.get("manager_ids", []):
+            campaigns = []
+            for target in entities.get("cusips") or [None]:
+                campaigns.extend(
+                    query_activism_campaigns(
+                        conn,
+                        manager_id=int(manager_id),
+                        target_identifier=target,
+>                       filed_from=dt.date.fromisoformat(date_range[0]) if date_range else None,
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        filed_to=dt.date.fromisoformat(date_range[1]) if date_range else None,
+                        limit=5,
+                    )
+                )
+E               ValueError: day is out of range for month
+
+chains/rag_search.py:200: ValueError
+__ test_campaign_invalid_dates_do_not_fail_request[Describe campaigns-scope1] __
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6294/test_campaign_invalid_dates_do1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1767647d0>
+question = 'Describe campaigns'
+scope = {'manager_ids': [2], 'date_range': ['bad', '2024-01-01']}
+
+    @pytest.mark.parametrize("question,scope", [
+        ("Campaigns from 2024-02-30 to 2024-13-01", {"manager_ids": [2]}),
+        ("Describe campaigns", {"manager_ids": [2], "date_range": ["bad", "2024-01-01"]}),
+    ])
+    def test_campaign_invalid_dates_do_not_fail_request(tmp_path, monkeypatch, question, scope):
+        _, conn = _campaign_fixture(tmp_path)
+        chain = RAGSearchChain(llm=FakeLLM("Campaign answer"), db_conn=conn)
+        monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("canonical only"))
+>       assert chain.run(question, context=scope)["campaign_snapshot_status"] == "available"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_rag_search_chain.py:502: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+chains/rag_search.py:495: in run
+    structured_context, structured_sources = self._structured_search(entities)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+chains/rag_search.py:269: in _structured_search
+    return self._campaign_context(conn, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <chains.rag_search.RAGSearchChain object at 0x176764fb0>
+conn = <sqlite3.Connection object at 0x17670f6a0>
+entities = {'manager_ids': [2], 'manager_names': [], 'cusips': [], 'date_range': ('bad', '2024-01-01'), ...}
+
+    def _campaign_context(self, conn: Any, entities: dict[str, Any]) -> tuple[str, list[Evidence]]:
+        sections: list[str] = []
+        sources: list[Evidence] = []
+        date_range = self._parse_date_range(entities.get("date_range"))
+        for manager_id in entities.get("manager_ids", []):
+            campaigns = []
+            for target in entities.get("cusips") or [None]:
+                campaigns.extend(
+                    query_activism_campaigns(
+                        conn,
+                        manager_id=int(manager_id),
+                        target_identifier=target,
+>                       filed_from=dt.date.fromisoformat(date_range[0]) if date_range else None,
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        filed_to=dt.date.fromisoformat(date_range[1]) if date_range else None,
+                        limit=5,
+                    )
+                )
+E               ValueError: Invalid isoformat string: 'bad'
+
+chains/rag_search.py:200: ValueError
+_____ test_generic_activism_retains_legacy_retrieval[Recent activism news] _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x176767ce0>
+question = 'Recent activism news'
+
+    @pytest.mark.parametrize("question", ["Recent activism news", "Latest activist filings"])
+    def test_generic_activism_retains_legacy_retrieval(monkeypatch, question):
+        conn = _build_db()
+        chain = RAGSearchChain(llm=FakeLLM("Legacy answer"), db_conn=conn)
+        calls = []
+        monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: calls.append(a[0]) or [])
+        result = chain.run(question, context={"manager_ids": [1]})
+>       assert calls == [question]
+E       AssertionError: assert [] == ['Recent activism news']
+E         
+E         Right contains one more item: 'Recent activism news'
+E         Use -v to get more diff
+
+tests/test_rag_search_chain.py:513: AssertionError
+___ test_generic_activism_retains_legacy_retrieval[Latest activist filings] ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1767660c0>
+question = 'Latest activist filings'
+
+    @pytest.mark.parametrize("question", ["Recent activism news", "Latest activist filings"])
+    def test_generic_activism_retains_legacy_retrieval(monkeypatch, question):
+        conn = _build_db()
+        chain = RAGSearchChain(llm=FakeLLM("Legacy answer"), db_conn=conn)
+        calls = []
+        monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: calls.append(a[0]) or [])
+        result = chain.run(question, context={"manager_ids": [1]})
+>       assert calls == [question]
+E       AssertionError: assert [] == ['Latest activist filings']
+E         
+E         Right contains one more item: 'Latest activist filings'
+E         Use -v to get more diff
+
+tests/test_rag_search_chain.py:513: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_rag_search_chain.py::test_campaign_lookup_without_manager_uses_available_scope[scope0]
+FAILED tests/test_rag_search_chain.py::test_campaign_lookup_without_manager_uses_available_scope[scope1]
+FAILED tests/test_rag_search_chain.py::test_campaign_invalid_dates_do_not_fail_request[Campaigns from 2024-02-30 to 2024-13-01-scope0]
+FAILED tests/test_rag_search_chain.py::test_campaign_invalid_dates_do_not_fail_request[Describe campaigns-scope1]
+FAILED tests/test_rag_search_chain.py::test_generic_activism_retains_legacy_retrieval[Recent activism news]
+FAILED tests/test_rag_search_chain.py::test_generic_activism_retains_legacy_retrieval[Latest activist filings]
+6 failed, 21 deselected, 9 warnings in 6.84s

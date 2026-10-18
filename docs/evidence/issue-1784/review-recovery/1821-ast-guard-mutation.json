@@ -1,0 +1,10 @@
+[
+  {
+    "variant": "guard_removed",
+    "result": "Failed: DID NOT RAISE AssertionError"
+  },
+  {
+    "variant": "restored",
+    "result": "PASS"
+  }
+]

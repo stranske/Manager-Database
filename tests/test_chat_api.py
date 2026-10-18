@@ -950,3 +950,50 @@ def test_direct_query_structural_allowlist_and_outer_limit(
     if expected_status == 200:
         assert "Returned 100 rows" in response.json()["answer"]
         assert "LIMIT 100" in response.json()["sql"]
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_chat_real_campaign_chain_preserves_citations_and_missing_snapshot(
+    tmp_path, monkeypatch, missing
+):
+    from chains.rag_search import RAGSearchChain
+    from tests.test_rag_search_chain import FakeLLM, _campaign_fixture
+
+    path, conn = _campaign_fixture(tmp_path)
+    if missing:
+        conn.execute("DELETE FROM activism_campaigns")
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv("DB_PATH", str(path))
+    llm = FakeLLM("Campaign answer from canonical rows.")
+    monkeypatch.setattr(
+        chat_api_module,
+        "_build_chat_client_info",
+        lambda: SimpleNamespace(client=llm, provider_label="test"),
+    )
+    monkeypatch.setattr(
+        chat_api_module,
+        "_build_chain",
+        lambda name, info: RAGSearchChain(llm=llm, db_conn=sqlite3.connect(path)),
+    )
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/api/chat",
+            json={
+                "chain": "rag_search",
+                "question": "Describe the campaign",
+                "context": {"manager_ids": [2]},
+            },
+        )
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    if missing:
+        assert "No materialized campaign snapshot" in payload["answer"]
+        assert payload["sources"] == [] and not llm.prompts
+    else:
+        campaign = next(s for s in payload["sources"] if s["type"] == "activism_campaign")
+        assert campaign["campaign_status"] == "monitoring"
+        assert any(s.get("filing_url") for s in payload["sources"])
+        assert "status=monitoring" in llm.prompts[0]

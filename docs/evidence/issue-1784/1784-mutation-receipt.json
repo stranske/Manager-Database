@@ -1,0 +1,9 @@
+{
+  "old_production_exit": 1,
+  "restored_sha256": {
+    "api/activism.py": "ee6efe3d07e0e11b52975d99db8a128b764e5a9c20c14af56fdd9282169dc8aa",
+    "ui/dashboard.py": "3bb4a34759c593079ebed2733c6cd11044cef7ab4b74399be31bd169c98b7078",
+    "chains/rag_search.py": "4035959da1693be067679ed19ddef71bcbd57b167633ab077a69423eb67056f6",
+    "api/chat.py": "25164fbe19d473dca227cf849dd7e0b58f351d5a12ab40b19ddbedc784019bfb"
+  }
+}
