@@ -35,6 +35,37 @@ def digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+def validate_dashboard_source_binding(root, expected):
+    folder = ROOT / "docs/evidence/issue-1784"
+    binding = json.loads((folder / "dashboard-source-successor.json").read_text())
+    historical = (folder / "historical-dashboard.py.txt").read_bytes()
+    current = (root / SOURCE).read_bytes()
+    assert binding["schema"] == "dashboard-source-successor/v1"
+    assert digest(historical) == binding["historical_source_sha256"] == expected
+    assert digest(current) == binding["current_source_sha256"]
+
+    # The new lifecycle panel may grow around the read-failure contract; every
+    # protected loader and its fallback must retain exactly the archived AST.
+    def loaders(raw):
+        nodes = [
+            node
+            for node in ast.parse(raw).body
+            if isinstance(node, ast.FunctionDef) and node.name in SQL + DOMAIN
+        ]
+        assert len(nodes) == len(SQL + DOMAIN)
+        return {node.name: ast.dump(node, include_attributes=False) for node in nodes}
+
+    assert loaders(current) == loaders(historical)
+    assert (
+        digest((folder / "historical-dashboard-validator.py.txt").read_bytes())
+        == binding["previous_validator_sha256"]
+    )
+    assert (
+        digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
+        == binding["current_validator_sha256"]
+    )
+
+
 def case_name(loader):
     test = (
         "test_sql_loader_returns_typed_empty_frame_and_closes_missing_schema"
@@ -76,10 +107,18 @@ def test_dashboard_archive_and_current_source_bindings(archive):
         assert digest(raw) == manifest["members"][name], name
     assert set(manifest["current_bindings"]) == {SOURCE, TEST, DRIVER}
     for name, expected in manifest["current_bindings"].items():
-        assert digest((ROOT / name).read_bytes()) == expected, name
+        if name == SOURCE:
+            validate_dashboard_source_binding(ROOT, expected)
+        else:
+            assert digest((ROOT / name).read_bytes()) == expected, name
     for name, expected in manifest["historical_bindings"].items():
         assert digest(archive[f"source/{name}"]) == expected, name
-        if name in (SOURCE, TEST):
+        if name == SOURCE:
+            assert (
+                archive[f"source/{name}"]
+                == (ROOT / "docs/evidence/issue-1784/historical-dashboard.py.txt").read_bytes()
+            )
+        elif name == TEST:
             assert archive[f"source/{name}"] == (ROOT / name).read_bytes(), name
     proof = json.loads(archive["mutations/controls.json"])
     assert proof["caller_identity"] == {
@@ -334,7 +373,9 @@ def validate_review_recovery_current_inputs(root, manifest):
     assert digest(recovery_manifest.read_bytes()) == binding["historical_manifest_sha256"]
     mutable = {"pyproject.toml", "tests/test_dashboard_read_failure_evidence.py"}
     for name, expected in manifest["current_inputs"].items():
-        if name not in mutable:
+        if name == SOURCE:
+            validate_dashboard_source_binding(root, expected)
+        elif name not in mutable:
             assert digest((root / name).read_bytes()) == expected, name
     for name, snapshot in [
         ("pyproject.toml", "historical-pyproject.toml"),
@@ -347,9 +388,16 @@ def validate_review_recovery_current_inputs(root, manifest):
     assert dependency_successor["schema"] == "dashboard-dependency-successor/v1"
     assert dependency_successor["previous_validator_sha256"] == binding["current_validator_sha256"]
     assert dependency_successor["dependency_additions"] == ["sqlglot>=28.10.1,<29"]
+    source_successor = json.loads(
+        (ROOT / "docs/evidence/issue-1784/dashboard-source-successor.json").read_text()
+    )
+    assert (
+        source_successor["previous_validator_sha256"]
+        == dependency_successor["current_validator_sha256"]
+    )
     assert (
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
-        == dependency_successor["current_validator_sha256"]
+        == source_successor["current_validator_sha256"]
     )
     current = normalized_dashboard_project((root / "pyproject.toml").read_bytes())
     historical = normalized_dashboard_project(
@@ -462,3 +510,23 @@ def test_review_recovery_dependency_successor_rejects_undeclared_changes(tmp_pat
     project.write_text(project.read_text().replace("sqlglot>=28.10.1,<29", replacement))
     with pytest.raises(AssertionError):
         validate_review_recovery_current_inputs(tmp_path, manifest)
+
+
+def test_campaign_source_successor_rejects_loader_or_unbound_edits(tmp_path):
+    manifest = json.loads((EVIDENCE / "review-recovery-20261012/manifest.json").read_text())
+    for name in manifest["current_inputs"]:
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / name).read_bytes())
+    source = tmp_path / SOURCE
+    original = source.read_bytes()
+    for edited in (
+        original.replace(b"rows = []", b"rows = [1]", 1),
+        original + b"\n# unbound change\n",
+    ):
+        assert edited != original
+        source.write_bytes(edited)
+        with pytest.raises(AssertionError):
+            validate_review_recovery_current_inputs(tmp_path, manifest)
+    source.write_bytes(original)
+    validate_review_recovery_current_inputs(tmp_path, manifest)
