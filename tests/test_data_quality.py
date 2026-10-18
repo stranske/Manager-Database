@@ -178,6 +178,23 @@ def test_data_quality_flow_deployment_has_daily_schedule(quality_database):
     assert schedule.timezone == module.LOCAL_TZ
 
 
+def test_data_quality_flow_malformed_timestamps_deliver_freshness_failures(quality_database):
+    import sqlite3
+
+    module, path, now, sent = quality_database
+    with sqlite3.connect(path) as conn:
+        conn.execute("UPDATE filings SET created_at = 'broken-landing'")
+        conn.execute("UPDATE news_items SET created_at = 'broken-news', published_at = 'bad-date'")
+    result = module.data_quality_flow.fn(now)
+    assert result["failures"] == [
+        "edgar-nightly.harvest_freshness",
+        "news-hourly.harvest_freshness",
+        "news.max_age",
+    ]
+    assert len(sent) == 1
+    assert result["warnings"] == []
+
+
 def test_missed_harvest_flags_freshness_failure() -> None:
     now = datetime(2026, 7, 2, 12, 0, tzinfo=UTC)
 

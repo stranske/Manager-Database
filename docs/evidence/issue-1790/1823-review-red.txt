@@ -1,0 +1,98 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_data_quality_flow_malformed_timestamps_deliver_freshness_failures ____
+
+quality_database = (<module 'etl.data_quality_flow' from '/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database...test_data_quality_flow_malform0/quality.db'), datetime.datetime(2026, 10, 18, 12, 0, tzinfo=datetime.timezone.utc), [])
+
+    def test_data_quality_flow_malformed_timestamps_deliver_freshness_failures(quality_database):
+        import sqlite3
+    
+        module, path, now, sent = quality_database
+        with sqlite3.connect(path) as conn:
+            conn.execute("UPDATE filings SET created_at = 'broken-landing'")
+            conn.execute("UPDATE news_items SET created_at = 'broken-news', published_at = 'bad-date'")
+>       result = module.data_quality_flow.fn(now)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_data_quality.py:188: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+etl/data_quality_flow.py:105: in data_quality_flow
+    snapshot = _daily_snapshot(conn, current)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+etl/data_quality_flow.py:72: in _daily_snapshot
+    flow_landed_at={"edgar-nightly": _timestamp(edgar[0]), "news-hourly": _timestamp(news[0])},
+                                     ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = 'broken-landing'
+
+    def _timestamp(value: Any) -> datetime | None:
+        if value is None:
+            return None
+>       parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: Invalid isoformat string: 'broken-landing'
+
+etl/data_quality_flow.py:26: ValueError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_data_quality.py::test_data_quality_flow_malformed_timestamps_deliver_freshness_failures
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.8.7' currently installed).
+    from pandas.core.computation.check import NUMEXPR_INSTALLED
+
+tests/test_data_quality.py::test_data_quality_flow_malformed_timestamps_deliver_freshness_failures
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56: UserWarning: Pandas requires version '1.4.2' or newer of 'bottleneck' (version '1.3.7' currently installed).
+    from pandas.core import (
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_data_quality.py::test_data_quality_flow_malformed_timestamps_deliver_freshness_failures

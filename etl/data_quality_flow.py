@@ -23,7 +23,11 @@ TABLES = ("filings", "holdings", "news_items")
 def _timestamp(value: Any) -> datetime | None:
     if value is None:
         return None
-    parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    try:
+        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    except ValueError:
+        logger.warning("Unparseable timestamp in quality input")
+        return None
     return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
