@@ -1,0 +1,187 @@
+F...FF..F.                                                               [100%]
+=================================== FAILURES ===================================
+_ test_comma_join_and_nested_relations_are_rejected_before_execute[SELECT a.source FROM managers m, api_usage a LIMIT 1] _
+
+sql = 'SELECT a.source FROM managers m, api_usage a LIMIT 1'
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT a.source FROM managers m, api_usage a LIMIT 1",
+            "SELECT * FROM managers WHERE EXISTS (SELECT 1 FROM api_usage)",
+            "WITH hidden AS (SELECT * FROM api_usage) SELECT * FROM hidden",
+            "SELECT * FROM other_schema.managers",
+        ],
+    )
+    def test_comma_join_and_nested_relations_are_rejected_before_execute(sql):
+        conn = sqlite3.connect(":memory:", factory=TrackingConnection)
+        conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+        conn.execute("CREATE TABLE api_usage (source TEXT)")
+        conn.executed_sql.clear()
+        try:
+>           with pytest.raises(ValueError):
+E           Failed: DID NOT RAISE ValueError
+
+tests/test_nl_query_chain.py:196: Failed
+_ test_nested_limit_and_offset_count_bound_outer_results[SELECT * FROM managers WHERE EXISTS (SELECT 1 FROM managers LIMIT 1)] _
+
+sql = 'SELECT * FROM managers WHERE EXISTS (SELECT 1 FROM managers LIMIT 1)'
+sqlite_conn = <sqlite3.Connection object at 0x17ffa4d60>
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM managers WHERE EXISTS (SELECT 1 FROM managers LIMIT 1)",
+            "SELECT * FROM managers LIMIT 0, 250",
+            "SELECT * FROM managers LIMIT 250 OFFSET 7",
+            "SELECT * FROM managers",
+            "WITH visible AS (SELECT * FROM managers) SELECT * FROM visible",
+            "SELECT * FROM managers UNION ALL SELECT * FROM managers",
+        ],
+    )
+    def test_nested_limit_and_offset_count_bound_outer_results(sql, sqlite_conn):
+        sqlite_conn.executemany(
+            "INSERT INTO managers(manager_id,name,cik) VALUES (?,?,?)",
+            [(i, f"Manager {i}", str(i)) for i in range(2, 252)],
+        )
+        result = NLQueryChain(llm=FakeLLM(sql), db_conn=sqlite_conn).run("List managers")
+>       assert len(result["results"]) == 100
+E       AssertionError: assert 251 == 100
+E        +  where 251 = len([{'manager_id': 1, 'name': 'Elliott', 'cik': '0001791786'}, {'manager_id': 2, 'name': 'Manager 2', 'cik': '2'}, {'mana...ik': '4'}, {'manager_id': 5, 'name': 'Manager 5', 'cik': '5'}, {'manager_id': 6, 'name': 'Manager 6', 'cik': '6'}, ...])
+
+tests/test_nl_query_chain.py:220: AssertionError
+_ test_nested_limit_and_offset_count_bound_outer_results[SELECT * FROM managers LIMIT 0, 250] _
+
+sql = 'SELECT * FROM managers LIMIT 0, 250'
+sqlite_conn = <sqlite3.Connection object at 0x17ffa53f0>
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM managers WHERE EXISTS (SELECT 1 FROM managers LIMIT 1)",
+            "SELECT * FROM managers LIMIT 0, 250",
+            "SELECT * FROM managers LIMIT 250 OFFSET 7",
+            "SELECT * FROM managers",
+            "WITH visible AS (SELECT * FROM managers) SELECT * FROM visible",
+            "SELECT * FROM managers UNION ALL SELECT * FROM managers",
+        ],
+    )
+    def test_nested_limit_and_offset_count_bound_outer_results(sql, sqlite_conn):
+        sqlite_conn.executemany(
+            "INSERT INTO managers(manager_id,name,cik) VALUES (?,?,?)",
+            [(i, f"Manager {i}", str(i)) for i in range(2, 252)],
+        )
+        result = NLQueryChain(llm=FakeLLM(sql), db_conn=sqlite_conn).run("List managers")
+>       assert len(result["results"]) == 100
+E       AssertionError: assert 250 == 100
+E        +  where 250 = len([{'manager_id': 1, 'name': 'Elliott', 'cik': '0001791786'}, {'manager_id': 2, 'name': 'Manager 2', 'cik': '2'}, {'mana...ik': '4'}, {'manager_id': 5, 'name': 'Manager 5', 'cik': '5'}, {'manager_id': 6, 'name': 'Manager 6', 'cik': '6'}, ...])
+
+tests/test_nl_query_chain.py:220: AssertionError
+_ test_nested_limit_and_offset_count_bound_outer_results[WITH visible AS (SELECT * FROM managers) SELECT * FROM visible] _
+
+sql = 'WITH visible AS (SELECT * FROM managers) SELECT * FROM visible'
+sqlite_conn = <sqlite3.Connection object at 0x17ffa57b0>
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM managers WHERE EXISTS (SELECT 1 FROM managers LIMIT 1)",
+            "SELECT * FROM managers LIMIT 0, 250",
+            "SELECT * FROM managers LIMIT 250 OFFSET 7",
+            "SELECT * FROM managers",
+            "WITH visible AS (SELECT * FROM managers) SELECT * FROM visible",
+            "SELECT * FROM managers UNION ALL SELECT * FROM managers",
+        ],
+    )
+    def test_nested_limit_and_offset_count_bound_outer_results(sql, sqlite_conn):
+        sqlite_conn.executemany(
+            "INSERT INTO managers(manager_id,name,cik) VALUES (?,?,?)",
+            [(i, f"Manager {i}", str(i)) for i in range(2, 252)],
+        )
+>       result = NLQueryChain(llm=FakeLLM(sql), db_conn=sqlite_conn).run("List managers")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_nl_query_chain.py:219:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <chains.nl_query.NLQueryChain object at 0x3080a3590>
+question = 'List managers', context = None
+
+    def run(self, question: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Run the NL-to-SQL pipeline end-to-end."""
+        guard_input(question)
+        guard_context_values(context)
+        prompt = self._prompt_text(question, context)
+        raw_response, trace_url = self._invoke_llm(prompt)
+        parsed = self._parse_llm_result(raw_response)
+        normalized_sql = self._normalize_sql(parsed.sql)
+        is_safe, error_message = self._validate_sql(normalized_sql)
+        if not is_safe:
+>           raise ValueError(error_message or "Unsafe SQL rejected")
+E           ValueError: Only SELECT queries are allowed
+
+chains/nl_query.py:280: ValueError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1517
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1782-sql-structure/api/chat.py:1517: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1817
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1782-sql-structure/api/chat.py:1817: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+api/chat.py:1824
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1782-sql-structure/api/chat.py:1824: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_nl_query_chain.py::test_comma_join_and_nested_relations_are_rejected_before_execute[SELECT * FROM managers WHERE EXISTS (SELECT 1 FROM api_usage)]
+PASSED tests/test_nl_query_chain.py::test_comma_join_and_nested_relations_are_rejected_before_execute[WITH hidden AS (SELECT * FROM api_usage) SELECT * FROM hidden]
+PASSED tests/test_nl_query_chain.py::test_comma_join_and_nested_relations_are_rejected_before_execute[SELECT * FROM other_schema.managers]
+PASSED tests/test_nl_query_chain.py::test_nested_limit_and_offset_count_bound_outer_results[SELECT * FROM managers LIMIT 250 OFFSET 7]
+PASSED tests/test_nl_query_chain.py::test_nested_limit_and_offset_count_bound_outer_results[SELECT * FROM managers]
+PASSED tests/test_nl_query_chain.py::test_nested_limit_and_offset_count_bound_outer_results[SELECT * FROM managers UNION ALL SELECT * FROM managers]
+FAILED tests/test_nl_query_chain.py::test_comma_join_and_nested_relations_are_rejected_before_execute[SELECT a.source FROM managers m, api_usage a LIMIT 1]
+FAILED tests/test_nl_query_chain.py::test_nested_limit_and_offset_count_bound_outer_results[SELECT * FROM managers WHERE EXISTS (SELECT 1 FROM managers LIMIT 1)]
+FAILED tests/test_nl_query_chain.py::test_nested_limit_and_offset_count_bound_outer_results[SELECT * FROM managers LIMIT 0, 250]
+FAILED tests/test_nl_query_chain.py::test_nested_limit_and_offset_count_bound_outer_results[WITH visible AS (SELECT * FROM managers) SELECT * FROM visible]

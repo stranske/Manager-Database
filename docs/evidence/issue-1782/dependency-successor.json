@@ -1,0 +1,10 @@
+{
+  "schema": "dashboard-dependency-successor/v1",
+  "source_issue": 1782,
+  "previous_validator_sha256": "4e9f3703558f162e432b23da7a847d959d05a033e21126ea21685b241d658283",
+  "current_validator_sha256": "c6e76225afb28885b2efcafbb8508b05940a190b57bff7d7d7e643d1dd422452",
+  "dependency_additions": [
+    "sqlglot>=28.10.1,<29"
+  ],
+  "note": "Additive runtime SQL parser only; every archived byte and all other project/config fields remain bound by the predecessor validation."
+}

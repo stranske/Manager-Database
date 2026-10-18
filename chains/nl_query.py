@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+from sqlglot import exp, parse
+from sqlglot.errors import OptimizeError, ParseError
+from sqlglot.optimizer.scope import Scope, traverse_scope
 
 from adapters.base import is_sqlite
 from chains.utils import acquire_connection, guard_context_values
@@ -25,7 +28,7 @@ IMPORTANT RULES:
 1. Generate ONLY SELECT queries — never INSERT, UPDATE, DELETE, DROP, ALTER, or TRUNCATE.
 2. Use only tables and columns from the schema below.
 3. Always include appropriate WHERE clauses to limit results.
-4. Add LIMIT clause (max 100 rows unless user specifies otherwise).
+4. Add LIMIT clause (at most 100 rows).
 5. Use proper JOIN syntax for related tables.
 6. Return the SQL query only, no explanation unless JSON output is explicitly requested.
 
@@ -33,10 +36,6 @@ Database schema:
 {schema_ddl}
 """
 
-_COMMENT_BLOCK_RE = re.compile(r"/\*.*?\*/", re.S)
-_COMMENT_LINE_RE = re.compile(r"--.*?$", re.M)
-_TABLE_REF_RE = re.compile(r'\b(?:from|join)\s+"?([a-zA-Z_][\w]*)"?', re.I)
-_LIMIT_RE = re.compile(r"\blimit\s+(\d+)\b", re.I)
 MAX_RESULT_ROWS = 100
 _SQLITE_UNSUPPORTED_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bilike\b", re.I), "ILIKE is PostgreSQL-only; use LIKE for SQLite"),
@@ -47,19 +46,6 @@ _SQLITE_UNSUPPORTED_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         "to_* date functions are PostgreSQL-only",
     ),
 )
-_DANGEROUS_KEYWORDS = {
-    "insert",
-    "update",
-    "delete",
-    "drop",
-    "alter",
-    "truncate",
-    "execute",
-    "copy",
-    "grant",
-    "revoke",
-    "create",
-}
 
 
 class NLQueryResult(BaseModel):
@@ -112,36 +98,70 @@ class NLQueryChain:
             )
         }
 
+    def _parse_query(self, sql: str) -> exp.Query:
+        """Parse exactly one analyzable, read-only query in the active dialect."""
+        try:
+            statements = parse(sql, read=self._connection_dialect())
+        except ParseError as exc:
+            raise ValueError("SQL could not be structurally analyzed") from exc
+        if len(statements) != 1 or not isinstance(statements[0], (exp.Select, exp.SetOperation)):
+            raise ValueError("Only one SELECT query is allowed")
+        query = statements[0]
+        for node in query.walk():
+            if isinstance(node, (exp.DML, exp.DDL, exp.Command, exp.Into)):
+                raise ValueError("Only read-only SELECT queries are allowed")
+            if node.args.get("locks"):
+                raise ValueError("Locking SELECT queries are not allowed")
+        return query
+
     def _normalize_sql(self, sql: str) -> str:
-        cleaned = _COMMENT_BLOCK_RE.sub(" ", sql)
-        cleaned = _COMMENT_LINE_RE.sub(" ", cleaned)
-        cleaned = cleaned.strip().rstrip(";").strip()
-        limit_match = _LIMIT_RE.search(cleaned)
-        if limit_match:
-            requested_limit = int(limit_match.group(1))
-            if requested_limit > MAX_RESULT_ROWS:
-                cleaned = _LIMIT_RE.sub(f"LIMIT {MAX_RESULT_ROWS}", cleaned, count=1)
+        compatible, error = self._validate_sql_for_connection(sql, self.db)
+        if not compatible:
+            raise ValueError(error or "SQL dialect is incompatible with active database")
+        query = self._parse_query(sql)
+        limit = query.args.get("limit")
+        if limit is not None:
+            value = limit.expression
+            if not isinstance(value, exp.Literal) or value.is_string or not value.this.isdecimal():
+                raise ValueError("Unsupported outer LIMIT expression")
+            count = min(int(value.this), MAX_RESULT_ROWS)
         else:
-            cleaned = f"{cleaned} LIMIT {MAX_RESULT_ROWS}"
-        return cleaned
+            count = MAX_RESULT_ROWS
+        offset = query.args.get("offset")
+        if offset is not None:
+            value = offset.expression
+            if not isinstance(value, exp.Literal) or value.is_string or not value.this.isdecimal():
+                raise ValueError("Unsupported outer OFFSET expression")
+        # Only the root LIMIT is replaced. Subquery limits retain their meaning.
+        query.set("limit", exp.Limit(expression=exp.Literal.number(count)))
+        return query.sql(dialect=self._connection_dialect())
 
     def _validate_sql(self, sql: str) -> tuple[bool, str | None]:
-        """Validate SQL for read-only execution against known tables only."""
-        normalized = self._normalize_sql(sql)
-        lowered = normalized.lower()
-        if not lowered.startswith("select"):
-            return False, "Only SELECT queries are allowed"
-        if ";" in normalized:
-            return False, "Multiple SQL statements are not allowed"
-        for keyword in _DANGEROUS_KEYWORDS:
-            if re.search(rf"\b{keyword}\b", lowered):
-                return False, f"Disallowed SQL keyword: {keyword.upper()}"
-        table_refs = {match.group(1).lower() for match in _TABLE_REF_RE.finditer(normalized)}
-        if not table_refs:
-            return False, "SELECT queries must reference at least one known application table"
-        unknown_tables = sorted(table_refs - self._known_tables)
-        if unknown_tables:
-            return False, f"Unknown tables referenced: {', '.join(unknown_tables)}"
+        """Walk each relation in its lexical scope before any database execution."""
+        try:
+            query = self._parse_query(self._normalize_sql(sql))
+            table_refs: set[str] = set()
+            for scope in traverse_scope(query):
+                if not isinstance(scope.expression, (exp.Select, exp.SetOperation)):
+                    raise ValueError("Unsupported SQL relation scope")
+                for _alias, (_node, source) in scope.selected_sources.items():
+                    if isinstance(source, Scope):
+                        # CTE/derived queries are checked in their own scopes.
+                        continue
+                    if not isinstance(source, exp.Table) or not isinstance(
+                        source.this, exp.Identifier
+                    ):
+                        raise ValueError("Unsupported SQL relation")
+                    if source.db or source.catalog:
+                        raise ValueError("Qualified table names are not allowed")
+                    table_refs.add(source.name.lower())
+            if not table_refs:
+                return False, "SELECT queries must reference at least one known application table"
+            unknown_tables = sorted(table_refs - self._known_tables)
+            if unknown_tables:
+                return False, f"Unknown tables referenced: {', '.join(unknown_tables)}"
+        except (ValueError, OptimizeError, ParseError) as exc:
+            return False, str(exc)
         return True, None
 
     def _connection_dialect(self, conn: Any | None = None) -> str:
