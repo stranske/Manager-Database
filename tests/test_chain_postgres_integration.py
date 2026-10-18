@@ -385,13 +385,16 @@ def test_postgres_superseded_correction_visibility(pg_conn):
 
 def test_nl_query_postgres_structural_bound_and_permitted_join(pg_conn: PgFixture):
     conn = pg_conn.conn
-    conn.execute(
-        "INSERT INTO managers(name,cik) SELECT 'Manager ' || i, 'scope-' || i FROM generate_series(1,250) AS i"
-    )
-    sql = "SELECT m.manager_id FROM managers m LEFT JOIN filings f ON m.manager_id=f.manager_id WHERE EXISTS (SELECT 1 FROM managers LIMIT 1) LIMIT 250 OFFSET 0"
-    result = NLQueryChain(llm=FakeLLM(sql), db_conn=conn).run("List managers")
-    assert len(result["results"]) == 100
-    with pytest.raises(ValueError, match="Unknown tables"):
-        NLQueryChain(llm=FakeLLM("SELECT * FROM managers, api_usage"), db_conn=conn).run(
-            "List managers"
+    try:
+        conn.execute(
+            "INSERT INTO managers(name,cik) SELECT 'Manager ' || i, 'scope-' || i FROM generate_series(1,250) AS i"
         )
+        sql = "SELECT m.manager_id FROM managers m LEFT JOIN filings f ON m.manager_id=f.manager_id WHERE EXISTS (SELECT 1 FROM managers LIMIT 1) LIMIT 250 OFFSET 0"
+        result = NLQueryChain(llm=FakeLLM(sql), db_conn=conn).run("List managers")
+        assert len(result["results"]) == 100
+        with pytest.raises(ValueError, match="Unknown tables"):
+            NLQueryChain(llm=FakeLLM("SELECT * FROM managers, api_usage"), db_conn=conn).run(
+                "List managers"
+            )
+    finally:
+        conn.rollback()

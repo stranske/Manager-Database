@@ -228,6 +228,10 @@ def test_nested_limit_and_offset_count_bound_outer_results(sql, sqlite_conn):
         "WITH changed AS (DELETE FROM managers RETURNING *) SELECT * FROM changed",
         "SELECT * FROM managers LIMIT ?",
         "SELECT * FROM managers LIMIT -1",
+        "SELECT * FROM managers LIMIT 1 OFFSET ?",
+        "SELECT * FROM managers LIMIT 1 OFFSET (SELECT 1)",
+        "SELECT * FROM managers LIMIT '1'",
+        "SELECT * FROM managers LIMIT 1 OFFSET '1'",
         "SELECT * FROM managers; SELECT * FROM managers",
         "SELECT * FROM readfile('/tmp/data')",
         "SELECT * FROM managers, UNNEST(ARRAY[1,2]) t",
@@ -243,3 +247,8 @@ def test_structural_validation_preserves_cte_scoping(sqlite_conn):
     sql = "SELECT * FROM api_usage WHERE EXISTS (WITH api_usage AS (SELECT * FROM managers) SELECT * FROM api_usage)"
     assert chain._validate_sql(sql)[0] is False
     assert chain._validate_sql("WITH visible AS (SELECT * FROM managers) SELECT * FROM visible")[0]
+
+
+def test_postgres_fetch_is_rejected_as_unsupported_outer_limit():
+    chain = NLQueryChain(db_conn=object())
+    assert chain._validate_sql("SELECT * FROM managers FETCH FIRST 5 ROWS ONLY")[0] is False

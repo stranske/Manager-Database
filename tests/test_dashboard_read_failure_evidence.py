@@ -341,14 +341,28 @@ def validate_review_recovery_current_inputs(root, manifest):
         ("tests/test_dashboard_read_failure_evidence.py", "historical-validator.py"),
     ]:
         assert digest((successor / snapshot).read_bytes()) == manifest["current_inputs"][name]
+    dependency_successor = json.loads(
+        (ROOT / "docs/evidence/issue-1782/dependency-successor.json").read_text()
+    )
+    assert dependency_successor["schema"] == "dashboard-dependency-successor/v1"
+    assert dependency_successor["previous_validator_sha256"] == binding["current_validator_sha256"]
+    assert dependency_successor["dependency_additions"] == ["sqlglot>=28.10.1,<29"]
     assert (
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
-        == binding["current_validator_sha256"]
+        == dependency_successor["current_validator_sha256"]
     )
     current = normalized_dashboard_project((root / "pyproject.toml").read_bytes())
     historical = normalized_dashboard_project(
         (successor / "historical-pyproject.toml").read_bytes()
     )
+    # The original archived inputs remain immutable. This successor admits only
+    # the explicitly reviewed SQL parser addition, preserving every other field
+    # and the original mypy/formatter validation above.
+    dependencies = current["project"]["dependencies"]
+    for addition in dependency_successor["dependency_additions"]:
+        assert addition not in historical["project"]["dependencies"]
+        assert dependencies.count(addition) == 1
+        dependencies.remove(addition)
     assert current == historical
 
 
@@ -435,3 +449,16 @@ def test_review_recovery_limits_mypy_exclusion_changes(tmp_path, extra, accepted
     else:
         with pytest.raises(AssertionError):
             validate_review_recovery_current_inputs(tmp_path, manifest)
+
+
+@pytest.mark.parametrize("replacement", ["", "sqlglot>=29,<30", "sqlglot>=28.10.1,<29,unknown==1"])
+def test_review_recovery_dependency_successor_rejects_undeclared_changes(tmp_path, replacement):
+    manifest = json.loads((EVIDENCE / "review-recovery-20261012/manifest.json").read_text())
+    for name in manifest["current_inputs"]:
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / name).read_bytes())
+    project = tmp_path / "pyproject.toml"
+    project.write_text(project.read_text().replace("sqlglot>=28.10.1,<29", replacement))
+    with pytest.raises(AssertionError):
+        validate_review_recovery_current_inputs(tmp_path, manifest)
