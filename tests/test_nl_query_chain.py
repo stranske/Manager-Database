@@ -78,6 +78,15 @@ def test_normalize_sql_caps_existing_large_limit(sqlite_conn: sqlite3.Connection
     )
 
 
+def test_normalize_sql_supports_postgres_dialect():
+    chain = NLQueryChain(db_conn=object())
+
+    assert (
+        chain._normalize_sql("SELECT name FROM managers WHERE name ILIKE '%elliott%'")
+        == "SELECT name FROM managers WHERE name ILIKE '%elliott%' LIMIT 100"
+    )
+
+
 def test_validate_sql_rejects_tableless_system_calls(sqlite_conn: sqlite3.Connection):
     chain = NLQueryChain(db_conn=sqlite_conn)
 
