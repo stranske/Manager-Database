@@ -213,6 +213,7 @@ def _upsert_campaign(
     holding_period_days: int | None,
     forms: list[str],
     flags: list[str],
+    campaign_id: int | None = None,
 ) -> int:
     ph = get_placeholder(conn)
     values = (
@@ -233,23 +234,59 @@ def _upsert_campaign(
         _json(forms),
         _json(flags),
     )
-    conn.execute(
-        "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, first_filed, "
-        "last_filed, status, peak_ownership_pct, latest_ownership_pct, filing_count, event_count, "
-        "latest_event_type, target_ticker, window_return, holding_period_days, source_forms, "
-        "data_quality_flags, computed_at, return_computed_at) "
-        f"VALUES ({', '.join([ph] * 16)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-        "ON CONFLICT(manager_id, target_identifier) DO UPDATE SET "
-        "target_company=excluded.target_company, first_filed=excluded.first_filed, "
-        "last_filed=excluded.last_filed, status=excluded.status, peak_ownership_pct=excluded.peak_ownership_pct, "
-        "latest_ownership_pct=excluded.latest_ownership_pct, filing_count=excluded.filing_count, "
-        "event_count=excluded.event_count, latest_event_type=excluded.latest_event_type, "
-        "target_ticker=excluded.target_ticker, window_return=excluded.window_return, "
-        "holding_period_days=excluded.holding_period_days, return_computed_at=CURRENT_TIMESTAMP, "
-        "source_forms=excluded.source_forms, data_quality_flags=excluded.data_quality_flags, "
-        "computed_at=CURRENT_TIMESTAMP",
-        values,
-    )
+    if campaign_id is not None:
+        # Filing membership is durable identity. A corrected identifier is metadata,
+        # and cannot silently move the filing into another independently owned ID.
+        occupied = conn.execute(
+            f"SELECT campaign_id FROM activism_campaigns WHERE manager_id = {ph} AND target_identifier = {ph}",
+            (manager_id, target_identifier),
+        ).fetchone()
+        if occupied is not None and int(occupied[0]) != campaign_id:
+            raise ValueError(
+                "Corrected identifier belongs to another campaign; explicit reconciliation required"
+            )
+        columns = (
+            "manager_id",
+            "target_identifier",
+            "target_company",
+            "first_filed",
+            "last_filed",
+            "status",
+            "peak_ownership_pct",
+            "latest_ownership_pct",
+            "filing_count",
+            "event_count",
+            "latest_event_type",
+            "target_ticker",
+            "window_return",
+            "holding_period_days",
+            "source_forms",
+            "data_quality_flags",
+        )
+        conn.execute(
+            "UPDATE activism_campaigns SET "
+            + ", ".join(f"{column} = {ph}" for column in columns)
+            + f", computed_at = CURRENT_TIMESTAMP, return_computed_at = CURRENT_TIMESTAMP WHERE campaign_id = {ph} AND manager_id = {ph}",
+            (*values, campaign_id, manager_id),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, first_filed, "
+            "last_filed, status, peak_ownership_pct, latest_ownership_pct, filing_count, event_count, "
+            "latest_event_type, target_ticker, window_return, holding_period_days, source_forms, "
+            "data_quality_flags, computed_at, return_computed_at) "
+            f"VALUES ({', '.join([ph] * 16)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(manager_id, target_identifier) DO UPDATE SET "
+            "target_company=excluded.target_company, first_filed=excluded.first_filed, "
+            "last_filed=excluded.last_filed, status=excluded.status, peak_ownership_pct=excluded.peak_ownership_pct, "
+            "latest_ownership_pct=excluded.latest_ownership_pct, filing_count=excluded.filing_count, "
+            "event_count=excluded.event_count, latest_event_type=excluded.latest_event_type, "
+            "target_ticker=excluded.target_ticker, window_return=excluded.window_return, "
+            "holding_period_days=excluded.holding_period_days, return_computed_at=CURRENT_TIMESTAMP, "
+            "source_forms=excluded.source_forms, data_quality_flags=excluded.data_quality_flags, "
+            "computed_at=CURRENT_TIMESTAMP",
+            values,
+        )
     row = conn.execute(
         f"SELECT campaign_id FROM activism_campaigns WHERE manager_id = {ph} AND target_identifier = {ph}",
         (manager_id, target_identifier),
@@ -330,7 +367,7 @@ def _document_references(row: tuple[Any, ...]) -> list[tuple[str, str | None, st
     return references
 
 
-def materialize_activism_campaigns(
+def _materialize_activism_campaigns(
     conn: Any, since: date | None = None, *, price_adapter: PriceLookup | None = None
 ) -> CampaignRunSummary:
     """Build campaign summaries and deterministic filing timelines from source rows."""
@@ -360,14 +397,56 @@ def materialize_activism_campaigns(
         ).fetchall():
             events_by_filing[int(event[1])].append(event)
 
+    membership: dict[tuple[int, int], int] = {}
+    for manager, filing, campaign in conn.execute(
+        "SELECT c.manager_id, t.filing_id, c.campaign_id FROM activism_campaigns c "
+        "JOIN activism_campaign_timeline t ON t.campaign_id=c.campaign_id "
+        "UNION SELECT c.manager_id, d.filing_id, c.campaign_id FROM activism_campaigns c "
+        "JOIN activism_documents d ON d.campaign_id=c.campaign_id"
+    ).fetchall():
+        key = (int(manager), int(filing))
+        if key in membership and membership[key] != int(campaign):
+            raise ValueError(
+                "Filing belongs to multiple campaigns; explicit reconciliation required"
+            )
+        membership[key] = int(campaign)
+    identities = {
+        (int(manager), str(identifier)): int(campaign)
+        for manager, identifier, campaign in conn.execute(
+            "SELECT manager_id, target_identifier, campaign_id FROM activism_campaigns"
+        ).fetchall()
+    }
+    resolved_owners: dict[tuple[int, str], int] = {}
+    for row in rows:
+        identifier = _target_identifier(row[4], row[3])[0]
+        owner = membership.get((int(row[1]), int(row[0])))
+        if identifier is None or owner is None:
+            continue
+        target = (int(row[1]), identifier)
+        if target in resolved_owners and resolved_owners[target] != owner:
+            raise ValueError("Resolved target has conflicting campaign ownership")
+        resolved_owners[target] = owner
     grouped: dict[tuple[int, str], list[tuple[Any, ...]]] = defaultdict(list)
+    existing_ids: dict[tuple[int, str], int] = {}
     skipped: dict[str, int] = defaultdict(int)
     for row in rows:
         identifier, flags = _target_identifier(row[4], row[3])
         if identifier is None:
             skipped[flags[0]] += 1
             continue
-        grouped[(int(row[1]), identifier)].append(row)
+        manager_id = int(row[1])
+        campaign_id = membership.get((manager_id, int(row[0])))
+        if campaign_id is None:
+            campaign_id = resolved_owners.get(
+                (manager_id, identifier), identities.get((manager_id, identifier))
+            )
+        key = (
+            manager_id,
+            f"campaign:{campaign_id}" if campaign_id is not None else f"target:{identifier}",
+        )
+        grouped[key].append(row)
+        if campaign_id is not None:
+            existing_ids[key] = campaign_id
 
     # `since` selects which campaigns to refresh; each selected campaign is still
     # recomputed from its full filing history so incremental runs cannot shrink
@@ -384,11 +463,14 @@ def materialize_activism_campaigns(
         )
 
     timeline_count = 0
-    for (manager_id, identifier), filings in grouped.items():
+    for key, filings in grouped.items():
+        manager_id = key[0]
         # Group members are collected across differing raw cusip/company spellings,
         # so order inside the group by filing date rather than trusting the SQL sort.
         filings.sort(key=lambda row: (str(row[6]), int(row[0])))
         first, latest = filings[0], filings[-1]
+        identifier = _target_identifier(latest[4], latest[3])[0]
+        assert identifier is not None
         ownerships = [float(row[5]) for row in filings if row[5] is not None]
         events = sorted(
             (event for row in filings for event in events_by_filing[int(row[0])]),
@@ -417,6 +499,7 @@ def materialize_activism_campaigns(
             holding_period_days=holding_days,
             forms=sorted({str(row[2]) for row in filings}),
             flags=_target_identifier(latest[4], latest[3])[1],
+            campaign_id=existing_ids.get(key),
         )
         insert_sql = (
             "INSERT INTO activism_campaign_timeline(campaign_id, filing_id, event_id, event_date, "
@@ -467,7 +550,24 @@ def materialize_activism_campaigns(
                     f"VALUES ({', '.join([ph] * 6)})",
                     (campaign_id, filing_id, doc_type, source_url, raw_key, str(filing[6])),
                 )
-    conn.commit()
     return CampaignRunSummary(
         len(rows), len(grouped), timeline_count, sum(skipped.values()), dict(skipped)
     )
+
+
+def materialize_activism_campaigns(
+    conn: Any, since: date | None = None, *, price_adapter: PriceLookup | None = None
+) -> CampaignRunSummary:
+    """Refresh durable campaign identities and their derived rows atomically."""
+    if not table_exists(conn, "activism_filings"):
+        return CampaignRunSummary(skip_reasons={"missing_activism_filings_table": 1})
+    conn.execute("SAVEPOINT activism_campaign_materialization")
+    try:
+        result = _materialize_activism_campaigns(conn, since, price_adapter=price_adapter)
+    except BaseException:
+        conn.execute("ROLLBACK TO SAVEPOINT activism_campaign_materialization")
+        conn.execute("RELEASE SAVEPOINT activism_campaign_materialization")
+        raise
+    conn.execute("RELEASE SAVEPOINT activism_campaign_materialization")
+    conn.commit()
+    return result

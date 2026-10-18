@@ -433,3 +433,23 @@ def test_compat_threshold_is_applied_before_limit_and_keeps_zero_semantics(tmp_p
         assert query_active_campaigns(conn, limit=1)[0].subject_company == "Apple Inc."
         conn.execute("UPDATE activism_campaigns SET latest_ownership_pct=NULL WHERE manager_id=2")
         assert len(query_active_campaigns(conn, min_ownership_pct=0)) == 2
+
+
+def test_identifier_correction_preserves_original_detail_and_timeline_routes(tmp_path, monkeypatch):
+    db_path = tmp_path / "identity.db"
+    _seed_db(db_path)
+    conn = sqlite3.connect(db_path)
+    original = conn.execute(
+        "SELECT campaign_id FROM activism_campaigns WHERE target_identifier='037833100'"
+    ).fetchone()[0]
+    conn.execute("UPDATE activism_filings SET subject_cusip='CORRECTED' WHERE manager_id=1")
+    materialize_activism_campaigns(conn)
+    conn.close()
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    detail = asyncio.run(_request(f"/api/activism/campaigns/{original}"))
+    assert detail.status_code == 200
+    assert detail.json()["target_identifier"] == "CORRECTED"
+    assert detail.json()["filing_count"] == 2
+    timeline = asyncio.run(_request(f"/api/activism/campaigns/{original}/timeline"))
+    assert timeline.status_code == 200
+    assert {item["filing_id"] for item in timeline.json()} == {10, 11}
