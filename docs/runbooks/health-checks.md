@@ -29,12 +29,30 @@ latency thresholds.
 - Configure thresholds with `DQ_HARVEST_WINDOW_MINUTES`,
   `DQ_NEWS_MAX_AGE_HOURS`, `DQ_ROW_COUNT_DROP_PCT`, and
   `DQ_UNMAPPED_CUSIP_RATE_PCT`.
-- Persist alert matches with
-  `alerts.integration.evaluate_and_record_data_quality_alerts()`; it converts
-  failures with `build_data_quality_alert_event()` and routes the event through
-  the existing alert dispatcher/channels as `etl_failure`.
-- Treat freshness and row-count failures as alertable warnings unless the
-  calling flow explicitly chooses to fail the run.
+- `etl.data_quality_flow.data_quality_flow` gathers persisted inputs and calls
+  these checks. Its `data_quality_deployment` is scheduled at 08:30 in the same
+  local timezone as daily-diff. Serve/register this deployment with the existing
+  Prefect worker; importing the module defines it but does not start a scheduler.
+  A local one-off invocation is `python -m etl.data_quality_flow`.
+- Landing evidence is `MAX(created_at)` from EDGAR/SEC filings and news rows,
+  with their persisted row counts; it does not prove an empty harvest executed.
+  News age uses `MAX(published_at)`. Table-count baselines use the latest earlier
+  `data_quality_runs` snapshot; the first date has no drop baseline. Unmapped
+  CUSIPs are distinct current holdings without a ticker/FIGI on the holding or
+  in the identifier cache. No provider lookup is performed by this flow.
+- The flow commits an immutable UTC-date snapshot in `data_quality_runs` before
+  calling `alerts.integration.fire_data_quality_alerts()`, which builds an
+  `etl_failure` event and calls the ordinary dispatcher/configured channels.
+  Same-day reruns reuse that snapshot and UTC-midnight event timestamp, so the
+  existing outbox claims prevent duplicate sends even as source data changes.
+  Run the following day for a new snapshot. Rules/channels must be configured;
+  an unmatched rule or unavailable channel is not evidence of external delivery.
+- `evaluate_and_record_data_quality_alerts()` remains a record-only helper;
+  it does not dispatch notifications. Check failures are warnings, and delivery
+  exceptions return warnings without failing the ingestion flows. Reconcile
+  unknown outbox claims before a manual retry; claims are never auto-released.
+- Verify offline delivery, replay and schedule wiring with
+  `python -m pytest tests/test_data_quality.py -k data_quality_flow -q`.
 
 ### Database
 - Confirm DB endpoint reachability (security groups, network ACLs).

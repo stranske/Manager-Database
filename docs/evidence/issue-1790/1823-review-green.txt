@@ -1,0 +1,137 @@
+...............                                                          [100%]
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_data_quality.py::test_data_quality_flow_delivers_etl_failure
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.8.7' currently installed).
+    from pandas.core.computation.check import NUMEXPR_INSTALLED
+
+tests/test_data_quality.py::test_data_quality_flow_delivers_etl_failure
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56: UserWarning: Pandas requires version '1.4.2' or newer of 'bottleneck' (version '1.3.7' currently installed).
+    from pandas.core import (
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_________________ test_data_quality_flow_delivers_etl_failure __________________
+----------------------------- Captured stderr call -----------------------------
+23:20:55.534 | WARNING | etl.data_quality_flow - Data-quality checks failed: edgar-nightly.harvest_freshness
+{"asctime": "2026-10-17 23:20:55,534", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: edgar-nightly.harvest_freshness", "taskName": null}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.data_quality_flow:data_quality_flow.py:123 Data-quality checks failed: edgar-nightly.harvest_freshness
+___ test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once ____
+----------------------------- Captured stderr call -----------------------------
+23:20:55.554 | WARNING | etl.data_quality_flow - Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+{"asctime": "2026-10-17 23:20:55,554", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: news-hourly.harvest_freshness, news.max_age", "taskName": null}
+23:20:55.556 | WARNING | etl.data_quality_flow - Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+{"asctime": "2026-10-17 23:20:55,556", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: news-hourly.harvest_freshness, news.max_age", "taskName": null}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.data_quality_flow:data_quality_flow.py:123 Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+WARNING  etl.data_quality_flow:data_quality_flow.py:123 Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+____ test_data_quality_flow_uses_prior_day_baseline_and_current_identifiers ____
+----------------------------- Captured stderr call -----------------------------
+23:20:55.568 | WARNING | etl.data_quality_flow - Data-quality checks failed: holdings.row_count_drop, holdings.unmapped_cusip_rate
+{"asctime": "2026-10-17 23:20:55,568", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: holdings.row_count_drop, holdings.unmapped_cusip_rate", "taskName": null}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.data_quality_flow:data_quality_flow.py:123 Data-quality checks failed: holdings.row_count_drop, holdings.unmapped_cusip_rate
+___ test_data_quality_flow_delivery_failure_is_warning_with_durable_snapshot ___
+----------------------------- Captured stderr call -----------------------------
+23:20:55.582 | ERROR   | etl.data_quality_flow - Data-quality alert delivery incomplete
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/data_quality_flow.py", line 113, in data_quality_flow
+    alert_ids = fire_data_quality_alerts(conn, results, occurred_at=current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_data_quality.py", line 162, in fail
+    raise RuntimeError("channel unavailable")
+RuntimeError: channel unavailable
+{"asctime": "2026-10-17 23:20:55,582", "levelname": "ERROR", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality alert delivery incomplete", "exc_info": "Traceback (most recent call last):\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/data_quality_flow.py\", line 113, in data_quality_flow\n    alert_ids = fire_data_quality_alerts(conn, results, occurred_at=current)\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_data_quality.py\", line 162, in fail\n    raise RuntimeError(\"channel unavailable\")\nRuntimeError: channel unavailable", "taskName": null}
+23:20:55.583 | WARNING | etl.data_quality_flow - Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+{"asctime": "2026-10-17 23:20:55,583", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: news-hourly.harvest_freshness, news.max_age", "taskName": null}
+------------------------------ Captured log call -------------------------------
+ERROR    etl.data_quality_flow:data_quality_flow.py:119 Data-quality alert delivery incomplete
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/data_quality_flow.py", line 113, in data_quality_flow
+    alert_ids = fire_data_quality_alerts(conn, results, occurred_at=current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_data_quality.py", line 162, in fail
+    raise RuntimeError("channel unavailable")
+RuntimeError: channel unavailable
+WARNING  etl.data_quality_flow:data_quality_flow.py:123 Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+____ test_data_quality_flow_malformed_timestamps_deliver_freshness_failures ____
+----------------------------- Captured stderr call -----------------------------
+23:20:55.606 | WARNING | etl.data_quality_flow - Unparseable timestamp in quality input
+{"asctime": "2026-10-17 23:20:55,606", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Unparseable timestamp in quality input", "taskName": null}
+23:20:55.607 | WARNING | etl.data_quality_flow - Unparseable timestamp in quality input
+{"asctime": "2026-10-17 23:20:55,607", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Unparseable timestamp in quality input", "taskName": null}
+23:20:55.607 | WARNING | etl.data_quality_flow - Unparseable timestamp in quality input
+{"asctime": "2026-10-17 23:20:55,607", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Unparseable timestamp in quality input", "taskName": null}
+23:20:55.610 | WARNING | etl.data_quality_flow - Data-quality checks failed: edgar-nightly.harvest_freshness, news-hourly.harvest_freshness, news.max_age
+{"asctime": "2026-10-17 23:20:55,610", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: edgar-nightly.harvest_freshness, news-hourly.harvest_freshness, news.max_age", "taskName": null}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.data_quality_flow:data_quality_flow.py:29 Unparseable timestamp in quality input
+WARNING  etl.data_quality_flow:data_quality_flow.py:29 Unparseable timestamp in quality input
+WARNING  etl.data_quality_flow:data_quality_flow.py:29 Unparseable timestamp in quality input
+WARNING  etl.data_quality_flow:data_quality_flow.py:123 Data-quality checks failed: edgar-nightly.harvest_freshness, news-hourly.harvest_freshness, news.max_age
+=========================== short test summary info ============================
+PASSED tests/test_data_quality.py::test_data_quality_flow_delivers_etl_failure
+PASSED tests/test_data_quality.py::test_data_quality_flow_pass_sends_nothing
+PASSED tests/test_data_quality.py::test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once
+PASSED tests/test_data_quality.py::test_data_quality_flow_uses_prior_day_baseline_and_current_identifiers
+PASSED tests/test_data_quality.py::test_data_quality_flow_cache_mapping_excludes_superseded_holdings
+PASSED tests/test_data_quality.py::test_data_quality_flow_delivery_failure_is_warning_with_durable_snapshot
+PASSED tests/test_data_quality.py::test_data_quality_flow_deployment_has_daily_schedule
+PASSED tests/test_data_quality.py::test_data_quality_flow_malformed_timestamps_deliver_freshness_failures
+PASSED tests/test_data_quality.py::test_missed_harvest_flags_freshness_failure
+PASSED tests/test_data_quality.py::test_empty_harvest_is_not_silently_green
+PASSED tests/test_data_quality.py::test_row_count_drop_beyond_tolerance_is_flagged
+PASSED tests/test_data_quality.py::test_env_thresholds_drive_daily_quality
+PASSED tests/test_data_quality.py::test_env_thresholds_reject_non_finite_values
+PASSED tests/test_data_quality.py::test_build_data_quality_alert_event_uses_existing_etl_failure_channel
+PASSED tests/test_data_quality.py::test_data_quality_alerts_record_through_integration_wrapper

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from alerts.channels import NotificationChannel, build_configured_channels
@@ -127,3 +127,23 @@ def fire_alerts_for_event_sync(
 ) -> list[int]:
     """Synchronous wrapper for ETL paths that are not already async."""
     return asyncio.run(fire_alerts_for_event(conn, event, channels=channels))
+
+
+def fire_data_quality_alerts(
+    conn: Any,
+    results: list[DataQualityCheckResult],
+    *,
+    occurred_at: datetime,
+    channels: dict[str, NotificationChannel] | None = None,
+) -> list[int]:
+    """Deliver a persisted daily check snapshot using the ordinary alert outbox.
+
+    Callers must replay the same results for a check date. The scheduled flow
+    persists that snapshot before calling this function, including after crashes.
+    """
+    current = occurred_at.replace(tzinfo=UTC) if occurred_at.tzinfo is None else occurred_at
+    check_day = current.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    event = build_data_quality_alert_event(results, occurred_at=check_day)
+    if event is None:
+        return []
+    return fire_alerts_for_event_sync(conn, event, channels=channels)

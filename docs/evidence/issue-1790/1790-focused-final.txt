@@ -1,0 +1,672 @@
+........................................................................ [ 36%]
+........................................................................ [ 73%]
+...................................................                      [100%]
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.8.7' currently installed).
+    from pandas.core.computation.check import NUMEXPR_INSTALLED
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56: UserWarning: Pandas requires version '1.4.2' or newer of 'bottleneck' (version '1.3.7' currently installed).
+    from pandas.core import (
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_________________ test_data_quality_flow_delivers_etl_failure __________________
+----------------------------- Captured stderr call -----------------------------
+23:11:22.551 | WARNING | etl.data_quality_flow - Data-quality checks failed: edgar-nightly.harvest_freshness
+{"asctime": "2026-10-17 23:11:22,551", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: edgar-nightly.harvest_freshness", "taskName": null}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.data_quality_flow:data_quality_flow.py:119 Data-quality checks failed: edgar-nightly.harvest_freshness
+___ test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once ____
+----------------------------- Captured stderr call -----------------------------
+23:11:22.587 | WARNING | etl.data_quality_flow - Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+{"asctime": "2026-10-17 23:11:22,587", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: news-hourly.harvest_freshness, news.max_age", "taskName": null}
+23:11:22.590 | WARNING | etl.data_quality_flow - Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+{"asctime": "2026-10-17 23:11:22,590", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: news-hourly.harvest_freshness, news.max_age", "taskName": null}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.data_quality_flow:data_quality_flow.py:119 Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+WARNING  etl.data_quality_flow:data_quality_flow.py:119 Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+____ test_data_quality_flow_uses_prior_day_baseline_and_current_identifiers ____
+----------------------------- Captured stderr call -----------------------------
+23:11:22.609 | WARNING | etl.data_quality_flow - Data-quality checks failed: holdings.row_count_drop, holdings.unmapped_cusip_rate
+{"asctime": "2026-10-17 23:11:22,609", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: holdings.row_count_drop, holdings.unmapped_cusip_rate", "taskName": null}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.data_quality_flow:data_quality_flow.py:119 Data-quality checks failed: holdings.row_count_drop, holdings.unmapped_cusip_rate
+___ test_data_quality_flow_delivery_failure_is_warning_with_durable_snapshot ___
+----------------------------- Captured stderr call -----------------------------
+23:11:22.629 | ERROR   | etl.data_quality_flow - Data-quality alert delivery incomplete
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/data_quality_flow.py", line 109, in data_quality_flow
+    alert_ids = fire_data_quality_alerts(conn, results, occurred_at=current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_data_quality.py", line 162, in fail
+    raise RuntimeError("channel unavailable")
+RuntimeError: channel unavailable
+{"asctime": "2026-10-17 23:11:22,629", "levelname": "ERROR", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality alert delivery incomplete", "exc_info": "Traceback (most recent call last):\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/data_quality_flow.py\", line 109, in data_quality_flow\n    alert_ids = fire_data_quality_alerts(conn, results, occurred_at=current)\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_data_quality.py\", line 162, in fail\n    raise RuntimeError(\"channel unavailable\")\nRuntimeError: channel unavailable", "taskName": null}
+23:11:22.630 | WARNING | etl.data_quality_flow - Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+{"asctime": "2026-10-17 23:11:22,630", "levelname": "WARNING", "name": "etl.data_quality_flow", "service": "daily_diff_flow", "message": "Data-quality checks failed: news-hourly.harvest_freshness, news.max_age", "taskName": null}
+------------------------------ Captured log call -------------------------------
+ERROR    etl.data_quality_flow:data_quality_flow.py:115 Data-quality alert delivery incomplete
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/data_quality_flow.py", line 109, in data_quality_flow
+    alert_ids = fire_data_quality_alerts(conn, results, occurred_at=current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_data_quality.py", line 162, in fail
+    raise RuntimeError("channel unavailable")
+RuntimeError: channel unavailable
+WARNING  etl.data_quality_flow:data_quality_flow.py:119 Data-quality checks failed: news-hourly.harvest_freshness, news.max_age
+__________________ test_email_channel_skips_when_unconfigured __________________
+----------------------------- Captured stderr call -----------------------------
+23:11:22.704 | WARNING | alerts.channels - Skipping alert delivery
+{"asctime": "2026-10-17 23:11:22,704", "levelname": "WARNING", "name": "alerts.channels", "service": "daily_diff_flow", "message": "Skipping alert delivery", "taskName": "Task-22", "channel": "email", "reason": "ALERT_EMAIL_FROM is not configured"}
+------------------------------ Captured log call -------------------------------
+WARNING  alerts.channels:channels.py:46 Skipping alert delivery
+_______________ test_daily_diff_flow_processes_multiple_managers _______________
+----------------------------- Captured stderr call -----------------------------
+23:11:23.549 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,549", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.550 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,550", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.555 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,555", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+------------------------------ Captured log call -------------------------------
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+_______________ test_daily_diff_flow_records_large_delta_alerts ________________
+----------------------------- Captured stderr call -----------------------------
+23:11:23.565 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,565", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.565 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,565", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.570 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,570", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+------------------------------ Captured log call -------------------------------
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+__________________ test_daily_diff_flow_defaults_to_yesterday __________________
+----------------------------- Captured stderr call -----------------------------
+23:11:23.576 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,576", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.577 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,577", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.581 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,581", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+------------------------------ Captured log call -------------------------------
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+______________ test_daily_diff_flow_refreshes_matview_on_postgres ______________
+----------------------------- Captured stderr call -----------------------------
+23:11:23.583 | WARNING | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,583", "levelname": "WARNING", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-01-01", "changes": 0}
+23:11:23.584 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,584", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-01-01", "managers_processed": 1, "managers_skipped": 0, "total_changes": 0}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+_____________ test_daily_diff_empty_database_emits_empty_artifact ______________
+----------------------------- Captured stderr call -----------------------------
+23:11:23.586 | WARNING | etl.daily_diff_flow - No managers found in database
+{"asctime": "2026-10-17 23:11:23,586", "levelname": "WARNING", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "No managers found in database", "taskName": null}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.daily_diff_flow:daily_diff_flow.py:308 No managers found in database
+_______ test_daily_diff_manager_failure_propagates_and_closes_connection _______
+----------------------------- Captured stderr call -----------------------------
+23:11:23.599 | ERROR   | etl.daily_diff_flow - Daily diff failed for manager 1
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 349, in daily_diff_flow
+    count = compute_manager_diffs.fn(mid, report_date, conn)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1193, in _execute_mock_call
+    raise effect
+RuntimeError: diff computation failed
+{"asctime": "2026-10-17 23:11:23,599", "levelname": "ERROR", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff failed for manager 1", "exc_info": "Traceback (most recent call last):\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py\", line 349, in daily_diff_flow\n    count = compute_manager_diffs.fn(mid, report_date, conn)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/unittest/mock.py\", line 1134, in __call__\n    return self._mock_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/unittest/mock.py\", line 1138, in _mock_call\n    return self._execute_mock_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/unittest/mock.py\", line 1193, in _execute_mock_call\n    raise effect\nRuntimeError: diff computation failed", "taskName": null, "manager_id": 1, "date": "2024-05-01"}
+------------------------------ Captured log call -------------------------------
+ERROR    etl.daily_diff_flow:daily_diff_flow.py:374 Daily diff failed for manager 1
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 349, in daily_diff_flow
+    count = compute_manager_diffs.fn(mid, report_date, conn)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/unittest/mock.py", line 1193, in _execute_mock_call
+    raise effect
+RuntimeError: diff computation failed
+______ test_daily_diff_continues_after_manager_with_insufficient_filings _______
+----------------------------- Captured stderr call -----------------------------
+23:11:23.607 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,607", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.610 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,610", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 1, "managers_skipped": 1, "total_changes": 1}
+------------------------------ Captured log call -------------------------------
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+__ test_large_delta_dispatch_commits_before_send_and_suppresses_replay[none] ___
+----------------------------- Captured stderr call -----------------------------
+23:11:23.618 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,618", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.619 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,619", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.626 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,626", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.627 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,627", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.628 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,628", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.630 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,630", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.632 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,632", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.632 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,632", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.635 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,635", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.637 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,637", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.637 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,637", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.643 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,643", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+------------------------------ Captured log call -------------------------------
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+_ test_large_delta_dispatch_commits_before_send_and_suppresses_replay[channel] _
+----------------------------- Captured stderr call -----------------------------
+23:11:23.652 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,652", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.653 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,653", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.659 | ERROR   | etl.daily_diff_flow - Large-delta delivery failed after diff commit
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 390, in daily_diff_flow
+    _record_large_delta_alerts(conn, mid, report_date)
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 277, in _record_large_delta_alerts
+    alert_ids.extend(fire_alerts_for_event_sync(conn, _large_delta_event_from_diff(row)))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py", line 129, in fire_alerts_for_event_sync
+    return asyncio.run(fire_alerts_for_event(conn, event, channels=channels))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/base_events.py", line 685, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py", line 120, in fire_alerts_for_event
+    return await dispatcher.dispatch(fired)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 29, in dispatch
+    alert_ids.append(await self.dispatch_single(alert))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 53, in dispatch_single
+    result = await channel.deliver(alert)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_daily_diff.py", line 668, in deliver
+    raise RuntimeError("injected channel failure")
+RuntimeError: injected channel failure
+{"asctime": "2026-10-17 23:11:23,659", "levelname": "ERROR", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Large-delta delivery failed after diff commit", "exc_info": "Traceback (most recent call last):\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py\", line 390, in daily_diff_flow\n    _record_large_delta_alerts(conn, mid, report_date)\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py\", line 277, in _record_large_delta_alerts\n    alert_ids.extend(fire_alerts_for_event_sync(conn, _large_delta_event_from_diff(row)))\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py\", line 129, in fire_alerts_for_event_sync\n    return asyncio.run(fire_alerts_for_event(conn, event, channels=channels))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/asyncio/runners.py\", line 194, in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/asyncio/runners.py\", line 118, in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/asyncio/base_events.py\", line 685, in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py\", line 120, in fire_alerts_for_event\n    return await dispatcher.dispatch(fired)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py\", line 29, in dispatch\n    alert_ids.append(await self.dispatch_single(alert))\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py\", line 53, in dispatch_single\n    result = await channel.deliver(alert)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_daily_diff.py\", line 668, in deliver\n    raise RuntimeError(\"injected channel failure\")\nRuntimeError: injected channel failure", "taskName": null, "manager_id": 1}
+23:11:23.663 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,663", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.665 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,665", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.665 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,665", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.672 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,672", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.674 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,674", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.674 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,674", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.680 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,680", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+------------------------------ Captured log call -------------------------------
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+ERROR    etl.daily_diff_flow:daily_diff_flow.py:396 Large-delta delivery failed after diff commit
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 390, in daily_diff_flow
+    _record_large_delta_alerts(conn, mid, report_date)
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 277, in _record_large_delta_alerts
+    alert_ids.extend(fire_alerts_for_event_sync(conn, _large_delta_event_from_diff(row)))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py", line 129, in fire_alerts_for_event_sync
+    return asyncio.run(fire_alerts_for_event(conn, event, channels=channels))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/base_events.py", line 685, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py", line 120, in fire_alerts_for_event
+    return await dispatcher.dispatch(fired)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 29, in dispatch
+    alert_ids.append(await self.dispatch_single(alert))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 53, in dispatch_single
+    result = await channel.deliver(alert)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_daily_diff.py", line 668, in deliver
+    raise RuntimeError("injected channel failure")
+RuntimeError: injected channel failure
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+_ test_large_delta_dispatch_commits_before_send_and_suppresses_replay[outcome] _
+----------------------------- Captured stderr call -----------------------------
+23:11:23.692 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,692", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.693 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,693", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.698 | ERROR   | etl.daily_diff_flow - Large-delta delivery failed after diff commit
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 390, in daily_diff_flow
+    _record_large_delta_alerts(conn, mid, report_date)
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 277, in _record_large_delta_alerts
+    alert_ids.extend(fire_alerts_for_event_sync(conn, _large_delta_event_from_diff(row)))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py", line 129, in fire_alerts_for_event_sync
+    return asyncio.run(fire_alerts_for_event(conn, event, channels=channels))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/base_events.py", line 685, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py", line 120, in fire_alerts_for_event
+    return await dispatcher.dispatch(fired)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 29, in dispatch
+    alert_ids.append(await self.dispatch_single(alert))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 54, in dispatch_single
+    self._record_result(alert_id, result)
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 60, in _record_result
+    record_delivery_success(self.db, alert_id, result.channel)
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/db.py", line 365, in record_delivery_success
+    conn.commit()
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_daily_diff.py", line 636, in commit
+    raise RuntimeError("injected outcome commit failure")
+RuntimeError: injected outcome commit failure
+{"asctime": "2026-10-17 23:11:23,698", "levelname": "ERROR", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Large-delta delivery failed after diff commit", "exc_info": "Traceback (most recent call last):\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py\", line 390, in daily_diff_flow\n    _record_large_delta_alerts(conn, mid, report_date)\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py\", line 277, in _record_large_delta_alerts\n    alert_ids.extend(fire_alerts_for_event_sync(conn, _large_delta_event_from_diff(row)))\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py\", line 129, in fire_alerts_for_event_sync\n    return asyncio.run(fire_alerts_for_event(conn, event, channels=channels))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/asyncio/runners.py\", line 194, in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/asyncio/runners.py\", line 118, in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/anaconda3/lib/python3.12/asyncio/base_events.py\", line 685, in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py\", line 120, in fire_alerts_for_event\n    return await dispatcher.dispatch(fired)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py\", line 29, in dispatch\n    alert_ids.append(await self.dispatch_single(alert))\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py\", line 54, in dispatch_single\n    self._record_result(alert_id, result)\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py\", line 60, in _record_result\n    record_delivery_success(self.db, alert_id, result.channel)\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/db.py\", line 365, in record_delivery_success\n    conn.commit()\n  File \"/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_daily_diff.py\", line 636, in commit\n    raise RuntimeError(\"injected outcome commit failure\")\nRuntimeError: injected outcome commit failure", "taskName": null, "manager_id": 1}
+23:11:23.701 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,701", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.703 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,703", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.703 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,703", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.707 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,707", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.709 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,709", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.710 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,710", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.714 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,714", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+------------------------------ Captured log call -------------------------------
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+ERROR    etl.daily_diff_flow:daily_diff_flow.py:396 Large-delta delivery failed after diff commit
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 390, in daily_diff_flow
+    _record_large_delta_alerts(conn, mid, report_date)
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/etl/daily_diff_flow.py", line 277, in _record_large_delta_alerts
+    alert_ids.extend(fire_alerts_for_event_sync(conn, _large_delta_event_from_diff(row)))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py", line 129, in fire_alerts_for_event_sync
+    return asyncio.run(fire_alerts_for_event(conn, event, channels=channels))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/asyncio/base_events.py", line 685, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/integration.py", line 120, in fire_alerts_for_event
+    return await dispatcher.dispatch(fired)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 29, in dispatch
+    alert_ids.append(await self.dispatch_single(alert))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 54, in dispatch_single
+    self._record_result(alert_id, result)
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/dispatch.py", line 60, in _record_result
+    record_delivery_success(self.db, alert_id, result.channel)
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/alerts/db.py", line 365, in record_delivery_success
+    conn.commit()
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1790-data-quality/tests/test_daily_diff.py", line 636, in commit
+    raise RuntimeError("injected outcome commit failure")
+RuntimeError: injected outcome commit failure
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+_ test_large_delta_dispatch_commits_before_send_and_suppresses_replay[unconfigured] _
+----------------------------- Captured stderr call -----------------------------
+23:11:23.724 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,724", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.724 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,724", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.729 | WARNING | alerts.dispatch - Alert channel not registered; skipping delivery
+{"asctime": "2026-10-17 23:11:23,729", "levelname": "WARNING", "name": "alerts.dispatch", "service": "daily_diff_flow", "message": "Alert channel not registered; skipping delivery", "taskName": "Task-250", "channel": "slack", "rule_id": 1}
+23:11:23.730 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,730", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.732 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,732", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.732 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,732", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.734 | WARNING | alerts.dispatch - Alert channel not registered; skipping delivery
+{"asctime": "2026-10-17 23:11:23,734", "levelname": "WARNING", "name": "alerts.dispatch", "service": "daily_diff_flow", "message": "Alert channel not registered; skipping delivery", "taskName": "Task-265", "channel": "slack", "rule_id": 1}
+23:11:23.736 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,736", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+23:11:23.737 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,737", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 1, "date": "2024-05-01", "changes": 4}
+23:11:23.737 | INFO    | etl.daily_diff_flow - Manager diff computed
+{"asctime": "2026-10-17 23:11:23,737", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Manager diff computed", "taskName": null, "manager_id": 2, "date": "2024-05-01", "changes": 1}
+23:11:23.740 | WARNING | alerts.dispatch - Alert channel not registered; skipping delivery
+{"asctime": "2026-10-17 23:11:23,740", "levelname": "WARNING", "name": "alerts.dispatch", "service": "daily_diff_flow", "message": "Alert channel not registered; skipping delivery", "taskName": "Task-280", "channel": "slack", "rule_id": 1}
+23:11:23.741 | INFO    | etl.daily_diff_flow - Daily diff flow finished
+{"asctime": "2026-10-17 23:11:23,741", "levelname": "INFO", "name": "etl.daily_diff_flow", "service": "daily_diff_flow", "message": "Daily diff flow finished", "taskName": null, "date": "2024-05-01", "managers_processed": 2, "managers_skipped": 0, "total_changes": 5}
+------------------------------ Captured log call -------------------------------
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+WARNING  alerts.dispatch:dispatch.py:45 Alert channel not registered; skipping delivery
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+WARNING  alerts.dispatch:dispatch.py:45 Alert channel not registered; skipping delivery
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+INFO     etl.daily_diff_flow:logging_setup.py:147 Manager diff computed
+WARNING  alerts.dispatch:dispatch.py:45 Alert channel not registered; skipping delivery
+INFO     etl.daily_diff_flow:daily_diff_flow.py:402 Daily diff flow finished
+=========================== short test summary info ============================
+PASSED tests/test_data_quality.py::test_data_quality_flow_delivers_etl_failure
+PASSED tests/test_data_quality.py::test_data_quality_flow_pass_sends_nothing
+PASSED tests/test_data_quality.py::test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once
+PASSED tests/test_data_quality.py::test_data_quality_flow_uses_prior_day_baseline_and_current_identifiers
+PASSED tests/test_data_quality.py::test_data_quality_flow_cache_mapping_excludes_superseded_holdings
+PASSED tests/test_data_quality.py::test_data_quality_flow_delivery_failure_is_warning_with_durable_snapshot
+PASSED tests/test_data_quality.py::test_data_quality_flow_deployment_has_daily_schedule
+PASSED tests/test_data_quality.py::test_missed_harvest_flags_freshness_failure
+PASSED tests/test_data_quality.py::test_empty_harvest_is_not_silently_green
+PASSED tests/test_data_quality.py::test_row_count_drop_beyond_tolerance_is_flagged
+PASSED tests/test_data_quality.py::test_env_thresholds_drive_daily_quality
+PASSED tests/test_data_quality.py::test_env_thresholds_reject_non_finite_values
+PASSED tests/test_data_quality.py::test_build_data_quality_alert_event_uses_existing_etl_failure_channel
+PASSED tests/test_data_quality.py::test_data_quality_alerts_record_through_integration_wrapper
+PASSED tests/test_alert_integration.py::test_build_new_filing_event_populates_expected_payload
+PASSED tests/test_alert_integration.py::test_build_new_filing_event_requires_type
+PASSED tests/test_alert_integration.py::test_saved_legacy_new_filing_rule_matches_edgar_event
+PASSED tests/test_alert_integration.py::test_large_delta_net_rule_matches_buy_and_sell_events
+PASSED tests/test_alert_integration.py::test_evaluate_and_record_alerts_persists_alert_history
+PASSED tests/test_alert_integration.py::test_evaluate_and_record_new_filing_alerts_returns_empty_when_rule_does_not_match
+PASSED tests/test_alert_integration.py::test_fire_alerts_for_event_dispatches_matching_channels
+PASSED tests/test_alert_integration.py::test_insert_pending_alert_dedupes_edgar_accession_without_filing_id
+PASSED tests/test_alert_integration.py::test_persistence_only_does_not_report_unattempted_external_delivery
+PASSED tests/test_alert_channels.py::test_streamlit_channel_always_succeeds
+PASSED tests/test_alert_channels.py::test_email_channel_smtp_delivery
+PASSED tests/test_alert_channels.py::test_email_channel_skips_when_unconfigured
+PASSED tests/test_alert_channels.py::test_slack_channel_posts_blocks
+PASSED tests/test_alert_channels.py::test_dispatcher_records_successes_and_failures
+PASSED tests/test_alert_channels.py::test_build_configured_channels_reads_env
+PASSED tests/test_alert_channels.py::test_dispatch_retry_preserves_durable_claim[claim]
+PASSED tests/test_alert_channels.py::test_dispatch_retry_preserves_durable_claim[outcome]
+PASSED tests/test_alert_channels.py::test_dispatch_retry_preserves_durable_claim[accepted-outcome]
+PASSED tests/test_alert_channels.py::test_dispatch_retry_preserves_durable_claim[channel]
+PASSED tests/test_alert_engine.py::test_alert_engine_matches_value_threshold_and_delta_type
+PASSED tests/test_alert_engine.py::test_alert_engine_ignores_non_finite_numeric_rule_values
+PASSED tests/test_alert_engine.py::test_alert_engine_malformed_count_does_not_block_later_rules[news_spike-{"news_count_gt":5}-payload0]
+PASSED tests/test_alert_engine.py::test_alert_engine_malformed_count_does_not_block_later_rules[news_spike-{"news_count_gt":0}-payload1]
+PASSED tests/test_alert_engine.py::test_alert_engine_malformed_count_does_not_block_later_rules[crowded_trade_change-{"manager_count_gte":3}-payload2]
+PASSED tests/test_alert_engine.py::test_alert_engine_malformed_count_does_not_block_later_rules[crowded_trade_change-{"manager_count_gte":3}-payload3]
+PASSED tests/test_alert_engine.py::test_alert_engine_malformed_count_does_not_block_later_rules[crowded_trade_change-{"similar_manager_count_gte":3}-payload4]
+PASSED tests/test_alert_engine.py::test_alert_engine_manager_filter_and_disabled_rules
+PASSED tests/test_alert_engine.py::test_alert_engine_supports_news_and_crowded_trade_conditions
+PASSED tests/test_alert_engine.py::test_alert_engine_returns_multiple_matches_for_same_event
+PASSED tests/test_alert_engine.py::test_alert_engine_returns_empty_when_no_rules_match
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_event_types_and_channels
+PASSED tests/test_alert_engine.py::test_alert_engine_ensures_schema_once_at_init
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[nan0-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[nan0-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[nan0-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[inf0-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[inf0-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[inf0-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-inf0-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-inf0-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-inf0-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.5_0-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.5_0-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.5_0-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.0-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.0-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.0-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[no-count-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[no-count-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[no-count-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.5_1-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.5_1-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[1.5_1-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[0-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[0-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[0-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-1-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-1-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-1-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[True-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[True-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[True-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[None-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[None-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[None-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[invalid12-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[invalid12-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[invalid12-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[invalid13-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[invalid13-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[invalid13-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[nan1-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[nan1-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[nan1-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[inf1-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[inf1-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[inf1-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-inf1-news_count_gt-news_spike-news_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-inf1-manager_count_gte-crowded_trade_change-manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_invalid_stored_threshold_does_not_block_later_rules[-inf1-similar_manager_count_gte-crowded_trade_change-similar_manager_count]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False--1-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False--1-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False--1-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False--1-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False-0-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False-0-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False-0-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False-0-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False-1-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False-1-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False-1-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[news_count_gt-news_spike-news_count-False-1-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True--1-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True--1-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True--1-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True--1-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True-0-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True-0-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True-0-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True-0-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True-1-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True-1-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True-1-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[manager_count_gte-crowded_trade_change-manager_count-True-1-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True--1-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True--1-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True--1-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True--1-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True-0-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True-0-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True-0-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True-0-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True-1-1_0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True-1-1_1]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True-1-1.0]
+PASSED tests/test_alert_engine.py::test_alert_engine_integer_threshold_boundaries[similar_manager_count_gte-crowded_trade_change-similar_manager_count-True-1-9007199254740993]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[2.5_0-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[2.5_0-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[2.5_1-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[2.5_1-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[2.0-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[2.0-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[0-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[0-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[-1-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[-1-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[True-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[True-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[False-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[False-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[None-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[None-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[nan-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[nan-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[inf-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_reject_invalid_similar_manager_counts[inf-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_accept_positive_integer_similar_manager_counts[1_0-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_accept_positive_integer_similar_manager_counts[1_0-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_accept_positive_integer_similar_manager_counts[1_1-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_accept_positive_integer_similar_manager_counts[1_1-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_accept_positive_integer_similar_manager_counts[2.0-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_accept_positive_integer_similar_manager_counts[2.0-AlertRuleUpdate]
+PASSED tests/test_alert_engine.py::test_alert_models_accept_positive_integer_similar_manager_counts[9007199254740993-AlertRuleCreate]
+PASSED tests/test_alert_engine.py::test_alert_models_accept_positive_integer_similar_manager_counts[9007199254740993-AlertRuleUpdate]
+PASSED tests/test_daily_diff_deployment.py::test_daily_diff_deployment_uses_env_tz
+PASSED tests/test_daily_diff_deployment.py::test_daily_diff_deployment_falls_back_to_tzinfo_key
+PASSED tests/test_daily_diff_deployment.py::test_daily_diff_deployment_falls_back_to_localtime_symlink
+PASSED tests/test_daily_diff_deployment.py::test_daily_diff_deployment_defaults_to_utc_when_unresolvable
+PASSED tests/test_daily_diff.py::test_etl_failure_dispatch_uses_real_entrypoint_and_serialized_replay
+PASSED tests/test_daily_diff.py::test_compute_manager_diffs_persists_all_four_delta_types_with_values
+PASSED tests/test_daily_diff.py::test_compute_manager_diffs_valid_manager_fk
+PASSED tests/test_daily_diff.py::test_compute_manager_diffs_is_idempotent
+PASSED tests/test_daily_diff.py::test_daily_diff_flow_processes_multiple_managers
+PASSED tests/test_daily_diff.py::test_daily_diff_flow_records_large_delta_alerts
+PASSED tests/test_daily_diff.py::test_daily_diff_flow_defaults_to_yesterday
+PASSED tests/test_daily_diff.py::test_daily_diff_flow_refreshes_matview_on_postgres
+PASSED tests/test_daily_diff.py::test_daily_diff_empty_database_emits_empty_artifact
+PASSED tests/test_daily_diff.py::test_daily_diff_normalizes_alerts[add-None--8-buy-8.0]
+PASSED tests/test_daily_diff.py::test_daily_diff_normalizes_alerts[INCREASE-4-10-buy-6.0]
+PASSED tests/test_daily_diff.py::test_daily_diff_normalizes_alerts[EXIT--9-None-sell-9.0]
+PASSED tests/test_daily_diff.py::test_daily_diff_normalizes_alerts[DECREASE-10-4-sell-6.0]
+PASSED tests/test_daily_diff.py::test_daily_diff_normalizes_alerts[UNCHANGED-9-4-unchanged-5.0]
+PASSED tests/test_daily_diff.py::test_daily_diff_normalizes_alerts[OTHER-None-None-other-None]
+PASSED tests/test_daily_diff.py::test_daily_diff_missing_table_requires_migrations[message]
+PASSED tests/test_daily_diff.py::test_daily_diff_missing_table_requires_migrations[pgcode]
+PASSED tests/test_daily_diff.py::test_daily_diff_missing_table_requires_migrations[class_name]
+PASSED tests/test_daily_diff.py::test_daily_diff_table_check_preserves_other_database_errors
+PASSED tests/test_daily_diff.py::test_daily_diff_view_refresh_only_suppresses_missing_view[index-permission-error]
+PASSED tests/test_daily_diff.py::test_daily_diff_view_refresh_only_suppresses_missing_view[index-missing-view]
+PASSED tests/test_daily_diff.py::test_daily_diff_view_refresh_only_suppresses_missing_view[refresh-permission-error]
+PASSED tests/test_daily_diff.py::test_daily_diff_view_refresh_only_suppresses_missing_view[refresh-missing-view]
+PASSED tests/test_daily_diff.py::test_daily_diff_manager_failure_propagates_and_closes_connection
+PASSED tests/test_daily_diff.py::test_daily_diff_continues_after_manager_with_insufficient_filings
+PASSED tests/test_daily_diff.py::test_daily_diff_timezone_falls_back_to_utc
+PASSED tests/test_daily_diff.py::test_large_delta_dispatch_commits_before_send_and_suppresses_replay[none]
+PASSED tests/test_daily_diff.py::test_large_delta_dispatch_commits_before_send_and_suppresses_replay[channel]
+PASSED tests/test_daily_diff.py::test_large_delta_dispatch_commits_before_send_and_suppresses_replay[outcome]
+PASSED tests/test_daily_diff.py::test_large_delta_dispatch_commits_before_send_and_suppresses_replay[unconfigured]
