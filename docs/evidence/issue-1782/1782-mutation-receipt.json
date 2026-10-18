@@ -1,0 +1,18 @@
+{
+  "old_sha256": "c80a695a84160c7ae4298cd7924e8635f054e0f3bffcada838709708e3b78e98",
+  "restored_sha256": "143a32c61e979c6ef0a55401ba0f35b6ceb10211dfe92db5c65c8fd90b264ff8",
+  "restored_byte_identical": true,
+  "red_exit": 1,
+  "green_exit": 0,
+  "command": [
+    "/opt/anaconda3/bin/python3",
+    "-m",
+    "pytest",
+    "-q",
+    "-rA",
+    "--no-cov",
+    "tests/test_nl_query_chain.py",
+    "-k",
+    "comma_join or nested_limit or offset_count"
+  ]
+}
