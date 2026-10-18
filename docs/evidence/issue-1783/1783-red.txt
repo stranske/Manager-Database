@@ -1,0 +1,212 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_____ test_identifier_correction_preserves_id_and_derived_references[None] _____
+
+initial = None
+
+    @pytest.mark.parametrize("initial", [None, "OLD-CUSIP"])
+    def test_identifier_correction_preserves_id_and_derived_references(initial):
+        conn = _conn()
+        conn.execute(
+            "INSERT INTO activism_filings VALUES (1,1,'SC 13D','Example Corp',?,5.1,'2024-05-01','https://sec/1')",
+            (initial,),
+        )
+        materialize_activism_campaigns(conn)
+        original = conn.execute("SELECT campaign_id FROM activism_campaigns").fetchone()[0]
+        conn.execute("UPDATE activism_filings SET subject_cusip='123456789' WHERE filing_id=1")
+        conn.execute(
+            "INSERT INTO activism_filings VALUES (2,1,'SC 13D/A','Example Corp','123456789',7.0,'2024-05-02','https://sec/2')"
+        )
+        materialize_activism_campaigns(conn)
+        materialize_activism_campaigns(conn)
+>       assert conn.execute(
+            "SELECT campaign_id,target_identifier,filing_count FROM activism_campaigns"
+        ).fetchall() == [(original, "123456789", 2)]
+E       AssertionError: assert [(1, 'name:EX...23456789', 2)] == [(1, '123456789', 2)]
+E
+E         At index 0 diff: (1, 'name:EXAMPLE CORP', 1) != (1, '123456789', 2)
+E         Left contains one more item: (2, '123456789', 2)
+E         Use -v to get more diff
+
+tests/test_activism_campaign_flow.py:273: AssertionError
+__ test_identifier_correction_preserves_id_and_derived_references[OLD-CUSIP] ___
+
+initial = 'OLD-CUSIP'
+
+    @pytest.mark.parametrize("initial", [None, "OLD-CUSIP"])
+    def test_identifier_correction_preserves_id_and_derived_references(initial):
+        conn = _conn()
+        conn.execute(
+            "INSERT INTO activism_filings VALUES (1,1,'SC 13D','Example Corp',?,5.1,'2024-05-01','https://sec/1')",
+            (initial,),
+        )
+        materialize_activism_campaigns(conn)
+        original = conn.execute("SELECT campaign_id FROM activism_campaigns").fetchone()[0]
+        conn.execute("UPDATE activism_filings SET subject_cusip='123456789' WHERE filing_id=1")
+        conn.execute(
+            "INSERT INTO activism_filings VALUES (2,1,'SC 13D/A','Example Corp','123456789',7.0,'2024-05-02','https://sec/2')"
+        )
+        materialize_activism_campaigns(conn)
+        materialize_activism_campaigns(conn)
+>       assert conn.execute(
+            "SELECT campaign_id,target_identifier,filing_count FROM activism_campaigns"
+        ).fetchall() == [(original, "123456789", 2)]
+E       AssertionError: assert [(1, 'OLD-CUS...23456789', 2)] == [(1, '123456789', 2)]
+E
+E         At index 0 diff: (1, 'OLD-CUSIP', 1) != (1, '123456789', 2)
+E         Left contains one more item: (2, '123456789', 2)
+E         Use -v to get more diff
+
+tests/test_activism_campaign_flow.py:273: AssertionError
+_________ test_identifier_correction_retains_shared_filing_membership __________
+
+    def test_identifier_correction_retains_shared_filing_membership():
+        conn = _conn()
+        conn.executemany(
+            "INSERT INTO activism_filings VALUES (?,1,'SC 13D','Example Corp','OLD',5.1,?,'https://sec')",
+            [(1, "2024-05-01"), (2, "2024-05-02")],
+        )
+        materialize_activism_campaigns(conn)
+        original = conn.execute("SELECT campaign_id FROM activism_campaigns").fetchone()[0]
+        conn.execute("UPDATE activism_filings SET subject_cusip='NEW' WHERE filing_id=2")
+        materialize_activism_campaigns(conn)
+>       assert conn.execute(
+            "SELECT campaign_id,target_identifier,filing_count FROM activism_campaigns"
+        ).fetchall() == [(original, "NEW", 2)]
+E       AssertionError: assert [(1, 'OLD', 1), (2, 'NEW', 1)] == [(1, 'NEW', 2)]
+E
+E         At index 0 diff: (1, 'OLD', 1) != (1, 'NEW', 2)
+E         Left contains one more item: (2, 'NEW', 1)
+E         Use -v to get more diff
+
+tests/test_activism_campaign_flow.py:295: AssertionError
+____ test_identifier_correction_rolls_back_metadata_and_children_on_failure ____
+
+    def test_identifier_correction_rolls_back_metadata_and_children_on_failure():
+        conn = _conn()
+        conn.execute(
+            "INSERT INTO activism_filings VALUES (1,1,'SC 13D','Example Corp','OLD',5.1,'2024-05-01','https://sec/1')"
+        )
+        materialize_activism_campaigns(conn)
+        tables = ["activism_campaigns", "activism_campaign_timeline", "activism_documents"]
+        before = {t: conn.execute(f"SELECT * FROM {t}").fetchall() for t in tables}
+        conn.execute("UPDATE activism_filings SET subject_cusip='NEW' WHERE filing_id=1")
+        conn.commit()
+        conn.execute(
+            "CREATE TRIGGER fail_documents BEFORE INSERT ON activism_documents BEGIN SELECT RAISE(ABORT,'forced mid-update failure'); END"
+        )
+        with pytest.raises(sqlite3.IntegrityError, match="forced mid-update"):
+            materialize_activism_campaigns(conn)
+>       assert {t: conn.execute(f"SELECT * FROM {t}").fetchall() for t in tables} == before
+E       AssertionError: assert {'activism_ca..., None, ...)]} == {'activism_ca..., None, ...)]}
+E
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'activism_campaigns': [(1, 1, 'OLD', 'Example Corp', '2024-05-01', '2024-05-01', ...), (2, 1, 'NEW', 'Example Corp', '2024-05-01', '2024-05-01', ...)]} != {'activism_campaigns': [(1, 1, 'OLD', 'Example Corp', '2024-05-01', '2024-05-01', ...)]}
+E         {'activism_campaign_timeline': [(1, 1, 1, None, '2024-05-01', 'initial_filing', ...), (2, 2, 1, None, '2024-05-01', 'initial_filing', ...)]} != {'activism_campaign_timeline': [(1, 1, 1, None, '2024-05-01', 'initial_filing', ...)]}
+E         Use -v to get more diff
+
+tests/test_activism_campaign_flow.py:315: AssertionError
+______ test_identifier_collision_fails_without_renumbering_other_campaign ______
+
+    def test_identifier_collision_fails_without_renumbering_other_campaign():
+        conn = _conn()
+        conn.executemany(
+            "INSERT INTO activism_filings VALUES (?,1,'SC 13D','Example Corp',?,5.1,'2024-05-01','https://sec')",
+            [(1, "FIRST"), (2, "SECOND")],
+        )
+        materialize_activism_campaigns(conn)
+        before = conn.execute(
+            "SELECT campaign_id,target_identifier FROM activism_campaigns ORDER BY campaign_id"
+        ).fetchall()
+        conn.execute("UPDATE activism_filings SET subject_cusip='SECOND' WHERE filing_id=1")
+        conn.commit()
+>       with pytest.raises(ValueError, match="ownership|another campaign"):
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_activism_campaign_flow.py:330: Failed
+___ test_identifier_correction_preserves_original_detail_and_timeline_routes ___
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6148/test_identifier_correction_pre0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x307d6b620>
+
+    def test_identifier_correction_preserves_original_detail_and_timeline_routes(tmp_path, monkeypatch):
+        db_path = tmp_path / "identity.db"
+        _seed_db(db_path)
+        conn = sqlite3.connect(db_path)
+        original = conn.execute(
+            "SELECT campaign_id FROM activism_campaigns WHERE target_identifier='037833100'"
+        ).fetchone()[0]
+        conn.execute("UPDATE activism_filings SET subject_cusip='CORRECTED' WHERE manager_id=1")
+        materialize_activism_campaigns(conn)
+        conn.close()
+        monkeypatch.setenv("DB_PATH", str(db_path))
+        detail = asyncio.run(_request(f"/api/activism/campaigns/{original}"))
+        assert detail.status_code == 200
+>       assert detail.json()["target_identifier"] == "CORRECTED"
+E       AssertionError: assert '037833100' == 'CORRECTED'
+E
+E         - CORRECTED
+E         + 037833100
+
+tests/test_activism_api.py:402: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1517
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1783-campaign-identity/api/chat.py:1517: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1817
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1783-campaign-identity/api/chat.py:1817: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+api/chat.py:1824
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1783-campaign-identity/api/chat.py:1824: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_activism_campaign_flow.py::test_identifier_correction_preserves_id_and_derived_references[None]
+FAILED tests/test_activism_campaign_flow.py::test_identifier_correction_preserves_id_and_derived_references[OLD-CUSIP]
+FAILED tests/test_activism_campaign_flow.py::test_identifier_correction_retains_shared_filing_membership
+FAILED tests/test_activism_campaign_flow.py::test_identifier_correction_rolls_back_metadata_and_children_on_failure
+FAILED tests/test_activism_campaign_flow.py::test_identifier_collision_fails_without_renumbering_other_campaign
+FAILED tests/test_activism_api.py::test_identifier_correction_preserves_original_detail_and_timeline_routes
+6 failed, 17 deselected, 9 warnings in 0.28s

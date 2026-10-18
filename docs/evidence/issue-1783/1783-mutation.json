@@ -1,0 +1,20 @@
+{
+  "old_sha256": "9c906be5c732512c10ded495eeb511ac764592c0c98ffcd9d2db7601f8a677ef",
+  "restored_sha256": "f9b7d6ab4ca0aaeb1a318523901509f524284cff34f07a79d0ca9740c5e4751d",
+  "restored_byte_identical": true,
+  "red_exit": 1,
+  "green_exit": 0,
+  "command": [
+    "/opt/anaconda3/bin/python3",
+    "-m",
+    "pytest",
+    "-o",
+    "addopts=",
+    "-q",
+    "--no-cov",
+    "tests/test_activism_campaign_flow.py",
+    "tests/test_activism_api.py",
+    "-k",
+    "identifier"
+  ]
+}

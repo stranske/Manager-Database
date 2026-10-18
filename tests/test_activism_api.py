@@ -384,3 +384,23 @@ def test_campaign_query_drops_non_finite_ownership(tmp_path):
     assert len(campaigns) == 1
     assert campaigns[0].peak_ownership_pct is None
     assert campaigns[0].latest_ownership_pct is None
+
+
+def test_identifier_correction_preserves_original_detail_and_timeline_routes(tmp_path, monkeypatch):
+    db_path = tmp_path / "identity.db"
+    _seed_db(db_path)
+    conn = sqlite3.connect(db_path)
+    original = conn.execute(
+        "SELECT campaign_id FROM activism_campaigns WHERE target_identifier='037833100'"
+    ).fetchone()[0]
+    conn.execute("UPDATE activism_filings SET subject_cusip='CORRECTED' WHERE manager_id=1")
+    materialize_activism_campaigns(conn)
+    conn.close()
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    detail = asyncio.run(_request(f"/api/activism/campaigns/{original}"))
+    assert detail.status_code == 200
+    assert detail.json()["target_identifier"] == "CORRECTED"
+    assert detail.json()["filing_count"] == 2
+    timeline = asyncio.run(_request(f"/api/activism/campaigns/{original}/timeline"))
+    assert timeline.status_code == 200
+    assert {item["filing_id"] for item in timeline.json()} == {10, 11}
