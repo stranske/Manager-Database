@@ -140,7 +140,7 @@ def _condition_inputs(event_type: str, defaults: dict[str, Any] | None = None) -
     defaults = defaults or {}
     if _is_unsupported_event_type(event_type):
         st.caption(_unsupported_rule_notice(event_type))
-        return {}
+        return dict(defaults)
     if event_type == "activism_event":
         subtype_options = [
             "any",

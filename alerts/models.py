@@ -69,7 +69,7 @@ def normalize_event_type(value: str) -> str:
 
 def is_supported_event_type(value: str) -> bool:
     """Whether new rules may be created for ``value`` (historical names may not be)."""
-    return value.strip() not in UNSUPPORTED_EVENT_TYPES
+    return value.strip() in CREATABLE_EVENT_TYPES
 
 
 def validate_creatable_event_type(value: str) -> str:

@@ -1052,3 +1052,42 @@ def test_supported_new_filing_rule_creation_via_ui(monkeypatch):
     assert bodies[0][2]["event_type"] == "new_filing"
     assert fake_st.successes == ["Created rule #9"]
     assert fake_st.errors == []
+
+
+@pytest.mark.parametrize(
+    ("event_type", "expected"),
+    [("unknown", False), ("missing_filing", False), ("new_filing", True), (" new_filing ", True)],
+)
+def test_rule_support_predicate_matches_creatable_types(event_type, expected):
+    from alerts.models import is_supported_event_type
+
+    assert is_supported_event_type(event_type) is expected
+
+
+def test_retired_rule_name_only_save_preserves_conditions(monkeypatch):
+    rule = _legacy_missing_filing_rule()
+    original_conditions = {"manager_id": 7, "legacy_filter": {"days": 30}}
+    rule["condition_json"] = original_conditions
+    fake_st = _RuleBuilderStreamlit(event_type="new_filing")
+    monkeypatch.setattr(fake_st, "form_submit_button", lambda label: label == "Save Rule")
+    monkeypatch.setattr(alerts_ui, "st", fake_st)
+    monkeypatch.setattr(alerts_ui, "_load_managers", lambda: [])
+    monkeypatch.setattr(alerts_ui, "_load_rules", lambda: [rule])
+    monkeypatch.setattr(alerts_ui, "_clear_alert_caches", lambda: None)
+    requests = []
+
+    def save_request(method, path, **kwargs):
+        requests.append((method, path, kwargs["json_body"]))
+        return True, {"rule_id": 42}
+
+    monkeypatch.setattr(alerts_ui, "_api_request", save_request)
+    with pytest.raises(_RerunTriggered):
+        alerts_ui._render_rule_builder()
+
+    assert len(requests) == 1
+    method, path, payload = requests[0]
+    assert (method, path) == ("PUT", "/api/alerts/rules/42")
+    assert payload["name"] == "Test Rule"
+    assert payload["condition_json"] == original_conditions
+    assert rule["condition_json"] == original_conditions
+    assert fake_st.successes == ["Updated rule #42"]
