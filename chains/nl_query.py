@@ -167,7 +167,7 @@ class NLQueryChain:
     def _connection_dialect(self, conn: Any | None = None) -> str:
         if is_sqlite(conn if conn is not None else self.db):
             return "sqlite"
-        return "postgresql"
+        return "postgres"
 
     def _dialect_prompt_label(self) -> str:
         if self._connection_dialect() == "sqlite":
