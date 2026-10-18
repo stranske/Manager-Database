@@ -3,6 +3,9 @@ from __future__ import annotations
 import sqlite3
 from datetime import date
 
+import pytest
+
+from api.activism import query_activism_campaign_timeline, query_activism_campaigns
 from etl.activism_campaign_flow import materialize_activism_campaigns
 
 
@@ -250,3 +253,85 @@ def test_materialize_campaigns_invalid_filing_date_keeps_campaign_without_metric
     assert conn.execute(
         "SELECT window_return, holding_period_days FROM activism_campaigns"
     ).fetchone() == (None, None)
+
+
+@pytest.mark.parametrize("initial", [None, "OLD-CUSIP"])
+def test_identifier_correction_preserves_id_and_derived_references(initial):
+    conn = _conn()
+    conn.execute(
+        "INSERT INTO activism_filings VALUES (1,1,'SC 13D','Example Corp',?,5.1,'2024-05-01','https://sec/1')",
+        (initial,),
+    )
+    materialize_activism_campaigns(conn)
+    original = conn.execute("SELECT campaign_id FROM activism_campaigns").fetchone()[0]
+    conn.execute("UPDATE activism_filings SET subject_cusip='123456789' WHERE filing_id=1")
+    conn.execute(
+        "INSERT INTO activism_filings VALUES (2,1,'SC 13D/A','Example Corp','123456789',7.0,'2024-05-02','https://sec/2')"
+    )
+    materialize_activism_campaigns(conn)
+    materialize_activism_campaigns(conn)
+    assert conn.execute(
+        "SELECT campaign_id,target_identifier,filing_count FROM activism_campaigns"
+    ).fetchall() == [(original, "123456789", 2)]
+    for table in ["activism_campaign_timeline", "activism_documents"]:
+        assert conn.execute(
+            f"SELECT campaign_id,filing_id FROM {table} ORDER BY filing_id"
+        ).fetchall() == [(original, 1), (original, 2)]
+    detail = query_activism_campaigns(conn, campaign_id=original)
+    assert len(detail) == 1 and detail[0].campaign_id == original
+    assert len(query_activism_campaign_timeline(conn, campaign_id=original)) == 2
+
+
+def test_identifier_correction_retains_shared_filing_membership():
+    conn = _conn()
+    conn.executemany(
+        "INSERT INTO activism_filings VALUES (?,1,'SC 13D','Example Corp','OLD',5.1,?,'https://sec')",
+        [(1, "2024-05-01"), (2, "2024-05-02")],
+    )
+    materialize_activism_campaigns(conn)
+    original = conn.execute("SELECT campaign_id FROM activism_campaigns").fetchone()[0]
+    conn.execute("UPDATE activism_filings SET subject_cusip='NEW' WHERE filing_id=2")
+    materialize_activism_campaigns(conn)
+    assert conn.execute(
+        "SELECT campaign_id,target_identifier,filing_count FROM activism_campaigns"
+    ).fetchall() == [(original, "NEW", 2)]
+
+
+def test_identifier_correction_rolls_back_metadata_and_children_on_failure():
+    conn = _conn()
+    conn.execute(
+        "INSERT INTO activism_filings VALUES (1,1,'SC 13D','Example Corp','OLD',5.1,'2024-05-01','https://sec/1')"
+    )
+    materialize_activism_campaigns(conn)
+    tables = ["activism_campaigns", "activism_campaign_timeline", "activism_documents"]
+    before = {t: conn.execute(f"SELECT * FROM {t}").fetchall() for t in tables}
+    conn.execute("UPDATE activism_filings SET subject_cusip='NEW' WHERE filing_id=1")
+    conn.commit()
+    conn.execute(
+        "CREATE TRIGGER fail_documents BEFORE INSERT ON activism_documents BEGIN SELECT RAISE(ABORT,'forced mid-update failure'); END"
+    )
+    with pytest.raises(sqlite3.IntegrityError, match="forced mid-update"):
+        materialize_activism_campaigns(conn)
+    assert {t: conn.execute(f"SELECT * FROM {t}").fetchall() for t in tables} == before
+
+
+def test_identifier_collision_fails_without_renumbering_other_campaign():
+    conn = _conn()
+    conn.executemany(
+        "INSERT INTO activism_filings VALUES (?,1,'SC 13D','Example Corp',?,5.1,'2024-05-01','https://sec')",
+        [(1, "FIRST"), (2, "SECOND")],
+    )
+    materialize_activism_campaigns(conn)
+    before = conn.execute(
+        "SELECT campaign_id,target_identifier FROM activism_campaigns ORDER BY campaign_id"
+    ).fetchall()
+    conn.execute("UPDATE activism_filings SET subject_cusip='SECOND' WHERE filing_id=1")
+    conn.commit()
+    with pytest.raises(ValueError, match="ownership|another campaign"):
+        materialize_activism_campaigns(conn)
+    assert (
+        conn.execute(
+            "SELECT campaign_id,target_identifier FROM activism_campaigns ORDER BY campaign_id"
+        ).fetchall()
+        == before
+    )

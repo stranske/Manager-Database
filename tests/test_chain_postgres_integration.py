@@ -383,6 +383,41 @@ def test_postgres_superseded_correction_visibility(pg_conn):
     ).fetchone() == (old_shares, old_known, old_superseded)
 
 
+def test_campaign_identifier_update_and_rollback_postgres(pg_conn: PgFixture, monkeypatch):
+    import etl.activism_campaign_flow as campaign_flow
+
+    conn = pg_conn.conn
+    filing_id = conn.execute(
+        "INSERT INTO activism_filings(manager_id,filing_type,subject_company,subject_cusip,ownership_pct,filed_date,url) VALUES (%s,'SC 13D','Identity Probe','OLD-PG',5.1,'2024-05-01','https://sec/identity') RETURNING filing_id",
+        (pg_conn.seed["manager_id"],),
+    ).fetchone()[0]
+    campaign_flow.materialize_activism_campaigns(conn)
+    original = conn.execute(
+        "SELECT campaign_id FROM activism_campaign_timeline WHERE filing_id=%s", (filing_id,)
+    ).fetchone()[0]
+    conn.execute(
+        "UPDATE activism_filings SET subject_cusip='NEW-PG' WHERE filing_id=%s", (filing_id,)
+    )
+    campaign_flow.materialize_activism_campaigns(conn)
+    assert conn.execute(
+        "SELECT target_identifier FROM activism_campaigns WHERE campaign_id=%s", (original,)
+    ).fetchone() == ("NEW-PG",)
+    tables = ["activism_campaigns", "activism_campaign_timeline", "activism_documents"]
+    before = {t: conn.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall() for t in tables}
+    conn.execute(
+        "UPDATE activism_filings SET subject_cusip='FAIL-PG' WHERE filing_id=%s", (filing_id,)
+    )
+    conn.commit()
+
+    def fail_documents(_row):
+        raise RuntimeError("forced mid-update failure")
+
+    monkeypatch.setattr(campaign_flow, "_document_references", fail_documents)
+    with pytest.raises(RuntimeError, match="forced mid-update"):
+        campaign_flow.materialize_activism_campaigns(conn)
+    assert {t: conn.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall() for t in tables} == before
+
+
 def test_nl_query_postgres_structural_bound_and_permitted_join(pg_conn: PgFixture):
     conn = pg_conn.conn
     try:
