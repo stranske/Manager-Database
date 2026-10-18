@@ -1,0 +1,301 @@
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [  9%]
+........................................................................ [ 12%]
+.........................sssssssssssss.................................. [ 15%]
+........................................................................ [ 18%]
+........................................................................ [ 21%]
+......s................ssssss........................................... [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 30%]
+........................................................................ [ 33%]
+........................................................................ [ 36%]
+..................................FF..........F...........F............. [ 39%]
+........................................................................ [ 42%]
+........................................................................ [ 45%]
+..........................................................s..........s.. [ 48%]
+..........................s............................................. [ 51%]
+...s.................................................................... [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 60%]
+........................................................................ [ 63%]
+........................................................................ [ 66%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 78%]
+........................................................................ [ 81%]
+................................................................s....... [ 84%]
+........................................................................ [ 87%]
+......................................................sss............... [ 90%]
+........................................................................ [ 93%]
+........................................................................ [ 96%]
+........................................................................ [ 99%]
+..............                                                           [100%]
+=================================== FAILURES ===================================
+______________ test_dashboard_archive_and_current_source_bindings ______________
+
+archive = {'md-baseline-command.json': b'{\n  "argv": [\n    "/opt/anaconda3/bin/python3",\n    "-m",\n    "pytest",\n    "tests...ERNAME]\nFAILED tests/test_ui_auth.py::test_require_login_preserves_blank_credential_dev_mode[   -UI_PASSWORD]\n', ...}
+
+    def test_dashboard_archive_and_current_source_bindings(archive):
+        manifest = json.loads((EVIDENCE / "manifest.json").read_text())
+        assert digest((EVIDENCE / "validation.tar.gz").read_bytes()) == manifest["archive_sha256"]
+        assert set(archive) == set(manifest["members"])
+        for name, raw in archive.items():
+            assert digest(raw) == manifest["members"][name], name
+        assert set(manifest["current_bindings"]) == {SOURCE, TEST, DRIVER}
+        for name, expected in manifest["current_bindings"].items():
+>           assert digest((ROOT / name).read_bytes()) == expected, name
+E           AssertionError: ui/dashboard.py
+E           assert '3bb4a34759c5...bd169c98b7078' == 'abeac42c3a7c...6043e183271f7'
+E             
+E             - abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7
+E             + 3bb4a34759c593079ebed2733c6cd11044cef7ab4b74399be31bd169c98b7078
+
+tests/test_dashboard_read_failure_evidence.py:79: AssertionError
+________ test_dashboard_review_recovery_archive_and_six_current_inputs _________
+
+    def test_dashboard_review_recovery_archive_and_six_current_inputs():
+        recovery = EVIDENCE / "review-recovery-20261012"
+        manifest = json.loads((recovery / "manifest.json").read_text())
+        proof = recovery / "proof.tar.gz"
+        assert digest(proof.read_bytes()) == manifest["archive_sha256"]
+        with tarfile.open(proof) as bundle:
+            members = bundle.getmembers()
+            assert len(members) == len(manifest["members"]) == 88
+            assert all(member.isfile() for member in members)
+            assert len({member.name for member in members}) == len(members)
+            assert {member.name for member in members} == set(manifest["members"])
+            for member in members:
+                raw = bundle.extractfile(member).read()
+                assert len(raw) == manifest["members"][member.name]["bytes"], member.name
+                assert digest(raw) == manifest["members"][member.name]["sha256"], member.name
+        assert set(manifest["current_inputs"]) == {
+            SOURCE,
+            TEST,
+            DRIVER,
+            "tests/test_dashboard_read_failure_replay.py",
+            "tests/test_dashboard_read_failure_evidence.py",
+            "pyproject.toml",
+        }
+>       validate_review_recovery_current_inputs(ROOT, manifest)
+
+tests/test_dashboard_read_failure_evidence.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers')
+manifest = {'base_head': 'a801e766ee62f365133a8cbbacb435f3eca3db6a', 'archive_sha256': '2204105d4a9239531d5d7c65c49fba86ce551e9d7...123809c1e7c1d1eaf88d', 'pyproject.toml': '8069f8a24b7995a866613454ae2f2268cf601c9b5a1fcbab3c0788cb94dd5c4f', ...}, ...}
+
+    def validate_review_recovery_current_inputs(root, manifest):
+        successor = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
+        binding = json.loads((successor / "current-bindings.json").read_text())
+        assert binding["schema"] == "dashboard-review-recovery-successor/v1"
+        recovery_manifest = EVIDENCE / "review-recovery-20261012/manifest.json"
+        assert digest(recovery_manifest.read_bytes()) == binding["historical_manifest_sha256"]
+        mutable = {"pyproject.toml", "tests/test_dashboard_read_failure_evidence.py"}
+        for name, expected in manifest["current_inputs"].items():
+            if name not in mutable:
+>               assert digest((root / name).read_bytes()) == expected, name
+E               AssertionError: ui/dashboard.py
+E               assert '3bb4a34759c5...bd169c98b7078' == 'abeac42c3a7c...6043e183271f7'
+E                 
+E                 - abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7
+E                 + 3bb4a34759c593079ebed2733c6cd11044cef7ab4b74399be31bd169c98b7078
+
+tests/test_dashboard_read_failure_evidence.py:338: AssertionError
+___ test_dashboard_current_replay_proves_ten_pairs_and_refuses_output_reuse ____
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6240/test_dashboard_current_replay_0')
+
+    def test_dashboard_current_replay_proves_ten_pairs_and_refuses_output_reuse(tmp_path):
+        """Exercise the real driver and production mutants, independently of saved receipts."""
+        bound_files = (SOURCE, TEST, DRIVER)
+        before = {name: (ROOT / name).read_bytes() for name in bound_files}
+        output = tmp_path / "fresh-proof"
+        argv = [sys.executable, str(ROOT / DRIVER), "--output", str(output)]
+        run = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, timeout=300, check=False)
+>       assert run.returncode == 0, run.stdout + run.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/docs/evidence/issue-1750-dashboard-read-failures/dashboard_read_failure_replay.py", line 193, in <module>
+E             main()
+E           File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/docs/evidence/issue-1750-dashboard-read-failures/dashboard_read_failure_replay.py", line 95, in main
+E             require(digest(original) == caller[SOURCE], "Committed source differs from checkout")
+E           File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/docs/evidence/issue-1750-dashboard-read-failures/dashboard_read_failure_replay.py", line 32, in require
+E             raise ValueError(detail)
+E         ValueError: Committed source differs from checkout
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/opt/anaconda3/bin/python3', '/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/M...e_replay.py", line 32, in require\n    raise ValueError(detail)\nValueError: Committed source differs from checkout\n').returncode
+
+tests/test_dashboard_read_failure_evidence.py:196: AssertionError
+__________ test_review_recovery_limits_mypy_exclusion_changes[-True] ___________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6240/test_review_recovery_limits_my0')
+extra = '', accepted = True
+
+    @pytest.mark.parametrize(
+        "extra,accepted",
+        [
+            ("", True),
+            (r"|(^|.*/)docs/evidence/issue-1750-chat-lifecycle/replay\.py$", False),
+            (r"|(^|.*/)api/chat\.py$", False),
+            (r"|(^|.*/)docs/evidence/.*", False),
+        ],
+    )
+    def test_review_recovery_limits_mypy_exclusion_changes(tmp_path, extra, accepted):
+        manifest = json.loads((EVIDENCE / "review-recovery-20261012/manifest.json").read_text())
+        for name in manifest["current_inputs"]:
+            target = tmp_path / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / name).read_bytes())
+        project = tmp_path / "pyproject.toml"
+        raw = project.read_text()
+        historical = tomllib.loads(raw)["tool"]["mypy"]["exclude"]
+        original = "exclude = " + json.dumps(historical)
+        assert raw.count(original) == 1
+        project.write_text(raw.replace(original, "exclude = " + json.dumps(historical + extra)))
+        if accepted:
+>           validate_review_recovery_current_inputs(tmp_path, manifest)
+
+tests/test_dashboard_read_failure_evidence.py:448: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6240/test_review_recovery_limits_my0')
+manifest = {'base_head': 'a801e766ee62f365133a8cbbacb435f3eca3db6a', 'archive_sha256': '2204105d4a9239531d5d7c65c49fba86ce551e9d7...123809c1e7c1d1eaf88d', 'pyproject.toml': '8069f8a24b7995a866613454ae2f2268cf601c9b5a1fcbab3c0788cb94dd5c4f', ...}, ...}
+
+    def validate_review_recovery_current_inputs(root, manifest):
+        successor = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
+        binding = json.loads((successor / "current-bindings.json").read_text())
+        assert binding["schema"] == "dashboard-review-recovery-successor/v1"
+        recovery_manifest = EVIDENCE / "review-recovery-20261012/manifest.json"
+        assert digest(recovery_manifest.read_bytes()) == binding["historical_manifest_sha256"]
+        mutable = {"pyproject.toml", "tests/test_dashboard_read_failure_evidence.py"}
+        for name, expected in manifest["current_inputs"].items():
+            if name not in mutable:
+>               assert digest((root / name).read_bytes()) == expected, name
+E               AssertionError: ui/dashboard.py
+E               assert '3bb4a34759c5...bd169c98b7078' == 'abeac42c3a7c...6043e183271f7'
+E                 
+E                 - abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7
+E                 + 3bb4a34759c593079ebed2733c6cd11044cef7ab4b74399be31bd169c98b7078
+
+tests/test_dashboard_read_failure_evidence.py:338: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.8.7' currently installed).
+    from pandas.core.computation.check import NUMEXPR_INSTALLED
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56: UserWarning: Pandas requires version '1.4.2' or newer of 'bottleneck' (version '1.3.7' currently installed).
+    from pandas.core import (
+
+tests/baseline/test_directional.py::test_directional[us_filter_narrows_count]
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_activism_api.py::test_list_activism_filings_filters
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/activism.py:203: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_activism_api.py::test_list_activism_events_filters
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/activism.py:264: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_activism_api.py::test_campaign_list_applies_target_date_and_limit_filters
+tests/test_activism_api.py::test_campaign_list_applies_target_date_and_limit_filters
+tests/test_rag_search_chain.py::test_campaign_snapshot_does_not_leak_outside_requested_scope[scope1]
+tests/test_rag_search_chain.py::test_campaign_snapshot_does_not_leak_outside_requested_scope[scope1]
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/activism.py:411: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_chat_api.py::test_holdings_correction_as_of_request_uses_pre_correction_snapshot
+tests/test_chat_api.py::test_holdings_correction_as_of_request_uses_pre_correction_snapshot
+tests/test_holdings_analysis_chain.py::test_correction_superseded_positions_are_not_model_context
+tests/test_holdings_analysis_chain.py::test_correction_superseded_positions_are_not_model_context
+tests/test_holdings_analysis_chain.py::test_correction_superseded_positions_are_not_model_context
+tests/test_holdings_analysis_chain.py::test_correction_superseded_positions_are_not_model_context
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/chains/holdings_analysis.py:144: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute(query, params)
+
+tests/test_daily_report.py::test_load_diffs_and_news
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_signals_api.py::test_get_crowded_trades_filters_by_report_date_and_threshold
+tests/test_signals_api.py::test_crowded_trades_drops_non_finite_values
+tests/test_signals_api.py::test_crowded_trades_drops_non_finite_values
+tests/test_signals_api.py::test_signals_endpoints_return_empty_arrays_for_missing_data
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/signals.py:218: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_daily_report.py::test_load_diffs_and_news
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_signals_api.py::test_get_contrarian_signals_filters_by_manager
+tests/test_signals_api.py::test_contrarian_signals_drops_non_finite_values
+tests/test_signals_api.py::test_contrarian_signals_drops_non_finite_values
+tests/test_signals_api.py::test_signals_endpoints_return_empty_arrays_for_missing_data
+tests/test_signals_api.py::test_get_contrarian_signals_supports_sqlite_managers_id_shape
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/signals.py:274: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_monitor_memory.py::test_write_samples_respects_max_samples
+tests/test_monitor_memory.py::test_write_samples_respects_max_samples
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/scripts/monitor_memory.py:87: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp = dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_dashboard_read_failure_evidence.py::test_dashboard_archive_and_current_source_bindings
+FAILED tests/test_dashboard_read_failure_evidence.py::test_dashboard_review_recovery_archive_and_six_current_inputs
+FAILED tests/test_dashboard_read_failure_evidence.py::test_dashboard_current_replay_proves_ten_pairs_and_refuses_output_reuse
+FAILED tests/test_dashboard_read_failure_evidence.py::test_review_recovery_limits_mypy_exclusion_changes[-True]
+4 failed, 2358 passed, 28 skipped, 40 warnings in 129.97s (0:02:09)
