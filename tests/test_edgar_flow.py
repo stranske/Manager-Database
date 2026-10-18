@@ -857,3 +857,40 @@ async def test_scheduled_setup_failure_closes_connection(monkeypatch):
         await flow.fetch_and_store.fn("0", "2024-01-01")
     assert conn.closed
     assert conn.autocommit
+
+
+def test_missing_filing_unsupported_rule_regression_for_edgar_contract():
+    """Scope regression tied to alerts/models.py: EDGAR emits new_filing only.
+
+    ``missing_filing`` stays a known historical name, but no detector emits
+    it, so the shared creation contract must reject new rules for it while
+    stored rules retain their identity and conditions. Disconnecting the
+    creation guard in alerts/models.py makes this fail.
+    """
+    from datetime import UTC, datetime
+
+    from alerts.models import (
+        ALERT_EVENT_TYPES,
+        CREATABLE_EVENT_TYPES,
+        AlertRule,
+        AlertRuleCreate,
+    )
+
+    assert "missing_filing" in ALERT_EVENT_TYPES
+    assert "missing_filing" not in CREATABLE_EVENT_TYPES
+    # pydantic's ValidationError is a ValueError; avoid a direct pydantic
+    # test import, which would require declaring it as a test dependency.
+    with pytest.raises(ValueError, match="missing_filing is unsupported"):
+        AlertRuleCreate(name="New Missing", event_type="missing_filing")
+    stored = AlertRule(
+        rule_id=42,
+        name="Legacy Missing",
+        event_type="missing_filing",
+        condition_json={"manager_id": 7},
+        channels=["email"],
+        enabled=True,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    assert (stored.rule_id, stored.condition_json) == (42, {"manager_id": 7})
+    assert AlertRuleCreate(name="Ok", event_type="new_filing").event_type == "new_filing"
