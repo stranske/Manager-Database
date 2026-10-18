@@ -35,9 +35,10 @@ def digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
-def validate_dashboard_source_binding(root, expected):
+def validate_dashboard_source_binding(root, expected, *, binding=None):
     folder = ROOT / "docs/evidence/issue-1784"
-    binding = json.loads((folder / "dashboard-source-successor.json").read_text())
+    if binding is None:
+        binding = json.loads((folder / "dashboard-source-successor.json").read_text())
     historical = (folder / "historical-dashboard.py.txt").read_bytes()
     current = (root / SOURCE).read_bytes()
     assert binding["schema"] == "dashboard-source-successor/v1"
@@ -55,7 +56,7 @@ def validate_dashboard_source_binding(root, expected):
         assert len(nodes) == len(SQL + DOMAIN)
         return {node.name: ast.dump(node, include_attributes=False) for node in nodes}
 
-    assert loaders(current) == loaders(historical)
+    assert loaders(current) == loaders(historical), "protected loader AST changed"
     assert (
         digest((folder / "historical-dashboard-validator.py.txt").read_bytes())
         == binding["previous_validator_sha256"]
@@ -512,7 +513,7 @@ def test_review_recovery_dependency_successor_rejects_undeclared_changes(tmp_pat
         validate_review_recovery_current_inputs(tmp_path, manifest)
 
 
-def test_campaign_source_successor_rejects_loader_or_unbound_edits(tmp_path):
+def test_campaign_source_successor_rejects_unbound_edits(tmp_path):
     manifest = json.loads((EVIDENCE / "review-recovery-20261012/manifest.json").read_text())
     for name in manifest["current_inputs"]:
         target = tmp_path / name
@@ -520,13 +521,27 @@ def test_campaign_source_successor_rejects_loader_or_unbound_edits(tmp_path):
         target.write_bytes((ROOT / name).read_bytes())
     source = tmp_path / SOURCE
     original = source.read_bytes()
-    for edited in (
-        original.replace(b"rows = []", b"rows = [1]", 1),
-        original + b"\n# unbound change\n",
-    ):
-        assert edited != original
-        source.write_bytes(edited)
-        with pytest.raises(AssertionError):
-            validate_review_recovery_current_inputs(tmp_path, manifest)
+    source.write_bytes(original + b"\n# unbound change\n")
+    with pytest.raises(AssertionError):
+        validate_review_recovery_current_inputs(tmp_path, manifest)
     source.write_bytes(original)
     validate_review_recovery_current_inputs(tmp_path, manifest)
+
+
+def test_campaign_source_successor_rejects_digest_bound_loader_edit(tmp_path):
+    folder = ROOT / "docs/evidence/issue-1784"
+    binding = json.loads((folder / "dashboard-source-successor.json").read_text())
+    for name in (SOURCE, "tests/test_dashboard_read_failure_evidence.py"):
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / name).read_bytes())
+    source = tmp_path / SOURCE
+    original = source.read_bytes()
+    edited = original.replace(b"rows = []", b"rows = [1]", 1)
+    assert edited != original
+    source.write_bytes(edited)
+    binding["current_source_sha256"] = digest(edited)
+    with pytest.raises(AssertionError, match="protected loader AST changed"):
+        validate_dashboard_source_binding(
+            tmp_path, binding["historical_source_sha256"], binding=binding
+        )

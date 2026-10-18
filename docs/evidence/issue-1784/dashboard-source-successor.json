@@ -4,6 +4,6 @@
   "historical_source_sha256": "abeac42c3a7cb115f7c5231f6752cb10641b0fbe7b692732e946043e183271f7",
   "current_source_sha256": "3bb4a34759c593079ebed2733c6cd11044cef7ab4b74399be31bd169c98b7078",
   "previous_validator_sha256": "c6e76225afb28885b2efcafbb8508b05940a190b57bff7d7d7e643d1dd422452",
-  "current_validator_sha256": "c5b88716b21a23cafa18bae516a19cae1f35ef9772502cb89531c08f2fad49a0",
+  "current_validator_sha256": "8390fc3b519a30ed71c187da2d2d5f36ee135edc30ea4efe7f103fec678a3f6b",
   "note": "Historical archives/dependency transition remain immutable. Campaign UI additions preserve every protected loader AST; actual ten-pair current replay remains required."
 }

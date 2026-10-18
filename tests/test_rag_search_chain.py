@@ -475,3 +475,45 @@ def test_campaign_snapshot_does_not_leak_outside_requested_scope(tmp_path, monke
     assert result["campaign_snapshot_status"] == "unavailable"
     assert result["sources"] == [] and not llm.prompts
     conn.close()
+
+
+@pytest.mark.parametrize("scope", [{}, {"cusips": ["88160R101"]}])
+def test_campaign_lookup_without_manager_uses_available_scope(tmp_path, monkeypatch, scope):
+    _, conn = _campaign_fixture(tmp_path)
+    llm = FakeLLM("Campaign answer")
+    chain = RAGSearchChain(llm=llm, db_conn=conn)
+    monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("canonical only"))
+    result = chain.run("Which campaigns are active?", context=scope)
+    assert result["campaign_snapshot_status"] == "available"
+    assert "Tesla" in llm.prompts[0]
+    if scope:
+        assert "Apple" not in llm.prompts[0]
+    conn.close()
+
+
+@pytest.mark.parametrize(
+    "question,scope",
+    [
+        ("Campaigns from 2024-02-30 to 2024-13-01", {"manager_ids": [2]}),
+        ("Describe campaigns", {"manager_ids": [2], "date_range": ["bad", "2024-01-01"]}),
+    ],
+)
+def test_campaign_invalid_dates_do_not_fail_request(tmp_path, monkeypatch, question, scope):
+    _, conn = _campaign_fixture(tmp_path)
+    chain = RAGSearchChain(llm=FakeLLM("Campaign answer"), db_conn=conn)
+    monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("canonical only"))
+    assert chain.run(question, context=scope)["campaign_snapshot_status"] == "available"
+    conn.close()
+
+
+@pytest.mark.parametrize("question", ["Recent activism news", "Latest activist filings"])
+def test_generic_activism_retains_legacy_retrieval(monkeypatch, question):
+    conn = _build_db()
+    chain = RAGSearchChain(llm=FakeLLM("Legacy answer"), db_conn=conn)
+    calls = []
+    monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: calls.append(a[0]) or [])
+    result = chain.run(question, context={"manager_ids": [1]})
+    assert calls == [question]
+    assert result["campaign_snapshot_status"] is None
+    assert result["sources"]
+    conn.close()

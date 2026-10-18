@@ -189,16 +189,22 @@ class RAGSearchChain:
         sections: list[str] = []
         sources: list[Evidence] = []
         date_range = self._parse_date_range(entities.get("date_range"))
-        for manager_id in entities.get("manager_ids", []):
+        filed_from = filed_to = None
+        if date_range:
+            try:
+                filed_from, filed_to = (dt.date.fromisoformat(value) for value in date_range)
+            except ValueError:
+                filed_from = filed_to = None
+        for manager_id in entities.get("manager_ids") or [None]:
             campaigns = []
             for target in entities.get("cusips") or [None]:
                 campaigns.extend(
                     query_activism_campaigns(
                         conn,
-                        manager_id=int(manager_id),
+                        manager_id=int(manager_id) if manager_id is not None else None,
                         target_identifier=target,
-                        filed_from=dt.date.fromisoformat(date_range[0]) if date_range else None,
-                        filed_to=dt.date.fromisoformat(date_range[1]) if date_range else None,
+                        filed_from=filed_from,
+                        filed_to=filed_to,
                         limit=5,
                     )
                 )
@@ -490,7 +496,7 @@ class RAGSearchChain:
         guard_input(question)
         guard_context_values(context)
         entities = self._merge_context(self._entity_extraction(question), context)
-        campaign_requested = bool(re.search(r"\b(campaigns?|activism|activist)\b", question, re.I))
+        campaign_requested = bool(re.search(r"\bcampaigns?\b", question, re.I))
         entities["campaign_requested"] = campaign_requested
         structured_context, structured_sources = self._structured_search(entities)
         if campaign_requested and not structured_sources:
