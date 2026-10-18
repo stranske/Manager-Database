@@ -913,3 +913,40 @@ def test_holdings_as_of_rejects_invalid_cutoff(tmp_path, monkeypatch, cutoff):
     )
     assert response.status_code == 400, response.text
     assert "as_of" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "sql,expected_status",
+    [
+        ("SELECT a.source FROM managers m, api_usage a LIMIT 1", 500),
+        ("SELECT manager_id FROM managers LIMIT 0, 250", 200),
+    ],
+)
+def test_direct_query_structural_allowlist_and_outer_limit(
+    tmp_path, monkeypatch, sql, expected_status
+):
+    from langchain_core.runnables import RunnableLambda
+
+    db_path = tmp_path / "bounded-query.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT)")
+    conn.execute("CREATE TABLE api_usage (source TEXT)")
+    conn.executemany(
+        "INSERT INTO managers VALUES (?,?,?)", [(i, f"M{i}", str(i)) for i in range(251)]
+    )
+    conn.execute("INSERT INTO api_usage VALUES ('internal')")
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        chat_api_module,
+        "_build_chat_client_info",
+        lambda: SimpleNamespace(client=RunnableLambda(lambda _: sql)),
+    )
+    response = asyncio.run(
+        _request("POST", "/api/chat/query", params={"question": "List managers"})
+    )
+    assert response.status_code == expected_status
+    if expected_status == 200:
+        assert "Returned 100 rows" in response.json()["answer"]
+        assert "LIMIT 100" in response.json()["sql"]

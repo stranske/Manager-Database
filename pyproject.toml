@@ -9,6 +9,7 @@ authors = [{ name = "stranske" }]
 
 dependencies = [
     "alembic",
+    "sqlglot>=28.10.1,<29",
     "edgartools>=5.44,<5.45",
     "httpx",
     "feedparser",
