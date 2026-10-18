@@ -1,0 +1,487 @@
+FFFFFFFFFFF                                                              [100%]
+=================================== FAILURES ===================================
+_____ test_compat_reads_passive_materialized_status_and_preserves_identity _____
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_compat_reads_passive_mate0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x315155eb0>
+
+    def test_compat_reads_passive_materialized_status_and_preserves_identity(tmp_path, monkeypatch):
+        db_path = tmp_path / "compat.db"
+        _seed_db(db_path)
+        monkeypatch.setenv("DB_PATH", str(db_path))
+        # The passive 13G is above the legacy ownership threshold, but not active.
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("UPDATE activism_filings SET ownership_pct=8.0 WHERE manager_id=2")
+            materialize_activism_campaigns(conn)
+            passive = query_activism_campaigns(conn, manager_id=2)[0]
+            assert passive.status == "monitoring"
+        compat = asyncio.run(_request("/api/activism/active-campaigns")).json()
+        canonical = asyncio.run(_request("/api/activism/campaigns", params={"status": "active"})).json()
+>       assert [row["campaign_id"] for row in compat] == [row["campaign_id"] for row in canonical]
+                ^^^^^^^^^^^^^^^^^^
+E       KeyError: 'campaign_id'
+
+tests/test_activism_api.py:401: KeyError
+________________ test_compat_does_not_fall_back_to_raw_filings _________________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_compat_does_not_fall_back0')
+
+    def test_compat_does_not_fall_back_to_raw_filings(tmp_path):
+        from api.activism import query_active_campaigns
+    
+        db_path = tmp_path / "missing.db"
+        _seed_db(db_path)
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("DELETE FROM activism_campaigns")
+>           assert query_active_campaigns(conn) == []
+E           AssertionError: assert [ActiveCampai...ke_increase')] == []
+E             
+E             Left contains one more item: ActiveCampaignResponse(manager_name='Elliott Management', subject_company='Apple Inc.', cusip='037833100', current_ownership_pct=10.4, latest_filing_date=datetime.date(2024, 5, 3), event_count=3, latest_event_type='stake_increase')
+E             Use -v to get more diff
+
+tests/test_activism_api.py:420: AssertionError
+________ test_campaign_snapshot_reaches_prompt_and_citations_with_scope ________
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_campaign_snapshot_reaches0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x315269ca0>
+
+    def test_campaign_snapshot_reaches_prompt_and_citations_with_scope(tmp_path, monkeypatch):
+        path, conn = _campaign_fixture(tmp_path)
+        llm = FakeLLM("Canonical campaign answer.")
+        chain = RAGSearchChain(llm=llm, db_conn=conn)
+        monkeypatch.setattr(
+            chain, "_vector_search", lambda *a, **kw: pytest.fail("campaigns use canonical rows")
+        )
+>       result = chain.run("Describe the campaign", context={"manager_ids": [2]})
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_rag_search_chain.py:434: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+chains/rag_search.py:421: in run
+    documents = self._vector_search(question, k=5, manager_id=manager_filter)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ('Describe the campaign',), kw = {'k': 5, 'manager_id': 2}
+
+>       chain, "_vector_search", lambda *a, **kw: pytest.fail("campaigns use canonical rows")
+                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+E   Failed: campaigns use canonical rows
+
+tests/test_rag_search_chain.py:432: Failed
+______ test_campaign_missing_snapshot_refuses_raw_and_vector_speculation _______
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_campaign_missing_snapshot0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x315269850>
+
+    def test_campaign_missing_snapshot_refuses_raw_and_vector_speculation(tmp_path, monkeypatch):
+        _, conn = _campaign_fixture(tmp_path)
+        conn.execute("DELETE FROM activism_campaigns")
+        llm = FakeLLM("invented active campaign")
+        chain = RAGSearchChain(llm=llm, db_conn=conn)
+        monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("no vector fallback"))
+>       result = chain.run("Describe the activism campaign", context={"manager_ids": [1]})
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_rag_search_chain.py:452: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+chains/rag_search.py:421: in run
+    documents = self._vector_search(question, k=5, manager_id=manager_filter)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ('Describe the activism campaign',), kw = {'k': 5, 'manager_id': 1}
+
+>   monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("no vector fallback"))
+                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: no vector fallback
+
+tests/test_rag_search_chain.py:451: Failed
+_____ test_campaign_snapshot_does_not_leak_outside_requested_scope[scope0] _____
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_campaign_snapshot_does_no0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x31526aa20>
+scope = {'manager_ids': [1], 'cusips': ['88160R101']}
+
+    @pytest.mark.parametrize(
+        "scope",
+        [
+            {"manager_ids": [1], "cusips": ["88160R101"]},
+            {"manager_ids": [1], "date_range": ["2030-01-01", "2030-01-02"]},
+            {"manager_ids": [999]},
+        ],
+    )
+    def test_campaign_snapshot_does_not_leak_outside_requested_scope(tmp_path, monkeypatch, scope):
+        _, conn = _campaign_fixture(tmp_path)
+        llm = FakeLLM("Do not invoke")
+        chain = RAGSearchChain(llm=llm, db_conn=conn)
+        monkeypatch.setattr(
+            chain, "_vector_search", lambda *a, **kw: pytest.fail("no unscoped fallback")
+        )
+>       result = chain.run("Describe campaigns", context=scope)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_rag_search_chain.py:474: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+chains/rag_search.py:421: in run
+    documents = self._vector_search(question, k=5, manager_id=manager_filter)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ('Describe campaigns',), kw = {'k': 5, 'manager_id': 1}
+
+>       chain, "_vector_search", lambda *a, **kw: pytest.fail("no unscoped fallback")
+                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+E   Failed: no unscoped fallback
+
+tests/test_rag_search_chain.py:472: Failed
+_____ test_campaign_snapshot_does_not_leak_outside_requested_scope[scope1] _____
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_campaign_snapshot_does_no1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x31519bf50>
+scope = {'manager_ids': [1], 'date_range': ['2030-01-01', '2030-01-02']}
+
+    @pytest.mark.parametrize(
+        "scope",
+        [
+            {"manager_ids": [1], "cusips": ["88160R101"]},
+            {"manager_ids": [1], "date_range": ["2030-01-01", "2030-01-02"]},
+            {"manager_ids": [999]},
+        ],
+    )
+    def test_campaign_snapshot_does_not_leak_outside_requested_scope(tmp_path, monkeypatch, scope):
+        _, conn = _campaign_fixture(tmp_path)
+        llm = FakeLLM("Do not invoke")
+        chain = RAGSearchChain(llm=llm, db_conn=conn)
+        monkeypatch.setattr(
+            chain, "_vector_search", lambda *a, **kw: pytest.fail("no unscoped fallback")
+        )
+>       result = chain.run("Describe campaigns", context=scope)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_rag_search_chain.py:474: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+chains/rag_search.py:421: in run
+    documents = self._vector_search(question, k=5, manager_id=manager_filter)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ('Describe campaigns',), kw = {'k': 5, 'manager_id': 1}
+
+>       chain, "_vector_search", lambda *a, **kw: pytest.fail("no unscoped fallback")
+                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+E   Failed: no unscoped fallback
+
+tests/test_rag_search_chain.py:472: Failed
+_____ test_campaign_snapshot_does_not_leak_outside_requested_scope[scope2] _____
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_campaign_snapshot_does_no2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x31526b470>
+scope = {'manager_ids': [999]}
+
+    @pytest.mark.parametrize(
+        "scope",
+        [
+            {"manager_ids": [1], "cusips": ["88160R101"]},
+            {"manager_ids": [1], "date_range": ["2030-01-01", "2030-01-02"]},
+            {"manager_ids": [999]},
+        ],
+    )
+    def test_campaign_snapshot_does_not_leak_outside_requested_scope(tmp_path, monkeypatch, scope):
+        _, conn = _campaign_fixture(tmp_path)
+        llm = FakeLLM("Do not invoke")
+        chain = RAGSearchChain(llm=llm, db_conn=conn)
+        monkeypatch.setattr(
+            chain, "_vector_search", lambda *a, **kw: pytest.fail("no unscoped fallback")
+        )
+>       result = chain.run("Describe campaigns", context=scope)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_rag_search_chain.py:474: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+chains/rag_search.py:421: in run
+    documents = self._vector_search(question, k=5, manager_id=manager_filter)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ('Describe campaigns',), kw = {'k': 5, 'manager_id': 999}
+
+>       chain, "_vector_search", lambda *a, **kw: pytest.fail("no unscoped fallback")
+                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+E   Failed: no unscoped fallback
+
+tests/test_rag_search_chain.py:472: Failed
+_ test_chat_real_campaign_chain_preserves_citations_and_missing_snapshot[False] _
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_chat_real_campaign_chain_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x315269730>
+missing = False
+
+    @pytest.mark.parametrize("missing", [False, True])
+    def test_chat_real_campaign_chain_preserves_citations_and_missing_snapshot(
+        tmp_path, monkeypatch, missing
+    ):
+        from chains.rag_search import RAGSearchChain
+        from tests.test_rag_search_chain import FakeLLM, _campaign_fixture
+    
+        path, conn = _campaign_fixture(tmp_path)
+        if missing:
+            conn.execute("DELETE FROM activism_campaigns")
+        conn.commit()
+        conn.close()
+        monkeypatch.setenv("DB_PATH", str(path))
+        llm = FakeLLM("Campaign answer from canonical rows.")
+        monkeypatch.setattr(
+            chat_api_module,
+            "_build_chat_client_info",
+            lambda: SimpleNamespace(client=llm, provider_label="test"),
+        )
+        monkeypatch.setattr(
+            chat_api_module,
+            "_build_chain",
+            lambda name, info: RAGSearchChain(llm=llm, db_conn=sqlite3.connect(path)),
+        )
+        response = asyncio.run(
+            _request(
+                "POST",
+                "/api/chat",
+                json={
+                    "chain": "rag_search",
+                    "question": "Describe the campaign",
+                    "context": {"manager_ids": [2]},
+                },
+            )
+        )
+>       assert response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests/test_chat_api.py:990: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.chat:chat.py:1202 Chat error: no such table: filings
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py", line 1125, in chat_api
+    answer, sources, sql, trace_url = await _run_chain(
+                                      ^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py", line 1004, in _run_chain
+    result = chain.run(question=question, context=normalized_context or None)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/chains/rag_search.py", line 422, in run
+    structured_context, structured_sources = self._structured_search(entities)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/chains/rag_search.py", line 215, in _structured_search
+    filing_rows = conn.execute(
+                  ^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: filings
+_ test_chat_real_campaign_chain_preserves_citations_and_missing_snapshot[True] _
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_chat_real_campaign_chain_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x3152685f0>
+missing = True
+
+    @pytest.mark.parametrize("missing", [False, True])
+    def test_chat_real_campaign_chain_preserves_citations_and_missing_snapshot(
+        tmp_path, monkeypatch, missing
+    ):
+        from chains.rag_search import RAGSearchChain
+        from tests.test_rag_search_chain import FakeLLM, _campaign_fixture
+    
+        path, conn = _campaign_fixture(tmp_path)
+        if missing:
+            conn.execute("DELETE FROM activism_campaigns")
+        conn.commit()
+        conn.close()
+        monkeypatch.setenv("DB_PATH", str(path))
+        llm = FakeLLM("Campaign answer from canonical rows.")
+        monkeypatch.setattr(
+            chat_api_module,
+            "_build_chat_client_info",
+            lambda: SimpleNamespace(client=llm, provider_label="test"),
+        )
+        monkeypatch.setattr(
+            chat_api_module,
+            "_build_chain",
+            lambda name, info: RAGSearchChain(llm=llm, db_conn=sqlite3.connect(path)),
+        )
+        response = asyncio.run(
+            _request(
+                "POST",
+                "/api/chat",
+                json={
+                    "chain": "rag_search",
+                    "question": "Describe the campaign",
+                    "context": {"manager_ids": [2]},
+                },
+            )
+        )
+>       assert response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests/test_chat_api.py:990: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    api.chat:chat.py:1202 Chat error: no such table: filings
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py", line 1125, in chat_api
+    answer, sources, sql, trace_url = await _run_chain(
+                                      ^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py", line 1004, in _run_chain
+    result = chain.run(question=question, context=normalized_context or None)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/chains/rag_search.py", line 422, in run
+    structured_context, structured_sources = self._structured_search(entities)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/chains/rag_search.py", line 215, in _structured_search
+    filing_rows = conn.execute(
+                  ^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: filings
+_____ test_campaign_panel_reads_exact_selected_timeline_and_empty_snapshot _____
+
+tmp_path = PosixPath('/private/var/folders/qm/w0dtc0j132gd6ymf1hxtd2p00000gp/T/pytest-of-teacher/pytest-6238/test_campaign_panel_reads_exac0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x315269790>
+
+    def test_campaign_panel_reads_exact_selected_timeline_and_empty_snapshot(tmp_path, monkeypatch):
+        import ui.dashboard as dashboard
+        from tests.test_activism_api import _seed_db
+    
+        path = tmp_path / "panel.db"
+        _seed_db(path)
+        monkeypatch.setenv("DB_PATH", str(path))
+        with sqlite3.connect(path) as conn:
+            campaign_id = conn.execute(
+                "SELECT campaign_id FROM activism_campaigns WHERE manager_id=2"
+            ).fetchone()[0]
+        fake = ActivismStreamlit()
+        monkeypatch.setattr(dashboard, "st", fake)
+>       dashboard.render_campaign_timeline(campaign_id)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'ui.dashboard' has no attribute 'render_campaign_timeline'. Did you mean: 'render_activism_timeline'?
+
+tests/test_dashboard.py:1698: AttributeError
+_____________ test_campaign_widget_expands_canonical_id_and_status _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x3152c64e0>
+
+    def test_campaign_widget_expands_canonical_id_and_status(monkeypatch):
+        from contextlib import nullcontext
+    
+        import ui.dashboard as dashboard
+    
+        calls = []
+    
+        class Panel(ActivismStreamlit):
+            def caption(self, text):
+                self.infos.append(text)
+    
+            def metric(self, *args, **kwargs):
+                pass
+    
+            def markdown(self, text):
+                calls.append(text)
+    
+            def expander(self, text):
+                calls.append(text)
+                return nullcontext()
+    
+        monkeypatch.setattr(dashboard, "st", Panel())
+        monkeypatch.setattr(
+            dashboard,
+            "load_active_campaigns_summary",
+            lambda **kw: pd.DataFrame(
+                [
+                    {
+                        "campaign_id": 42,
+                        "manager_name": "Manager",
+                        "subject_company": "Target",
+                        "current_ownership_pct": 6.2,
+                        "latest_event_type": "initial_stake",
+                        "latest_filing_date": "2024-05-01",
+                        "status": "active",
+                        "filing_count": 2,
+                    }
+                ]
+            ),
+        )
+>       monkeypatch.setattr(
+            dashboard, "render_campaign_timeline", lambda campaign_id: calls.append(campaign_id)
+        )
+E       AttributeError: <module 'ui.dashboard' from '/Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/ui/dashboard.py'> has no attribute 'render_campaign_timeline'
+
+tests/test_dashboard.py:1746: AttributeError
+=============================== warnings summary ===============================
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1517
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1517: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1817
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1817: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1824
+  /Users/teacher/.codex/automations/pd-workloop-resume/worktrees/Manager-Database-issue-1784-lifecycle-consumers/api/chat.py:1824: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.8.7' currently installed).
+    from pandas.core.computation.check import NUMEXPR_INSTALLED
+
+../../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56: UserWarning: Pandas requires version '1.4.2' or newer of 'bottleneck' (version '1.3.7' currently installed).
+    from pandas.core import (
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_activism_api.py::test_compat_reads_passive_materialized_status_and_preserves_identity
+FAILED tests/test_activism_api.py::test_compat_does_not_fall_back_to_raw_filings
+FAILED tests/test_rag_search_chain.py::test_campaign_snapshot_reaches_prompt_and_citations_with_scope
+FAILED tests/test_rag_search_chain.py::test_campaign_missing_snapshot_refuses_raw_and_vector_speculation
+FAILED tests/test_rag_search_chain.py::test_campaign_snapshot_does_not_leak_outside_requested_scope[scope0]
+FAILED tests/test_rag_search_chain.py::test_campaign_snapshot_does_not_leak_outside_requested_scope[scope1]
+FAILED tests/test_rag_search_chain.py::test_campaign_snapshot_does_not_leak_outside_requested_scope[scope2]
+FAILED tests/test_chat_api.py::test_chat_real_campaign_chain_preserves_citations_and_missing_snapshot[False]
+FAILED tests/test_chat_api.py::test_chat_real_campaign_chain_preserves_citations_and_missing_snapshot[True]
+FAILED tests/test_dashboard.py::test_campaign_panel_reads_exact_selected_timeline_and_empty_snapshot
+FAILED tests/test_dashboard.py::test_campaign_widget_expands_canonical_id_and_status
+11 failed, 127 deselected, 11 warnings in 2.49s

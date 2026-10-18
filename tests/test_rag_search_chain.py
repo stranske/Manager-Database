@@ -411,3 +411,67 @@ def test_correction_superseded_positions_excluded_from_latest_context():
         assert "shares=2000" in context
         assert "shares=1000" not in context
         assert conn.execute("SELECT COUNT(*) FROM holdings").fetchone()[0] == 5
+
+
+def _campaign_fixture(tmp_path):
+    from tests.test_activism_api import _seed_db
+
+    path = tmp_path / "campaigns.db"
+    _seed_db(path)
+    conn = sqlite3.connect(path)
+    conn.execute("ALTER TABLE managers ADD COLUMN cik TEXT")
+    conn.commit()
+    return path, conn
+
+
+def test_campaign_snapshot_reaches_prompt_and_citations_with_scope(tmp_path, monkeypatch):
+    path, conn = _campaign_fixture(tmp_path)
+    llm = FakeLLM("Canonical campaign answer.")
+    chain = RAGSearchChain(llm=llm, db_conn=conn)
+    monkeypatch.setattr(
+        chain, "_vector_search", lambda *a, **kw: pytest.fail("campaigns use canonical rows")
+    )
+    result = chain.run("Describe the campaign", context={"manager_ids": [2]})
+    assert result["campaign_snapshot_status"] == "available"
+    assert "status=monitoring" in llm.prompts[0]
+    assert "Tesla" in llm.prompts[0] and "Apple" not in llm.prompts[0]
+    campaign = next(s for s in result["sources"] if s["type"] == "activism_campaign")
+    assert campaign["campaign_id"] > 0 and campaign["campaign_status"] == "monitoring"
+    filings = [s for s in result["sources"] if s["type"] == "activism_campaign_filing"]
+    assert filings and all(s["campaign_id"] == campaign["campaign_id"] for s in filings)
+    assert filings[0]["filing_url"] and filings[0]["filing_url"] in llm.prompts[0]
+    conn.close()
+
+
+def test_campaign_missing_snapshot_refuses_raw_and_vector_speculation(tmp_path, monkeypatch):
+    _, conn = _campaign_fixture(tmp_path)
+    conn.execute("DELETE FROM activism_campaigns")
+    llm = FakeLLM("invented active campaign")
+    chain = RAGSearchChain(llm=llm, db_conn=conn)
+    monkeypatch.setattr(chain, "_vector_search", lambda *a, **kw: pytest.fail("no vector fallback"))
+    result = chain.run("Describe the activism campaign", context={"manager_ids": [1]})
+    assert result["campaign_snapshot_status"] == "unavailable"
+    assert "No materialized campaign snapshot" in result["answer"]
+    assert result["sources"] == [] and not llm.prompts
+    conn.close()
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        {"manager_ids": [1], "cusips": ["88160R101"]},
+        {"manager_ids": [1], "date_range": ["2030-01-01", "2030-01-02"]},
+        {"manager_ids": [999]},
+    ],
+)
+def test_campaign_snapshot_does_not_leak_outside_requested_scope(tmp_path, monkeypatch, scope):
+    _, conn = _campaign_fixture(tmp_path)
+    llm = FakeLLM("Do not invoke")
+    chain = RAGSearchChain(llm=llm, db_conn=conn)
+    monkeypatch.setattr(
+        chain, "_vector_search", lambda *a, **kw: pytest.fail("no unscoped fallback")
+    )
+    result = chain.run("Describe campaigns", context=scope)
+    assert result["campaign_snapshot_status"] == "unavailable"
+    assert result["sources"] == [] and not llm.prompts
+    conn.close()

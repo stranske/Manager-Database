@@ -59,6 +59,11 @@ class ActivismTimelineEntry(BaseModel):
 
 
 class ActiveCampaignResponse(BaseModel):
+    campaign_id: int | None = None
+    status: str | None = None
+    opened_date: date | None = None
+    filing_count: int = 0
+    data_quality_flags: list[str] = Field(default_factory=list)
     manager_name: str | None
     subject_company: str
     cusip: str | None
@@ -340,61 +345,25 @@ def query_active_campaigns(
     min_ownership_pct: float = 5.0,
     limit: int = 100,
 ) -> list[ActiveCampaignResponse]:
-    if not table_exists(conn, "activism_filings"):
-        return []
-
-    ph = get_placeholder(conn)
-    manager_col = resolve_manager_id_column(conn)
-    if table_exists(conn, "activism_events"):
-        event_count_sql = (
-            "COALESCE((SELECT COUNT(*) FROM activism_events ae "
-            "WHERE ae.manager_id = ranked.manager_id "
-            "AND COALESCE(ae.subject_cusip, '') = COALESCE(ranked.subject_cusip, '') "
-            "AND ae.subject_company = ranked.subject_company), 0)"
-        )
-        latest_event_sql = (
-            "(SELECT ae.event_type FROM activism_events ae "
-            "WHERE ae.manager_id = ranked.manager_id "
-            "AND COALESCE(ae.subject_cusip, '') = COALESCE(ranked.subject_cusip, '') "
-            "AND ae.subject_company = ranked.subject_company "
-            "ORDER BY ae.detected_at DESC, ae.event_id DESC LIMIT 1)"
-        )
-    else:
-        event_count_sql = "0"
-        latest_event_sql = "NULL"
-    rows = conn.execute(
-        "WITH ranked AS ("
-        "    SELECT af.filing_id, af.manager_id, af.subject_company, af.subject_cusip, "
-        "           af.ownership_pct, af.filed_date, m.name AS manager_name, "
-        "           ROW_NUMBER() OVER ("
-        "               PARTITION BY af.manager_id, COALESCE(af.subject_cusip, af.subject_company) "
-        "               ORDER BY af.filed_date DESC, af.filing_id DESC"
-        "           ) AS row_number "
-        "    FROM activism_filings af "
-        f"    LEFT JOIN managers m ON m.{manager_col} = af.manager_id"
-        ") "
-        "SELECT ranked.manager_name, ranked.subject_company, ranked.subject_cusip, "
-        "       ranked.ownership_pct, ranked.filed_date, "
-        f"       {event_count_sql} AS event_count, "
-        f"       {latest_event_sql} AS latest_event_type "
-        "FROM ranked "
-        "WHERE ranked.row_number = 1 AND COALESCE(ranked.ownership_pct, 0) >= "
-        f"{ph} "
-        "ORDER BY ranked.filed_date DESC, ranked.ownership_pct DESC "
-        f"LIMIT {ph}",
-        (min_ownership_pct, limit),
-    ).fetchall()
+    campaigns = query_activism_campaigns(
+        conn, status="active", min_ownership_pct=min_ownership_pct, limit=limit
+    )
     return [
         ActiveCampaignResponse(
-            manager_name=str(row[0]) if row[0] is not None else None,
-            subject_company=str(row[1]),
-            cusip=str(row[2]) if row[2] is not None else None,
-            current_ownership_pct=_to_float(row[3]),
-            latest_filing_date=_to_date(row[4]),
-            event_count=int(row[5] or 0),
-            latest_event_type=str(row[6]) if row[6] is not None else None,
+            campaign_id=row.campaign_id,
+            status=row.status,
+            opened_date=row.first_filed,
+            filing_count=row.filing_count,
+            data_quality_flags=row.data_quality_flags,
+            manager_name=row.manager_name,
+            subject_company=row.target_company,
+            cusip=row.target_identifier if not row.target_identifier.startswith("name:") else None,
+            current_ownership_pct=row.latest_ownership_pct,
+            latest_filing_date=row.last_filed,
+            event_count=row.event_count,
+            latest_event_type=row.latest_event_type,
         )
-        for row in rows
+        for row in campaigns
     ]
 
 
@@ -407,6 +376,7 @@ def query_activism_campaigns(
     status: str | None = None,
     filed_from: date | None = None,
     filed_to: date | None = None,
+    min_ownership_pct: float | None = None,
     limit: int = 25,
 ) -> list[ActivismCampaignResponse]:
     if not table_exists(conn, "activism_campaigns"):
@@ -433,6 +403,9 @@ def query_activism_campaigns(
     if filed_to is not None:
         filters.append(f"ac.first_filed <= {ph}")
         params.append(filed_to)
+    if min_ownership_pct is not None:
+        filters.append(f"COALESCE(ac.latest_ownership_pct, 0) >= {ph}")
+        params.append(min_ownership_pct)
     where = f"WHERE {' AND '.join(filters)}" if filters else ""
     params.append(limit)
     rows = conn.execute(

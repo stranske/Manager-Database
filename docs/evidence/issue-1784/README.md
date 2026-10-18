@@ -1,0 +1,5 @@
+# Materialized campaign consumers
+
+The compatibility API and dashboard read campaign identity and active status from the canonical materialized summary; a passive 13G above 5% stays monitoring. Legacy ownership filtering is applied before LIMIT and preserves zero-threshold null behavior. The dashboard expands each exact campaign timeline. Campaign RAG uses only scoped campaign summaries and their deterministic timeline filing URLs, and emits an explicit unavailable-snapshot result without vector/raw-filing or LLM fallback. The real chat route preserves both evidence and that response.
+
+All 11 unchanged new semantic checks fail on the original four production modules. Byte-identical restoration returns the scope tests to green. Final focused run139 PASS, including an additional threshold-before-limit/null regression. Ruff/Black/diff pass. Focused mypy has exactly the same three pre-existing offline-fallback assignment errors as original main, no new diagnostics. The broad suite is being collected separately; current hosted CI/review and original source1784 acceptance remain required.

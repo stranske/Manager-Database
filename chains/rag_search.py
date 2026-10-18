@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from adapters.base import get_placeholder, is_sqlite, resolve_manager_id_column, table_exists
+from api.activism import query_activism_campaign_timeline, query_activism_campaigns
 from chains.evidence import Evidence
 from chains.utils import acquire_connection, guard_context_values
 from embeddings import search_documents
@@ -45,6 +46,7 @@ class RAGSearchResult(BaseModel):
     sources: list[Evidence] = Field(default_factory=list)
     confidence: str = Field(default="low")
     trace_url: str | None = None
+    campaign_snapshot_status: str | None = None
 
 
 class RAGSearchChain:
@@ -183,6 +185,75 @@ class RAGSearchChain:
             merged["date_range"] = explicit_date_range
         return merged
 
+    def _campaign_context(self, conn: Any, entities: dict[str, Any]) -> tuple[str, list[Evidence]]:
+        sections: list[str] = []
+        sources: list[Evidence] = []
+        date_range = self._parse_date_range(entities.get("date_range"))
+        for manager_id in entities.get("manager_ids", []):
+            campaigns = []
+            for target in entities.get("cusips") or [None]:
+                campaigns.extend(
+                    query_activism_campaigns(
+                        conn,
+                        manager_id=int(manager_id),
+                        target_identifier=target,
+                        filed_from=dt.date.fromisoformat(date_range[0]) if date_range else None,
+                        filed_to=dt.date.fromisoformat(date_range[1]) if date_range else None,
+                        limit=5,
+                    )
+                )
+            if not campaigns:
+                sections.append(
+                    f"No materialized campaign snapshot is available for manager_id={manager_id} in the selected scope."
+                )
+            for campaign in campaigns:
+                timeline = query_activism_campaign_timeline(conn, campaign.campaign_id)
+                excerpt = (
+                    f"Campaign #{campaign.campaign_id}: {campaign.manager_name} / "
+                    f"{campaign.target_company} ({campaign.target_identifier}); "
+                    f"status={campaign.status}; latest ownership={campaign.latest_ownership_pct}; "
+                    f"opened={campaign.first_filed}; latest={campaign.last_filed}; "
+                    f"linked filings={campaign.filing_count}"
+                )
+                sections.append(excerpt)
+                urls = list(dict.fromkeys(row.source_url for row in timeline if row.source_url))
+                sources.append(
+                    Evidence(
+                        source_id=f"campaign:{campaign.campaign_id}",
+                        source_type="activism_campaign",
+                        type="activism_campaign",
+                        locator={"campaign_id": campaign.campaign_id, "filing_urls": urls},
+                        campaign_id=campaign.campaign_id,
+                        campaign_status=campaign.status,
+                        excerpt=excerpt,
+                        description=excerpt,
+                        method="db_lookup",
+                        confidence=0.9,
+                    )
+                )
+                for row in timeline:
+                    text = f"Campaign #{campaign.campaign_id}: {row.event_date} {row.event_type}: {row.summary}; source={row.source_url or 'unavailable'}"
+                    sections.append(text)
+                    sources.append(
+                        Evidence(
+                            source_id=f"campaign:{campaign.campaign_id}:filing:{row.filing_id}:event:{row.event_id}",
+                            source_type="activism_campaign_filing",
+                            type="activism_campaign_filing",
+                            locator={
+                                "campaign_id": campaign.campaign_id,
+                                "filing_id": row.filing_id,
+                                "filing_url": row.source_url,
+                            },
+                            campaign_id=campaign.campaign_id,
+                            campaign_status=campaign.status,
+                            excerpt=text,
+                            description=text,
+                            method="db_lookup",
+                            confidence=0.9,
+                        )
+                    )
+        return "\n".join(sections), sources
+
     def _structured_search(self, entities: dict[str, Any]) -> tuple[str, list[Evidence]]:
         """Build compact structured context from holdings, filings, news, and activism tables."""
         conn, should_close = acquire_connection(self.db)
@@ -194,6 +265,8 @@ class RAGSearchChain:
         ph = get_placeholder(conn)
         id_column = resolve_manager_id_column(conn)
         try:
+            if entities.get("campaign_requested"):
+                return self._campaign_context(conn, entities)
             if manager_ids:
                 placeholders = ",".join(ph for _ in manager_ids)
                 manager_rows = conn.execute(
@@ -417,9 +490,20 @@ class RAGSearchChain:
         guard_input(question)
         guard_context_values(context)
         entities = self._merge_context(self._entity_extraction(question), context)
-        manager_filter = entities["manager_ids"][0] if len(entities["manager_ids"]) == 1 else None
-        documents = self._vector_search(question, k=5, manager_id=manager_filter)
+        campaign_requested = bool(re.search(r"\b(campaigns?|activism|activist)\b", question, re.I))
+        entities["campaign_requested"] = campaign_requested
         structured_context, structured_sources = self._structured_search(entities)
+        if campaign_requested and not structured_sources:
+            return RAGSearchResult(
+                answer="No materialized campaign snapshot is available for the selected scope.",
+                campaign_snapshot_status="unavailable",
+            ).model_dump()
+        manager_filter = entities["manager_ids"][0] if len(entities["manager_ids"]) == 1 else None
+        documents = (
+            []
+            if campaign_requested
+            else self._vector_search(question, k=5, manager_id=manager_filter)
+        )
         document_context, document_sources = self._document_context(documents)
         all_sources = document_sources + structured_sources
         confidence = self._confidence(all_sources)
@@ -443,5 +527,6 @@ class RAGSearchChain:
             sources=all_sources,
             confidence=confidence,
             trace_url=trace_url,
+            campaign_snapshot_status="available" if campaign_requested else None,
         )
         return result.model_dump()

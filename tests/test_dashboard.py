@@ -558,13 +558,20 @@ def test_load_activism_helpers_and_campaigns(tmp_path: Path, monkeypatch):
     filings = load_manager_activism_filings(1)
     events = load_manager_activism_events(1)
     timeline = load_manager_activism_timeline(1)
+    # The compatibility widget now requires a materialized lifecycle snapshot.
+    from etl.activism_campaign_flow import materialize_activism_campaigns
+
+    with sqlite3.connect(db_path) as conn:
+        materialize_activism_campaigns(conn)
     campaigns = load_active_campaigns_summary()
 
     assert list(filings["filing_id"]) == [102, 101]
     assert set(events["event_type"]) == {"initial_stake", "threshold_crossing"}
     assert set(events["subject_cusip"]) == {"AAA"}
     assert list(timeline["type"]) == ["event", "filing", "event", "filing"]
-    assert set(campaigns["subject_company"]) == {"Issuer A", "Issuer Z"}
+    # Issuer Z is a passive 13G: ownership alone must not make it active.
+    assert set(campaigns["subject_company"]) == {"Issuer A"}
+    assert set(campaigns["status"]) == {"active"}
 
 
 class ActivismStreamlit:
@@ -1673,3 +1680,72 @@ def test_dashboard_render_under_two_seconds_with_ten_managers(tmp_path: Path, mo
     elapsed = perf_counter() - start
 
     assert elapsed < 2.0, f"Dashboard render path exceeded 2 seconds: {elapsed:.3f}s"
+
+
+def test_campaign_panel_reads_exact_selected_timeline_and_empty_snapshot(tmp_path, monkeypatch):
+    import ui.dashboard as dashboard
+    from tests.test_activism_api import _seed_db
+
+    path = tmp_path / "panel.db"
+    _seed_db(path)
+    monkeypatch.setenv("DB_PATH", str(path))
+    with sqlite3.connect(path) as conn:
+        campaign_id = conn.execute(
+            "SELECT campaign_id FROM activism_campaigns WHERE manager_id=2"
+        ).fetchone()[0]
+    fake = ActivismStreamlit()
+    monkeypatch.setattr(dashboard, "st", fake)
+    dashboard.render_campaign_timeline(campaign_id)
+    assert len(fake.tables) == 1
+    assert set(fake.tables[0]["filing_id"]) == {12}
+    assert fake.tables[0]["source_url"].notna().all()
+    dashboard.render_campaign_timeline(99999)
+    assert fake.infos == ["No materialized campaign timeline is available."]
+
+
+def test_campaign_widget_expands_canonical_id_and_status(monkeypatch):
+    from contextlib import nullcontext
+
+    import ui.dashboard as dashboard
+
+    calls = []
+
+    class Panel(ActivismStreamlit):
+        def caption(self, text):
+            self.infos.append(text)
+
+        def metric(self, *args, **kwargs):
+            pass
+
+        def markdown(self, text):
+            calls.append(text)
+
+        def expander(self, text):
+            calls.append(text)
+            return nullcontext()
+
+    monkeypatch.setattr(dashboard, "st", Panel())
+    monkeypatch.setattr(
+        dashboard,
+        "load_active_campaigns_summary",
+        lambda **kw: pd.DataFrame(
+            [
+                {
+                    "campaign_id": 42,
+                    "manager_name": "Manager",
+                    "subject_company": "Target",
+                    "current_ownership_pct": 6.2,
+                    "latest_event_type": "initial_stake",
+                    "latest_filing_date": "2024-05-01",
+                    "status": "active",
+                    "filing_count": 2,
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        dashboard, "render_campaign_timeline", lambda campaign_id: calls.append(campaign_id)
+    )
+    dashboard.render_active_campaigns_widget()
+    assert 42 in calls and any("active | 2 linked filings" in str(c) for c in calls)
+    assert any("Campaign #42" in str(c) for c in calls)

@@ -1017,6 +1017,17 @@ async def _run_chain(
     if asyncio.iscoroutine(result):
         result = await result
 
+    if (
+        chain_name == "rag_search"
+        and isinstance(result, dict)
+        and result.get("campaign_snapshot_status") == "unavailable"
+    ):
+        return (
+            "No materialized campaign snapshot is available for the selected scope.",
+            [],
+            None,
+            None,
+        )
     return _extract_chain_payload(result)
 
 

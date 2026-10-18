@@ -22,6 +22,8 @@ class Evidence(BaseModel):
     description: str = ""
     type: str | None = None
     document_id: str | int | None = None
+    campaign_id: int | None = None
+    campaign_status: str | None = None
     filing_id: int | None = None
     filing_url: str | None = None
     news_reference: str | None = None
