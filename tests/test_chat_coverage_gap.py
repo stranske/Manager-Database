@@ -375,3 +375,292 @@ def test_dependency_error_and_timeout_bounds_are_stable(monkeypatch):
         chat._format_dependency_error(RuntimeError("  failed dependency  ")) == "failed dependency"
     )
     assert chat._format_dependency_error(ValueError()) == "ValueError"
+
+
+def test_validation_exception_handler_returns_field_errors():
+    error = SimpleNamespace(errors=lambda: [{"loc": ("body", "question"), "msg": "Field required"}])
+
+    response = asyncio.run(chat._validation_exception_handler(None, error))
+
+    assert response.status_code == 400
+    assert json.loads(response.body) == {
+        "errors": [{"field": "question", "message": "Field required"}],
+        "error": [{"field": "question", "message": "Field required"}],
+    }
+
+
+def test_signed_session_rejects_empty_parts_and_session_id_uses_verified_cookie(monkeypatch):
+    monkeypatch.setenv("CHAT_SESSION_COOKIE_SECRET", "secret")
+    monkeypatch.setattr(chat, "_chat_session_cookie_name", lambda: "chat_session")
+
+    assert chat._verified_chat_session_cookie(".deadbeef") is None
+    assert chat._verified_chat_session_cookie("session.") is None
+
+    signed = chat._sign_chat_session_id("session-42", "secret")
+    request = SimpleNamespace(
+        client=SimpleNamespace(host="10.0.0.8"),
+        cookies={"chat_session": signed},
+    )
+    assert chat._chat_session_id(request) == "client:10.0.0.8:session:session-42"
+
+
+def test_prompt_injection_error_fallback_and_client_info_edge_cases(monkeypatch):
+    assert chat._PromptInjectionError("blocked").reasons == ["blocked"]
+    assert chat._PromptInjectionError(["a", "b"]).reasons == ["a", "b"]
+
+    def missing_injection(_name):
+        raise ModuleNotFoundError("llm.injection")
+
+    monkeypatch.setattr(chat.importlib, "import_module", missing_injection)
+    assert chat._load_prompt_injection_error_class() is chat._PromptInjectionError
+
+    def unexpected_module(_name):
+        raise ModuleNotFoundError("other.module", name="other.module")
+
+    monkeypatch.setattr(chat.importlib, "import_module", unexpected_module)
+    with pytest.raises(ModuleNotFoundError):
+        chat._build_chat_client_info()
+
+    monkeypatch.setattr(
+        chat.importlib,
+        "import_module",
+        lambda _name: SimpleNamespace(build_chat_client=None),
+    )
+    assert chat._build_chat_client_info() is None
+
+
+def test_manager_ids_for_name_skips_unparseable_rows(monkeypatch):
+    class Conn:
+        def execute(self, *_args, **_kwargs):
+            return SimpleNamespace(fetchall=lambda: [(None,), ("bad",), (7,)])
+
+    monkeypatch.setattr(chat, "_manager_id_column", lambda _conn: "manager_id")
+    monkeypatch.setattr(chat, "get_placeholder", lambda _conn: "?")
+
+    assert chat._manager_ids_for_name(Conn(), "Northstar") == [7]
+
+
+def test_build_chain_uses_explicit_fallback_after_module_missing(monkeypatch):
+    monkeypatch.setattr(chat, "_chat_chain_fallback_enabled", lambda: True)
+
+    def missing_module(_name):
+        raise ModuleNotFoundError("chains.missing")
+
+    monkeypatch.setattr(chat.importlib, "import_module", missing_module)
+    chain = chat._build_chain("rag_search", None)
+
+    assert isinstance(chain, chat._FallbackRAGSearchChain)
+    assert chain.run(question="q", context={"k": 1})["sources"] == {"k": 1}
+
+    monkeypatch.setattr(chat, "_chat_chain_fallback_enabled", lambda: False)
+    with pytest.raises(chat.ChainUnavailableError, match="rag_search"):
+        chat._build_chain("rag_search", None)
+
+
+def test_feedback_storage_uses_returning_for_non_sqlite(monkeypatch):
+    seen = {}
+
+    class Conn:
+        def execute(self, query, params):
+            seen["query"] = query
+            seen["params"] = params
+            return SimpleNamespace(fetchone=lambda: (41,))
+
+        def close(self):
+            seen["closed"] = True
+
+    monkeypatch.setattr(chat, "connect_db", lambda: Conn())
+    monkeypatch.setattr(chat, "_ensure_chat_feedback_table", lambda _conn: None)
+    monkeypatch.setattr(chat, "get_placeholder", lambda _conn: "%s")
+    monkeypatch.setattr(chat, "is_sqlite", lambda _conn: False)
+
+    assert (
+        chat._store_feedback(chat.FeedbackRequest(response_id="run-9", rating=4, comment=None))
+        == 41
+    )
+    assert "RETURNING feedback_id" in seen["query"]
+    assert seen["params"] == ("run-9", 4, None)
+    assert seen["closed"] is True
+
+
+def test_attach_langsmith_feedback_handles_import_and_api_failures(monkeypatch):
+    monkeypatch.setattr(chat, "maybe_enable_langsmith_tracing", lambda: True)
+    monkeypatch.setitem(sys.modules, "langsmith", None)
+    # Force ImportError path by making the import fail.
+    real_import = __import__
+
+    def fail_langsmith(name, *args, **kwargs):
+        if name == "langsmith" or name.startswith("langsmith."):
+            raise ImportError("no langsmith")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fail_langsmith)
+    assert (
+        chat._attach_langsmith_feedback(
+            chat.FeedbackRequest(response_id="run-a", rating=1, comment=None)
+        )
+        is False
+    )
+
+    class BoomClient:
+        def create_feedback(self, **_kwargs):
+            raise RuntimeError("langsmith down")
+
+    monkeypatch.setattr(
+        "builtins.__import__",
+        lambda name, *args, **kwargs: (
+            SimpleNamespace(Client=BoomClient)
+            if name == "langsmith"
+            else real_import(name, *args, **kwargs)
+        ),
+    )
+    # Re-import path uses `from langsmith import Client`.
+    monkeypatch.setitem(sys.modules, "langsmith", SimpleNamespace(Client=BoomClient))
+    assert (
+        chat._attach_langsmith_feedback(
+            chat.FeedbackRequest(response_id="run-b", rating=2, comment="nope")
+        )
+        is False
+    )
+
+
+def test_chat_api_rejects_invalid_chain_and_non_list_injection_reasons(monkeypatch):
+    monkeypatch.setattr(chat, "_enforce_chat_rate_limit", lambda _request: None)
+    monkeypatch.setattr(chat, "_chat_zone_disabled", lambda: False)
+    monkeypatch.setattr(
+        chat,
+        "_build_chat_client_info",
+        lambda: SimpleNamespace(provider="openai", model="gpt"),
+    )
+
+    request = chat.ChatRequest(question="hello", chain="not-a-chain")
+    raw = SimpleNamespace(url=SimpleNamespace(path="/api/chat"), cookies={}, client=None)
+    with pytest.raises(HTTPException) as invalid_chain:
+        asyncio.run(chat.chat_api(request, raw))
+    assert invalid_chain.value.status_code == 400
+    assert invalid_chain.value.detail == "Invalid chain"
+
+    class InjectionError(Exception):
+        def __init__(self):
+            self.reasons = "single-reason"
+            super().__init__(self.reasons)
+
+    monkeypatch.setattr(chat, "PROMPT_INJECTION_ERROR", InjectionError)
+    monkeypatch.setattr(
+        chat,
+        "_resolve_chain_name",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(InjectionError()),
+    )
+    with pytest.raises(HTTPException) as injection:
+        asyncio.run(chat.chat_api(chat.ChatRequest(question="hello", chain="auto"), raw))
+    assert injection.value.status_code == 400
+    assert injection.value.detail == "Input rejected: single-reason"
+
+
+def test_dependency_check_include_enabled_for_circuit_timeout_and_error(monkeypatch):
+    open_breaker = chat.CircuitBreaker(failure_threshold=1, reset_timeout_s=60)
+    open_breaker.record_failure()
+
+    payload, reason = asyncio.run(
+        chat._run_dependency_check(
+            lambda: None,
+            0.05,
+            circuit_breaker=open_breaker,
+            enabled=True,
+            include_enabled=True,
+        )
+    )
+    assert payload == {
+        "healthy": False,
+        "latency_ms": 0,
+        "circuit_open": True,
+        "enabled": True,
+    }
+    assert reason == "circuit_open"
+
+    async def timed_out(*_args, **_kwargs):
+        raise TimeoutError
+
+    monkeypatch.setattr(chat, "_run_health_check_with_retries", timed_out)
+    closed = chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60)
+    payload, reason = asyncio.run(
+        chat._run_dependency_check(
+            lambda: None,
+            0.05,
+            circuit_breaker=closed,
+            include_enabled=True,
+        )
+    )
+    assert payload["healthy"] is False
+    assert payload["enabled"] is True
+    assert reason == "timeout"
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("probe failed")
+
+    monkeypatch.setattr(chat, "_run_health_check_with_retries", boom)
+    payload, reason = asyncio.run(
+        chat._run_dependency_check(
+            lambda: None,
+            0.05,
+            circuit_breaker=chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60),
+            include_enabled=True,
+        )
+    )
+    assert payload["healthy"] is False
+    assert payload["enabled"] is True
+    assert reason == "probe failed"
+
+
+def test_health_endpoints_surface_chat_chain_failure_reason(monkeypatch):
+    monkeypatch.setattr(
+        chat.JSONResponse, "render", lambda _self, content: json.dumps(content).encode()
+    )
+    monkeypatch.setattr(
+        chat,
+        "_health_payload",
+        lambda: {"healthy": True, "uptime_s": 1},
+    )
+    monkeypatch.setattr(chat, "_health_summary_timeout_seconds", lambda: 0.2)
+    monkeypatch.setattr(chat, "_db_timeout_seconds", lambda: 0.1)
+    monkeypatch.setattr(chat, "_minio_timeout_seconds", lambda: 0.1)
+    monkeypatch.setattr(chat, "_redis_timeout_seconds", lambda: 0.1)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+
+    async def summary_checks(*_args):
+        return {
+            "database": ({"healthy": True, "latency_ms": 1}, None),
+            "minio": ({"healthy": True, "latency_ms": 1}, None),
+            "redis": ({"healthy": True, "latency_ms": 0, "enabled": False}, None),
+        }
+
+    monkeypatch.setattr(chat, "_run_health_summary_checks", summary_checks)
+    monkeypatch.setattr(
+        chat,
+        "_chat_chain_health_payload",
+        lambda: (
+            {"healthy": False, "available": False, "fallback_enabled": False},
+            "rag_search: missing",
+        ),
+    )
+
+    summary = asyncio.run(chat.health_app())
+    assert summary.status_code == 503
+    summary_body = json.loads(summary.body)
+    assert summary_body["failed_checks"]["chat_chains"] == "rag_search: missing"
+
+    async def healthy_db():
+        return chat.JSONResponse(status_code=200, content={"healthy": True, "latency_ms": 1})
+
+    async def ok_check(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(chat, "health_db", healthy_db)
+    monkeypatch.setattr(chat, "_run_health_check_with_retries", ok_check)
+    monkeypatch.setattr(chat, "_MINIO_CIRCUIT", chat.CircuitBreaker())
+    monkeypatch.setattr(chat, "_REDIS_CIRCUIT", chat.CircuitBreaker())
+
+    detailed = asyncio.run(chat.health_detailed())
+    assert detailed.status_code == 503
+    detailed_body = json.loads(detailed.body)
+    assert detailed_body["components"]["chat_chains"]["reason_present"] is True
