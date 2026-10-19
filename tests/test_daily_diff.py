@@ -808,7 +808,37 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
     }
     if set(inventory["standing_checks"]) != checks:
         errors.append("standing check inventory differs from declared check functions")
+
+    def function_exists(path, function):
+        return any(
+            isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == function
+            for n in ast.walk(tree(path))
+        )
+
     for name, row in [*inventory["events"].items(), *inventory["standing_checks"].items()]:
+        if row.get("disposition") not in {"connected", "intentional-exception"}:
+            errors.append(
+                f"{name}: disposition {row.get('disposition')!r} needs human review; "
+                "only connected or intentional-exception may pass the gate"
+            )
+        if not isinstance(row.get("owners"), list) or not row.get("evidence_kind"):
+            errors.append(f"{name}: owners list and evidence_kind required")
+        if row.get("disposition") == "connected":
+            producer = row.get("producer")
+            if not isinstance(producer, str) or not producer:
+                errors.append(f"{name}: connected row requires a production producer")
+            else:
+                for segment in producer.split("; "):
+                    path, _, function = segment.rpartition(":")
+                    if not path or not function or not function_exists(path, function):
+                        errors.append(f"{name}: producer does not resolve: {segment}")
+                if name in inventory["standing_checks"] and producer != (
+                    f"alerts/data_quality.py:{name}"
+                ):
+                    errors.append(f"{name}: standing-check producer must be its check function")
+            for site in row.get("emission_sites") or []:
+                if not function_exists(site["path"], site["function"]):
+                    errors.append(f"{name}: emission site does not exist: {site}")
         if not row.get("replay") or not row.get("tests"):
             errors.append(f"{name}: replay contract and executable evidence required")
         for ref in row["tests"]:
@@ -818,6 +848,8 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
         if row["disposition"] == "intentional-exception":
             if name not in UNSUPPORTED_EVENT_TYPES or not row.get("exception"):
                 errors.append(f"{name}: exception needs actual retirement and justification")
+            if row.get("producer") is not None or row.get("edges"):
+                errors.append(f"{name}: intentional exception must not claim a dispatch path")
             continue
         if row["disposition"] != "connected" or not row.get("edges"):
             errors.append(f"{name}: dispatch evidence or justified exception required")
@@ -1014,6 +1046,29 @@ def test_inventory_rejects_copied_standing_evaluator_edge():
     ).read_text() + "\ndef check_unwired_future():\n    return None\n"
     errors = _dispatch_inventory_errors(overrides={path: source}, inventory_override=inventory)
     assert any("check_unwired_future: missing evaluate_daily_quality binding" in e for e in errors)
+
+
+def test_inventory_rejects_unknown_disposition_for_human_review():
+    inventory = _inventory_copy()
+    inventory["events"]["news_spike"]["disposition"] = "unknown"
+    errors = _dispatch_inventory_errors(inventory_override=inventory)
+    assert any("news_spike: disposition 'unknown' needs human review" in e for e in errors)
+
+
+def test_inventory_rejects_unresolvable_producer():
+    inventory = _inventory_copy()
+    inventory["events"]["large_delta"]["producer"] = "etl/daily_diff_flow.py:no_such_producer"
+    errors = _dispatch_inventory_errors(inventory_override=inventory)
+    assert any("large_delta: producer does not resolve" in e for e in errors)
+
+
+def test_inventory_rejects_exception_claiming_dispatch_path():
+    inventory = _inventory_copy()
+    inventory["events"]["missing_filing"]["producer"] = "etl/edgar_flow.py:fetch_and_store"
+    errors = _dispatch_inventory_errors(inventory_override=inventory)
+    assert any(
+        "missing_filing: intentional exception must not claim a dispatch path" in e for e in errors
+    )
 
 
 def test_inventory_accepts_discoverable_test_class_evidence():

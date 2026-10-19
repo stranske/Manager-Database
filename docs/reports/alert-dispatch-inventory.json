@@ -391,7 +391,8 @@
       ],
       "owners": [
         1790
-      ]
+      ],
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
     },
     "check_news_freshness": {
       "producer": "alerts/data_quality.py:check_news_freshness",
@@ -425,7 +426,8 @@
       ],
       "owners": [
         1790
-      ]
+      ],
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
     },
     "check_row_count_drop": {
       "producer": "alerts/data_quality.py:check_row_count_drop",
@@ -459,7 +461,8 @@
       ],
       "owners": [
         1790
-      ]
+      ],
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
     },
     "check_unmapped_cusip_rate": {
       "producer": "alerts/data_quality.py:check_unmapped_cusip_rate",
@@ -493,7 +496,8 @@
       ],
       "owners": [
         1790
-      ]
+      ],
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
     }
   },
   "new_findings": [
