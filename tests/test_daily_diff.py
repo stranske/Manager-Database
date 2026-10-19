@@ -762,9 +762,11 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
                         names.update((method.name, node.name + "." + method.name))
         return names
 
-    def literal(path, value, seen=frozenset()):
+    def literal(path, value, seen=frozenset(), local=None):
         if isinstance(value, ast.Constant) and isinstance(value.value, str):
             return value.value
+        if isinstance(value, ast.Name) and local is not None and value.id in local:
+            return local[value.id]
         if not isinstance(value, ast.Name) or (path, value.id) in seen:
             return None
         seen = seen | {(path, value.id)}
@@ -829,7 +831,11 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
         path for path in overrides if path.startswith(("alerts/", "etl/")) and path.endswith(".py")
     )
     for path in sorted(production_paths):
-        for node in ast.walk(tree(path)):
+        module = tree(path)
+        parents = {
+            child: parent for parent in ast.walk(module) for child in ast.iter_child_nodes(parent)
+        }
+        for node in ast.walk(module):
             if not isinstance(node, ast.Call):
                 continue
             constructor = node.func
@@ -840,8 +846,54 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
                 and constructor.attr == "AlertEvent"
             ):
                 continue
+            ancestors = set()
+            scope = parents.get(node)
+            while scope is not None and not isinstance(
+                scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda, ast.Module)
+            ):
+                ancestors.add(scope)
+                scope = parents.get(scope)
+            local = {}
+            args = getattr(scope, "args", None)
+            if args is not None:
+                local.update(
+                    (arg.arg, None) for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs)
+                )
+            assignments = [
+                item
+                for item in authored_nodes(scope or module)
+                if isinstance(item, (ast.Assign, ast.AnnAssign))
+            ]
+            for assignment in assignments:
+                targets = (
+                    assignment.targets
+                    if isinstance(assignment, ast.Assign)
+                    else [assignment.target]
+                )
+                for target in targets:
+                    if isinstance(target, ast.Name):
+                        local.setdefault(target.id, None)
+            for assignment in assignments:
+                if assignment in ancestors or (assignment.lineno, assignment.col_offset) >= (
+                    node.lineno,
+                    node.col_offset,
+                ):
+                    continue
+                resolved = literal(path, assignment.value, local=local)
+                targets = (
+                    assignment.targets
+                    if isinstance(assignment, ast.Assign)
+                    else [assignment.target]
+                )
+                for target in targets:
+                    if isinstance(target, ast.Name):
+                        local[target.id] = resolved
             for keyword in node.keywords:
-                event_type = literal(path, keyword.value) if keyword.arg == "event_type" else None
+                event_type = (
+                    literal(path, keyword.value, local=local)
+                    if keyword.arg == "event_type"
+                    else None
+                )
                 if event_type in UNSUPPORTED_EVENT_TYPES:
                     errors.append(f"{event_type}: retired event constructed in production {path}")
 
@@ -854,6 +906,14 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
         if (
             not isinstance(row.get("owners"), list)
             or not row["owners"]
+            or not all(
+                isinstance(owner, str)
+                and owner.strip()
+                or isinstance(owner, int)
+                and not isinstance(owner, bool)
+                and owner > 0
+                for owner in row["owners"]
+            )
             or not row.get("evidence_kind")
         ):
             errors.append(f"{name}: owners list and evidence_kind required")
@@ -1162,6 +1222,28 @@ def test_inventory_rejects_retired_event_production_constructor():
         "missing_filing: retired event constructed in production" in error
         for error in _dispatch_inventory_errors(overrides={path: source})
     )
+
+
+@pytest.mark.parametrize("owner", ["", "   "])
+def test_inventory_rejects_blank_owner_names(owner):
+    inventory = _inventory_copy()
+    inventory["events"]["news_spike"]["owners"] = [owner]
+    assert any(
+        "news_spike: owners list and evidence_kind required" in error
+        for error in _dispatch_inventory_errors(inventory_override=inventory)
+    )
+
+
+@pytest.mark.parametrize("event_type, rejected", [("missing_filing", True), ("news_spike", False)])
+def test_inventory_resolves_local_event_type_constants(event_type, rejected):
+    path = "etl/daily_diff_flow.py"
+    source = (Path(__file__).resolve().parents[1] / path).read_text()
+    source += (
+        f'\ndef local_constant_event():\n    event_type = "{event_type}"\n'
+        "    selected = event_type\n    return AlertEvent(event_type=selected)\n"
+    )
+    errors = _dispatch_inventory_errors(overrides={path: source})
+    assert any("retired event constructed in production" in error for error in errors) is rejected
 
 
 def test_inventory_rejects_exception_claiming_dispatch_path():
