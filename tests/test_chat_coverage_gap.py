@@ -1,6 +1,7 @@
 """Focused contract coverage for chat request helpers."""
 
 import asyncio
+import json
 import sqlite3
 import sys
 from datetime import date
@@ -112,11 +113,27 @@ def test_feedback_storage_creates_sqlite_table_and_rejects_missing_non_sqlite_ta
         chat._store_feedback(chat.FeedbackRequest(response_id="run-1", rating=5, comment="great"))
         == 1
     )
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute(
+            "SELECT response_id, rating, comment FROM chat_feedback"
+        ).fetchall() == [("run-1", 5, "great")]
 
     monkeypatch.setattr(chat, "is_sqlite", lambda _conn: False)
     monkeypatch.setattr(chat, "table_exists", lambda _conn, _name: False)
     with pytest.raises(RuntimeError, match="run migrations"):
         chat._ensure_chat_feedback_table(object())
+
+
+def test_feedback_route_maps_missing_storage_to_service_unavailable(monkeypatch):
+    def missing_storage(_feedback):
+        raise RuntimeError("run migrations")
+
+    monkeypatch.setattr(chat, "_enforce_chat_rate_limit", lambda _request: None)
+    monkeypatch.setattr(chat, "_store_feedback", missing_storage)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(chat.submit_feedback(chat.FeedbackRequest(response_id="run-2", rating=3), None))
+    assert error.value.status_code == 503
+    assert error.value.detail == "run migrations"
 
 
 def test_chat_chain_health_accepts_explicit_fallback(monkeypatch):
@@ -163,6 +180,11 @@ def test_optional_dependency_clients_use_configured_timeouts(monkeypatch):
 
 
 def test_health_detailed_reports_timeout_for_optional_dependencies(monkeypatch):
+    # Pretty JSON is semantically identical to the default compact serializer.
+    monkeypatch.setattr(
+        chat.JSONResponse, "render", lambda _self, content: json.dumps(content, indent=2).encode()
+    )
+
     async def healthy_db():
         return chat.JSONResponse(status_code=200, content={"healthy": True, "latency_ms": 1})
 
@@ -180,9 +202,9 @@ def test_health_detailed_reports_timeout_for_optional_dependencies(monkeypatch):
     payload = asyncio.run(chat.health_detailed())
 
     assert payload.status_code == 503
-    body = payload.body.decode()
-    assert '"minio":{"healthy":false' in body
-    assert '"redis":{"healthy":false' in body
+    body = json.loads(payload.body)
+    assert body["components"]["minio"]["healthy"] is False
+    assert body["components"]["redis"]["healthy"] is False
 
 
 def test_error_categories_and_metrics_response(monkeypatch):
