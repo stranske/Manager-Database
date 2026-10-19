@@ -14,6 +14,8 @@ def test_edgar_normalizers_accept_sec_shapes_and_reject_poisoned_pacing(monkeypa
 
     assert edgar._parse_edgar_min_request_interval("0.25") == 0.25
     assert edgar._parse_edgar_min_request_interval("not-a-number") == 0.11
+    assert edgar._parse_edgar_min_request_interval("-0.1") == 0.11
+    assert edgar._parse_edgar_min_request_interval("10.1") == 0.11
     assert edgar._normalize_form_type(" 13-f ") == "13F-HR"
     assert edgar._is_13f_form("13F-HR/A")
     assert edgar._is_activism_form("sc 13d/a")
@@ -63,6 +65,7 @@ def test_edgar_efts_hit_extraction_filters_invalid_records_and_deduplicates():
     }
 
     hits = edgar._extract_efts_hits(payload)
+    assert hits == payload["hits"]["hits"][:2]
     filing = edgar._efts_hit_to_filing(hits[0], "123")
     assert filing == {
         "accession": "0000123456-24-000789",
