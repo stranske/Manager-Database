@@ -48,6 +48,16 @@ def test_news_watermark_fallback_and_update_paths():
             "CREATE TABLE watermarks (source TEXT PRIMARY KEY, latest_published_at TEXT, updated_at TEXT)"
         )
         assert news_flow._fallback_source_since_from_news(conn, "rss") is None
+        conn.executemany(
+            "INSERT INTO news_items (published_at, source) VALUES (?, ?)",
+            [
+                ("2026-01-01T00:00:00Z", "rss"),
+                ("2026-01-03T00:00:00Z", "rss"),
+                ("2026-01-02T00:00:00Z", "gdelt"),
+            ],
+        )
+        assert news_flow._fallback_source_since_from_news(conn, "rss") == "2026-01-03T00:00:00Z"
+        assert news_flow.resolve_source_since.fn("gdelt", None, conn) == "2026-01-02T00:00:00Z"
         assert news_flow.update_source_watermark.fn("rss", [], conn) is None
         assert (
             news_flow.update_source_watermark.fn(
