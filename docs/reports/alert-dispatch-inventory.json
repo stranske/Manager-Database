@@ -1,0 +1,543 @@
+{
+  "schema_version": 1,
+  "source_issue": 1791,
+  "reviewed_base": "0a244845e908d20d770ce09a44938393de92f271",
+  "events": {
+    "new_filing": {
+      "producer": "etl/edgar_flow.py:fetch_and_store",
+      "edges": [
+        {
+          "path": "etl/edgar_flow.py",
+          "function": "edgar_flow",
+          "calls": "ingest_callable",
+          "callback": "fetcher",
+          "callback_value": "_fetch_with_watermark"
+        },
+        {
+          "path": "etl/edgar_flow.py",
+          "function": "_fetch_with_watermark",
+          "calls": "fetch_and_store"
+        },
+        {
+          "path": "etl/edgar_flow.py",
+          "function": "fetch_and_store",
+          "calls": "build_new_filing_event"
+        },
+        {
+          "path": "etl/edgar_flow.py",
+          "function": "fetch_and_store",
+          "calls": "fire_alerts_for_event"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "build_new_filing_event",
+          "calls": "AlertEvent"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "AlertEngine"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "dispatch"
+        }
+      ],
+      "tests": [
+        "tests/test_alert_integration.py:test_insert_pending_alert_dedupes_edgar_accession_without_filing_id",
+        "tests/test_alert_postgres_integration.py:test_scheduled_edgar_alert_transaction"
+      ],
+      "replay": "rule/type/manager plus filing_id, or accession-bearing canonical payload; timestamp omitted for this event",
+      "owners": [
+        1786
+      ],
+      "disposition": "connected",
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "alerts/integration.py",
+          "function": "build_new_filing_event"
+        }
+      ]
+    },
+    "large_delta": {
+      "producer": "etl/daily_diff_flow.py:_large_delta_event_from_diff",
+      "edges": [
+        {
+          "path": "etl/daily_diff_flow.py",
+          "function": "daily_diff_flow",
+          "calls": "_record_large_delta_alerts"
+        },
+        {
+          "path": "etl/daily_diff_flow.py",
+          "function": "_record_large_delta_alerts",
+          "calls": "_large_delta_event_from_diff"
+        },
+        {
+          "path": "etl/daily_diff_flow.py",
+          "function": "_record_large_delta_alerts",
+          "calls": "fire_alerts_for_event_sync"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "AlertEngine"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "dispatch"
+        }
+      ],
+      "tests": [
+        "tests/test_daily_diff.py:test_large_delta_dispatch_commits_before_send_and_suppresses_replay"
+      ],
+      "replay": "persisted report_date as occurred_at plus normalized diff payload, manager and rule; commit domain writes before dispatch",
+      "owners": [
+        1785
+      ],
+      "disposition": "connected",
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/daily_diff_flow.py",
+          "function": "_large_delta_event_from_diff"
+        }
+      ]
+    },
+    "news_spike": {
+      "producer": "etl/news_flow.py:emit_news_spike_alerts",
+      "edges": [
+        {
+          "path": "etl/news_flow.py",
+          "function": "news_flow",
+          "calls": "emit_news_spike_alerts"
+        },
+        {
+          "path": "etl/news_flow.py",
+          "function": "emit_news_spike_alerts",
+          "calls": "fire_alerts_for_event"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "AlertEngine"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "dispatch"
+        }
+      ],
+      "tests": [
+        "tests/test_news_flow.py:test_news_flow_alert_counts_only_new_persisted_identities",
+        "tests/test_news_flow.py:test_emit_news_spike_alerts_groups_items_by_manager",
+        "tests/test_daily_diff.py:test_inventory_news_producer_retry_changes_delivery_identity"
+      ],
+      "replay": "key includes occurred_at; producer uses generated wall time, while news_flow suppresses already-inserted news identities; delivery-crash retry identity is not durably retained",
+      "owners": [],
+      "disposition": "connected",
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/news_flow.py",
+          "function": "emit_news_spike_alerts"
+        }
+      ]
+    },
+    "crowded_trade_change": {
+      "producer": "etl/conviction_flow.py:dispatch_conviction_alerts",
+      "edges": [
+        {
+          "path": "etl/conviction_flow.py",
+          "function": "conviction_flow",
+          "calls": "dispatch_conviction_alerts"
+        },
+        {
+          "path": "etl/conviction_flow.py",
+          "function": "dispatch_conviction_alerts",
+          "calls": "fire_alerts_for_event_sync"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "AlertEngine"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "dispatch"
+        }
+      ],
+      "tests": [
+        "tests/test_crowded_contrarian.py:test_dispatch_conviction_alerts_emits_events_for_detected_rows"
+      ],
+      "replay": "rule/type/manager, payload including report_date, plus occurred_at; producer generates a new wall time on each replay",
+      "owners": [],
+      "disposition": "connected",
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/conviction_flow.py",
+          "function": "dispatch_conviction_alerts"
+        }
+      ]
+    },
+    "contrarian_signal": {
+      "producer": "etl/conviction_flow.py:dispatch_conviction_alerts",
+      "edges": [
+        {
+          "path": "etl/conviction_flow.py",
+          "function": "conviction_flow",
+          "calls": "dispatch_conviction_alerts"
+        },
+        {
+          "path": "etl/conviction_flow.py",
+          "function": "dispatch_conviction_alerts",
+          "calls": "fire_alerts_for_event_sync"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "AlertEngine"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "dispatch"
+        }
+      ],
+      "tests": [
+        "tests/test_crowded_contrarian.py:test_dispatch_conviction_alerts_emits_events_for_detected_rows"
+      ],
+      "replay": "same key structure and replay-time risk as crowded_trade_change",
+      "owners": [],
+      "disposition": "connected",
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/conviction_flow.py",
+          "function": "dispatch_conviction_alerts"
+        }
+      ]
+    },
+    "etl_failure": {
+      "producer": "etl/evaluation_flow.py:fire_quality_alerts; etl/data_quality_flow.py:data_quality_flow",
+      "edges": [
+        {
+          "path": "etl/evaluation_flow.py",
+          "function": "evaluation_flow",
+          "calls": "fire_quality_alerts"
+        },
+        {
+          "path": "etl/evaluation_flow.py",
+          "function": "live_evaluation_flow",
+          "calls": "fire_quality_alerts"
+        },
+        {
+          "path": "etl/evaluation_flow.py",
+          "function": "fire_quality_alerts",
+          "calls": "fire_alerts_for_event_sync"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "data_quality_flow",
+          "calls": "_daily_snapshot"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "_daily_snapshot",
+          "calls": "evaluate_daily_quality"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "data_quality_flow",
+          "calls": "fire_data_quality_alerts"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "build_data_quality_alert_event"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "fire_alerts_for_event_sync"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "AlertEngine"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "dispatch"
+        }
+      ],
+      "tests": [
+        "tests/test_daily_diff.py:test_etl_failure_dispatch_uses_real_entrypoint_and_serialized_replay",
+        "tests/test_data_quality.py:test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once"
+      ],
+      "replay": "serialized evaluation alert_observed_at; immutable persisted daily quality snapshot and UTC midnight check date",
+      "owners": [
+        1789,
+        1790
+      ],
+      "disposition": "connected",
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/evaluation_flow.py",
+          "function": "fire_quality_alerts"
+        },
+        {
+          "path": "alerts/data_quality.py",
+          "function": "build_data_quality_alert_event"
+        }
+      ]
+    },
+    "activism_event": {
+      "producer": "etl/activism_flow.py:fetch_activism_filings",
+      "edges": [
+        {
+          "path": "etl/activism_flow.py",
+          "function": "activism_flow",
+          "calls": "fetch_all_managers"
+        },
+        {
+          "path": "etl/activism_flow.py",
+          "function": "fetch_all_managers",
+          "calls": "fetch_activism_filings"
+        },
+        {
+          "path": "etl/activism_flow.py",
+          "function": "fetch_activism_filings",
+          "calls": "fire_alerts_for_event"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "AlertEngine"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_alerts_for_event",
+          "calls": "dispatch"
+        }
+      ],
+      "tests": [
+        "tests/test_activism_detection.py:test_insert_activism_events_deduplicates_reruns",
+        "tests/test_activism_detection.py:test_fire_alerts_for_matching_activism_event",
+        "tests/test_activism_adapter.py:test_fetch_activism_filings_stores_rows_and_raw_documents"
+      ],
+      "replay": "generated occurred_at is part of delivery key; filing/event domain dedup is separate from retry of a delivery attempt; external crash-window durability UNKNOWN",
+      "owners": [],
+      "disposition": "connected",
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/activism_flow.py",
+          "function": "fetch_activism_filings"
+        }
+      ]
+    },
+    "missing_filing": {
+      "producer": null,
+      "edges": [],
+      "tests": [
+        "tests/test_edgar_flow.py:test_missing_filing_unsupported_rule_regression_for_edgar_contract"
+      ],
+      "replay": "not applicable: no producer; legacy history remains readable",
+      "owners": [
+        1792
+      ],
+      "disposition": "intentional-exception",
+      "exception": "Retired for new rule creation; retained enum/database compatibility only. No filing deadline or new detector is inferred.",
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
+    }
+  },
+  "standing_checks": {
+    "check_harvest_freshness": {
+      "producer": "alerts/data_quality.py:check_harvest_freshness",
+      "disposition": "connected",
+      "edges": [
+        {
+          "path": "alerts/data_quality.py",
+          "function": "evaluate_daily_quality",
+          "calls": "check_harvest_freshness"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "_daily_snapshot",
+          "calls": "evaluate_daily_quality"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "data_quality_flow",
+          "calls": "fire_data_quality_alerts"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "build_data_quality_alert_event"
+        }
+      ],
+      "replay": "UTC check_date + immutable data_quality_runs snapshot -> etl_failure",
+      "tests": [
+        "tests/test_data_quality.py:test_data_quality_flow_delivers_etl_failure",
+        "tests/test_data_quality.py:test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once"
+      ],
+      "owners": [
+        1790
+      ]
+    },
+    "check_news_freshness": {
+      "producer": "alerts/data_quality.py:check_news_freshness",
+      "disposition": "connected",
+      "edges": [
+        {
+          "path": "alerts/data_quality.py",
+          "function": "evaluate_daily_quality",
+          "calls": "check_news_freshness"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "_daily_snapshot",
+          "calls": "evaluate_daily_quality"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "data_quality_flow",
+          "calls": "fire_data_quality_alerts"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "build_data_quality_alert_event"
+        }
+      ],
+      "replay": "UTC check_date + immutable data_quality_runs snapshot -> etl_failure",
+      "tests": [
+        "tests/test_data_quality.py:test_data_quality_flow_delivers_etl_failure",
+        "tests/test_data_quality.py:test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once"
+      ],
+      "owners": [
+        1790
+      ]
+    },
+    "check_row_count_drop": {
+      "producer": "alerts/data_quality.py:check_row_count_drop",
+      "disposition": "connected",
+      "edges": [
+        {
+          "path": "alerts/data_quality.py",
+          "function": "evaluate_daily_quality",
+          "calls": "check_row_count_drop"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "_daily_snapshot",
+          "calls": "evaluate_daily_quality"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "data_quality_flow",
+          "calls": "fire_data_quality_alerts"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "build_data_quality_alert_event"
+        }
+      ],
+      "replay": "UTC check_date + immutable data_quality_runs snapshot -> etl_failure",
+      "tests": [
+        "tests/test_data_quality.py:test_data_quality_flow_delivers_etl_failure",
+        "tests/test_data_quality.py:test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once"
+      ],
+      "owners": [
+        1790
+      ]
+    },
+    "check_unmapped_cusip_rate": {
+      "producer": "alerts/data_quality.py:check_unmapped_cusip_rate",
+      "disposition": "connected",
+      "edges": [
+        {
+          "path": "alerts/data_quality.py",
+          "function": "evaluate_daily_quality",
+          "calls": "check_unmapped_cusip_rate"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "_daily_snapshot",
+          "calls": "evaluate_daily_quality"
+        },
+        {
+          "path": "etl/data_quality_flow.py",
+          "function": "data_quality_flow",
+          "calls": "fire_data_quality_alerts"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "build_data_quality_alert_event"
+        }
+      ],
+      "replay": "UTC check_date + immutable data_quality_runs snapshot -> etl_failure",
+      "tests": [
+        "tests/test_data_quality.py:test_data_quality_flow_delivers_etl_failure",
+        "tests/test_data_quality.py:test_data_quality_flow_same_day_replay_preserves_payload_and_sends_once"
+      ],
+      "owners": [
+        1790
+      ]
+    }
+  },
+  "new_findings": [
+    {
+      "id": "F22-R1",
+      "disposition": "confirmed identity gap; review proposal only",
+      "events": [
+        "news_spike"
+      ],
+      "evidence": "tests/test_daily_diff.py:test_inventory_news_producer_retry_changes_delivery_identity",
+      "scope": "Re-entering the real emitter with retained identical items at a later clock time changes the actual delivery event key. Ordinary news_flow filters pre-existing identities; delivery-crash retry of the emitter still has no retained timestamp. This is not evidence of observed live duplicate notifications."
+    },
+    {
+      "id": "F22-R2",
+      "disposition": "source-confirmed retry risk; no live duplicate claim",
+      "events": [
+        "crowded_trade_change",
+        "contrarian_signal"
+      ],
+      "evidence": "etl/conviction_flow.py:dispatch_conviction_alerts -> AlertEvent default occurred_at; alerts/db.py:_delivery_event_key",
+      "scope": "Persisted report_date is in payload, but the real delivery key also includes newly generated occurred_at. Review a separately scoped retained event-time contract before any production repair."
+    },
+    {
+      "id": "F22-U1",
+      "disposition": "unknown crash-window delivery guarantee",
+      "events": [
+        "activism_event"
+      ],
+      "evidence": "etl/activism_flow.py:fetch_activism_filings and tests/test_activism_detection.py:test_insert_activism_events_deduplicates_reruns",
+      "scope": "Domain dedup and dispatch connectivity are tested. No test currently listed establishes stable external-delivery retry identity across crash/restart. Unknown is not classified as a newly confirmed production failure."
+    }
+  ],
+  "reviewed_source_sha256": {
+    "alerts/data_quality.py": "342b9db27ee9a9ddaa6f106a43ad73b4ac29af726b98a634c1c1bff4eda9c028",
+    "alerts/db.py": "92df3ea25722937108fc51b98c4fb7edd59607a7fb785fb66bdca3729033989b",
+    "alerts/integration.py": "a5b3518f9a1ea6ae178e4b2e7885c9814c289ba13de4f28a96f8f7980ca8e343",
+    "alerts/models.py": "3e465ec0ce5b67987e921853aea4ebe132732c28ab4215b0da4b60676e04eb7a",
+    "etl/activism_flow.py": "1978a359576105410532136a082d61f479e702af177da3224e61af228b96bcc8",
+    "etl/conviction_flow.py": "8c9ef550288e5c8a2272377320be4472a41c700753dcf3d158c21ab4cf85d039",
+    "etl/daily_diff_flow.py": "15fb73143de2d9565da355a19a97e32b688712e39245460419944ca5fd633f52",
+    "etl/data_quality_flow.py": "b3cba5da3052ce06548e7694f47dbbc9078877eb5bafc46a9bcd23fcb8a5e59d",
+    "etl/edgar_flow.py": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "etl/evaluation_flow.py": "ebdd3d73526318eda6fb37b362baba414319bb87206cfdf3ab524b4c8226b72c",
+    "etl/news_flow.py": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb",
+    "etl/activism_detection.py": "5e311e15948c14a28dd4d2601670137cdddfefebdc9a6acfef0ce33d659de43d"
+  }
+}
