@@ -9,6 +9,13 @@
         {
           "path": "etl/edgar_flow.py",
           "function": "edgar_flow",
+          "calls": "ingest_callable",
+          "callback": "fetcher",
+          "callback_value": "_fetch_with_watermark"
+        },
+        {
+          "path": "etl/edgar_flow.py",
+          "function": "_fetch_with_watermark",
           "calls": "fetch_and_store"
         },
         {
@@ -46,7 +53,13 @@
         1786
       ],
       "disposition": "connected",
-      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "alerts/integration.py",
+          "function": "build_new_filing_event"
+        }
+      ]
     },
     "large_delta": {
       "producer": "etl/daily_diff_flow.py:_large_delta_event_from_diff",
@@ -85,7 +98,13 @@
         1785
       ],
       "disposition": "connected",
-      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/daily_diff_flow.py",
+          "function": "_large_delta_event_from_diff"
+        }
+      ]
     },
     "news_spike": {
       "producer": "etl/news_flow.py:emit_news_spike_alerts",
@@ -119,7 +138,13 @@
       "replay": "key includes occurred_at; producer uses generated wall time, while news_flow suppresses already-inserted news identities; delivery-crash retry identity is not durably retained",
       "owners": [],
       "disposition": "connected",
-      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/news_flow.py",
+          "function": "emit_news_spike_alerts"
+        }
+      ]
     },
     "crowded_trade_change": {
       "producer": "etl/conviction_flow.py:dispatch_conviction_alerts",
@@ -151,7 +176,13 @@
       "replay": "rule/type/manager, payload including report_date, plus occurred_at; producer generates a new wall time on each replay",
       "owners": [],
       "disposition": "connected",
-      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/conviction_flow.py",
+          "function": "dispatch_conviction_alerts"
+        }
+      ]
     },
     "contrarian_signal": {
       "producer": "etl/conviction_flow.py:dispatch_conviction_alerts",
@@ -183,7 +214,13 @@
       "replay": "same key structure and replay-time risk as crowded_trade_change",
       "owners": [],
       "disposition": "connected",
-      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/conviction_flow.py",
+          "function": "dispatch_conviction_alerts"
+        }
+      ]
     },
     "etl_failure": {
       "producer": "etl/evaluation_flow.py:fire_quality_alerts; etl/data_quality_flow.py:data_quality_flow",
@@ -249,7 +286,17 @@
         1790
       ],
       "disposition": "connected",
-      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/evaluation_flow.py",
+          "function": "fire_quality_alerts"
+        },
+        {
+          "path": "alerts/data_quality.py",
+          "function": "build_data_quality_alert_event"
+        }
+      ]
     },
     "activism_event": {
       "producer": "etl/activism_flow.py:fetch_activism_filings",
@@ -288,7 +335,13 @@
       "replay": "generated occurred_at is part of delivery key; filing/event domain dedup is separate from retry of a delivery attempt; external crash-window durability UNKNOWN",
       "owners": [],
       "disposition": "connected",
-      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim"
+      "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
+      "emission_sites": [
+        {
+          "path": "etl/activism_flow.py",
+          "function": "fetch_activism_filings"
+        }
+      ]
     },
     "missing_filing": {
       "producer": null,
@@ -484,6 +537,7 @@
     "etl/data_quality_flow.py": "b3cba5da3052ce06548e7694f47dbbc9078877eb5bafc46a9bcd23fcb8a5e59d",
     "etl/edgar_flow.py": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
     "etl/evaluation_flow.py": "ebdd3d73526318eda6fb37b362baba414319bb87206cfdf3ab524b4c8226b72c",
-    "etl/news_flow.py": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb"
+    "etl/news_flow.py": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb",
+    "etl/activism_detection.py": "5e311e15948c14a28dd4d2601670137cdddfefebdc9a6acfef0ce33d659de43d"
   }
 }

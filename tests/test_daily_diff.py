@@ -702,7 +702,7 @@ def test_large_delta_dispatch_commits_before_send_and_suppresses_replay(
         assert first.warnings
 
 
-def _dispatch_inventory_errors(event_types=None, overrides=None):
+def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_override=None):
     """Audit declared coverage and real authored call edges; never execute ETL."""
     import ast
     import json
@@ -710,7 +710,11 @@ def _dispatch_inventory_errors(event_types=None, overrides=None):
     from alerts.models import ALERT_EVENT_TYPES, UNSUPPORTED_EVENT_TYPES
 
     root = Path(__file__).resolve().parents[1]
-    inventory = json.loads((root / "docs/reports/alert-dispatch-inventory.json").read_text())
+    inventory = (
+        inventory_override
+        if inventory_override is not None
+        else json.loads((root / "docs/reports/alert-dispatch-inventory.json").read_text())
+    )
     errors = []
     overrides = overrides or {}
     trees = {}
@@ -719,6 +723,80 @@ def _dispatch_inventory_errors(event_types=None, overrides=None):
         if path not in trees:
             trees[path] = ast.parse(overrides.get(path, (root / path).read_text()))
         return trees[path]
+
+    def authored_nodes(node):
+        yield node
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue
+            yield from authored_nodes(child)
+
+    def disabled(nodes):
+        return any(
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Constant)
+            and node.value.value is False
+            and any(isinstance(t, ast.Name) and t.id == "__test__" for t in node.targets)
+            for node in nodes
+        )
+
+    def discoverable_tests(path):
+        module = tree(path)
+        if disabled(module.body):
+            return set()
+        names = set()
+        for node in module.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
+                "test_"
+            ):
+                names.add(node.name)
+            elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+                methods = [
+                    n for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                ]
+                if disabled(node.body) or any(n.name in {"__init__", "__new__"} for n in methods):
+                    continue
+                for method in methods:
+                    if method.name.startswith("test_"):
+                        names.update((method.name, node.name + "." + method.name))
+        return names
+
+    def literal(path, value, seen=frozenset()):
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            return value.value
+        if not isinstance(value, ast.Name) or (path, value.id) in seen:
+            return None
+        seen = seen | {(path, value.id)}
+        for node in tree(path).body:
+            if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == value.id for t in node.targets
+            ):
+                return literal(path, node.value, seen)
+            if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                for alias in node.names:
+                    if (alias.asname or alias.name) == value.id:
+                        imported = node.module.replace(".", "/") + ".py"
+                        if (root / imported).is_file():
+                            return literal(imported, ast.Name(id=alias.name), seen)
+        return None
+
+    def emitted_types(site):
+        emitted = set()
+        for function in tree(site["path"]).body:
+            if (
+                isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and function.name == site["function"]
+            ):
+                for node in authored_nodes(function):
+                    if (
+                        isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name)
+                        and node.func.id == "AlertEvent"
+                    ):
+                        for keyword in node.keywords:
+                            if keyword.arg == "event_type":
+                                emitted.add(literal(site["path"], keyword.value))
+        return emitted
 
     declared = set(ALERT_EVENT_TYPES if event_types is None else event_types)
     if set(inventory["events"]) != declared:
@@ -735,10 +813,7 @@ def _dispatch_inventory_errors(event_types=None, overrides=None):
             errors.append(f"{name}: replay contract and executable evidence required")
         for ref in row["tests"]:
             path, function = ref.split(":")
-            if not any(
-                isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == function
-                for n in ast.walk(tree(path))
-            ):
+            if function not in discoverable_tests(path):
                 errors.append(f"{name}: missing named test {ref}")
         if row["disposition"] == "intentional-exception":
             if name not in UNSUPPORTED_EVENT_TYPES or not row.get("exception"):
@@ -746,6 +821,17 @@ def _dispatch_inventory_errors(event_types=None, overrides=None):
             continue
         if row["disposition"] != "connected" or not row.get("edges"):
             errors.append(f"{name}: dispatch evidence or justified exception required")
+        if name in inventory["events"]:
+            sites = row.get("emission_sites", [])
+            if not sites or any(name not in emitted_types(site) for site in sites):
+                errors.append(f"{name}: producer does not emit the declared event")
+        elif not any(
+            edge["path"] == "alerts/data_quality.py"
+            and edge["function"] == "evaluate_daily_quality"
+            and edge["calls"] == name
+            for edge in row["edges"]
+        ):
+            errors.append(f"{name}: missing evaluate_daily_quality binding")
         for edge in row["edges"]:
             functions = [
                 n
@@ -755,7 +841,7 @@ def _dispatch_inventory_errors(event_types=None, overrides=None):
             ]
             calls = set()
             for function in functions:
-                for node in ast.walk(function):
+                for node in authored_nodes(function):
                     if isinstance(node, ast.Call):
                         target = node.func
                         if isinstance(target, ast.Attribute) and target.attr == "fn":
@@ -764,6 +850,20 @@ def _dispatch_inventory_errors(event_types=None, overrides=None):
                             calls.add(target.id)
                         elif isinstance(target, ast.Attribute):
                             calls.add(target.attr)
+            if edge.get("callback") and not any(
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == edge["calls"]
+                and any(
+                    k.arg == edge["callback"]
+                    and isinstance(k.value, ast.Name)
+                    and k.value.id == edge["callback_value"]
+                    for k in node.keywords
+                )
+                for function in functions
+                for node in authored_nodes(function)
+            ):
+                errors.append(f"{name}: disconnected callback {edge['callback']}")
             if edge["calls"] not in calls:
                 errors.append(
                     f"{name}: disconnected {edge['path']}:{edge['function']} -> {edge['calls']}"
@@ -859,3 +959,73 @@ def test_alert_dispatch_inventory_rejects_unconnected_standing_check():
         "standing check inventory" in error
         for error in _dispatch_inventory_errors(overrides={path: source})
     )
+
+
+def _inventory_copy():
+    import json
+
+    return json.loads(
+        (
+            Path(__file__).resolve().parents[1] / "docs/reports/alert-dispatch-inventory.json"
+        ).read_text()
+    )
+
+
+def test_inventory_rejects_nested_named_test_evidence():
+    path = "tests/test_news_flow.py"
+    root = Path(__file__).resolve().parents[1]
+    source = (
+        (root / path)
+        .read_text()
+        .replace(
+            "async def test_emit_news_spike_alerts_groups_items_by_manager(",
+            "async def renamed_uncollected_evidence(",
+        )
+    )
+    source += "\ndef container():\n    async def test_emit_news_spike_alerts_groups_items_by_manager():\n        pass\n"
+    assert any(
+        "missing named test" in e for e in _dispatch_inventory_errors(overrides={path: source})
+    )
+
+
+def test_inventory_rejects_complete_unrelated_event_row():
+    import copy
+
+    from alerts.models import ALERT_EVENT_TYPES
+
+    inventory = _inventory_copy()
+    inventory["events"]["unwired_future_event"] = copy.deepcopy(inventory["events"]["news_spike"])
+    errors = _dispatch_inventory_errors(
+        (*ALERT_EVENT_TYPES, "unwired_future_event"), inventory_override=inventory
+    )
+    assert any("unwired_future_event: producer does not emit" in e for e in errors)
+
+
+def test_inventory_rejects_copied_standing_evaluator_edge():
+    import copy
+
+    inventory = _inventory_copy()
+    inventory["standing_checks"]["check_unwired_future"] = copy.deepcopy(
+        inventory["standing_checks"]["check_news_freshness"]
+    )
+    path = "alerts/data_quality.py"
+    source = (
+        Path(__file__).resolve().parents[1] / path
+    ).read_text() + "\ndef check_unwired_future():\n    return None\n"
+    errors = _dispatch_inventory_errors(overrides={path: source}, inventory_override=inventory)
+    assert any("check_unwired_future: missing evaluate_daily_quality binding" in e for e in errors)
+
+
+def test_inventory_accepts_discoverable_test_class_evidence():
+    path = "tests/test_news_flow.py"
+    root = Path(__file__).resolve().parents[1]
+    source = (
+        (root / path)
+        .read_text()
+        .replace(
+            "async def test_emit_news_spike_alerts_groups_items_by_manager(",
+            "async def renamed_class_evidence(",
+        )
+    )
+    source += "\nclass TestDeliveryEvidence:\n    async def test_emit_news_spike_alerts_groups_items_by_manager(self):\n        pass\n"
+    assert _dispatch_inventory_errors(overrides={path: source}) == []
