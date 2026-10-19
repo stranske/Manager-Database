@@ -1071,6 +1071,87 @@ def test_inventory_rejects_exception_claiming_dispatch_path():
     )
 
 
+def _live_calls(path, function):
+    """Call names authored directly in one top-level function of a live file."""
+    import ast
+
+    root = Path(__file__).resolve().parents[1]
+    module = ast.parse((root / path).read_text())
+    calls = set()
+    for node in module.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function:
+            for child in ast.walk(node):
+                if isinstance(child, ast.Call):
+                    target = child.func
+                    if isinstance(target, ast.Attribute) and target.attr == "fn":
+                        target = target.value
+                    calls.add(target.id if isinstance(target, ast.Name) else target.attr)
+    return calls
+
+
+def test_known_record_only_cases_reach_dispatch_or_are_retired():
+    """Trace the four cases named at the reviewed base to their current scope.
+
+    ``large_delta`` (was record-only in ``etl/daily_diff_flow.py``), the
+    evaluation ``etl_failure`` path (was record-only in
+    ``etl/evaluation_flow.py``) and ``build_data_quality_alert_event`` (had
+    no caller) are confirmed connected through owned work #1785/#1789/#1790.
+    ``missing_filing`` is the one intentional exception (#1792): no emitter
+    exists and new rules are rejected, so it must not acquire a dispatch path.
+    """
+    inventory = _inventory_copy()
+    events = inventory["events"]
+
+    # large_delta: producer -> sync dispatch, invoked by the flow itself.
+    assert "fire_alerts_for_event_sync" in _live_calls(
+        "etl/daily_diff_flow.py", "_record_large_delta_alerts"
+    )
+    assert "_record_large_delta_alerts" in _live_calls("etl/daily_diff_flow.py", "daily_diff_flow")
+    assert events["large_delta"]["disposition"] == "connected"
+    assert events["large_delta"]["owners"] == [1785]
+
+    # evaluation etl_failure: summary task -> sync dispatch, from both flows.
+    assert "fire_alerts_for_event_sync" in _live_calls(
+        "etl/evaluation_flow.py", "fire_quality_alerts"
+    )
+    assert "fire_quality_alerts" in _live_calls("etl/evaluation_flow.py", "evaluation_flow")
+    assert "fire_quality_alerts" in _live_calls("etl/evaluation_flow.py", "live_evaluation_flow")
+    assert 1789 in events["etl_failure"]["owners"]
+
+    # data-quality builder: the dispatch caller (not the record-only
+    # ``evaluate_and_record_data_quality_alerts`` sibling) reaches the flow.
+    assert "build_data_quality_alert_event" in _live_calls(
+        "alerts/integration.py", "fire_data_quality_alerts"
+    )
+    assert "fire_alerts_for_event_sync" in _live_calls(
+        "alerts/integration.py", "fire_data_quality_alerts"
+    )
+    assert "fire_data_quality_alerts" in _live_calls(
+        "etl/data_quality_flow.py", "data_quality_flow"
+    )
+    assert 1790 in events["etl_failure"]["owners"]
+
+    # missing_filing: intentional exception only; no production emitter.
+    from alerts.models import CREATABLE_EVENT_TYPES
+
+    assert "missing_filing" not in CREATABLE_EVENT_TYPES
+    assert events["missing_filing"]["disposition"] == "intentional-exception"
+    assert events["missing_filing"]["producer"] is None
+    assert events["missing_filing"]["owners"] == [1792]
+
+
+def test_known_cases_gate_fails_if_evaluation_dispatch_is_disconnected():
+    root = Path(__file__).resolve().parents[1]
+    path = "etl/evaluation_flow.py"
+    source = (root / path).read_text()
+    broken = source.replace("fire_alerts_for_event_sync(", "record_only_no_dispatch(")
+    assert broken != source
+    assert any(
+        "etl_failure: disconnected" in error
+        for error in _dispatch_inventory_errors(overrides={path: broken})
+    )
+
+
 def test_inventory_accepts_discoverable_test_class_evidence():
     path = "tests/test_news_flow.py"
     root = Path(__file__).resolve().parents[1]
