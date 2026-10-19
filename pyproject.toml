@@ -10,7 +10,7 @@ authors = [{ name = "stranske" }]
 dependencies = [
     "alembic",
     "sqlglot>=28.10.1,<29",
-    "edgartools>=5.44,<5.45",
+    "edgartools>=5.62,<5.63",
     "httpx",
     "feedparser",
     "prefect",
@@ -19,7 +19,7 @@ dependencies = [
     "boto3",
     "python-json-logger",
     "psycopg[binary]",
-    "streamlit==1.60.0",
+    "streamlit==1.66.0",
     "pandas",
     "streamlit-authenticator==0.4.2",
     "altair",
