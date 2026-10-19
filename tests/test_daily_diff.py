@@ -707,7 +707,7 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
     import ast
     import json
 
-    from alerts.models import ALERT_EVENT_TYPES, UNSUPPORTED_EVENT_TYPES
+    from alerts.models import ALERT_CHANNELS, ALERT_EVENT_TYPES, UNSUPPORTED_EVENT_TYPES
 
     root = Path(__file__).resolve().parents[1]
     inventory = (
@@ -823,6 +823,12 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
             )
         if not isinstance(row.get("owners"), list) or not row.get("evidence_kind"):
             errors.append(f"{name}: owners list and evidence_kind required")
+        undeclared_channels = set(row.get("channels") or []) - set(ALERT_CHANNELS)
+        if undeclared_channels:
+            errors.append(
+                f"{name}: undeclared channel(s) {sorted(undeclared_channels)}; "
+                "the gate adds no new events or channels"
+            )
         if row.get("disposition") == "connected":
             producer = row.get("producer")
             if not isinstance(producer, str) or not producer:
@@ -853,10 +859,23 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
             continue
         if row["disposition"] != "connected" or not row.get("edges"):
             errors.append(f"{name}: dispatch evidence or justified exception required")
+        edges = row.get("edges") or []
         if name in inventory["events"]:
             sites = row.get("emission_sites", [])
             if not sites or any(name not in emitted_types(site) for site in sites):
                 errors.append(f"{name}: producer does not emit the declared event")
+            if not any(
+                edge["calls"] in {"fire_alerts_for_event", "fire_alerts_for_event_sync"}
+                for edge in edges
+            ):
+                errors.append(f"{name}: dispatch evidence required: no fire_alerts dispatch edge")
+            if not any(
+                edge["path"] == "alerts/integration.py"
+                and edge["function"] == "fire_alerts_for_event"
+                and edge["calls"] == "dispatch"
+                for edge in edges
+            ):
+                errors.append(f"{name}: dispatch evidence required: no dispatcher terminus edge")
         elif not any(
             edge["path"] == "alerts/data_quality.py"
             and edge["function"] == "evaluate_daily_quality"
@@ -864,6 +883,13 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
             for edge in row["edges"]
         ):
             errors.append(f"{name}: missing evaluate_daily_quality binding")
+        if name in inventory["standing_checks"] and not any(
+            edge["path"] == "alerts/integration.py"
+            and edge["function"] == "fire_data_quality_alerts"
+            and edge["calls"] == "fire_alerts_for_event_sync"
+            for edge in edges
+        ):
+            errors.append(f"{name}: dispatch evidence required: no data-quality dispatch edge")
         for edge in row["edges"]:
             functions = [
                 n
@@ -1150,6 +1176,40 @@ def test_known_cases_gate_fails_if_evaluation_dispatch_is_disconnected():
         "etl_failure: disconnected" in error
         for error in _dispatch_inventory_errors(overrides={path: broken})
     )
+
+
+def test_inventory_rejects_connected_event_without_dispatch_edge():
+    inventory = _inventory_copy()
+    row = inventory["events"]["large_delta"]
+    row["edges"] = [
+        e for e in row["edges"] if e["calls"] not in {"fire_alerts_for_event_sync", "dispatch"}
+    ]
+    errors = _dispatch_inventory_errors(inventory_override=inventory)
+    assert any("large_delta: dispatch evidence required" in e for e in errors)
+
+
+def test_inventory_rejects_standing_check_without_terminal_dispatch_edge():
+    inventory = _inventory_copy()
+    row = inventory["standing_checks"]["check_news_freshness"]
+    row["edges"] = [
+        e
+        for e in row["edges"]
+        if not (
+            e["function"] == "fire_data_quality_alerts" and e["calls"].startswith("fire_alerts")
+        )
+    ]
+    errors = _dispatch_inventory_errors(inventory_override=inventory)
+    assert any(
+        "check_news_freshness: dispatch evidence required: no data-quality dispatch edge" in e
+        for e in errors
+    )
+
+
+def test_inventory_rejects_undeclared_channel_claim():
+    inventory = _inventory_copy()
+    inventory["events"]["news_spike"]["channels"] = ["pigeon"]
+    errors = _dispatch_inventory_errors(inventory_override=inventory)
+    assert any("news_spike: undeclared channel(s) ['pigeon']" in e for e in errors)
 
 
 def test_inventory_accepts_discoverable_test_class_evidence():

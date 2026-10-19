@@ -382,6 +382,11 @@
           "path": "alerts/integration.py",
           "function": "fire_data_quality_alerts",
           "calls": "build_data_quality_alert_event"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "fire_alerts_for_event_sync"
         }
       ],
       "replay": "UTC check_date + immutable data_quality_runs snapshot -> etl_failure",
@@ -417,6 +422,11 @@
           "path": "alerts/integration.py",
           "function": "fire_data_quality_alerts",
           "calls": "build_data_quality_alert_event"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "fire_alerts_for_event_sync"
         }
       ],
       "replay": "UTC check_date + immutable data_quality_runs snapshot -> etl_failure",
@@ -452,6 +462,11 @@
           "path": "alerts/integration.py",
           "function": "fire_data_quality_alerts",
           "calls": "build_data_quality_alert_event"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "fire_alerts_for_event_sync"
         }
       ],
       "replay": "UTC check_date + immutable data_quality_runs snapshot -> etl_failure",
@@ -487,6 +502,11 @@
           "path": "alerts/integration.py",
           "function": "fire_data_quality_alerts",
           "calls": "build_data_quality_alert_event"
+        },
+        {
+          "path": "alerts/integration.py",
+          "function": "fire_data_quality_alerts",
+          "calls": "fire_alerts_for_event_sync"
         }
       ],
       "replay": "UTC check_date + immutable data_quality_runs snapshot -> etl_failure",
