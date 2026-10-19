@@ -136,7 +136,9 @@
         "tests/test_daily_diff.py:test_inventory_news_producer_retry_changes_delivery_identity"
       ],
       "replay": "key includes occurred_at; producer uses generated wall time, while news_flow suppresses already-inserted news identities; delivery-crash retry identity is not durably retained",
-      "owners": [],
+      "owners": [
+        1791
+      ],
       "disposition": "connected",
       "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
       "emission_sites": [
@@ -144,7 +146,8 @@
           "path": "etl/news_flow.py",
           "function": "emit_news_spike_alerts"
         }
-      ]
+      ],
+      "ownership_scope": "Issue #1791 owns this inventory and returned evidence only. No production repair is assigned or authorized by this row."
     },
     "crowded_trade_change": {
       "producer": "etl/conviction_flow.py:dispatch_conviction_alerts",
@@ -174,7 +177,9 @@
         "tests/test_crowded_contrarian.py:test_dispatch_conviction_alerts_emits_events_for_detected_rows"
       ],
       "replay": "rule/type/manager, payload including report_date, plus occurred_at; producer generates a new wall time on each replay",
-      "owners": [],
+      "owners": [
+        1791
+      ],
       "disposition": "connected",
       "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
       "emission_sites": [
@@ -182,7 +187,8 @@
           "path": "etl/conviction_flow.py",
           "function": "dispatch_conviction_alerts"
         }
-      ]
+      ],
+      "ownership_scope": "Issue #1791 owns this inventory and returned evidence only. No production repair is assigned or authorized by this row."
     },
     "contrarian_signal": {
       "producer": "etl/conviction_flow.py:dispatch_conviction_alerts",
@@ -212,7 +218,9 @@
         "tests/test_crowded_contrarian.py:test_dispatch_conviction_alerts_emits_events_for_detected_rows"
       ],
       "replay": "same key structure and replay-time risk as crowded_trade_change",
-      "owners": [],
+      "owners": [
+        1791
+      ],
       "disposition": "connected",
       "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
       "emission_sites": [
@@ -220,7 +228,8 @@
           "path": "etl/conviction_flow.py",
           "function": "dispatch_conviction_alerts"
         }
-      ]
+      ],
+      "ownership_scope": "Issue #1791 owns this inventory and returned evidence only. No production repair is assigned or authorized by this row."
     },
     "etl_failure": {
       "producer": "etl/evaluation_flow.py:fire_quality_alerts; etl/data_quality_flow.py:data_quality_flow",
@@ -333,7 +342,9 @@
         "tests/test_activism_adapter.py:test_fetch_activism_filings_stores_rows_and_raw_documents"
       ],
       "replay": "generated occurred_at is part of delivery key; filing/event domain dedup is separate from retry of a delivery attempt; external crash-window durability UNKNOWN",
-      "owners": [],
+      "owners": [
+        1791
+      ],
       "disposition": "connected",
       "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
       "emission_sites": [
@@ -341,7 +352,8 @@
           "path": "etl/activism_flow.py",
           "function": "fetch_activism_filings"
         }
-      ]
+      ],
+      "ownership_scope": "Issue #1791 owns this inventory and returned evidence only. No production repair is assigned or authorized by this row."
     },
     "missing_filing": {
       "producer": null,

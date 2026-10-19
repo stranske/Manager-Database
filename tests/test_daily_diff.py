@@ -721,7 +721,8 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
 
     def tree(path):
         if path not in trees:
-            trees[path] = ast.parse(overrides.get(path, (root / path).read_text()))
+            source = overrides[path] if path in overrides else (root / path).read_text()
+            trees[path] = ast.parse(source)
         return trees[path]
 
     def authored_nodes(node):
@@ -810,10 +811,39 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
         errors.append("standing check inventory differs from declared check functions")
 
     def function_exists(path, function):
+        if path not in overrides and not (root / path).is_file():
+            return False
         return any(
             isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == function
             for n in ast.walk(tree(path))
         )
+
+    # Retirement is a production invariant, independent of inventory disposition
+    # and rule creatability. An exception row must not hide a new constructor.
+    production_paths = {
+        str(path.relative_to(root))
+        for package in ("alerts", "etl")
+        for path in (root / package).rglob("*.py")
+    }
+    production_paths.update(
+        path for path in overrides if path.startswith(("alerts/", "etl/")) and path.endswith(".py")
+    )
+    for path in sorted(production_paths):
+        for node in ast.walk(tree(path)):
+            if not isinstance(node, ast.Call):
+                continue
+            constructor = node.func
+            if not (
+                isinstance(constructor, ast.Name)
+                and constructor.id == "AlertEvent"
+                or isinstance(constructor, ast.Attribute)
+                and constructor.attr == "AlertEvent"
+            ):
+                continue
+            for keyword in node.keywords:
+                event_type = literal(path, keyword.value) if keyword.arg == "event_type" else None
+                if event_type in UNSUPPORTED_EVENT_TYPES:
+                    errors.append(f"{event_type}: retired event constructed in production {path}")
 
     for name, row in [*inventory["events"].items(), *inventory["standing_checks"].items()]:
         if row.get("disposition") not in {"connected", "intentional-exception"}:
@@ -821,7 +851,11 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
                 f"{name}: disposition {row.get('disposition')!r} needs human review; "
                 "only connected or intentional-exception may pass the gate"
             )
-        if not isinstance(row.get("owners"), list) or not row.get("evidence_kind"):
+        if (
+            not isinstance(row.get("owners"), list)
+            or not row["owners"]
+            or not row.get("evidence_kind")
+        ):
             errors.append(f"{name}: owners list and evidence_kind required")
         undeclared_channels = set(row.get("channels") or []) - set(ALERT_CHANNELS)
         if undeclared_channels:
@@ -838,6 +872,11 @@ def _dispatch_inventory_errors(event_types=None, overrides=None, inventory_overr
                     path, _, function = segment.rpartition(":")
                     if not path or not function or not function_exists(path, function):
                         errors.append(f"{name}: producer does not resolve: {segment}")
+                    elif name in inventory["events"] and (path, function) not in {
+                        (site["path"], site["function"])
+                        for site in [*row.get("emission_sites", []), *row.get("edges", [])]
+                    }:
+                        errors.append(f"{name}: producer has no emission or call-path evidence")
                 if name in inventory["standing_checks"] and producer != (
                     f"alerts/data_quality.py:{name}"
                 ):
@@ -1088,6 +1127,43 @@ def test_inventory_rejects_unresolvable_producer():
     assert any("large_delta: producer does not resolve" in e for e in errors)
 
 
+def test_inventory_rejects_empty_owners():
+    inventory = _inventory_copy()
+    inventory["events"]["news_spike"]["owners"] = []
+    assert any(
+        "news_spike: owners list and evidence_kind required" in error
+        for error in _dispatch_inventory_errors(inventory_override=inventory)
+    )
+
+
+def test_inventory_reports_missing_producer_file():
+    inventory = _inventory_copy()
+    inventory["events"]["large_delta"]["producer"] = "etl/no_such_producer.py:emit"
+    assert any(
+        "large_delta: producer does not resolve" in error
+        for error in _dispatch_inventory_errors(inventory_override=inventory)
+    )
+
+
+def test_inventory_rejects_existing_unrelated_producer():
+    inventory = _inventory_copy()
+    inventory["events"]["news_spike"]["producer"] = "alerts/data_quality.py:check_news_freshness"
+    assert any(
+        "news_spike: producer has no emission or call-path evidence" in error
+        for error in _dispatch_inventory_errors(inventory_override=inventory)
+    )
+
+
+def test_inventory_rejects_retired_event_production_constructor():
+    path = "etl/daily_diff_flow.py"
+    source = (Path(__file__).resolve().parents[1] / path).read_text()
+    source += '\ndef accidentally_emit_retired_event():\n    return AlertEvent(event_type="missing_filing")\n'
+    assert any(
+        "missing_filing: retired event constructed in production" in error
+        for error in _dispatch_inventory_errors(overrides={path: source})
+    )
+
+
 def test_inventory_rejects_exception_claiming_dispatch_path():
     inventory = _inventory_copy()
     inventory["events"]["missing_filing"]["producer"] = "etl/edgar_flow.py:fetch_and_store"
@@ -1186,6 +1262,24 @@ def test_inventory_rejects_connected_event_without_dispatch_edge():
     ]
     errors = _dispatch_inventory_errors(inventory_override=inventory)
     assert any("large_delta: dispatch evidence required" in e for e in errors)
+
+
+def test_inventory_rejects_connected_event_without_dispatcher_terminus():
+    inventory = _inventory_copy()
+    row = inventory["events"]["large_delta"]
+    row["edges"] = [
+        edge
+        for edge in row["edges"]
+        if not (
+            edge["path"] == "alerts/integration.py"
+            and edge["function"] == "fire_alerts_for_event"
+            and edge["calls"] == "dispatch"
+        )
+    ]
+    assert any(
+        "large_delta: dispatch evidence required: no dispatcher terminus edge" in error
+        for error in _dispatch_inventory_errors(inventory_override=inventory)
+    )
 
 
 def test_inventory_rejects_standing_check_without_terminal_dispatch_edge():
