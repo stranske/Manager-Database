@@ -1,11 +1,201 @@
 """Focused contract coverage for chat request helpers."""
 
+import asyncio
+import sqlite3
+import sys
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 
 from api import chat
+
+
+def test_validation_error_formatter_keeps_field_context():
+    error = SimpleNamespace(
+        errors=lambda: [
+            {"loc": ("body", "question"), "msg": "Field required"},
+            {"loc": ("body",), "msg": "Invalid body"},
+            {"loc": (), "msg": "Unknown failure"},
+        ]
+    )
+
+    assert chat._format_validation_errors(error) == [
+        {"field": "question", "message": "Field required"},
+        {"field": "body", "message": "Invalid body"},
+        {"field": "unknown", "message": "Unknown failure"},
+    ]
+
+
+def test_legacy_chat_formats_search_hits_and_empty_results(monkeypatch):
+    monkeypatch.setattr(
+        "embeddings.search_documents",
+        lambda _query: [
+            {"content": "Alpha", "kind": "filing", "filename": "alpha.txt", "manager_name": "A"},
+            {"content": "Beta"},
+        ],
+    )
+
+    payload = chat.chat("latest")
+
+    assert payload["answer"] == (
+        "Context: [filing | alpha.txt | manager: A] Alpha "
+        "[note | unknown | manager: unassigned] Beta"
+    )
+    monkeypatch.setattr("embeddings.search_documents", lambda _query: [])
+    assert chat.chat("missing")["answer"] == "No documents found."
+
+
+def test_search_api_closes_connection_after_delegating(monkeypatch):
+    seen = {}
+
+    class Connection:
+        def close(self):
+            seen["closed"] = True
+
+    connection = Connection()
+    monkeypatch.setattr(chat, "connect_db", lambda: connection)
+    monkeypatch.setattr(
+        chat,
+        "universal_search",
+        lambda query, conn, **kwargs: seen.update(query=query, conn=conn, **kwargs) or ["result"],
+    )
+
+    assert asyncio.run(chat.search_api("Elliott", limit=3, entity_type=None)) == ["result"]
+    assert seen == {
+        "query": "Elliott",
+        "conn": connection,
+        "limit": 3,
+        "entity_type": None,
+        "closed": True,
+    }
+
+
+def test_rate_limiter_prunes_expired_entries_and_none_requests_are_anonymous():
+    limiter = chat.InMemoryChatRateLimiter(max_requests=1, window_seconds=10)
+
+    assert limiter.check_and_record("session", now=10)
+    assert not limiter.check_and_record("session", now=11)
+    assert limiter.check_and_record("session", now=20)
+    assert chat._chat_session_id(None) == "unknown"
+    assert chat._chat_client_id(None) == "client:unknown"
+
+
+def test_fallback_chains_preserve_explicit_context_fields():
+    holdings = chat._FallbackHoldingsAnalysisChain().run(
+        "Analyze",
+        manager_ids=[7],
+        cusips=["037833100"],
+        date_range=(date(2024, 1, 1), date(2024, 3, 31)),
+        as_of=date(2024, 4, 1),
+    )
+
+    assert holdings["sources"] == [
+        {
+            "manager_ids": [7],
+            "cusips": ["037833100"],
+            "date_range": ["2024-01-01", "2024-03-31"],
+            "as_of": "2024-04-01",
+        }
+    ]
+    assert chat._FallbackNLQueryChain().run(question="q", context={})["sources"] == {}
+
+
+def test_feedback_storage_creates_sqlite_table_and_rejects_missing_non_sqlite_table(
+    tmp_path, monkeypatch
+):
+    db_path = tmp_path / "feedback.db"
+    monkeypatch.setattr(chat, "connect_db", lambda: sqlite3.connect(db_path))
+
+    assert (
+        chat._store_feedback(chat.FeedbackRequest(response_id="run-1", rating=5, comment="great"))
+        == 1
+    )
+
+    monkeypatch.setattr(chat, "is_sqlite", lambda _conn: False)
+    monkeypatch.setattr(chat, "table_exists", lambda _conn, _name: False)
+    with pytest.raises(RuntimeError, match="run migrations"):
+        chat._ensure_chat_feedback_table(object())
+
+
+def test_chat_chain_health_accepts_explicit_fallback(monkeypatch):
+    monkeypatch.setenv("CHAT_CHAIN_FALLBACK_MODE", "offline")
+    monkeypatch.delenv("LLM_ZONE", raising=False)
+
+    assert chat._chat_chain_health_payload() == (
+        {"healthy": True, "available": True, "fallback_enabled": True},
+        None,
+    )
+
+
+def test_optional_dependency_clients_use_configured_timeouts(monkeypatch):
+    captured = {}
+
+    def client(*service, **kwargs):
+        captured["service"] = service
+        captured.update(kwargs)
+        return SimpleNamespace(list_buckets=lambda: captured.setdefault("minio_pinged", True))
+
+    class RedisClient:
+        def ping(self):
+            captured["redis_pinged"] = True
+
+    class Redis:
+        @staticmethod
+        def from_url(url, socket_timeout):
+            captured["redis_url"] = url
+            captured["redis_timeout"] = socket_timeout
+            return RedisClient()
+
+    monkeypatch.setattr(chat.boto3, "client", client)
+    monkeypatch.setitem(sys.modules, "redis", SimpleNamespace(Redis=Redis))
+    chat._ping_minio(1.25)
+    chat._ping_redis("redis://cache", 2.5)
+
+    assert captured["service"] == ("s3",)
+    assert captured["config"].connect_timeout == 1.25
+    assert captured["config"].read_timeout == 1.25
+    assert captured["minio_pinged"] is True
+    assert captured["redis_url"] == "redis://cache"
+    assert captured["redis_timeout"] == 2.5
+    assert captured["redis_pinged"] is True
+
+
+def test_health_detailed_reports_timeout_for_optional_dependencies(monkeypatch):
+    async def healthy_db():
+        return chat.JSONResponse(status_code=200, content={"healthy": True, "latency_ms": 1})
+
+    async def timed_check(func, *_args):
+        if func in {chat._ping_minio, chat._ping_redis}:
+            raise TimeoutError
+
+    monkeypatch.setattr(chat, "health_db", healthy_db)
+    monkeypatch.setattr(chat, "_run_health_check_with_retries", timed_check)
+    monkeypatch.setattr(chat, "_MINIO_CIRCUIT", chat.CircuitBreaker())
+    monkeypatch.setattr(chat, "_REDIS_CIRCUIT", chat.CircuitBreaker())
+    monkeypatch.setattr(chat, "_chat_chain_health_payload", lambda: ({"healthy": True}, None))
+    monkeypatch.setenv("REDIS_URL", "redis://cache")
+
+    payload = asyncio.run(chat.health_detailed())
+
+    assert payload.status_code == 503
+    body = payload.body.decode()
+    assert '"minio":{"healthy":false' in body
+    assert '"redis":{"healthy":false' in body
+
+
+def test_error_categories_and_metrics_response(monkeypatch):
+    monkeypatch.setattr(chat, "generate_latest", lambda: b"metric 1\n")
+
+    assert [chat._error_category_from_http(code) for code in (429, 503, 400, 500, 200)] == [
+        "rate_limited",
+        "provider_unavailable",
+        "client_error",
+        "server_error",
+        None,
+    ]
+    assert chat.metrics().body == b"metric 1\n"
 
 
 def test_circuit_breaker_opens_resets_and_success_clears_state():
