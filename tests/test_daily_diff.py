@@ -700,3 +700,162 @@ def test_large_delta_dispatch_commits_before_send_and_suppresses_replay(
         assert sends.count("email") == sends.count("slack") == 2
     if failure in ["channel", "outcome"]:
         assert first.warnings
+
+
+def _dispatch_inventory_errors(event_types=None, overrides=None):
+    """Audit declared coverage and real authored call edges; never execute ETL."""
+    import ast
+    import json
+
+    from alerts.models import ALERT_EVENT_TYPES, UNSUPPORTED_EVENT_TYPES
+
+    root = Path(__file__).resolve().parents[1]
+    inventory = json.loads((root / "docs/reports/alert-dispatch-inventory.json").read_text())
+    errors = []
+    overrides = overrides or {}
+    trees = {}
+
+    def tree(path):
+        if path not in trees:
+            trees[path] = ast.parse(overrides.get(path, (root / path).read_text()))
+        return trees[path]
+
+    declared = set(ALERT_EVENT_TYPES if event_types is None else event_types)
+    if set(inventory["events"]) != declared:
+        errors.append("event inventory differs from declared ALERT_EVENT_TYPES")
+    checks = {
+        n.name
+        for n in tree("alerts/data_quality.py").body
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("check_")
+    }
+    if set(inventory["standing_checks"]) != checks:
+        errors.append("standing check inventory differs from declared check functions")
+    for name, row in [*inventory["events"].items(), *inventory["standing_checks"].items()]:
+        if not row.get("replay") or not row.get("tests"):
+            errors.append(f"{name}: replay contract and executable evidence required")
+        for ref in row["tests"]:
+            path, function = ref.split(":")
+            if not any(
+                isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == function
+                for n in ast.walk(tree(path))
+            ):
+                errors.append(f"{name}: missing named test {ref}")
+        if row["disposition"] == "intentional-exception":
+            if name not in UNSUPPORTED_EVENT_TYPES or not row.get("exception"):
+                errors.append(f"{name}: exception needs actual retirement and justification")
+            continue
+        if row["disposition"] != "connected" or not row.get("edges"):
+            errors.append(f"{name}: dispatch evidence or justified exception required")
+        for edge in row["edges"]:
+            functions = [
+                n
+                for n in ast.walk(tree(edge["path"]))
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and n.name == edge["function"]
+            ]
+            calls = set()
+            for function in functions:
+                for node in ast.walk(function):
+                    if isinstance(node, ast.Call):
+                        target = node.func
+                        if isinstance(target, ast.Attribute) and target.attr == "fn":
+                            target = target.value
+                        if isinstance(target, ast.Name):
+                            calls.add(target.id)
+                        elif isinstance(target, ast.Attribute):
+                            calls.add(target.attr)
+            if edge["calls"] not in calls:
+                errors.append(
+                    f"{name}: disconnected {edge['path']}:{edge['function']} -> {edge['calls']}"
+                )
+    return errors
+
+
+def test_alert_dispatch_inventory_covers_declared_events_and_standing_checks():
+    assert _dispatch_inventory_errors() == []
+
+
+def test_alert_dispatch_inventory_rejects_new_unconnected_declaration():
+    from alerts.models import ALERT_EVENT_TYPES
+
+    assert any(
+        "ALERT_EVENT_TYPES" in error
+        for error in _dispatch_inventory_errors((*ALERT_EVENT_TYPES, "unwired_future_event"))
+    )
+
+
+def test_alert_dispatch_inventory_detects_removed_real_dispatch_edge():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "etl/daily_diff_flow.py").read_text()
+    broken = source.replace(
+        "fire_alerts_for_event_sync(conn, _large_delta_event_from_diff(row))", "[]"
+    )
+    assert broken != source
+    assert any(
+        "large_delta: disconnected" in error
+        for error in _dispatch_inventory_errors(overrides={"etl/daily_diff_flow.py": broken})
+    )
+
+
+def test_alert_dispatch_inventory_preserves_justified_missing_filing_retirement():
+    from alerts.models import CREATABLE_EVENT_TYPES
+
+    assert "missing_filing" not in CREATABLE_EVENT_TYPES
+    assert _dispatch_inventory_errors() == []
+
+
+def test_inventory_news_producer_retry_changes_delivery_identity(monkeypatch):
+    """Evidence for review: producer retries lack a retained timestamp/key."""
+    import asyncio
+    from datetime import UTC, datetime, timedelta
+
+    import alerts.models as models
+    import etl.news_flow as news
+    from alerts.db import _delivery_event_key
+    from alerts.models import AlertRule, FiredAlert
+
+    events = []
+    clock = iter(
+        [datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 1, tzinfo=UTC) + timedelta(seconds=1)]
+    )
+
+    class Clock:
+        @staticmethod
+        def now(tz):
+            return next(clock)
+
+    async def capture(conn, event):
+        events.append(event)
+        return []
+
+    monkeypatch.setattr(models, "datetime", Clock)
+    monkeypatch.setattr(news, "fire_alerts_for_event", capture)
+    items = [{"manager_id": 1, "headline": "Same retained item", "source": "fixture"}]
+    asyncio.run(news.emit_news_spike_alerts(items, object()))
+    asyncio.run(news.emit_news_spike_alerts(items, object()))
+    assert events[0].payload == events[1].payload
+    rule = AlertRule(
+        rule_id=1,
+        name="audit",
+        event_type="news_spike",
+        condition_json={},
+        channels=["streamlit"],
+        enabled=True,
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    keys = [
+        _delivery_event_key(FiredAlert(rule=rule, event=event, channels=["streamlit"]))
+        for event in events
+    ]
+    assert keys[0] != keys[1], "update the audit if the producer acquires a stable retry identity"
+
+
+def test_alert_dispatch_inventory_rejects_unconnected_standing_check():
+    root = Path(__file__).resolve().parents[1]
+    path = "alerts/data_quality.py"
+    source = (root / path).read_text() + "\ndef check_unwired_future():\n    return None\n"
+    assert any(
+        "standing check inventory" in error
+        for error in _dispatch_inventory_errors(overrides={path: source})
+    )
