@@ -236,6 +236,9 @@ def test_chat_payload_and_dependency_error_branches_are_stable():
     assert payload["enabled"] is True
     assert reason == "timeout"
 
+    # The timeout itself opens the breaker before any explicit extra failure.
+    assert breaker.is_open()
+
     # Additional failure while already open must keep the breaker latched.
     breaker.record_failure()
     assert breaker.is_open()
