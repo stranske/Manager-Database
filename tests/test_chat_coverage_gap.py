@@ -502,8 +502,11 @@ def test_attach_langsmith_feedback_handles_import_and_api_failures(monkeypatch):
         is False
     )
 
+    calls = []
+
     class BoomClient:
         def create_feedback(self, **_kwargs):
+            calls.append(_kwargs)
             raise RuntimeError("langsmith down")
 
     monkeypatch.setattr(
@@ -522,6 +525,7 @@ def test_attach_langsmith_feedback_handles_import_and_api_failures(monkeypatch):
         )
         is False
     )
+    assert len(calls) == 1
 
 
 def test_chat_api_rejects_invalid_chain_and_non_list_injection_reasons(monkeypatch):
