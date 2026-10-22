@@ -61,9 +61,14 @@ def validate_dashboard_source_binding(root, expected, *, binding=None):
         digest((folder / "historical-dashboard-validator.py.txt").read_bytes())
         == binding["previous_validator_sha256"]
     )
+    tool_successor = json.loads(
+        (ROOT / "docs/evidence/dependency-closeout-20261022/validator-successor.json").read_text()
+    )
+    assert tool_successor["schema"] == "dashboard-tool-pin-successor/v1"
+    assert tool_successor["previous_validator_sha256"] == binding["current_validator_sha256"]
     assert (
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
-        == binding["current_validator_sha256"]
+        == tool_successor["current_validator_sha256"]
     )
 
 
@@ -341,27 +346,27 @@ def test_dashboard_archived_reuse_refusal_and_black_receipt(archive):
 
 
 def normalized_dashboard_project(raw):
-    """Only exact Black/Ruff version values are mutable infrastructure inputs."""
+    """Only exact Black/Ruff/Coverage version values are mutable tool inputs."""
     project = tomllib.loads(raw.decode())
     dependencies = project["project"]["optional-dependencies"]["dev"]
     seen = set()
     normalized = []
     for value in dependencies:
-        tool = re.match(r"(black|ruff)(?=[^A-Za-z0-9_-]|$)", value, re.IGNORECASE)
+        tool = re.match(r"(black|ruff|coverage)(?=[^A-Za-z0-9_-]|$)", value, re.IGNORECASE)
         if tool:
             name = tool.group(1).lower()
-            assert name not in seen, f"Duplicate formatter requirement: {name}"
+            assert name not in seen, f"Duplicate tool requirement: {name}"
             seen.add(name)
             # The retained/current contract uses plain numeric release pins.
             # Other operators, URLs, extras, markers or wildcard pins are not
             # an allowed version-only change to that historical input.
             assert re.fullmatch(
-                r"(black|ruff)==[0-9]+(?:\.[0-9]+){1,3}", value, re.IGNORECASE
+                r"(black|ruff|coverage)==[0-9]+(?:\.[0-9]+){1,3}", value, re.IGNORECASE
             ), name
             normalized.append(name + "==0")
         else:
             normalized.append(value)
-    assert seen == {"black", "ruff"}
+    assert seen == {"black", "ruff", "coverage"}
     project["project"]["optional-dependencies"]["dev"] = normalized
     return project
 
@@ -396,9 +401,16 @@ def validate_review_recovery_current_inputs(root, manifest):
         source_successor["previous_validator_sha256"]
         == dependency_successor["current_validator_sha256"]
     )
+    tool_successor = json.loads(
+        (ROOT / "docs/evidence/dependency-closeout-20261022/validator-successor.json").read_text()
+    )
+    assert tool_successor["schema"] == "dashboard-tool-pin-successor/v1"
+    assert (
+        tool_successor["previous_validator_sha256"] == source_successor["current_validator_sha256"]
+    )
     assert (
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
-        == source_successor["current_validator_sha256"]
+        == tool_successor["current_validator_sha256"]
     )
     current = normalized_dashboard_project((root / "pyproject.toml").read_bytes())
     historical = normalized_dashboard_project(
@@ -426,6 +438,16 @@ def test_review_recovery_accepts_generated_formatter_pins_without_rewriting_hist
     )
 
 
+def test_review_recovery_accepts_exact_coverage_pin_without_other_project_changes():
+    folder = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
+    raw = (folder / "historical-pyproject.toml").read_text()
+    changed = re.sub(r"coverage==[0-9.]+", "coverage==7.17.0", raw)
+    assert changed != raw
+    assert normalized_dashboard_project(changed.encode()) == normalized_dashboard_project(
+        raw.encode()
+    )
+
+
 @pytest.mark.parametrize(
     "package,mutation",
     [
@@ -434,6 +456,9 @@ def test_review_recovery_accepts_generated_formatter_pins_without_rewriting_hist
         ("black", "range"),
         ("ruff", "wildcard"),
         ("black", "extras"),
+        ("coverage", "range"),
+        ("coverage", "wildcard"),
+        ("coverage", "extras"),
     ],
 )
 def test_review_recovery_rejects_non_formatter_or_non_exact_changes(package, mutation):
