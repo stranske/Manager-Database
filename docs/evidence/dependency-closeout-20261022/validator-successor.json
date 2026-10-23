@@ -1,0 +1,6 @@
+{
+  "schema": "dashboard-tool-pin-successor/v1",
+  "previous_validator_sha256": "8390fc3b519a30ed71c187da2d2d5f36ee135edc30ea4efe7f103fec678a3f6b",
+  "current_validator_sha256": "8974b94e9ce9a63c386e83b6b3de71b491643579948dac7ea5edbb8e91ea6de9",
+  "allowed_change": "Exact numeric Black, Ruff and Coverage dev-tool pins only. Runtime dependencies, test pins, project metadata and historical evidence remain protected."
+}
