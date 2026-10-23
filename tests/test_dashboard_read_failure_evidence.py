@@ -441,7 +441,12 @@ def test_review_recovery_accepts_generated_formatter_pins_without_rewriting_hist
 def test_review_recovery_accepts_exact_coverage_pin_without_other_project_changes():
     folder = ROOT / "docs/evidence/issue-1773-dev-tool-archive-bindings"
     raw = (folder / "historical-pyproject.toml").read_text()
-    changed = re.sub(r"coverage==[0-9.]+", "coverage==7.17.0", raw)
+    dependencies = tomllib.loads(raw)["project"]["optional-dependencies"]["dev"]
+    pin = next(value for value in dependencies if value.startswith("coverage=="))
+    version = [int(part) for part in pin.split("==", 1)[1].split(".")]
+    version[-1] += 1
+    replacement = "coverage==" + ".".join(str(part) for part in version)
+    changed = raw.replace(pin, replacement)
     assert changed != raw
     assert normalized_dashboard_project(changed.encode()) == normalized_dashboard_project(
         raw.encode()
