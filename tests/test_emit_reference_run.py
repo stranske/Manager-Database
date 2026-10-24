@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
 from pathlib import Path
+
+from tools.run_contract import RunResult
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EMITTER = REPO_ROOT / "scripts" / "emit_reference_run.sh"
@@ -75,6 +78,34 @@ def test_emit_reference_run_produces_valid_run_contract(tmp_path: Path) -> None:
     assert envelope["outputs"]["summary"] == {
         "delta_count": 4,
         "by_type": {"ADD": 1, "DECREASE": 1, "EXIT": 1, "INCREASE": 1},
+    }
+    artifact = json.loads(manifest.read_text(encoding="utf-8"))["artifacts"][0]
+    artifact_path = out_dir / artifact["path"]
+    assert artifact_path.is_file()
+    assert hashlib.sha256(artifact_path.read_bytes()).hexdigest() == artifact["sha256"]
+
+
+def test_run_contract_preserves_explicit_revision() -> None:
+    result = RunResult(
+        tool="diff-holdings",
+        provenance={
+            "git_sha": "stale-revision",
+            "tool_version": "stale-version",
+            "source": "fixture",
+        },
+    )
+    envelope = result.to_run_contract(
+        repo=REPO,
+        github_issue=f"{REPO}#1849",
+        actor={"kind": "ci", "id": "test", "intent": "revision precedence"},
+        tool_version="current-version",
+        git_sha="caller-revision",
+    )
+
+    assert envelope["provenance"] == {
+        "git_sha": "caller-revision",
+        "tool_version": "current-version",
+        "source": "fixture",
     }
 
 

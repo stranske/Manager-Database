@@ -144,7 +144,11 @@ class RunResult(BaseModel):
             "provenance": {
                 "tool_version": tool_version,
                 "git_sha": git_sha,
-                **{key: value for key, value in self.provenance.items() if key != "tool_version"},
+                **{
+                    key: value
+                    for key, value in self.provenance.items()
+                    if key not in {"tool_version", "git_sha"}
+                },
             },
             "warnings": list(self.warnings),
             "identity_refs": list(identity_refs or []),
