@@ -178,6 +178,7 @@ def test_structured_search_returns_holdings_and_sources():
     )
 
     assert "Latest holdings" in context
+    assert next(s for s in sources if s.source_type == "news").locator["news_id"] == 1
     assert any(source.get("filing_id") == 11 for source in sources)
     assert any(
         source.get("news_reference") == "Elliott increases Apple stake" for source in sources
@@ -287,6 +288,7 @@ def test_evidence_objects_validate_against_fleet_schema(tmp_path, monkeypatch, s
         chain = RAGSearchChain(llm=FakeLLM("Campaign answer."), db_conn=conn)
         result = chain.run("Describe the campaign", context={"manager_ids": [2]})
         expected_types = {"activism_campaign", "activism_campaign_filing"}
+        expected_methods = {"activism_campaign": "table", "activism_campaign_filing": "table"}
     else:
         conn = _build_db()
         chain = RAGSearchChain(llm=FakeLLM("Document answer."), db_conn=conn)
@@ -296,6 +298,12 @@ def test_evidence_objects_validate_against_fleet_schema(tmp_path, monkeypatch, s
         )
         result = chain.run("What does Elliott hold?")
         expected_types = {"document", "filing", "news", "activism_filing"}
+        expected_methods = {
+            "document": "text",
+            "filing": "table",
+            "news": "table",
+            "activism_filing": "table",
+        }
     try:
         schema = json.loads(
             (
@@ -306,7 +314,32 @@ def test_evidence_objects_validate_against_fleet_schema(tmp_path, monkeypatch, s
         for source in result["sources"]:
             validate(source, schema)
             assert Evidence.model_validate(source).model_dump() == source
+            assert source["method"] == expected_methods[source["source_type"]]
         assert len({s["evidence_id"] for s in result["sources"]}) == len(result["sources"])
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("news_url", [None, "https://example.com/shared-news"])
+def test_news_evidence_identity_distinguishes_repeated_headlines(monkeypatch, news_url):
+    conn = _build_db()
+    conn.execute("UPDATE news_items SET url = ? WHERE news_id = 1", (news_url,))
+    conn.execute(
+        "INSERT INTO news_items(news_id, manager_id, published_at, headline, url) "
+        "VALUES (2, 1, '2026-03-03T08:00:00', 'Elliott increases Apple stake', ?)",
+        (news_url,),
+    )
+    monkeypatch.setattr("chains.rag_search.search_documents", lambda *a, **kw: [])
+    chain = RAGSearchChain(llm=FakeLLM("News answer."), db_conn=conn)
+    try:
+        first = chain.run("What does Elliott hold?")
+        replay = chain.run("What does Elliott hold?")
+        news = [s for s in first["sources"] if s["source_type"] == "news"]
+        replay_news = [s for s in replay["sources"] if s["source_type"] == "news"]
+        assert len(news) == 2
+        assert len({s["evidence_id"] for s in news}) == 2
+        assert {s["locator"]["news_id"] for s in news} == {1, 2}
+        assert [s["evidence_id"] for s in replay_news] == [s["evidence_id"] for s in news]
     finally:
         conn.close()
 
@@ -413,6 +446,7 @@ class _FakePostgresConn:
                         "Elliott increases Apple stake",
                         "2026-03-02T08:00:00",
                         "https://example.com/news/1",
+                        1,
                     )
                 ]
             )
@@ -442,6 +476,7 @@ def test_structured_search_uses_postgres_placeholders():
     )
 
     assert "Latest holdings" in context
+    assert next(s for s in sources if s.source_type == "news").locator["news_id"] == 1
     assert any(source.get("filing_id") == 11 for source in sources)
     assert any("%s" in query for query, _params in conn.queries if " FROM filings " in query)
     assert all("?" not in query for query, _params in conn.queries)

@@ -349,14 +349,14 @@ class RAGSearchChain:
                             news_where += f" AND published_at::date BETWEEN {ph} AND {ph}"
                         news_params.extend(date_range)
                     news_rows = conn.execute(
-                        f"SELECT headline, published_at, url FROM news_items WHERE {news_where} "
+                        f"SELECT headline, published_at, url, news_id FROM news_items WHERE {news_where} "
                         "ORDER BY published_at DESC LIMIT 5",
                         tuple(news_params),
                     ).fetchall()
                     if news_rows:
                         lines = [f"{row[1]}: {row[0]}" for row in news_rows]
                         context_sections.append("Recent news:\n" + "\n".join(lines))
-                        for headline, published_at, url in news_rows:
+                        for headline, published_at, url, news_id in news_rows:
                             headline_text = str(headline)
                             description = f"Published {published_at}"
                             sources.append(
@@ -364,7 +364,7 @@ class RAGSearchChain:
                                     source_id=f"news:{headline_text}",
                                     source_type="news",
                                     type="news",
-                                    locator={"url": url},
+                                    locator={"news_id": news_id, "url": url},
                                     excerpt=headline_text,
                                     method="table",
                                     confidence=0.8,
