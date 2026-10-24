@@ -233,7 +233,7 @@ class RAGSearchChain:
                         campaign_status=campaign.status,
                         excerpt=excerpt,
                         description=excerpt,
-                        method="db_lookup",
+                        method="table",
                         confidence=0.9,
                     )
                 )
@@ -254,7 +254,7 @@ class RAGSearchChain:
                             campaign_status=campaign.status,
                             excerpt=text,
                             description=text,
-                            method="db_lookup",
+                            method="table",
                             confidence=0.9,
                         )
                     )
@@ -308,7 +308,7 @@ class RAGSearchChain:
                                 type="filing",
                                 locator={"filing_id": int(filing_id), "url": url},
                                 excerpt=description,
-                                method="db_lookup",
+                                method="table",
                                 confidence=0.85,
                                 description=description,
                                 filing_id=int(filing_id),
@@ -349,14 +349,14 @@ class RAGSearchChain:
                             news_where += f" AND published_at::date BETWEEN {ph} AND {ph}"
                         news_params.extend(date_range)
                     news_rows = conn.execute(
-                        f"SELECT headline, published_at, url FROM news_items WHERE {news_where} "
+                        f"SELECT headline, published_at, url, news_id FROM news_items WHERE {news_where} "
                         "ORDER BY published_at DESC LIMIT 5",
                         tuple(news_params),
                     ).fetchall()
                     if news_rows:
                         lines = [f"{row[1]}: {row[0]}" for row in news_rows]
                         context_sections.append("Recent news:\n" + "\n".join(lines))
-                        for headline, published_at, url in news_rows:
+                        for headline, published_at, url, news_id in news_rows:
                             headline_text = str(headline)
                             description = f"Published {published_at}"
                             sources.append(
@@ -364,9 +364,9 @@ class RAGSearchChain:
                                     source_id=f"news:{headline_text}",
                                     source_type="news",
                                     type="news",
-                                    locator={"url": url},
+                                    locator={"news_id": news_id, "url": url},
                                     excerpt=headline_text,
-                                    method="db_lookup",
+                                    method="table",
                                     confidence=0.8,
                                     description=description,
                                     news_reference=headline,
@@ -397,7 +397,7 @@ class RAGSearchChain:
                                     type="activism_filing",
                                     locator={"filing_url": url},
                                     excerpt=excerpt,
-                                    method="db_lookup",
+                                    method="table",
                                     confidence=0.8,
                                     description=excerpt,
                                     filing_url=url,
@@ -447,7 +447,7 @@ class RAGSearchChain:
                     type="document",
                     locator={"doc_id": doc_id},
                     excerpt=snippet,
-                    method="vector_search",
+                    method="text",
                     confidence=0.9,
                     description=description,
                     document_id=document.get("doc_id"),
