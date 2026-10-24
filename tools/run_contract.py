@@ -26,6 +26,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+RUN_CONTRACT_SCHEMA_VERSION = "run-contract/v1"
+
 
 def new_run_id() -> str:
     """Return a fresh run identifier (uuid4 hex), matching ``ChatFleetContext.run_id``."""
@@ -106,6 +108,47 @@ class RunResult(BaseModel):
     latency_ms: int | None = None
     provenance: dict[str, Any] = Field(default_factory=dict)
     status: str = "success"
+
+    def to_run_contract(
+        self,
+        *,
+        repo: str,
+        github_issue: str,
+        actor: dict[str, str],
+        tool_version: str,
+        manifest_ref: str = "artifact:manifest.json",
+        artifact_ids: list[str] | None = None,
+        identity_refs: list[str] | None = None,
+        outputs_summary: dict[str, Any] | None = None,
+        git_sha: str | None = None,
+    ) -> dict[str, Any]:
+        """Project this run into a ``run-contract/v1`` envelope (``run.json``).
+
+        Output data stays in the named artifacts listed in the manifest; the
+        envelope carries only ``outputs_summary``, never the raw ``outputs``.
+        """
+        return {
+            "schema_version": RUN_CONTRACT_SCHEMA_VERSION,
+            "repo": repo,
+            "tool": self.tool,
+            "run_id": self.run_id,
+            "status": self.status,
+            "github_issue": github_issue,
+            "actor": actor,
+            "inputs": {"validated": True, "summary": dict(self.inputs)},
+            "outputs": {
+                "manifest_ref": manifest_ref,
+                "artifact_ids": list(artifact_ids or []),
+                "summary": dict(outputs_summary or {}),
+            },
+            "provenance": {
+                "tool_version": tool_version,
+                "git_sha": git_sha,
+                **{key: value for key, value in self.provenance.items() if key != "tool_version"},
+            },
+            "warnings": list(self.warnings),
+            "identity_refs": list(identity_refs or []),
+        }
 
     @property
     def deltas(self) -> Any:
