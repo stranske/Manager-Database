@@ -1,0 +1,15 @@
+{
+  "manager": {"manager_id": 1, "name": "Reference Fund", "cik": "0000000001"},
+  "filings": [
+    {"filing_id": 101, "type": "13F-HR", "filed_date": "2024-04-01", "source": "fixture"},
+    {"filing_id": 102, "type": "13F-HR", "filed_date": "2024-01-01", "source": "fixture"}
+  ],
+  "holdings": [
+    {"filing_id": 101, "cusip": "AAA", "name_of_issuer": "CorpA", "shares": 120, "value_usd": 1200.0},
+    {"filing_id": 101, "cusip": "CCC", "name_of_issuer": "CorpC", "shares": 40, "value_usd": 400.0},
+    {"filing_id": 101, "cusip": "EEE", "name_of_issuer": "CorpE", "shares": 8, "value_usd": 80.0},
+    {"filing_id": 102, "cusip": "AAA", "name_of_issuer": "CorpA", "shares": 100, "value_usd": 1000.0},
+    {"filing_id": 102, "cusip": "BBB", "name_of_issuer": "CorpB", "shares": 30, "value_usd": 300.0},
+    {"filing_id": 102, "cusip": "EEE", "name_of_issuer": "CorpE", "shares": 10, "value_usd": 100.0}
+  ]
+}
