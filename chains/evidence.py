@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -13,11 +15,16 @@ class Evidence(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    schema_version: Literal["evidence-object/v1"] = "evidence-object/v1"
+    evidence_id: str = Field(default="", min_length=1)
+    fact_ref: str = Field(default="", min_length=1)
     source_id: str
     source_type: str
     locator: dict[str, Any] = Field(default_factory=dict)
     excerpt: str
-    method: str
+    method: Literal[
+        "rule", "parser", "table", "text", "ocr", "llm", "computed", "fallback", "manual"
+    ]
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     description: str = ""
     type: str | None = None
@@ -28,6 +35,13 @@ class Evidence(BaseModel):
     filing_url: str | None = None
     news_reference: str | None = None
     url: str | None = None
+
+    @field_validator("method", mode="before")
+    @classmethod
+    def _canonical_method(cls, value: Any) -> Any:
+        """Accept legacy retrieval labels while emitting contract extraction methods."""
+        aliases = {"db_lookup": "table", "vector_search": "text", "vector": "text"}
+        return aliases.get(value, value) if isinstance(value, str) else value
 
     @field_validator("confidence")
     @classmethod
@@ -50,6 +64,19 @@ class Evidence(BaseModel):
             self.filing_url = self.locator["filing_url"]
         if self.url is None and isinstance(self.locator.get("url"), str):
             self.url = self.locator["url"]
+        # Without a field-specific reference, this evidence supports the retrieved
+        # source excerpt. Confidence and presentation changes do not change identity.
+        if not self.fact_ref:
+            self.fact_ref = f"{self.source_id}:excerpt"
+        if not self.evidence_id:
+            identity = self.model_dump(
+                mode="json",
+                include={"source_id", "source_type", "locator", "excerpt", "method", "fact_ref"},
+            )
+            canonical = json.dumps(
+                identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
+            self.evidence_id = "evidence:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         return self
 
     def get(self, key: str, default: Any = None) -> Any:

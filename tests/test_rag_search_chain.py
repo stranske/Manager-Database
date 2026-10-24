@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 import pytest
+from jsonschema import validate
 
 from chains.evidence import Evidence
 from chains.rag_search import RAGSearchChain
@@ -237,7 +240,7 @@ def test_sources_are_evidence_objects(monkeypatch):
     for source in result["sources"]:
         assert source["source_id"]
         assert source["excerpt"]
-        assert source["method"] in {"vector_search", "db_lookup"}
+        assert source["method"] in {"text", "table"}
         assert 0.0 <= source["confidence"] <= 1.0
     conn.close()
 
@@ -275,6 +278,84 @@ def test_evidence_model_json_and_legacy_fields_from_locator():
     assert payload["filing_id"] == 11
     assert payload["url"] == "https://example.com/filings/11"
     assert '"source_id":"filing:11"' in evidence.model_dump_json()
+
+
+@pytest.mark.parametrize("source_kind", ["document", "campaign"])
+def test_evidence_objects_validate_against_fleet_schema(tmp_path, monkeypatch, source_kind):
+    if source_kind == "campaign":
+        _, conn = _campaign_fixture(tmp_path)
+        chain = RAGSearchChain(llm=FakeLLM("Campaign answer."), db_conn=conn)
+        result = chain.run("Describe the campaign", context={"manager_ids": [2]})
+        expected_types = {"activism_campaign", "activism_campaign_filing"}
+    else:
+        conn = _build_db()
+        chain = RAGSearchChain(llm=FakeLLM("Document answer."), db_conn=conn)
+        monkeypatch.setattr(
+            "chains.rag_search.search_documents",
+            lambda *a, **kw: [{"doc_id": "doc:1", "content": "Source excerpt."}],
+        )
+        result = chain.run("What does Elliott hold?")
+        expected_types = {"document", "filing", "news", "activism_filing"}
+    try:
+        schema = json.loads(
+            (
+                Path(__file__).parents[1] / "docs/contracts/schemas/evidence-object-v1.schema.json"
+            ).read_text()
+        )
+        assert {source["source_type"] for source in result["sources"]} == expected_types
+        for source in result["sources"]:
+            validate(source, schema)
+            assert Evidence.model_validate(source).model_dump() == source
+        assert len({s["evidence_id"] for s in result["sources"]}) == len(result["sources"])
+    finally:
+        conn.close()
+
+
+def test_evidence_identity_is_stable_and_distinguishes_supported_content():
+    values: dict[str, Any] = {
+        "source_id": "filing:11",
+        "source_type": "filing",
+        "locator": {"filing_id": 11, "url": "https://example.com/11"},
+        "excerpt": "13F-HR filed 2026-03-01",
+        "method": "table",
+    }
+    first = Evidence(**values)
+    replay = Evidence(**{**values, "locator": dict(reversed(values["locator"].items()))})
+    assert first.fact_ref == "filing:11:excerpt"
+    assert first.evidence_id and first.evidence_id == replay.evidence_id
+    assert Evidence(**{**values, "confidence": 0.9}).evidence_id == first.evidence_id
+    assert Evidence(**{**values, "excerpt": "Different fact"}).evidence_id != first.evidence_id
+    assert (
+        Evidence(**{**values, "fact_ref": "filing:11:filed_date"}).evidence_id != first.evidence_id
+    )
+    supplied = Evidence(**values, evidence_id="upstream:1", fact_ref="filing:11:filed_date")
+    assert supplied.evidence_id == "upstream:1"
+    assert supplied.fact_ref == "filing:11:filed_date"
+
+
+@pytest.mark.parametrize(
+    ("legacy", "canonical"), [("db_lookup", "table"), ("vector_search", "text"), ("vector", "text")]
+)
+def test_evidence_normalizes_legacy_retrieval_methods(legacy, canonical):
+    evidence = Evidence(source_id="doc:1", source_type="document", excerpt="text", method=legacy)
+    assert evidence.method == canonical
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [{"method": "unknown"}, {"evidence_id": ""}, {"fact_ref": ""}, {"schema_version": "v2"}],
+)
+def test_evidence_rejects_invalid_contract_values(invalid):
+    with pytest.raises(ValueError):
+        Evidence.model_validate(
+            {
+                "source_id": "doc:1",
+                "source_type": "document",
+                "excerpt": "text",
+                "method": "text",
+                **invalid,
+            }
+        )
 
 
 def test_evidence_confidence_defaults_to_zero_when_omitted():

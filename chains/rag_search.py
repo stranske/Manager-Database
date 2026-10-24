@@ -233,7 +233,7 @@ class RAGSearchChain:
                         campaign_status=campaign.status,
                         excerpt=excerpt,
                         description=excerpt,
-                        method="db_lookup",
+                        method="table",
                         confidence=0.9,
                     )
                 )
@@ -254,7 +254,7 @@ class RAGSearchChain:
                             campaign_status=campaign.status,
                             excerpt=text,
                             description=text,
-                            method="db_lookup",
+                            method="table",
                             confidence=0.9,
                         )
                     )
@@ -308,7 +308,7 @@ class RAGSearchChain:
                                 type="filing",
                                 locator={"filing_id": int(filing_id), "url": url},
                                 excerpt=description,
-                                method="db_lookup",
+                                method="table",
                                 confidence=0.85,
                                 description=description,
                                 filing_id=int(filing_id),
@@ -366,7 +366,7 @@ class RAGSearchChain:
                                     type="news",
                                     locator={"url": url},
                                     excerpt=headline_text,
-                                    method="db_lookup",
+                                    method="table",
                                     confidence=0.8,
                                     description=description,
                                     news_reference=headline,
@@ -397,7 +397,7 @@ class RAGSearchChain:
                                     type="activism_filing",
                                     locator={"filing_url": url},
                                     excerpt=excerpt,
-                                    method="db_lookup",
+                                    method="table",
                                     confidence=0.8,
                                     description=excerpt,
                                     filing_url=url,
@@ -447,7 +447,7 @@ class RAGSearchChain:
                     type="document",
                     locator={"doc_id": doc_id},
                     excerpt=snippet,
-                    method="vector_search",
+                    method="text",
                     confidence=0.9,
                     description=description,
                     document_id=document.get("doc_id"),
