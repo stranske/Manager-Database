@@ -126,7 +126,7 @@ jobs:
       }}
     uses: stranske/Workflows/.github/workflows/reusable-10-ci-python.yml@main
     with:
-      python-versions: '["3.12", "3.13"]'
+      python-versions: '["3.13", "3.14"]'
       coverage: true
       coverage-min: "75"
       # Coverage was already MEASURED here; only the reporting leg was off, because
