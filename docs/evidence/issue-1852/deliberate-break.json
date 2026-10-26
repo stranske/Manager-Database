@@ -1,0 +1,90 @@
+{
+  "source_head": "fcada2e4dc4625fa71479f056b4aefe70f807cee",
+  "guard_source_sha256": "9dbaab5a6c8f1a508c277f34d1ce44c6e38bb3de72b3320480685734abd763c9",
+  "interpreter": "/opt/hostedtoolcache/Python/3.14.8/x64/bin/python",
+  "python_version": "3.14.8 (main, Oct  1 2026, 02:39:56) [GCC 15.2.0]",
+  "control_location": "isolated byte-for-byte caller and test copies; repository workflows untouched",
+  "runs": [
+    {
+      "stage": "baseline",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.8/x64/bin/python",
+        "-m",
+        "pytest",
+        "--confcutdir",
+        "/tmp/issue-1852-control-j63ym7b2",
+        "/tmp/issue-1852-control-j63ym7b2/test_ci_python_standard.py::test_workflow_python_pins_follow_standard",
+        "-m",
+        "not slow",
+        "-q"
+      ],
+      "exit_code": 0
+    },
+    {
+      "stage": "ci-break",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.8/x64/bin/python",
+        "-m",
+        "pytest",
+        "--confcutdir",
+        "/tmp/issue-1852-control-j63ym7b2",
+        "/tmp/issue-1852-control-j63ym7b2/test_ci_python_standard.py::test_workflow_python_pins_follow_standard",
+        "-m",
+        "not slow",
+        "-q"
+      ],
+      "exit_code": 1,
+      "original_sha256": "32285abeaac959ce6a92dfddbf05a5e8dd9bb5abf20f77c85bc3694186ecfa2d",
+      "mutated_sha256": "98044bd7e5557b560ecd1ce90ca2f2042f2afd4ba0c85fc4d348e2d9a2f36234",
+      "restored_sha256": "32285abeaac959ce6a92dfddbf05a5e8dd9bb5abf20f77c85bc3694186ecfa2d"
+    },
+    {
+      "stage": "ci-restored",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.8/x64/bin/python",
+        "-m",
+        "pytest",
+        "--confcutdir",
+        "/tmp/issue-1852-control-j63ym7b2",
+        "/tmp/issue-1852-control-j63ym7b2/test_ci_python_standard.py::test_workflow_python_pins_follow_standard",
+        "-m",
+        "not slow",
+        "-q"
+      ],
+      "exit_code": 0
+    },
+    {
+      "stage": "pr-00-gate-break",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.8/x64/bin/python",
+        "-m",
+        "pytest",
+        "--confcutdir",
+        "/tmp/issue-1852-control-j63ym7b2",
+        "/tmp/issue-1852-control-j63ym7b2/test_ci_python_standard.py::test_workflow_python_pins_follow_standard",
+        "-m",
+        "not slow",
+        "-q"
+      ],
+      "exit_code": 1,
+      "original_sha256": "36fcc5f26215020fd09c9262aee037722c6fe43159661a70685bd228f14c47a2",
+      "mutated_sha256": "d556923e104b71ba925c86e8d9bef5d000b2cb89523d2323cda0790a23d8cd3f",
+      "restored_sha256": "36fcc5f26215020fd09c9262aee037722c6fe43159661a70685bd228f14c47a2"
+    },
+    {
+      "stage": "pr-00-gate-restored",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.8/x64/bin/python",
+        "-m",
+        "pytest",
+        "--confcutdir",
+        "/tmp/issue-1852-control-j63ym7b2",
+        "/tmp/issue-1852-control-j63ym7b2/test_ci_python_standard.py::test_workflow_python_pins_follow_standard",
+        "-m",
+        "not slow",
+        "-q"
+      ],
+      "exit_code": 0
+    }
+  ]
+}

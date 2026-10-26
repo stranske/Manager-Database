@@ -1,0 +1,78 @@
+{
+  "head_sha": "fcada2e4dc4625fa71479f056b4aefe70f807cee",
+  "pr_url": "https://github.com/stranske/Manager-Database/pull/1856",
+  "observed_pr_state": "merged",
+  "run_url": "https://github.com/stranske/Manager-Database/actions/runs/40250298739",
+  "conclusion": "success",
+  "provenance": "Gate PR merge checkout a3cf567 for final PR head fcada2e4dc4625fa71479f056b4aefe70f807cee; not hosted execution of the subsequent local test changes.",
+  "jobs": [
+    {
+      "id": 121340627281,
+      "name": "Python CI / python 3.14",
+      "conclusion": "success",
+      "url": "https://github.com/stranske/Manager-Database/actions/runs/40250298739/job/121340627281",
+      "steps": [
+        {
+          "name": "Record Python execution context",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17
+        },
+        {
+          "name": "Pytest (unit tests with coverage)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        },
+        {
+          "name": "Enforce coverage minimum",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20
+        }
+      ],
+      "log_excerpts": [
+        "2026-10-26T00:38:37.0225827Z HEAD is now at a3cf567 Merge fcada2e4dc4625fa71479f056b4aefe70f807cee into eed368f5635526f14325314a8abc373ed296b3ae",
+        "2026-10-26T00:39:50.3871495Z Using Python 3.14.8 environment at: /opt/hostedtoolcache/Python/3.14.8/x64",
+        "2026-10-26T00:41:55.8476032Z TOTAL                            10075    739   3232    435    90%",
+        "2026-10-26T00:41:55.8477605Z Required test coverage of 75.0% reached. Total coverage: 90.14%",
+        "2026-10-26T00:41:55.8478226Z 2537 passed, 26 skipped, 354 warnings in 107.68s (0:01:47)",
+        "2026-10-26T00:41:56.2569949Z Coverage 92.67% meets minimum 75.00%"
+      ]
+    },
+    {
+      "id": 121340627282,
+      "name": "Python CI / python 3.13",
+      "conclusion": "success",
+      "url": "https://github.com/stranske/Manager-Database/actions/runs/40250298739/job/121340627282",
+      "steps": [
+        {
+          "name": "Record Python execution context",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17
+        },
+        {
+          "name": "Pytest (unit tests with coverage)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        },
+        {
+          "name": "Enforce coverage minimum",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20
+        }
+      ],
+      "log_excerpts": [
+        "2026-10-26T00:38:38.9966341Z HEAD is now at a3cf567 Merge fcada2e4dc4625fa71479f056b4aefe70f807cee into eed368f5635526f14325314a8abc373ed296b3ae",
+        "2026-10-26T00:39:27.0794461Z Using Python 3.13.16 environment at: /opt/hostedtoolcache/Python/3.13.16/x64",
+        "2026-10-26T00:41:59.1587391Z TOTAL                            10075    737   3232    434    90%",
+        "2026-10-26T00:41:59.2028649Z Required test coverage of 75.0% reached. Total coverage: 90.16%",
+        "2026-10-26T00:41:59.2029197Z 2537 passed, 26 skipped, 355 warnings in 134.08s (0:02:14)",
+        "2026-10-26T00:41:59.6161099Z Coverage 92.68% meets minimum 75.00%"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________ test_workflow_python_pins_follow_standard ___________________
+
+    def test_workflow_python_pins_follow_standard() -> None:
+        workflows = {
+            path.name: yaml.safe_load(path.read_text(encoding="utf-8"))
+            for path in sorted(WORKFLOWS.iterdir())
+            if path.is_file() and path.suffix in {".yml", ".yaml"}
+        }
+        assert workflows, "No workflow YAML was inspected"
+        offenders = [
+            location
+            for filename, workflow in workflows.items()
+            for location, value in _runtime_pins(workflow, filename)
+            if _contains_old_runtime(value)
+        ]
+>       assert not offenders, f"Python 3.12 runtime pins remain: {offenders}"
+E       AssertionError: Python 3.12 runtime pins remain: ['pr-00-gate.yml.jobs.python-ci.with.python-versions']
+E       assert not ['pr-00-gate.yml.jobs.python-ci.with.python-versions']
+
+test_ci_python_standard.py:127: AssertionError
+=========================== short test summary info ============================
+FAILED test_ci_python_standard.py::test_workflow_python_pins_follow_standard - AssertionError: Python 3.12 runtime pins remain: ['pr-00-gate.yml.jobs.python-ci.with.python-versions']
+assert not ['pr-00-gate.yml.jobs.python-ci.with.python-versions']
+1 failed in 0.08s

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -214,9 +215,13 @@ def test_owned_caller_workflow_text_has_no_312_lines(filename: str) -> None:
 
 @pytest.mark.parametrize("filename, job", [("ci.yml", "python"), ("pr-00-gate.yml", "python-ci")])
 def test_json_matrix_deliberate_break_and_restore(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, filename: str, job: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    record_property: Callable[[str, Any], None],
+    filename: str,
+    job: str,
 ) -> None:
-    """The named guard must reject a restored 3.12 JSON pin in either caller."""
+    """Reject a single-pin mutation in a real caller copy, then restore its exact bytes."""
     for name in ("ci.yml", "pr-00-gate.yml"):
         (tmp_path / name).write_bytes((WORKFLOWS / name).read_bytes())
     monkeypatch.setattr(f"{__name__}.WORKFLOWS", tmp_path)
@@ -225,15 +230,27 @@ def test_json_matrix_deliberate_break_and_restore(
     path = tmp_path / filename
     original = path.read_bytes()
     workflow = yaml.safe_load(original)
-    workflow["jobs"][job]["with"]["python-versions"] = '["3.12", "3.14"]'
-    path.write_text(yaml.safe_dump(workflow), encoding="utf-8")
-    with pytest.raises(AssertionError, match="Python 3.12 runtime pins remain") as failure:
-        test_workflow_python_pins_follow_standard()
-    assert str(failure.value).splitlines()[0] == (
-        f"Python 3.12 runtime pins remain: ['{filename}.jobs.{job}.with.python-versions']"
-    )
+    matrix = workflow["jobs"][job]["with"]["python-versions"].encode("utf-8")
+    assert original.count(matrix) == 1, "The mutation must target exactly one caller matrix"
+    assert matrix.count(b'"3.13"') == 1
+    mutated = original.replace(matrix, matrix.replace(b'"3.13"', b'"3.12"'))
+    assert mutated != original
+    record_property("original_sha256", sha256(original).hexdigest())
+    record_property("mutated_sha256", sha256(mutated).hexdigest())
+    try:
+        path.write_bytes(mutated)
+        with pytest.raises(AssertionError, match="Python 3.12 runtime pins remain") as failure:
+            test_workflow_python_pins_follow_standard()
+        message = str(failure.value).splitlines()[0]
+        assert message == (
+            f"Python 3.12 runtime pins remain: ['{filename}.jobs.{job}.with.python-versions']"
+        )
+        record_property("deliberate_break_failure", message)
+    finally:
+        path.write_bytes(original)
 
-    path.write_bytes(original)
+    assert path.read_bytes() == original
+    record_property("restored_sha256", sha256(path.read_bytes()).hexdigest())
     test_workflow_python_pins_follow_standard()
 
 
