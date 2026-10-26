@@ -27,6 +27,21 @@ FROMJSON_MATRIX_RE = re.compile(
     re.DOTALL,
 )
 OPAQUE_MATRIX = object()
+MATRIX_AXIS_RE = re.compile(r"""\bmatrix(?:\.([A-Za-z_][\w-]*)|\[\s*['"]([^'"]+)['"]\s*\])""")
+
+
+def _referenced_matrix_axes(node: Any) -> set[str]:
+    axes: set[str] = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in RUNTIME_KEYS and isinstance(value, str):
+                for match in MATRIX_AXIS_RE.finditer(value):
+                    axes.add(match.group(1) or match.group(2))
+            axes.update(_referenced_matrix_axes(value))
+    elif isinstance(node, list):
+        for value in node:
+            axes.update(_referenced_matrix_axes(value))
+    return axes
 
 
 def _decode_fromjson_matrix(value: str) -> Any | None:
@@ -41,30 +56,42 @@ def _decode_fromjson_matrix(value: str) -> Any | None:
 
 
 def _runtime_pins(
-    node: Any, location: str, *, in_matrix: bool = False
+    node: Any,
+    location: str,
+    *,
+    in_matrix: bool = False,
+    matrix_keys: set[str] | None = None,
 ) -> Iterator[tuple[str, Any]]:
+    matrix_keys = MATRIX_RUNTIME_KEYS if matrix_keys is None else matrix_keys
     if isinstance(node, dict):
         for key, value in node.items():
             path = f"{location}.{key}"
+            child_keys = matrix_keys
+            if location.endswith(".jobs") and isinstance(value, dict):
+                child_keys = MATRIX_RUNTIME_KEYS | _referenced_matrix_axes(value)
             entering_matrix = key == "matrix" and location.endswith(".strategy")
-            if key in RUNTIME_KEYS or (in_matrix and key in MATRIX_RUNTIME_KEYS):
+            if key in RUNTIME_KEYS or (in_matrix and key in matrix_keys):
                 yield path, value
-            if entering_matrix and isinstance(value, str):
+            matrix_expression = entering_matrix or (in_matrix and key == "include")
+            if matrix_expression and isinstance(value, str):
                 decoded = _decode_fromjson_matrix(value)
                 if decoded is None:
                     # Reject matrices the scanner cannot inspect so they cannot hide 3.12.
                     yield path, OPAQUE_MATRIX
                     continue
-                yield from _runtime_pins(decoded, path, in_matrix=True)
+                yield from _runtime_pins(decoded, path, in_matrix=True, matrix_keys=child_keys)
                 continue
             yield from _runtime_pins(
                 value,
                 path,
                 in_matrix=in_matrix or entering_matrix,
+                matrix_keys=child_keys,
             )
     elif isinstance(node, list):
         for index, value in enumerate(node):
-            yield from _runtime_pins(value, f"{location}[{index}]", in_matrix=in_matrix)
+            yield from _runtime_pins(
+                value, f"{location}[{index}]", in_matrix=in_matrix, matrix_keys=matrix_keys
+            )
 
 
 def _contains_old_runtime(value: Any) -> bool:
@@ -227,3 +254,56 @@ def test_literal_fromjson_matrix_without_old_runtime_is_allowed() -> None:
         path for path, value in _runtime_pins(workflow, "ci.yml") if _contains_old_runtime(value)
     ]
     assert offenders == []
+
+
+@pytest.mark.parametrize("reference", ["${{ matrix.py }}", "${{ matrix['py'] }}"])
+def test_custom_runtime_matrix_axis_cannot_hide_old_runtime(reference: str) -> None:
+    workflow = {
+        "jobs": {
+            "test": {
+                "strategy": {"matrix": {"py": ["3.12"]}},
+                "steps": [{"with": {"python-version": reference}}],
+            }
+        }
+    }
+    offenders = [
+        path
+        for path, value in _runtime_pins(workflow, "standalone.yml")
+        if _contains_old_runtime(value)
+    ]
+    assert len(offenders) == 1
+    assert offenders[0].endswith(".strategy.matrix.py")
+
+
+def test_custom_axis_without_python_runtime_reference_is_ignored() -> None:
+    workflow = {"jobs": {"test": {"strategy": {"matrix": {"py": ["3.12"]}}}}}
+    assert not any(
+        _contains_old_runtime(value) for _, value in _runtime_pins(workflow, "standalone.yml")
+    )
+
+
+@pytest.mark.parametrize(
+    "include",
+    [
+        "${{ fromJSON('[{\"python\":\"3.12\"}]') }}",
+        "${{ fromJSON(inputs.include) }}",
+        "${{ fromJSON('[{') }}",
+    ],
+)
+def test_include_expression_cannot_hide_old_runtime(include: str) -> None:
+    workflow = {"jobs": {"test": {"strategy": {"matrix": {"include": include}}}}}
+    offenders = [
+        path
+        for path, value in _runtime_pins(workflow, "standalone.yml")
+        if _contains_old_runtime(value)
+    ]
+    assert len(offenders) == 1
+    assert ".strategy.matrix.include" in offenders[0]
+
+
+def test_literal_include_expression_accepts_current_runtime() -> None:
+    include = "${{ fromJSON('[{\"python\":\"3.14\"}]') }}"
+    workflow = {"jobs": {"test": {"strategy": {"matrix": {"include": include}}}}}
+    assert not any(
+        _contains_old_runtime(value) for _, value in _runtime_pins(workflow, "standalone.yml")
+    )
