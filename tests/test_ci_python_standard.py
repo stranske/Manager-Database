@@ -285,7 +285,7 @@ def test_custom_axis_without_python_runtime_reference_is_ignored() -> None:
 @pytest.mark.parametrize(
     "include",
     [
-        "${{ fromJSON('[{\"python\":\"3.12\"}]') }}",
+        '${{ fromJSON(\'[{"python":"3.12"}]\') }}',
         "${{ fromJSON(inputs.include) }}",
         "${{ fromJSON('[{') }}",
     ],
@@ -302,7 +302,7 @@ def test_include_expression_cannot_hide_old_runtime(include: str) -> None:
 
 
 def test_literal_include_expression_accepts_current_runtime() -> None:
-    include = "${{ fromJSON('[{\"python\":\"3.14\"}]') }}"
+    include = '${{ fromJSON(\'[{"python":"3.14"}]\') }}'
     workflow = {"jobs": {"test": {"strategy": {"matrix": {"include": include}}}}}
     assert not any(
         _contains_old_runtime(value) for _, value in _runtime_pins(workflow, "standalone.yml")
