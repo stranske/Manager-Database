@@ -47,7 +47,7 @@ dev = [
     "pytest-asyncio",
     "pytest-cov==7.1.0",
     "black==26.10.1",
-    "ruff==0.17.2",
+    "ruff==0.17.3",
     "pre-commit",
     "mypy==2.4.0",
     "langchain>=1.2,<2.0",
