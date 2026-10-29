@@ -66,10 +66,45 @@ def validate_dashboard_source_binding(root, expected, *, binding=None):
     )
     assert tool_successor["schema"] == "dashboard-tool-pin-successor/v1"
     assert tool_successor["previous_validator_sha256"] == binding["current_validator_sha256"]
+    floor_successor = python_floor_successor(tool_successor)
     assert (
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
-        == tool_successor["current_validator_sha256"]
+        == floor_successor["current_validator_sha256"]
     )
+
+
+def python_floor_successor(tool_successor):
+    """Owner decision 2026-10-28 (issue 1868): the supported Python floor moves to 3.13."""
+    folder = ROOT / "docs/evidence/issue-1868"
+    successor = json.loads((folder / "python-floor-successor.json").read_text())
+    assert successor["schema"] == "dashboard-python-floor-successor/v1"
+    assert successor["previous_validator_sha256"] == tool_successor["current_validator_sha256"]
+    assert (
+        digest((folder / "previous-validator.py.txt").read_bytes())
+        == successor["previous_validator_sha256"]
+    )
+    assert successor["admitted_changes"] == PYTHON_FLOOR_CHANGES
+    return successor
+
+
+# Each admitted change is (table path, key, historical value, current value). Nothing else in
+# pyproject.toml may differ from the archived input.
+PYTHON_FLOOR_CHANGES = [
+    [["project"], "requires-python", ">=3.12", ">=3.13"],
+    [["tool", "black"], "target-version", ["py312"], ["py313"]],
+    [["tool", "ruff"], "target-version", "py312", "py313"],
+    [["tool", "mypy"], "python_version", "3.12", "3.13"],
+]
+
+
+def apply_python_floor_changes(project):
+    for path, key, before, after in PYTHON_FLOOR_CHANGES:
+        table = project
+        for part in path:
+            table = table[part]
+        assert table[key] == before, f"archived {'.'.join(path)}.{key} is not {before!r}"
+        table[key] = after
+    return project
 
 
 def case_name(loader):
@@ -408,13 +443,14 @@ def validate_review_recovery_current_inputs(root, manifest):
     assert (
         tool_successor["previous_validator_sha256"] == source_successor["current_validator_sha256"]
     )
+    floor_successor = python_floor_successor(tool_successor)
     assert (
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
-        == tool_successor["current_validator_sha256"]
+        == floor_successor["current_validator_sha256"]
     )
     current = normalized_dashboard_project((root / "pyproject.toml").read_bytes())
-    historical = normalized_dashboard_project(
-        (successor / "historical-pyproject.toml").read_bytes()
+    historical = apply_python_floor_changes(
+        normalized_dashboard_project((successor / "historical-pyproject.toml").read_bytes())
     )
     # The original archived inputs remain immutable. This successor admits only
     # the explicitly reviewed SQL parser addition, preserving every other field

@@ -36,7 +36,7 @@ class TrackingConnection(sqlite3.Connection):
 
 
 @pytest.fixture()
-def sqlite_conn() -> Generator[sqlite3.Connection, None, None]:
+def sqlite_conn() -> Generator[sqlite3.Connection]:
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT)")
     conn.execute(

@@ -1,0 +1,48 @@
+{
+  "schema": "dashboard-python-floor-successor/v1",
+  "previous_validator_sha256": "8974b94e9ce9a63c386e83b6b3de71b491643579948dac7ea5edbb8e91ea6de9",
+  "current_validator_sha256": "0d5880682352899c8341a02dd4b1dc6fa5d0d3c4b8b72efb965679abaa42cc34",
+  "decision": "Owner decision 2026-10-28: Python 3.14 first, 3.13 backup, 3.12 retired; supported floor >=3.13 (stranske/Manager-Database#1868).",
+  "admitted_changes": [
+    [
+      [
+        "project"
+      ],
+      "requires-python",
+      ">=3.12",
+      ">=3.13"
+    ],
+    [
+      [
+        "tool",
+        "black"
+      ],
+      "target-version",
+      [
+        "py312"
+      ],
+      [
+        "py313"
+      ]
+    ],
+    [
+      [
+        "tool",
+        "ruff"
+      ],
+      "target-version",
+      "py312",
+      "py313"
+    ],
+    [
+      [
+        "tool",
+        "mypy"
+      ],
+      "python_version",
+      "3.12",
+      "3.13"
+    ]
+  ],
+  "allowed_change": "Exactly the four Python floor values above. Runtime dependencies, tool pins, other project metadata and historical evidence remain protected."
+}
