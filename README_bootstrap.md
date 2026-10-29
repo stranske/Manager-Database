@@ -59,7 +59,7 @@ Feel free to open issues or pull requests as you iterate.
 
 ## Running the ETL flow
 
-1. Ensure Python 3.12 is available via `pyenv` and install dependencies:
+1. Ensure Python 3.14 (or 3.13) is available via `pyenv` and install dependencies:
    ```bash
    python -m pip install -e ".[dev]"
    ```
