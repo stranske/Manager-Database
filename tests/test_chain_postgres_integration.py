@@ -67,7 +67,7 @@ def pg_url() -> str:
 
 
 @pytest.fixture(scope="module")
-def pg_conn(pg_url: str, psycopg_module) -> Generator[PgFixture, None, None]:
+def pg_conn(pg_url: str, psycopg_module) -> Generator[PgFixture]:
     with psycopg_module.connect(pg_url, autocommit=False) as conn:
         _reset_public_schema(conn)
         _apply_schema_sql(conn)

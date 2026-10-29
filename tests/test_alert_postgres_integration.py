@@ -64,7 +64,7 @@ def pg_url() -> str:
 
 
 @pytest.fixture
-def pg_conn(pg_url: str, psycopg_module) -> Generator[PgAlertFixture, None, None]:
+def pg_conn(pg_url: str, psycopg_module) -> Generator[PgAlertFixture]:
     """Isolate reused filing/rule identities and durable delivery claims per case."""
     with psycopg_module.connect(pg_url, autocommit=False) as conn:
         _reset_public_schema(conn)

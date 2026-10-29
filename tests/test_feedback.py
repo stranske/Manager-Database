@@ -37,7 +37,7 @@ def feedback_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def clear_rate_limiter() -> Generator[None, None, None]:
+def clear_rate_limiter() -> Generator[None]:
     chat_api_module.CHAT_RATE_LIMITER.clear()
     chat_api_module.CHAT_IP_RATE_LIMITER.clear()
     yield
