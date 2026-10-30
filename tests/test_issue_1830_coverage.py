@@ -115,6 +115,11 @@ def test_offline_api_imports_require_ui_offline_flag(monkeypatch: pytest.MonkeyP
     monkeypatch.setenv("UI_OFFLINE", "1")
     router_cls, model_cls, field_fn, query_fn = _compat.offline_api_imports()
     assert router_cls is _compat.OfflineAPIRouter
+
+    def endpoint() -> str:
+        return "offline"
+
+    assert router_cls().get("/test")(endpoint) is endpoint
     assert model_cls(**{"x": 1}).model_dump() == {"x": 1}
     assert field_fn(default_factory=list) == []
     assert query_fn(default=7) == 7
@@ -139,6 +144,21 @@ def test_activism_date_helpers_and_filtered_queries() -> None:
             ) VALUES (1, 10, 'SC 13D', 'Target Co', '123456789', 6.5, 100, '[]', '', '2026-03-01', 'https://x')"""
         )
         conn.execute("INSERT INTO managers(manager_id, name) VALUES (10, 'Alpha Fund')")
+        conn.execute("INSERT INTO managers(manager_id, name) VALUES (20, 'Beta Fund')")
+        # Each near match differs on just one predicate, so dropping any filter
+        # admits an extra filing even while the other three remain correct.
+        conn.executemany(
+            """INSERT INTO activism_filings(
+                filing_id, manager_id, filing_type, subject_company, subject_cusip,
+                ownership_pct, shares, group_members, purpose_snippet, filed_date, url
+            ) VALUES (?, ?, ?, 'Target Co', ?, 6.5, 100, '[]', '', ?, 'https://x')""",
+            [
+                (2, 20, "SC 13D", "123456789", "2026-03-01"),
+                (3, 10, "SC 13G", "123456789", "2026-03-01"),
+                (4, 10, "SC 13D", "987654321", "2026-03-01"),
+                (5, 10, "SC 13D", "123456789", "2025-12-31"),
+            ],
+        )
         filings = activism.query_activism_filings(
             conn,
             manager_id=10,
@@ -146,7 +166,7 @@ def test_activism_date_helpers_and_filtered_queries() -> None:
             cusip="123456789",
             since=real_date(2026, 1, 1),
         )
-        assert len(filings) == 1
+        assert [filing.filing_id for filing in filings] == [1]
         assert filings[0].manager_name == "Alpha Fund"
         assert filings[0].ownership_pct == 6.5
     finally:
