@@ -167,8 +167,24 @@ def test_activism_date_helpers_and_filtered_queries() -> None:
             since=real_date(2026, 1, 1),
         )
         assert [filing.filing_id for filing in filings] == [1]
-        assert filings[0].manager_name == "Alpha Fund"
-        assert filings[0].ownership_pct == 6.5
+        match = filings[0]
+        assert match.manager_name == "Alpha Fund"
+        assert match.filing_type == "SC 13D"
+        assert match.subject_company == "Target Co"
+        assert match.subject_cusip == "123456789"
+        assert match.ownership_pct == 6.5
+        assert match.shares == 100
+        assert match.filed_date == real_date(2026, 3, 1)
+        assert match.url == "https://x"
+        # upper() CUSIP comparison must accept mixed-case input.
+        mixed = activism.query_activism_filings(
+            conn,
+            manager_id=10,
+            filing_type="SC 13D",
+            cusip="123456789".lower(),
+            since=real_date(2026, 1, 1),
+        )
+        assert [filing.filing_id for filing in mixed] == [1]
     finally:
         conn.close()
 
@@ -186,6 +202,7 @@ def test_activism_flow_ensure_sqlite_table_is_idempotent() -> None:
         }
         assert "idx_activism_manager" in names
         assert "idx_activism_cusip" in names
+        assert "idx_activism_date" in names
     finally:
         conn.close()
 
@@ -222,7 +239,7 @@ async def test_edgar_request_with_retry_succeeds_after_transient_error(
 
     monkeypatch.setattr(edgar, "tracked_call", lambda *_a, **_k: Tracked())
     monkeypatch.setattr(edgar.asyncio, "sleep", _noop_sleep)
-    edgar._last_edgar_request_at = None
+    monkeypatch.setattr(edgar, "_last_edgar_request_at", None)
     response = await edgar._request_with_retry(
         cast(httpx.AsyncClient, DummyClient()),
         "https://data.sec.gov/submissions",
