@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import math
 import sqlite3
-from datetime import date as real_date, datetime
+from datetime import date as real_date
+from datetime import datetime
+from typing import cast
 
+import httpx
 import pytest
 
 from adapters import edgar, mas
@@ -137,7 +140,11 @@ def test_activism_date_helpers_and_filtered_queries() -> None:
         )
         conn.execute("INSERT INTO managers(manager_id, name) VALUES (10, 'Alpha Fund')")
         filings = activism.query_activism_filings(
-            conn, manager_id=10, filing_type="SC 13D", cusip="123456789", since=real_date(2026, 1, 1)
+            conn,
+            manager_id=10,
+            filing_type="SC 13D",
+            cusip="123456789",
+            since=real_date(2026, 1, 1),
         )
         assert len(filings) == 1
         assert filings[0].manager_name == "Alpha Fund"
@@ -173,8 +180,8 @@ async def test_edgar_request_with_retry_succeeds_after_transient_error(
         def raise_for_status(self) -> None:
             return None
 
-    class Client:
-        async def get(self, *_args: object, **_kwargs: object) -> Response:
+    class DummyClient:
+        async def get(self, *a, **k):
             attempts["count"] += 1
             if attempts["count"] == 1:
                 raise edgar.httpx.RequestError("transient network failure")
@@ -190,11 +197,17 @@ async def test_edgar_request_with_retry_succeeds_after_transient_error(
         def __call__(self, _response: object) -> None:
             return None
 
+    async def _noop_sleep(_delay: float) -> None:
+        return None
+
     monkeypatch.setattr(edgar, "tracked_call", lambda *_a, **_k: Tracked())
-    monkeypatch.setattr(edgar.asyncio, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setattr(edgar.asyncio, "sleep", _noop_sleep)
     edgar._last_edgar_request_at = None
     response = await edgar._request_with_retry(
-        Client(), "https://data.sec.gov/submissions", {"User-Agent": "test"}, source="edgar"
+        cast(httpx.AsyncClient, DummyClient()),
+        "https://data.sec.gov/submissions",
+        {"User-Agent": "test"},
+        source="edgar",
     )
     assert isinstance(response, Response)
     assert attempts["count"] == 2
