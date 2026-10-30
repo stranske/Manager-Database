@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import math
 import sqlite3
-from datetime import date as real_date
+from datetime import date as real_date, datetime
 
 import pytest
 
 from adapters import edgar, mas
-from api import activism
+from api import _compat, activism
 from etl import activism_flow, summariser_flow
 from ui import launch
 
@@ -103,3 +103,98 @@ async def test_small_ranked_target_contracts(monkeypatch: pytest.MonkeyPatch) ->
 
     with pytest.raises(TypeError, match="Unsupported database connection type"):
         activism_flow._ensure_activism_filings_table(UnsupportedConn())
+
+
+def test_offline_api_imports_require_ui_offline_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("UI_OFFLINE", raising=False)
+    with pytest.raises(ModuleNotFoundError):
+        _compat.offline_api_imports()
+    monkeypatch.setenv("UI_OFFLINE", "1")
+    router_cls, model_cls, field_fn, query_fn = _compat.offline_api_imports()
+    assert router_cls is _compat.OfflineAPIRouter
+    assert model_cls(**{"x": 1}).model_dump() == {"x": 1}
+    assert field_fn(default_factory=list) == []
+    assert query_fn(default=7) == 7
+
+
+def test_activism_date_helpers_and_filtered_queries() -> None:
+    assert activism._to_date(real_date(2026, 1, 2)) == real_date(2026, 1, 2)
+    assert activism._to_date(datetime(2026, 1, 2, 3, 4, 5)) == real_date(2026, 1, 2)
+    assert activism._to_datetime("2026-01-02T03:04:05Z") == datetime.fromisoformat(
+        "2026-01-02T03:04:05+00:00"
+    )
+    assert activism._json_strings('["a", "b"]') == ["a", "b"]
+
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT)")
+        activism_flow._ensure_activism_filings_table(conn)
+        conn.execute(
+            """INSERT INTO activism_filings(
+                filing_id, manager_id, filing_type, subject_company, subject_cusip,
+                ownership_pct, shares, group_members, purpose_snippet, filed_date, url
+            ) VALUES (1, 10, 'SC 13D', 'Target Co', '123456789', 6.5, 100, '[]', '', '2026-03-01', 'https://x')"""
+        )
+        conn.execute("INSERT INTO managers(manager_id, name) VALUES (10, 'Alpha Fund')")
+        filings = activism.query_activism_filings(
+            conn, manager_id=10, filing_type="SC 13D", cusip="123456789", since=real_date(2026, 1, 1)
+        )
+        assert len(filings) == 1
+        assert filings[0].manager_name == "Alpha Fund"
+        assert filings[0].ownership_pct == 6.5
+    finally:
+        conn.close()
+
+
+def test_activism_flow_ensure_sqlite_table_is_idempotent() -> None:
+    conn = sqlite3.connect(":memory:")
+    try:
+        activism_flow._ensure_activism_filings_table(conn)
+        activism_flow._ensure_activism_filings_table(conn)
+        names = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='activism_filings'"
+            ).fetchall()
+        }
+        assert "idx_activism_manager" in names
+        assert "idx_activism_cusip" in names
+    finally:
+        conn.close()
+
+
+@pytest.mark.asyncio
+async def test_edgar_request_with_retry_succeeds_after_transient_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = {"count": 0}
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+    class Client:
+        async def get(self, *_args: object, **_kwargs: object) -> Response:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise edgar.httpx.RequestError("transient network failure")
+            return Response()
+
+    class Tracked:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args: object) -> bool:
+            return False
+
+        def __call__(self, _response: object) -> None:
+            return None
+
+    monkeypatch.setattr(edgar, "tracked_call", lambda *_a, **_k: Tracked())
+    monkeypatch.setattr(edgar.asyncio, "sleep", lambda *_a, **_k: None)
+    edgar._last_edgar_request_at = None
+    response = await edgar._request_with_retry(
+        Client(), "https://data.sec.gov/submissions", {"User-Agent": "test"}, source="edgar"
+    )
+    assert isinstance(response, Response)
+    assert attempts["count"] == 2
