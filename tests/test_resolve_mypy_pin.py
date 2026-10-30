@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import builtins
+import inspect
+import re
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -94,15 +96,24 @@ def test_main_writes_github_output_from_mypy_config(
     Path("pyproject.toml").write_text(
         """
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 """.lstrip(),
         encoding="utf-8",
     )
 
     assert resolve_mypy_pin.main() == 0
 
-    assert output_path.read_text(encoding="utf-8") == "python-version=3.12\n"
-    assert capsys.readouterr().out == "Resolved mypy Python version: 3.12\n"
+    assert output_path.read_text(encoding="utf-8") == "python-version=3.13\n"
+    assert capsys.readouterr().out == "Resolved mypy Python version: 3.13\n"
+
+
+def _synced_primary_python() -> str:
+    # tools/resolve_mypy_pin.py is synced from stranske/Workflows, which owns its fallback
+    # literal; read it from the tool so a template promotion that moves the primary runtime
+    # does not break this repo-owned test.
+    match = re.search(r'matrix_version or "(\d+\.\d+)"', inspect.getsource(resolve_mypy_pin.main))
+    assert match, "resolve_mypy_pin.main() no longer has a literal primary-Python fallback"
+    return match.group(1)
 
 
 def test_main_defaults_to_primary_python_without_matrix_or_config(
@@ -114,4 +125,4 @@ def test_main_defaults_to_primary_python_without_matrix_or_config(
 
     assert resolve_mypy_pin.main() == 0
 
-    assert capsys.readouterr().out == "python-version=3.12\n"
+    assert capsys.readouterr().out == f"python-version={_synced_primary_python()}\n"
