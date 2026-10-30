@@ -93,6 +93,8 @@ def test_main_writes_github_output_from_mypy_config(
     monkeypatch.chdir(tmp_path)
     output_path = tmp_path / "github-output.txt"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    # Differs from the configured version so the test fails if config stops taking precedence.
+    monkeypatch.setenv("MATRIX_PYTHON_VERSION", "3.14")
     Path("pyproject.toml").write_text(
         """
 [tool.mypy]
