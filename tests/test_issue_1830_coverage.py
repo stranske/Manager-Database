@@ -141,7 +141,7 @@ def test_activism_date_helpers_and_filtered_queries() -> None:
             """INSERT INTO activism_filings(
                 filing_id, manager_id, filing_type, subject_company, subject_cusip,
                 ownership_pct, shares, group_members, purpose_snippet, filed_date, url
-            ) VALUES (1, 10, 'SC 13D', 'Target Co', '123456789', 6.5, 100, '[]', '', '2026-03-01', 'https://x')"""
+            ) VALUES (1, 10, 'SC 13D', 'Target Co', '123AB6789', 6.5, 100, '[]', '', '2026-03-01', 'https://x')"""
         )
         conn.execute("INSERT INTO managers(manager_id, name) VALUES (10, 'Alpha Fund')")
         conn.execute("INSERT INTO managers(manager_id, name) VALUES (20, 'Beta Fund')")
@@ -153,17 +153,17 @@ def test_activism_date_helpers_and_filtered_queries() -> None:
                 ownership_pct, shares, group_members, purpose_snippet, filed_date, url
             ) VALUES (?, ?, ?, 'Target Co', ?, 6.5, 100, '[]', '', ?, 'https://x')""",
             [
-                (2, 20, "SC 13D", "123456789", "2026-03-01"),
-                (3, 10, "SC 13G", "123456789", "2026-03-01"),
+                (2, 20, "SC 13D", "123AB6789", "2026-03-01"),
+                (3, 10, "SC 13G", "123AB6789", "2026-03-01"),
                 (4, 10, "SC 13D", "987654321", "2026-03-01"),
-                (5, 10, "SC 13D", "123456789", "2025-12-31"),
+                (5, 10, "SC 13D", "123AB6789", "2025-12-31"),
             ],
         )
         filings = activism.query_activism_filings(
             conn,
             manager_id=10,
             filing_type="SC 13D",
-            cusip="123456789",
+            cusip="123AB6789",
             since=real_date(2026, 1, 1),
         )
         assert [filing.filing_id for filing in filings] == [1]
@@ -171,7 +171,7 @@ def test_activism_date_helpers_and_filtered_queries() -> None:
         assert match.manager_name == "Alpha Fund"
         assert match.filing_type == "SC 13D"
         assert match.subject_company == "Target Co"
-        assert match.subject_cusip == "123456789"
+        assert match.subject_cusip == "123AB6789"
         assert match.ownership_pct == 6.5
         assert match.shares == 100
         assert match.filed_date == real_date(2026, 3, 1)
@@ -181,7 +181,7 @@ def test_activism_date_helpers_and_filtered_queries() -> None:
             conn,
             manager_id=10,
             filing_type="SC 13D",
-            cusip="123456789".lower(),
+            cusip="123AB6789".lower(),
             since=real_date(2026, 1, 1),
         )
         assert [filing.filing_id for filing in mixed] == [1]
