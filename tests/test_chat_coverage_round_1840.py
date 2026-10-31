@@ -242,15 +242,6 @@ def test_enforce_chat_rate_limit_session_budget_after_ip_passes():
 @pytest.mark.asyncio
 async def test_run_chain_holdings_analysis_formats_payload_with_as_of(monkeypatch):
     monkeypatch.setattr(chat, "connect_db", lambda: SimpleNamespace(close=lambda: None))
-    monkeypatch.setattr(
-        chat,
-        "_normalize_chain_context",
-        lambda context, _conn: {
-            "manager_ids": [3],
-            "cusips": ["037833100"],
-            "as_of": "2024-06-15T12:00:00Z",
-        },
-    )
     seen = {}
 
     class HoldingsChain:
@@ -270,11 +261,17 @@ async def test_run_chain_holdings_analysis_formats_payload_with_as_of(monkeypatc
     answer, sources, sql, trace = await chat._run_chain(
         "holdings_analysis",
         "analyze positions",
-        {"manager_ids": [3]},
+        {
+            "manager_ids": [3],
+            "cusips": ["037833100"],
+            "as_of": "2024-06-15T12:00:00Z",
+        },
         SimpleNamespace(client=None),
     )
     assert seen["question"] == "analyze positions"
-    assert "as_of" in seen["kwargs"]
+    assert seen["kwargs"]["manager_ids"] == [3]
+    assert seen["kwargs"]["cusips"] == ["037833100"]
+    assert seen["kwargs"]["as_of"].isoformat().startswith("2024-06-15")
     assert "Concentrated book." in answer
     assert "037833100" in answer
     assert sql is None
@@ -392,23 +389,23 @@ async def test_chat_api_requires_llm_client(monkeypatch):
 async def test_chat_api_success_path_records_fleet(monkeypatch):
     monkeypatch.setattr(chat, "_enforce_chat_rate_limit", lambda _r: None)
     monkeypatch.setattr(chat, "_chat_zone_disabled", lambda: False)
-    monkeypatch.setattr(
-        chat,
-        "_build_chat_client_info",
-        lambda: SimpleNamespace(provider="openai", model="gpt-test", client=None),
-    )
-    monkeypatch.setattr(
-        chat,
-        "_run_chain",
-        lambda *_a, **_k: _async_result(
-            ("answer text", [{"doc": 1}], "SELECT 1", "https://trace/r/run-88")
-        ),
-    )
+    run_calls = []
+
+    async def fake_run_chain(chain_name, question, context, client_info):
+        run_calls.append((chain_name, question, context, client_info))
+        return ("answer text", [{"doc": 1}], "SELECT 1", "https://trace/r/run-88")
+
+    client_info = SimpleNamespace(provider="openai", model="gpt-test", client=None)
+    monkeypatch.setattr(chat, "_build_chat_client_info", lambda: client_info)
+    monkeypatch.setattr(chat, "_run_chain", fake_run_chain)
     fleet = []
     monkeypatch.setattr(chat, "_record_chat_fleet_safe", lambda **kwargs: fleet.append(kwargs))
 
     raw = SimpleNamespace(url=SimpleNamespace(path="/api/chat"), cookies={}, client=None)
     response = await chat.chat_api(chat.ChatRequest(question="sql please", chain="nl_query"), raw)
+    assert run_calls == [
+        ("nl_query", "sql please", None, client_info),
+    ]
     assert response.answer == "answer text"
     assert response.chain_used == "nl_query"
     assert response.sql == "SELECT 1"
@@ -473,16 +470,30 @@ async def test_chat_api_maps_unexpected_errors_to_500(monkeypatch):
 @pytest.mark.asyncio
 async def test_submit_feedback_persists_and_forwards(monkeypatch):
     monkeypatch.setattr(chat, "_enforce_chat_rate_limit", lambda _r: None)
-    monkeypatch.setattr(chat, "_store_feedback", lambda _fb: 99)
-    monkeypatch.setattr(chat, "_attach_langsmith_feedback", lambda _fb: True)
+    stored = []
+    forwarded = []
+
+    def store_feedback(fb):
+        stored.append(fb)
+        return 99
+
+    def attach_feedback(fb):
+        forwarded.append(fb)
+        return True
+
+    monkeypatch.setattr(chat, "_store_feedback", store_feedback)
+    monkeypatch.setattr(chat, "_attach_langsmith_feedback", attach_feedback)
     events = []
     monkeypatch.setattr(chat, "record_feedback_event", lambda **kwargs: events.append(kwargs))
 
+    request = chat.FeedbackRequest(response_id="run-z", rating=5, comment="great")
     result = await chat.submit_feedback(
-        chat.FeedbackRequest(response_id="run-z", rating=5, comment="great"),
+        request,
         SimpleNamespace(cookies={}, client=None),
     )
     assert result == {"ok": True, "feedback_id": 99}
+    assert stored == [request]
+    assert forwarded == [request]
     assert events == [
         {
             "response_id": "run-z",
@@ -525,10 +536,13 @@ def test_build_chain_instantiates_imported_classes(monkeypatch):
         raise ModuleNotFoundError(name)
 
     monkeypatch.setattr(chat.importlib, "import_module", fake_import)
-    monkeypatch.setattr(chat, "connect_db", Conn)
+    conn = Conn()
+    monkeypatch.setattr(chat, "connect_db", lambda: conn)
     client = SimpleNamespace(client="llm-client")
 
     assert isinstance(chat._build_chain("filing_summary", client), FakeFiling)
     assert isinstance(chat._build_chain("holdings_analysis", client), FakeHoldings)
     assert isinstance(chat._build_chain("nl_query", client), FakeNL)
-    assert constructed["nl"][0] == "llm-client"
+    assert constructed["filing"] == (client, conn)
+    assert constructed["holdings"] == (client, conn)
+    assert constructed["nl"] == ("llm-client", conn)
