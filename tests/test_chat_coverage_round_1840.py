@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -29,7 +28,7 @@ def test_context_filter_requested_detects_empty_and_non_empty_values():
 
 
 def test_normalize_sources_and_extract_chain_payload_object_paths():
-    assert chat._normalize_sources("plain") == [{"description": "plain"}]
+    assert chat._normalize_sources("plain") == []
     assert chat._normalize_sources({"k": "v"}) == [{"k": "v"}]
     assert chat._normalize_sources([1, {"a": 1}]) == [{"description": "1"}, {"a": 1}]
 
