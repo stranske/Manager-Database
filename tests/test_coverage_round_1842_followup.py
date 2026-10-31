@@ -35,9 +35,7 @@ def test_render_active_campaigns_widget_empty_snapshot(monkeypatch):
 
     fake = _FakeSt()
     monkeypatch.setattr(dashboard, "st", fake)
-    monkeypatch.setattr(
-        dashboard, "load_active_campaigns_summary", lambda **kwargs: pd.DataFrame()
-    )
+    monkeypatch.setattr(dashboard, "load_active_campaigns_summary", lambda **kwargs: pd.DataFrame())
     dashboard.render_active_campaigns_widget(show_heading=True)
     assert fake.captions == ["No active materialized campaign snapshot is available."]
 
@@ -62,8 +60,7 @@ def test_universe_schema_quality_flags_on_partial_legacy_sqlite_table(monkeypatc
     conn = sqlite3.connect(":memory:")
     try:
         monkeypatch.setattr(managers, "_ensure_manager_table", lambda _conn: None)
-        conn.execute(
-            """CREATE TABLE managers (
+        conn.execute("""CREATE TABLE managers (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 cik TEXT,
@@ -71,8 +68,7 @@ def test_universe_schema_quality_flags_on_partial_legacy_sqlite_table(monkeypatc
                 jurisdictions TEXT NOT NULL DEFAULT '[]',
                 created_at TIMESTAMP,
                 updated_at TIMESTAMP
-            )"""
-        )
+            )""")
         managers._ensure_universe_schema(conn)
         columns = {
             str(row[0]) for row in conn.execute(managers.SQLITE_TABLE_INFO_SQL, ("managers",))
