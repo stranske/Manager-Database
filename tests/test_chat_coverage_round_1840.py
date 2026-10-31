@@ -52,16 +52,15 @@ def test_normalize_sources_and_extract_chain_payload_object_paths():
 
 
 def test_get_health_executor_recreates_after_shutdown(monkeypatch):
-    original = chat._HEALTH_EXECUTOR
-    try:
-        original.shutdown(wait=False, cancel_futures=True)
-        replacement = chat.get_health_executor()
-        assert replacement is not original
-        assert not replacement._shutdown
-    finally:
-        from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor
 
-        chat._HEALTH_EXECUTOR = ThreadPoolExecutor(max_workers=3)
+    seeded = ThreadPoolExecutor(max_workers=3)
+    monkeypatch.setattr(chat, "_HEALTH_EXECUTOR", seeded)
+    seeded.shutdown(wait=False, cancel_futures=True)
+    replacement = chat.get_health_executor()
+    assert replacement is not seeded
+    assert not replacement._shutdown
+    replacement.shutdown(wait=False, cancel_futures=True)
 
 
 def test_record_chat_fleet_safe_swallows_observability_failures(monkeypatch):
@@ -210,6 +209,8 @@ async def test_direct_chat_wrappers_delegate_to_chat_api(monkeypatch):
         chat.HoldingsAnalysisRequest(question="analyze", context={"manager_ids": [1]}), raw
     )
     assert captured["request"].chain == "holdings_analysis"
+    assert captured["request"].question == "analyze"
+    assert captured["request"].context == {"manager_ids": [1]}
 
     await chat.nl_query("sql please", raw)
     assert captured["request"].chain == "nl_query"
