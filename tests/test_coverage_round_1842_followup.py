@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date
-from unittest.mock import Mock
 
 import pandas as pd
 
@@ -25,13 +24,21 @@ def test_api_base_url_prefers_alerts_env(monkeypatch):
 
 
 def test_load_unacknowledged_alert_count_offline_mode(monkeypatch):
+    """Offline badge must short-circuit without constructing httpx.Client.
+
+    Clear the streamlit cache before/after so a cached online count (e.g. 7 from
+    ``test_dashboard``) cannot mask the UI_OFFLINE guard. A request failure also
+    returns 0, so assert Client is never constructed rather than only checking 0.
+    """
     dashboard.load_unacknowledged_alert_count.clear()
     monkeypatch.setenv("UI_OFFLINE", "1")
-    client = Mock()
-    monkeypatch.setattr(dashboard.httpx, "Client", client)
+
+    def fail_client(*_args, **_kwargs):
+        raise AssertionError("httpx.Client should not be constructed in offline mode")
+
+    monkeypatch.setattr(dashboard.httpx, "Client", fail_client)
     try:
         assert dashboard.load_unacknowledged_alert_count() == 0
-        client.assert_not_called()
     finally:
         dashboard.load_unacknowledged_alert_count.clear()
 
