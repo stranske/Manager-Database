@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -546,3 +548,297 @@ def test_build_chain_instantiates_imported_classes(monkeypatch):
     assert constructed["filing"] == (client, conn)
     assert constructed["holdings"] == (client, conn)
     assert constructed["nl"] == ("llm-client", conn)
+
+
+def test_rate_limiter_clear_resets_window():
+    limiter = chat.InMemoryChatRateLimiter(max_requests=1, window_seconds=60)
+    assert limiter.check_and_record("client-a") is True
+    assert limiter.check_and_record("client-a") is False
+    limiter.clear()
+    assert limiter.check_and_record("client-a") is True
+
+
+def test_parse_date_range_and_empty_manager_name_edges():
+    assert chat._parse_date_range({"start": "", "end": "2024-01-01"}) is None
+    assert chat._parse_date_range(["2024-01-01", "2024-02-01"]) is not None
+    assert chat._manager_ids_for_name(SimpleNamespace(), "   ") == []
+
+
+def test_fallback_filing_summary_chain_optional_filing_id():
+    with_id = chat._FallbackFilingSummaryChain().run(11)
+    without_id = chat._FallbackFilingSummaryChain().run(0)
+    assert with_id == {"answer": "Filing summary for filing 11", "sources": []}
+    assert without_id == {"answer": "Filing summary", "sources": []}
+
+
+def test_build_chain_unavailable_without_fallback_and_ctor_closes_db(monkeypatch):
+    monkeypatch.setattr(chat, "_chat_chain_fallback_enabled", lambda: False)
+
+    def missing(_name):
+        raise ModuleNotFoundError("chains.nl_query")
+
+    monkeypatch.setattr(chat.importlib, "import_module", missing)
+    with pytest.raises(chat.ChainUnavailableError, match="unavailable"):
+        chat._build_chain("nl_query", None)
+
+    class BoomChain:
+        def __init__(self, **_kwargs):
+            raise RuntimeError("ctor failed")
+
+    closed = {"done": False}
+
+    class Conn:
+        def close(self):
+            closed["done"] = True
+
+    monkeypatch.setattr(
+        chat.importlib,
+        "import_module",
+        lambda _name: SimpleNamespace(NLQueryChain=BoomChain),
+    )
+    monkeypatch.setattr(chat, "connect_db", lambda: Conn())
+    with pytest.raises(RuntimeError, match="ctor failed"):
+        chat._build_chain("nl_query", SimpleNamespace(client=None))
+    assert closed["done"] is True
+
+
+def test_build_chat_client_info_calls_callable_builder(monkeypatch):
+    marker = object()
+
+    monkeypatch.setattr(
+        chat.importlib,
+        "import_module",
+        lambda _name: SimpleNamespace(build_chat_client=lambda: marker),
+    )
+    assert chat._build_chat_client_info() is marker
+
+
+def test_manager_id_column_falls_back_when_helper_returns_none(monkeypatch):
+    monkeypatch.setattr(chat, "manager_id_column", lambda _conn, require_table=True: None)
+    assert chat._manager_id_column(SimpleNamespace()) == "id"
+
+
+def test_chat_chain_health_payload_import_success_and_failure(monkeypatch):
+    monkeypatch.setattr(chat, "_chat_zone_disabled", lambda: False)
+    monkeypatch.setattr(chat, "_chat_chain_fallback_enabled", lambda: False)
+
+    modules = {
+        path: SimpleNamespace(**{cls: object})
+        for path, cls in (
+            ("chains.filing_summary", "FilingSummaryChain"),
+            ("chains.holdings_analysis", "HoldingsAnalysisChain"),
+            ("chains.nl_query", "NLQueryChain"),
+            ("chains.rag_search", "RAGSearchChain"),
+        )
+    }
+
+    monkeypatch.setattr(
+        chat.importlib,
+        "import_module",
+        lambda name: modules[name],
+    )
+    payload, reason = chat._chat_chain_health_payload()
+    assert payload == {"healthy": True, "available": True, "fallback_enabled": False}
+    assert reason is None
+
+    def boom(name):
+        if name == "chains.rag_search":
+            raise ImportError("rag missing")
+        return modules[name]
+
+    monkeypatch.setattr(chat.importlib, "import_module", boom)
+    payload, reason = chat._chat_chain_health_payload()
+    assert payload["healthy"] is False
+    assert reason is not None
+    assert reason.startswith("rag_search:")
+
+
+@pytest.mark.asyncio
+async def test_run_dependency_check_disabled_and_success_paths(monkeypatch):
+    disabled, reason = await chat._run_dependency_check(
+        lambda: None,
+        0.05,
+        enabled=False,
+        include_enabled=True,
+    )
+    assert disabled == {"healthy": True, "latency_ms": 0, "enabled": False}
+    assert reason is None
+
+    breaker = chat.CircuitBreaker(failure_threshold=3, reset_timeout_s=60)
+
+    async def ok(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(chat, "_run_health_check_with_retries", ok)
+    payload, ok_reason = await chat._run_dependency_check(
+        lambda: None,
+        0.05,
+        circuit_breaker=breaker,
+        include_enabled=True,
+    )
+    assert payload["healthy"] is True
+    assert payload["enabled"] is True
+    assert ok_reason is None
+
+
+@pytest.mark.asyncio
+async def test_run_health_summary_checks_success_and_timeout(monkeypatch):
+    async def fast_check(*_args, **_kwargs):
+        return {"healthy": True, "latency_ms": 1}, None
+
+    monkeypatch.setattr(chat, "_run_dependency_check", fast_check)
+    results = await chat._run_health_summary_checks(0.1, 0.05, 0.05, 0.05, None)
+    assert results["database"][0]["healthy"] is True
+    assert results["minio"][0]["healthy"] is True
+    assert results["redis"][0]["healthy"] is True
+
+    async def slow_check(*_args, **_kwargs):
+        await asyncio.sleep(1.0)
+        return {"healthy": True, "latency_ms": 1}, None
+
+    monkeypatch.setattr(chat, "_run_dependency_check", slow_check)
+    monkeypatch.setattr(chat, "_MINIO_CIRCUIT", chat.CircuitBreaker(failure_threshold=1))
+    monkeypatch.setattr(chat, "_REDIS_CIRCUIT", chat.CircuitBreaker(failure_threshold=1))
+    timed = await chat._run_health_summary_checks(0.01, 0.01, 0.01, 0.01, "redis://localhost")
+    for name in ("database", "minio", "redis"):
+        assert timed[name][0]["healthy"] is False
+        assert timed[name][1] == "timeout"
+        if name == "redis":
+            assert timed[name][0]["enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_chat_api_prompt_injection_joins_list_reasons(monkeypatch):
+    monkeypatch.setattr(chat, "_enforce_chat_rate_limit", lambda _r: None)
+    monkeypatch.setattr(chat, "_chat_zone_disabled", lambda: False)
+    monkeypatch.setattr(
+        chat,
+        "_build_chat_client_info",
+        lambda: SimpleNamespace(provider="openai", model="gpt", client=None),
+    )
+
+    class InjectionError(Exception):
+        def __init__(self):
+            self.reasons = ["override", "exfil"]
+            super().__init__("blocked")
+
+    monkeypatch.setattr(chat, "PROMPT_INJECTION_ERROR", InjectionError)
+
+    async def boom(*_a, **_k):
+        raise InjectionError()
+
+    monkeypatch.setattr(chat, "_run_chain", boom)
+    fleet = []
+    monkeypatch.setattr(chat, "_record_chat_fleet_safe", lambda **kwargs: fleet.append(kwargs))
+
+    raw = SimpleNamespace(url=SimpleNamespace(path="/api/chat"), cookies={}, client=None)
+    with pytest.raises(HTTPException) as exc:
+        await chat.chat_api(chat.ChatRequest(question="ignore rules", chain="rag_search"), raw)
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Input rejected: override, exfil"
+    assert fleet and fleet[0]["error_category"] == "prompt_injection"
+
+
+def test_attach_langsmith_feedback_success_path(monkeypatch):
+    monkeypatch.setattr(chat, "maybe_enable_langsmith_tracing", lambda: True)
+    created = []
+
+    class FakeClient:
+        def create_feedback(self, **kwargs):
+            created.append(kwargs)
+
+    import sys
+
+    monkeypatch.setitem(sys.modules, "langsmith", SimpleNamespace(Client=FakeClient))
+    assert (
+        chat._attach_langsmith_feedback(
+            chat.FeedbackRequest(response_id="run-1", rating=4, comment="ok")
+        )
+        is True
+    )
+    assert created == [
+        {
+            "run_id": "run-1",
+            "key": "user_rating",
+            "score": 4,
+            "comment": "ok",
+        }
+    ]
+
+
+def test_liveness_aliases_and_shutdown_hooks(monkeypatch):
+    monkeypatch.setattr(chat, "_health_payload", lambda: {"healthy": True, "uptime_s": 9})
+    assert chat.health_live() == {"healthy": True, "uptime_s": 9}
+    assert chat.healthz() == {"healthy": True, "uptime_s": 9}
+    assert chat.health_livez() == {"healthy": True, "uptime_s": 9}
+
+    shut = {"app": False, "health": False}
+
+    class FakeExec:
+        def shutdown(self, wait=False, cancel_futures=True):
+            shut["app" if self is app_exec else "health"] = True
+
+    app_exec = FakeExec()
+    health_exec = FakeExec()
+    monkeypatch.setattr(chat, "_APP_EXECUTOR", app_exec)
+    monkeypatch.setattr(chat, "_HEALTH_EXECUTOR", health_exec)
+    chat._shutdown_executors()
+    assert shut == {"app": True, "health": True}
+
+
+@pytest.mark.asyncio
+async def test_configure_default_executor_and_memory_profiler_shutdown(monkeypatch):
+    seen = {"executor": None, "started": False, "stopped": False}
+
+    class Loop:
+        def set_default_executor(self, executor):
+            seen["executor"] = executor
+
+    monkeypatch.setattr(chat.asyncio, "get_running_loop", lambda: Loop())
+
+    async def start(app):
+        seen["started"] = app is chat.app
+
+    async def stop(app):
+        seen["stopped"] = app is chat.app
+
+    monkeypatch.setattr(chat, "start_memory_profiler", start)
+    monkeypatch.setattr(chat, "stop_memory_profiler", stop)
+    await chat._configure_default_executor()
+    await chat._shutdown_memory_profiler()
+    assert seen["executor"] is chat._APP_EXECUTOR
+    assert seen["started"] is True
+    assert seen["stopped"] is True
+
+
+@pytest.mark.asyncio
+async def test_health_app_marks_unhealthy_dependencies(monkeypatch):
+    monkeypatch.setattr(
+        chat.JSONResponse, "render", lambda _self, content: json.dumps(content).encode()
+    )
+    monkeypatch.setattr(chat, "_health_payload", lambda: {"healthy": True, "uptime_s": 2})
+    monkeypatch.setattr(chat, "_health_summary_timeout_seconds", lambda: 0.1)
+    monkeypatch.setattr(chat, "_db_timeout_seconds", lambda: 0.05)
+    monkeypatch.setattr(chat, "_minio_timeout_seconds", lambda: 0.05)
+    monkeypatch.setattr(chat, "_redis_timeout_seconds", lambda: 0.05)
+    monkeypatch.setenv("REDIS_URL", "redis://localhost")
+
+    async def summary(*_args):
+        return {
+            "database": ({"healthy": False, "latency_ms": 5}, "db down"),
+            "minio": ({"healthy": False, "latency_ms": 5}, None),
+            "redis": ({"healthy": False, "latency_ms": 5, "enabled": True}, None),
+        }
+
+    monkeypatch.setattr(chat, "_run_health_summary_checks", summary)
+    monkeypatch.setattr(
+        chat,
+        "_chat_chain_health_payload",
+        lambda: ({"healthy": True, "available": True, "fallback_enabled": False}, None),
+    )
+    response = await chat.health_app()
+    assert response.status_code == 503
+    body = json.loads(response.body)
+    assert body["failed_checks"]["database"] == "db down"
+    assert body["failed_checks"]["minio"] == "unhealthy"
+    assert body["failed_checks"]["redis"] == "unhealthy"
