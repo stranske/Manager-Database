@@ -297,7 +297,7 @@ markupsafe==3.0.3
     #   mako
 mdurl==0.1.2
     # via markdown-it-py
-mypy==2.4.0
+mypy==2.4.1
     # via manager-database (pyproject.toml)
 mypy-extensions==1.1.0
     # via
@@ -432,7 +432,7 @@ pyrate-limiter==4.4.0
     # via
     #   edgartools
     #   httpxthrottlecache
-pytest==9.1.1
+pytest==9.2.0
     # via
     #   manager-database (pyproject.toml)
     #   app-baseline-kit
