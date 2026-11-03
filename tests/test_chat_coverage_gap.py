@@ -1,4 +1,10 @@
-"""Focused contract coverage for chat request helpers."""
+"""Focused contract coverage for chat request helpers.
+
+Selection: issue #1794 ranked api/chat.py first (117 missing line/branch units,
+churn 3), using escaped defects, then churn, then uncovered mass. The closer
+repair retains that target; current-main coverage and mutation replay results
+are recorded in the repair PR rather than inferred from the dispatch estimate.
+"""
 
 import asyncio
 import json
@@ -371,6 +377,10 @@ def test_dependency_error_and_timeout_bounds_are_stable(monkeypatch):
     assert chat._health_summary_timeout_seconds() == 0.2
     monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.01")
     assert chat._health_summary_timeout_seconds() == 0.05
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "0.1")
+    assert chat._health_summary_timeout_seconds() == 0.1
+    monkeypatch.setenv("HEALTH_SUMMARY_TIMEOUT_S", "nan")
+    assert chat._health_summary_timeout_seconds() == 0.2
     assert (
         chat._format_dependency_error(RuntimeError("  failed dependency  ")) == "failed dependency"
     )
