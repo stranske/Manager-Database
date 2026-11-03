@@ -1,0 +1,9 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_logging_cloudwatch_idempotence_and_emit_failure _____________
+tests/test_coverage_round_1835.py:107: in test_logging_cloudwatch_idempotence_and_emit_failure
+    assert record.handled is True
+           ^^^^^^^^^^^^^^
+E   AttributeError: 'LogRecord' object has no attribute 'handled'
+=========================== short test summary info ============================
+FAILED tests/test_coverage_round_1835.py::test_logging_cloudwatch_idempotence_and_emit_failure

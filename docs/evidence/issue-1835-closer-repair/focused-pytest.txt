@@ -1,0 +1,3 @@
+$ PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py -q
+........                                                                 [100%]
+8 passed (2026-11-03 local; Python 3.12.2; warnings omitted)

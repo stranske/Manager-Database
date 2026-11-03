@@ -1,0 +1,13 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________________ test_news_watermark_fallback_and_update_paths _________________
+tests/test_coverage_round_1835.py:59: in test_news_watermark_fallback_and_update_paths
+    assert news_flow._fallback_source_since_from_news(conn, "rss") == "2026-01-03T00:00:00Z"
+E   AssertionError: assert '1970-01-01T00:00:00Z' == '2026-01-03T00:00:00Z'
+E     
+E     - 2026-01-03T00:00:00Z
+E     ? ^ --     ^
+E     + 1970-01-01T00:00:00Z
+E     ? ^^^      ^
+=========================== short test summary info ============================
+FAILED tests/test_coverage_round_1835.py::test_news_watermark_fallback_and_update_paths

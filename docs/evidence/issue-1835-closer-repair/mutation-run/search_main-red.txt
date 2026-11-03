@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_search_main_handles_empty_and_renders_grouped_results __________
+tests/test_coverage_round_1835.py:226: in test_search_main_handles_empty_and_renders_grouped_results
+    assert empty_ui.infos == ["No results found."]
+E   AssertionError: assert ['Results missing.'] == ['No results found.']
+E     
+E     At index 0 diff: 'Results missing.' != 'No results found.'
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_coverage_round_1835.py::test_search_main_handles_empty_and_renders_grouped_results
