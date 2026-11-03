@@ -1,24 +1,9 @@
-"""Round 1842 follow-up: remaining dashboard/chat helper branches.
+"""Round 1842 follow-up: dashboard/chat helpers and legacy SQLite migration.
 
-Evidence for issue #1842 closer repair (merged #1876 baseline; this module
-change is the offline ``httpx.Client`` call-count guard only):
-
-  PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest \\
-    tests/test_coverage_round_1842_followup.py -m 'not slow' -q
-
-Break-and-revert receipts live in the repair PR body (2026-11-03); each test
-fails on a deliberate production mutation and passes after restore.
-
-Gate listed-target uncovered units (U = missing_lines + missing_branches,
-Python 3.13, ``pr-00-gate.yml`` coverage.json):
-
-* Baseline after #1843 Gate run 39362579319 (commit 3631f0ff): daily_diff 2,
-  managers 16, chat 14, dashboard 67 (sum 99).
-* Head after #1876 Gate run 41248974079 (commit 4ffa37f7): daily_diff 2,
-  managers 13, chat 4, dashboard 31 (sum 50).
-* Measured reduction on listed targets: 49 U; shortfall vs ~180 chunk goal:
-  max(0, 180 − 109) ≈ 71 from issue-dispatch baseline (159 U), or ~71 after
-  crediting #1843+#1876 together (see repair PR ranking/deferrals).
+Checked 2026-11-03: production-mutation assertion failures and restored passes
+for all five tests are recorded in repair PR #1881. See
+``docs/evidence/issue-1842-closer-repair.md`` for commands, comparable Python
+3.13 Gate evidence (50 uncovered units before and after), and deferrals.
 """
 
 from __future__ import annotations
