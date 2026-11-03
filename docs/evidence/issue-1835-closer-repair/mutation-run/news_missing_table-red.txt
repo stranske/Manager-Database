@@ -1,10 +1,18 @@
+$ PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_news_fallback_handles_missing_news_table -q --tb=short --disable-warnings
+# cwd: /private/tmp/manager-db-1835-mutation-checkout
+# base: e6405b61d563597e8e675b255a7da6fa5a57f56d
+# started_at_utc: 2026-11-03T19:04:49.368735+00:00
+# PYTHONDONTWRITEBYTECODE=1 (avoid stale bytecode across restore)
 F                                                                        [100%]
 =================================== FAILURES ===================================
 ________________ test_news_fallback_handles_missing_news_table _________________
 tests/test_coverage_round_1835.py:81: in test_news_fallback_handles_missing_news_table
     assert news_flow._fallback_source_since_from_news(conn, "rss") is None
 E   AssertionError: assert 'not-none' is None
-E    +  where 'not-none' = <function _fallback_source_since_from_news at 0x30f9daca0>(<sqlite3.Connection object at 0x3155d7100>, 'rss')
-E    +    where <function _fallback_source_since_from_news at 0x30f9daca0> = news_flow._fallback_source_since_from_news
+E    +  where 'not-none' = <function _fallback_source_since_from_news at 0x17bd67ce0>(<sqlite3.Connection object at 0x306072b60>, 'rss')
+E    +    where <function _fallback_source_since_from_news at 0x17bd67ce0> = news_flow._fallback_source_since_from_news
 =========================== short test summary info ============================
 FAILED tests/test_coverage_round_1835.py::test_news_fallback_handles_missing_news_table
+
+# exit_status: 1
+# elapsed_seconds: 8.525

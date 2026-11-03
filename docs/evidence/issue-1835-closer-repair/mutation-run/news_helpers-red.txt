@@ -1,11 +1,19 @@
+$ PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_news_helpers_normalize_aliases_timestamps_and_sources -q --tb=short --disable-warnings
+# cwd: /private/tmp/manager-db-1835-mutation-checkout
+# base: e6405b61d563597e8e675b255a7da6fa5a57f56d
+# started_at_utc: 2026-11-03T19:03:51.352547+00:00
+# PYTHONDONTWRITEBYTECODE=1 (avoid stale bytecode across restore)
 F                                                                        [100%]
 =================================== FAILURES ===================================
 __________ test_news_helpers_normalize_aliases_timestamps_and_sources __________
 tests/test_coverage_round_1835.py:37: in test_news_helpers_normalize_aliases_timestamps_and_sources
     assert news_flow._parse_iso_timestamp("2026-01-01T00:00:00Z") == datetime(
 E   AssertionError: assert None == datetime.datetime(2026, 1, 1, 0, 0, tzinfo=datetime.timezone.utc)
-E    +  where None = <function _parse_iso_timestamp at 0x30f9f6a20>('2026-01-01T00:00:00Z')
-E    +    where <function _parse_iso_timestamp at 0x30f9f6a20> = news_flow._parse_iso_timestamp
+E    +  where None = <function _parse_iso_timestamp at 0x304167a60>('2026-01-01T00:00:00Z')
+E    +    where <function _parse_iso_timestamp at 0x304167a60> = news_flow._parse_iso_timestamp
 E    +  and   datetime.datetime(2026, 1, 1, 0, 0, tzinfo=datetime.timezone.utc) = datetime(2026, 1, 1, tzinfo=datetime.timezone.utc)
 =========================== short test summary info ============================
 FAILED tests/test_coverage_round_1835.py::test_news_helpers_normalize_aliases_timestamps_and_sources
+
+# exit_status: 1
+# elapsed_seconds: 12.552

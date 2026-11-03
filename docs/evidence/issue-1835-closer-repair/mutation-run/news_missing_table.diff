@@ -1,0 +1,11 @@
+--- a/etl/news_flow.py
++++ b/etl/news_flow.py
+@@ -243,7 +243,7 @@
+             (source,),
+         ).fetchone()
+     except Exception:
+-        return None
++        return "not-none"
+     if row and row[0]:
+         return str(row[0])
+     return None

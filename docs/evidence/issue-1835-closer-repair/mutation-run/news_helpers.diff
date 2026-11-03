@@ -1,0 +1,11 @@
+--- a/etl/news_flow.py
++++ b/etl/news_flow.py
+@@ -174,7 +174,7 @@
+         return None
+     if parsed.tzinfo is None:
+         return parsed.replace(tzinfo=UTC)
+-    return parsed
++    return None
+ 
+ 
+ def _latest_published_at(items: list[dict[str, Any]]) -> str | None:

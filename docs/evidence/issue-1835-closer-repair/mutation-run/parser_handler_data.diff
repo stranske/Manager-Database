@@ -1,0 +1,11 @@
+--- a/api/parser.py
++++ b/api/parser.py
+@@ -42,7 +42,7 @@
+         return _malformed_result()
+     if "data" not in payload:
+         return _malformed_result()
+-    return ParseResult(ok=True, data=payload["data"], error=None)
++    return ParseResult(ok=False, data=None, error="broken")
+ 
+ 
+ # Alias for parity with task naming.
