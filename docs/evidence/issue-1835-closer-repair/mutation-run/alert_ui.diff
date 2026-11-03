@@ -1,0 +1,11 @@
+--- a/ui/alerts.py
++++ b/ui/alerts.py
+@@ -421,7 +421,7 @@
+             _clear_alert_caches()
+             st.rerun()
+         else:
+-            st.error(f"Unable to acknowledge alerts: {payload}")
++            st.error(f"Ack failed: {payload}")
+ 
+     if not filtered:
+         st.info("No alerts for the selected filters.")

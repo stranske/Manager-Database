@@ -1,0 +1,11 @@
+--- a/etl/logging_setup.py
++++ b/etl/logging_setup.py
+@@ -76,7 +76,7 @@
+             response = self._client.put_log_events(**kwargs)
+             self._sequence_token = response.get("nextSequenceToken")
+         except Exception:
+-            self.handleError(record)
++            pass
+ 
+ 
+ def _build_formatter() -> logging.Formatter:

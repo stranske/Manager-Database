@@ -12,7 +12,8 @@ unchanged in this PR.
 | PR #1836 merge on `main` | `7f6cc1af9c35cd412fd8b2eb780ce6f033b88ac1` | Adds `tests/test_coverage_round_1835.py` (eight tests) |
 | Parent before merge | `475ba0e81908160a53275274ed2450143554ff2e` | First parent of merge commit |
 | PR #1836 final Gate head | `d322683eaa5ec8a45ed34cab1dd8497a17fa5cd3` | Same tree as merge for coverage targets |
-| This repair branch | `closer/issue-1835` from current `main` | Evidence + receipts only |
+| Earlier repair | `98b63bd693cea338a9a24dca519ba62841db45cb` on `closer/issue-1835` | Squash-merged as `e6405b61d563597e8e675b255a7da6fa5a57f56d` (#1882); tree matches that main commit |
+| This repair branch | `closer-r3/issue-1835` from main `e6405b61d563597e8e675b255a7da6fa5a57f56d` | Merged the earlier local branch to retain its history; evidence only |
 | Test module SHA-256 | `bba5b9ed4c968df1818f5e6b3812f50d6121f9f33731a54984c515a3bc90714e` | Matches merge content on `main` |
 
 Gate command (Python 3.13 job log, historical PR Gate and local reproduction):
@@ -83,26 +84,69 @@ in that priority order; measured whole-suite credit is partial (45 U, not ~180).
 
 ## Break-and-revert evidence (eight tests)
 
-Raw captures under `issue-1835-closer-repair/mutation-run/`. Command template:
+Acceptance outcome (check date 2026-11-03): eight individually mutated tests must
+fail at their documented check, then pass after restoring the source; the complete
+focused module must pass with no production or test changes remaining.
+
+Stop rule: at most two pytest attempts per mutation, or 45 minutes of repair work;
+stop at the first unresolved step. Each pytest invocation has a 110-second timeout.
+The only test runs in this repair are the individual commands below and one final
+focused-module run; no full suite or release/verification pipeline was run.
+
+The earlier committed red/green captures were recovered from #1882, but lacked
+exact mutation diffs, commands in each capture, and exit-status receipts. A bounded
+search of local temporary captures found no more complete originals. This repair
+reproduces each documented mutation in the isolated disposable checkout
+`/private/tmp/manager-db-1835-mutation-checkout`, detached at main `e6405b6`.
+The old trimmed logs are superseded by full fresh captures at the same paths;
+their originals remain inspectable in [#1882](https://github.com/stranske/Manager-Database/pull/1882/files).
+The coverage accounting, shortfall explanation, and eight tests are retained.
+No prior source or test work was discarded.
+
+Each mutation changes one production file in the disposable checkout only. Its
+original bytes are restored before the green invocation, and all production paths
+(`adapters`, `api`, `etl`, `ui`) are checked for a clean diff after every restore.
+`PYTHONDONTWRITEBYTECODE=1` prevents stale bytecode during these runs. The exact
+patches below can be replayed with `git apply <name>.diff` at the recorded base;
+restore the affected file before running the identical command again.
+
+Raw captures preserve combined stdout/stderr without trimming, with command,
+checkout, base SHA, UTC start, duration, and actual exit status. The
+[machine-readable receipts](issue-1835-closer-repair/mutation-run/receipts.json)
+also map all eight nodes to their patches and logs, record original/restored source
+SHA-256 values, and capture the final clean tracked state. Command template:
 
 ```text
 PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::<node> -q --tb=short --disable-warnings
 ```
 
-| Test | Production mutation | Broken assertion (exit 1) | Restored (exit 0) |
+| Test | Exact production mutation | Named failure (exit 1) | Restored (exit 0) |
 | --- | --- | --- | --- |
-| `test_news_helpers_normalize_aliases_timestamps_and_sources` | Force `_parse_iso_timestamp` to return `None` for valid ISO input | `_parse_iso_timestamp("2026-01-01T00:00:00Z")` | `news_helpers-green.txt` |
-| `test_news_watermark_fallback_and_update_paths` | Wrong MAX timestamp from `_fallback_source_since_from_news` | `_fallback_source_since_from_news(...) == "2026-01-03..."` | `news_watermark-green.txt` |
-| `test_news_fallback_handles_missing_news_table` | Return `"not-none"` on missing table | `... is None` | `news_missing_table-green.txt` |
-| `test_logging_cloudwatch_idempotence_and_emit_failure` | Swallow CloudWatch `emit` errors | `record.handled is True` | `logging_cloudwatch-green.txt` |
-| `test_parser_handler_and_data_cover_success_and_failure_paths` | Break successful `parse_response` | `.data == [1]` | `parser_handler_data-green.txt` |
-| `test_alert_filter_helpers_cover_boolean_and_actor_boundaries` | Skip strip in `_normalize_actor` | `_normalize_actor(" ui ") == "ui"` | `alert_filter-green.txt` |
-| `test_search_main_handles_empty_and_renders_grouped_results` | Change empty-state copy | `infos == ["No results found."]` | `search_main-green.txt` |
-| `test_alert_ui_main_and_inbox_error_paths` | Change bulk-ack error string | `errors == ["Unable to acknowledge alerts: nope"]` | `alert_ui-green.txt` |
+| `test_news_helpers_normalize_aliases_timestamps_and_sources` | [Return `None` for valid ISO input](issue-1835-closer-repair/mutation-run/news_helpers.diff) | [AssertionError: `None == datetime(...)`](issue-1835-closer-repair/mutation-run/news_helpers-red.txt) | [Pass](issue-1835-closer-repair/mutation-run/news_helpers-green.txt) |
+| `test_news_watermark_fallback_and_update_paths` | [Wrong MAX timestamp](issue-1835-closer-repair/mutation-run/news_watermark.diff) | [AssertionError: `1970-01-01... == 2026-01-03...`](issue-1835-closer-repair/mutation-run/news_watermark-red.txt) | [Pass](issue-1835-closer-repair/mutation-run/news_watermark-green.txt) |
+| `test_news_fallback_handles_missing_news_table` | [Return `"not-none"` on missing table](issue-1835-closer-repair/mutation-run/news_missing_table.diff) | [AssertionError: `'not-none' is None`](issue-1835-closer-repair/mutation-run/news_missing_table-red.txt) | [Pass](issue-1835-closer-repair/mutation-run/news_missing_table-green.txt) |
+| `test_logging_cloudwatch_idempotence_and_emit_failure` | [Swallow CloudWatch emit errors](issue-1835-closer-repair/mutation-run/logging_cloudwatch.diff) | [AttributeError at `assert record.handled is True`](issue-1835-closer-repair/mutation-run/logging_cloudwatch-red.txt) | [Pass](issue-1835-closer-repair/mutation-run/logging_cloudwatch-green.txt) |
+| `test_parser_handler_and_data_cover_success_and_failure_paths` | [Break successful parse](issue-1835-closer-repair/mutation-run/parser_handler_data.diff) | [AssertionError: `None == [1]`](issue-1835-closer-repair/mutation-run/parser_handler_data-red.txt) | [Pass](issue-1835-closer-repair/mutation-run/parser_handler_data-green.txt) |
+| `test_alert_filter_helpers_cover_boolean_and_actor_boundaries` | [Skip actor strip](issue-1835-closer-repair/mutation-run/alert_filter.diff) | [AssertionError: `' ui ' == 'ui'`](issue-1835-closer-repair/mutation-run/alert_filter-red.txt) | [Pass](issue-1835-closer-repair/mutation-run/alert_filter-green.txt) |
+| `test_search_main_handles_empty_and_renders_grouped_results` | [Change empty-state copy](issue-1835-closer-repair/mutation-run/search_main.diff) | [AssertionError on `empty_ui.infos`](issue-1835-closer-repair/mutation-run/search_main-red.txt) | [Pass](issue-1835-closer-repair/mutation-run/search_main-green.txt) |
+| `test_alert_ui_main_and_inbox_error_paths` | [Change bulk-ack error copy](issue-1835-closer-repair/mutation-run/alert_ui.diff) | [AssertionError on `fake.errors`](issue-1835-closer-repair/mutation-run/alert_ui-red.txt) | [Pass](issue-1835-closer-repair/mutation-run/alert_ui-green.txt) |
 
-## Focused pytest (current `main`)
+The logging failure is an `AttributeError` while evaluating the named assertion,
+not an `AssertionError`; the mutation removes the attribute set by `handleError`.
+The remaining seven failures are assertion mismatches, not collection failures.
 
-See `issue-1835-closer-repair/focused-pytest.txt` (`8 passed`).
+## Focused pytest
+
+Historical capture: `issue-1835-closer-repair/focused-pytest.txt`. Fresh complete
+module output and exit status:
+[focused-pytest.txt](issue-1835-closer-repair/mutation-run/focused-pytest.txt).
+The repository's configured `-q` combines with the requested `-q`, so pytest prints
+eight dots and `[100%]` instead of a prose count; the receipt records exit 0.
+
+The explicitly requested `/opt/anaconda3/bin/python3` is Python 3.12.2, while
+`pyproject.toml` declares Python >=3.13. These are local receipts under that exact
+interpreter, not a substitute for CI on the supported Python version. Historical
+coverage results above were retained without rerunning whole-suite coverage.
 
 ## CI pytest citations
 

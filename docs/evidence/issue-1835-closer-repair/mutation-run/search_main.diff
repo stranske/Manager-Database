@@ -1,0 +1,11 @@
+--- a/ui/search.py
++++ b/ui/search.py
+@@ -101,7 +101,7 @@
+             conn.close()
+ 
+         if not results:
+-            st.info("No results found.")
++            st.info("Results missing.")
+             return
+ 
+         counts = _count_results_by_entity_type(results)

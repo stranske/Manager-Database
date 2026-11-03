@@ -1,0 +1,11 @@
+--- a/api/alerts.py
++++ b/api/alerts.py
+@@ -50,7 +50,7 @@
+ 
+ 
+ def _normalize_actor(value: str) -> str:
+-    normalized = value.strip()
++    normalized = value
+     if not normalized:
+         raise HTTPException(status_code=400, detail="Query parameter 'by' must not be empty")
+     return normalized

@@ -1,1 +1,9 @@
+$ PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_alert_ui_main_and_inbox_error_paths -q --tb=short --disable-warnings
+# cwd: /private/tmp/manager-db-1835-mutation-checkout
+# base: e6405b61d563597e8e675b255a7da6fa5a57f56d
+# started_at_utc: 2026-11-03T19:06:18.957247+00:00
+# PYTHONDONTWRITEBYTECODE=1 (avoid stale bytecode across restore)
 .                                                                        [100%]
+
+# exit_status: 0
+# elapsed_seconds: 7.951

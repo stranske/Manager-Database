@@ -1,3 +1,8 @@
+$ PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_parser_handler_and_data_cover_success_and_failure_paths -q --tb=short --disable-warnings
+# cwd: /private/tmp/manager-db-1835-mutation-checkout
+# base: e6405b61d563597e8e675b255a7da6fa5a57f56d
+# started_at_utc: 2026-11-03T19:05:23.682132+00:00
+# PYTHONDONTWRITEBYTECODE=1 (avoid stale bytecode across restore)
 F                                                                        [100%]
 =================================== FAILURES ===================================
 _________ test_parser_handler_and_data_cover_success_and_failure_paths _________
@@ -5,7 +10,10 @@ tests/test_coverage_round_1835.py:119: in test_parser_handler_and_data_cover_suc
     assert parser.parse_response(b'{"data": [1]}').data == [1]
 E   assert None == [1]
 E    +  where None = ParseResult(ok=False, data=None, error='broken').data
-E    +    where ParseResult(ok=False, data=None, error='broken') = <function parse_response at 0x10cfa4860>(b'{"data": [1]}')
-E    +      where <function parse_response at 0x10cfa4860> = parser.parse_response
+E    +    where ParseResult(ok=False, data=None, error='broken') = <function parse_response at 0x106dcf060>(b'{"data": [1]}')
+E    +      where <function parse_response at 0x106dcf060> = parser.parse_response
 =========================== short test summary info ============================
 FAILED tests/test_coverage_round_1835.py::test_parser_handler_and_data_cover_success_and_failure_paths
+
+# exit_status: 1
+# elapsed_seconds: 8.119

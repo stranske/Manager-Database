@@ -1,3 +1,8 @@
+$ PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_logging_cloudwatch_idempotence_and_emit_failure -q --tb=short --disable-warnings
+# cwd: /private/tmp/manager-db-1835-mutation-checkout
+# base: e6405b61d563597e8e675b255a7da6fa5a57f56d
+# started_at_utc: 2026-11-03T19:05:06.497698+00:00
+# PYTHONDONTWRITEBYTECODE=1 (avoid stale bytecode across restore)
 F                                                                        [100%]
 =================================== FAILURES ===================================
 _____________ test_logging_cloudwatch_idempotence_and_emit_failure _____________
@@ -7,3 +12,6 @@ tests/test_coverage_round_1835.py:107: in test_logging_cloudwatch_idempotence_an
 E   AttributeError: 'LogRecord' object has no attribute 'handled'
 =========================== short test summary info ============================
 FAILED tests/test_coverage_round_1835.py::test_logging_cloudwatch_idempotence_and_emit_failure
+
+# exit_status: 1
+# elapsed_seconds: 8.68

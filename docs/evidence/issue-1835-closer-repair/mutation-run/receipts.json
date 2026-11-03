@@ -1,0 +1,190 @@
+{
+  "checked_at_utc": "2026-11-03T19:03:51.331484+00:00",
+  "base_commit": "e6405b61d563597e8e675b255a7da6fa5a57f56d",
+  "checkout": "/private/tmp/manager-db-1835-mutation-checkout",
+  "python_version": "Python 3.12.2",
+  "environment": {
+    "PYTHONPATH": ".",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "test_module_sha256": "bba5b9ed4c968df1818f5e6b3812f50d6121f9f33731a54984c515a3bc90714e",
+  "cases": [
+    {
+      "test": "test_news_helpers_normalize_aliases_timestamps_and_sources",
+      "source": "etl/news_flow.py",
+      "mutation_diff": "news_helpers.diff",
+      "original_source_sha256": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb",
+      "restored_source_sha256": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb",
+      "named_failure": "AssertionError: assert None == datetime.datetime",
+      "red": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_news_helpers_normalize_aliases_timestamps_and_sources -q --tb=short --disable-warnings",
+        "exit_status": 1,
+        "elapsed_seconds": 12.552,
+        "log": "news_helpers-red.txt"
+      },
+      "green": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_news_helpers_normalize_aliases_timestamps_and_sources -q --tb=short --disable-warnings",
+        "exit_status": 0,
+        "elapsed_seconds": 9.574,
+        "log": "news_helpers-green.txt"
+      },
+      "production_diff_after_restore": ""
+    },
+    {
+      "test": "test_news_watermark_fallback_and_update_paths",
+      "source": "etl/news_flow.py",
+      "mutation_diff": "news_watermark.diff",
+      "original_source_sha256": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb",
+      "restored_source_sha256": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb",
+      "named_failure": "AssertionError: assert '1970-01-01T00:00:00Z'",
+      "red": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_news_watermark_fallback_and_update_paths -q --tb=short --disable-warnings",
+        "exit_status": 1,
+        "elapsed_seconds": 9.137,
+        "log": "news_watermark-red.txt"
+      },
+      "green": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_news_watermark_fallback_and_update_paths -q --tb=short --disable-warnings",
+        "exit_status": 0,
+        "elapsed_seconds": 10.163,
+        "log": "news_watermark-green.txt"
+      },
+      "production_diff_after_restore": ""
+    },
+    {
+      "test": "test_news_fallback_handles_missing_news_table",
+      "source": "etl/news_flow.py",
+      "mutation_diff": "news_missing_table.diff",
+      "original_source_sha256": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb",
+      "restored_source_sha256": "8b808a216411c7eda17f15eae96e82edda5588bec15bd88dd72b64d499ff2dcb",
+      "named_failure": "AssertionError: assert 'not-none' is None",
+      "red": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_news_fallback_handles_missing_news_table -q --tb=short --disable-warnings",
+        "exit_status": 1,
+        "elapsed_seconds": 8.525,
+        "log": "news_missing_table-red.txt"
+      },
+      "green": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_news_fallback_handles_missing_news_table -q --tb=short --disable-warnings",
+        "exit_status": 0,
+        "elapsed_seconds": 8.57,
+        "log": "news_missing_table-green.txt"
+      },
+      "production_diff_after_restore": ""
+    },
+    {
+      "test": "test_logging_cloudwatch_idempotence_and_emit_failure",
+      "source": "etl/logging_setup.py",
+      "mutation_diff": "logging_cloudwatch.diff",
+      "original_source_sha256": "c233259000e2fe50dad315e51a64a3502e9074f438edd9bf9df6b95cbd4bd253",
+      "restored_source_sha256": "c233259000e2fe50dad315e51a64a3502e9074f438edd9bf9df6b95cbd4bd253",
+      "named_failure": "AttributeError: 'LogRecord' object has no attribute 'handled'",
+      "red": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_logging_cloudwatch_idempotence_and_emit_failure -q --tb=short --disable-warnings",
+        "exit_status": 1,
+        "elapsed_seconds": 8.68,
+        "log": "logging_cloudwatch-red.txt"
+      },
+      "green": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_logging_cloudwatch_idempotence_and_emit_failure -q --tb=short --disable-warnings",
+        "exit_status": 0,
+        "elapsed_seconds": 8.476,
+        "log": "logging_cloudwatch-green.txt"
+      },
+      "production_diff_after_restore": ""
+    },
+    {
+      "test": "test_parser_handler_and_data_cover_success_and_failure_paths",
+      "source": "api/parser.py",
+      "mutation_diff": "parser_handler_data.diff",
+      "original_source_sha256": "9ecbd60b9f4982afcf7aa49742ffca4ebc52afb456347e88b1d92db9741862c0",
+      "restored_source_sha256": "9ecbd60b9f4982afcf7aa49742ffca4ebc52afb456347e88b1d92db9741862c0",
+      "named_failure": "assert None == [1]",
+      "red": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_parser_handler_and_data_cover_success_and_failure_paths -q --tb=short --disable-warnings",
+        "exit_status": 1,
+        "elapsed_seconds": 8.119,
+        "log": "parser_handler_data-red.txt"
+      },
+      "green": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_parser_handler_and_data_cover_success_and_failure_paths -q --tb=short --disable-warnings",
+        "exit_status": 0,
+        "elapsed_seconds": 7.711,
+        "log": "parser_handler_data-green.txt"
+      },
+      "production_diff_after_restore": ""
+    },
+    {
+      "test": "test_alert_filter_helpers_cover_boolean_and_actor_boundaries",
+      "source": "api/alerts.py",
+      "mutation_diff": "alert_filter.diff",
+      "original_source_sha256": "63d6ab6f4c431c8f1cf3798d09c55b794d0378777b6058854ff539981f97dd7b",
+      "restored_source_sha256": "63d6ab6f4c431c8f1cf3798d09c55b794d0378777b6058854ff539981f97dd7b",
+      "named_failure": "AssertionError: assert ' ui ' == 'ui'",
+      "red": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_alert_filter_helpers_cover_boolean_and_actor_boundaries -q --tb=short --disable-warnings",
+        "exit_status": 1,
+        "elapsed_seconds": 7.806,
+        "log": "alert_filter-red.txt"
+      },
+      "green": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_alert_filter_helpers_cover_boolean_and_actor_boundaries -q --tb=short --disable-warnings",
+        "exit_status": 0,
+        "elapsed_seconds": 7.824,
+        "log": "alert_filter-green.txt"
+      },
+      "production_diff_after_restore": ""
+    },
+    {
+      "test": "test_search_main_handles_empty_and_renders_grouped_results",
+      "source": "ui/search.py",
+      "mutation_diff": "search_main.diff",
+      "original_source_sha256": "c1551a005dbd2656d7fbf556e9845844fdeefddf9030ec94b5d4621e9418c587",
+      "restored_source_sha256": "c1551a005dbd2656d7fbf556e9845844fdeefddf9030ec94b5d4621e9418c587",
+      "named_failure": "AssertionError: assert ['Results missing.']",
+      "red": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_search_main_handles_empty_and_renders_grouped_results -q --tb=short --disable-warnings",
+        "exit_status": 1,
+        "elapsed_seconds": 8.026,
+        "log": "search_main-red.txt"
+      },
+      "green": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_search_main_handles_empty_and_renders_grouped_results -q --tb=short --disable-warnings",
+        "exit_status": 0,
+        "elapsed_seconds": 7.866,
+        "log": "search_main-green.txt"
+      },
+      "production_diff_after_restore": ""
+    },
+    {
+      "test": "test_alert_ui_main_and_inbox_error_paths",
+      "source": "ui/alerts.py",
+      "mutation_diff": "alert_ui.diff",
+      "original_source_sha256": "17bb4f7c4382de9bfcb663c03caac3907991f837e2fc7e8490797852860140d4",
+      "restored_source_sha256": "17bb4f7c4382de9bfcb663c03caac3907991f837e2fc7e8490797852860140d4",
+      "named_failure": "AssertionError: assert ['Ack failed: nope']",
+      "red": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_alert_ui_main_and_inbox_error_paths -q --tb=short --disable-warnings",
+        "exit_status": 1,
+        "elapsed_seconds": 7.85,
+        "log": "alert_ui-red.txt"
+      },
+      "green": {
+        "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py::test_alert_ui_main_and_inbox_error_paths -q --tb=short --disable-warnings",
+        "exit_status": 0,
+        "elapsed_seconds": 7.951,
+        "log": "alert_ui-green.txt"
+      },
+      "production_diff_after_restore": ""
+    }
+  ],
+  "focused_module": {
+    "command": "PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest tests/test_coverage_round_1835.py -q --tb=short --disable-warnings",
+    "exit_status": 0,
+    "elapsed_seconds": 8.265,
+    "log": "focused-pytest.txt"
+  },
+  "final_tracked_status": "",
+  "final_production_diff_command": "git diff --exit-code e6405b61d563597e8e675b255a7da6fa5a57f56d -- adapters api etl ui",
+  "final_production_diff_exit_status": 0
+}
