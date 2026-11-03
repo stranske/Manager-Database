@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_parser_handler_and_data_cover_success_and_failure_paths _________
+tests/test_coverage_round_1835.py:119: in test_parser_handler_and_data_cover_success_and_failure_paths
+    assert parser.parse_response(b'{"data": [1]}').data == [1]
+E   assert None == [1]
+E    +  where None = ParseResult(ok=False, data=None, error='broken').data
+E    +    where ParseResult(ok=False, data=None, error='broken') = <function parse_response at 0x10cfa4860>(b'{"data": [1]}')
+E    +      where <function parse_response at 0x10cfa4860> = parser.parse_response
+=========================== short test summary info ============================
+FAILED tests/test_coverage_round_1835.py::test_parser_handler_and_data_cover_success_and_failure_paths

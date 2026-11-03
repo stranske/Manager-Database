@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_alert_filter_helpers_cover_boolean_and_actor_boundaries _________
+tests/test_coverage_round_1835.py:156: in test_alert_filter_helpers_cover_boolean_and_actor_boundaries
+    assert alerts_api._normalize_actor(" ui ") == "ui"
+E   AssertionError: assert ' ui ' == 'ui'
+E     
+E     - ui
+E     +  ui
+=========================== short test summary info ============================
+FAILED tests/test_coverage_round_1835.py::test_alert_filter_helpers_cover_boolean_and_actor_boundaries

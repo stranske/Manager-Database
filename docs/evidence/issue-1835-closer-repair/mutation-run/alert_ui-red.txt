@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________ test_alert_ui_main_and_inbox_error_paths ___________________
+tests/test_coverage_round_1835.py:308: in test_alert_ui_main_and_inbox_error_paths
+    assert fake.errors == ["Unable to acknowledge alerts: nope"]
+E   AssertionError: assert ['Ack failed: nope'] == ['Unable to a...alerts: nope']
+E     
+E     At index 0 diff: 'Ack failed: nope' != 'Unable to acknowledge alerts: nope'
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_coverage_round_1835.py::test_alert_ui_main_and_inbox_error_paths
