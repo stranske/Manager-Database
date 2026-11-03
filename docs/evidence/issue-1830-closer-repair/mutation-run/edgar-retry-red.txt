@@ -1,0 +1,147 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_edgar_request_with_retry_succeeds_after_transient_error _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x30ffe2ba0>
+
+    @pytest.mark.asyncio
+    async def test_edgar_request_with_retry_succeeds_after_transient_error(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        attempts = {"count": 0}
+    
+        class Response:
+            def raise_for_status(self) -> None:
+                return None
+    
+        class DummyClient:
+            async def get(self, *a, **k):
+                attempts["count"] += 1
+                if attempts["count"] == 1:
+                    raise edgar.httpx.RequestError("transient network failure")
+                return Response()
+    
+        class Tracked:
+            async def __aenter__(self):
+                return self
+    
+            async def __aexit__(self, *_args: object) -> bool:
+                return False
+    
+            def __call__(self, _response: object) -> None:
+                return None
+    
+        async def _noop_sleep(_delay: float) -> None:
+            return None
+    
+        monkeypatch.setattr(edgar, "tracked_call", lambda *_a, **_k: Tracked())
+        monkeypatch.setattr(edgar.asyncio, "sleep", _noop_sleep)
+        monkeypatch.setattr(edgar, "_last_edgar_request_at", None)
+>       response = await edgar._request_with_retry(
+            cast(httpx.AsyncClient, DummyClient()),
+            "https://data.sec.gov/submissions",
+            {"User-Agent": "test"},
+            source="edgar",
+        )
+
+tests/test_issue_1830_coverage.py:243: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+adapters/edgar.py:73: in _request_with_retry
+    response = await client.get(url, headers=headers)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tests.test_issue_1830_coverage.test_edgar_request_with_retry_succeeds_after_transient_error.<locals>.DummyClient object at 0x30fedf890>
+a = ('https://data.sec.gov/submissions',)
+k = {'headers': {'User-Agent': 'test'}}
+
+    async def get(self, *a, **k):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+>           raise edgar.httpx.RequestError("transient network failure")
+E           httpx.RequestError: transient network failure
+
+tests/test_issue_1830_coverage.py:224: RequestError
+----------------------------- Captured stderr call -----------------------------
+23:57:10.147 | ERROR   | adapters.edgar - EDGAR request failed after retries
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/adapters/edgar.py", line 73, in _request_with_retry
+    response = await client.get(url, headers=headers)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/tests/test_issue_1830_coverage.py", line 224, in get
+    raise edgar.httpx.RequestError("transient network failure")
+httpx.RequestError: transient network failure
+{"asctime": "2026-11-02 23:57:10,147", "levelname": "ERROR", "name": "adapters.edgar", "service": "ingest_flow", "message": "EDGAR request failed after retries", "exc_info": "Traceback (most recent call last):\n  File \"/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/adapters/edgar.py\", line 73, in _request_with_retry\n    response = await client.get(url, headers=headers)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/tests/test_issue_1830_coverage.py\", line 224, in get\n    raise edgar.httpx.RequestError(\"transient network failure\")\nhttpx.RequestError: transient network failure", "taskName": "Task-1", "url": "https://data.sec.gov/submissions", "attempts": 1}
+------------------------------ Captured log call -------------------------------
+ERROR    adapters.edgar:edgar.py:81 EDGAR request failed after retries
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/adapters/edgar.py", line 73, in _request_with_retry
+    response = await client.get(url, headers=headers)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/tests/test_issue_1830_coverage.py", line 224, in get
+    raise edgar.httpx.RequestError("transient network failure")
+httpx.RequestError: transient network failure
+=============================== warnings summary ===============================
+../../../../../../opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11
+  /opt/anaconda3/lib/python3.12/site-packages/sklearn/utils/_param_validation.py:11: UserWarning: A NumPy version >=2.0.0 and <2.8.0 is required for this version of SciPy (detected version 1.26.4)
+    from scipy.sparse import csr_matrix, issparse
+
+../../../../../../opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17
+  /opt/anaconda3/lib/python3.12/site-packages/scipy/sparse/_sputils.py:17: FutureWarning: In the future `np.long` will be defined as the corresponding NumPy scalar.
+    np.uintc, np.long, np.ulong, np.longlong, np.ulonglong,
+
+../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
+  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
+  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1830__opener/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.8.7' currently installed).
+    from pandas.core.computation.check import NUMEXPR_INSTALLED
+
+../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56
+  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56: UserWarning: Pandas requires version '1.4.2' or newer of 'bottleneck' (version '1.3.7' currently installed).
+    from pandas.core import (
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_issue_1830_coverage.py::test_edgar_request_with_retry_succeeds_after_transient_error
+1 failed, 11 warnings in 1.78s
+exit=0
