@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_ingest_helpers_cover_authority_hashes_and_canonical_holdings _______
+tests/test_issue_1802_coverage.py:319: in test_ingest_helpers_cover_authority_hashes_and_canonical_holdings
+    assert ingest_flow._max_results_in_memory() == 100000
+E   assert 1 == 100000
+E    +  where 1 = <function _max_results_in_memory at 0x330c52160>()
+E    +    where <function _max_results_in_memory at 0x330c52160> = ingest_flow._max_results_in_memory
+----------------------------- Captured stderr call -----------------------------
+09:16:25.038 | WARNING | etl.ingest_flow - Invalid MAX_RESULTS_IN_MEMORY; using default
+{"asctime": "2026-11-03 09:16:25,038", "levelname": "WARNING", "name": "etl.ingest_flow", "service": "digest_flow", "message": "Invalid MAX_RESULTS_IN_MEMORY; using default", "taskName": null, "value": "invalid", "default": 100000}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.ingest_flow:ingest_flow.py:767 Invalid MAX_RESULTS_IN_MEMORY; using default
+=========================== short test summary info ============================
+FAILED tests/test_issue_1802_coverage.py::test_ingest_helpers_cover_authority_hashes_and_canonical_holdings

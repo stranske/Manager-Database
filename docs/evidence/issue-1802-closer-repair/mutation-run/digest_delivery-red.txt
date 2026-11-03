@@ -1,0 +1,13 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_digest_delivery_covers_sendgrid_statuses_smtp_and_flow_artifact _____
+tests/test_issue_1802_coverage.py:76: in test_digest_delivery_covers_sendgrid_statuses_smtp_and_flow_artifact
+    assert asyncio.run(digest_flow.deliver_digest_email(digest)).success is True
+E   AssertionError: assert False is True
+E    +  where False = DeliveryResult(channel='email', success=False, error_message='SendGrid digest delivery failed: HTTP 202', skipped=False).success
+E    +    where DeliveryResult(channel='email', success=False, error_message='SendGrid digest delivery failed: HTTP 202', skipped=False) = <function run at 0x104e2f240>(<coroutine object deliver_digest_email at 0x32e104ea0>)
+E    +      where <function run at 0x104e2f240> = asyncio.run
+E    +      and   <coroutine object deliver_digest_email at 0x32e104ea0> = <function deliver_digest_email at 0x316283740>(DigestDocument(generated_at=datetime.datetime(2026, 1, 2, 0, 0, tzinfo=datetime.timezone.utc), lookback_hours=12, fili...alerts=[DigestAlert(rule_name='Rule', event_type='event', fired_at='2026-01-02', summary='Summary', manager_name='C')]))
+E    +        where <function deliver_digest_email at 0x316283740> = digest_flow.deliver_digest_email
+=========================== short test summary info ============================
+FAILED tests/test_issue_1802_coverage.py::test_digest_delivery_covers_sendgrid_statuses_smtp_and_flow_artifact

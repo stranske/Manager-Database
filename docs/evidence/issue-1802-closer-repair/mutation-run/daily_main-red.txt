@@ -1,0 +1,9 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_daily_report_main_covers_populated_secondary_tabs ____________
+tests/test_issue_1802_coverage.py:258: in test_daily_report_main_covers_populated_secondary_tabs
+    assert any("Linked Headlines" in value for value in markdown)
+E   assert False
+E    +  where False = any(<generator object test_daily_report_main_covers_populated_secondary_tabs.<locals>.<genexpr> at 0x31a8764d0>)
+=========================== short test summary info ============================
+FAILED tests/test_issue_1802_coverage.py::test_daily_report_main_covers_populated_secondary_tabs

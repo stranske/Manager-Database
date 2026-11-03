@@ -1,0 +1,39 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_ingest_flow_collects_rows_handles_per_identifier_failures_and_rejects_bad_fetcher _
+tests/test_issue_1802_coverage.py:342: in test_ingest_flow_collects_rows_handles_per_identifier_failures_and_rejects_bad_fetcher
+    assert (tmp_path / "parsed.json").read_text() == '[{"identifier": "ok"}]'
+E   assert '[]' == '[{"identifier": "ok"}]'
+E     
+E     - [{"identifier": "ok"}]
+E     + []
+----------------------------- Captured stderr call -----------------------------
+09:16:43.405 | INFO    | etl.ingest_flow - Ingest flow completed
+{"asctime": "2026-11-03 09:16:43,405", "levelname": "INFO", "name": "etl.ingest_flow", "service": "digest_flow", "message": "Ingest flow completed", "taskName": "Task-1", "identifier": "ok", "rows": 1, "jurisdiction": "us"}
+09:16:43.407 | WARNING | etl.ingest_flow - No filings found
+{"asctime": "2026-11-03 09:16:43,407", "levelname": "WARNING", "name": "etl.ingest_flow", "service": "digest_flow", "message": "No filings found", "taskName": "Task-1", "identifier": "empty", "since": "2026-01-01", "jurisdiction": "us"}
+09:16:43.407 | ERROR   | etl.ingest_flow - Ingest flow failed
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1802__closer-repair-2/etl/ingest_flow.py", line 935, in ingest_flow
+    rows = await resolved_fetcher(identifier, since)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1802__closer-repair-2/tests/test_issue_1802_coverage.py", line 333, in fetch
+    raise RuntimeError("broken")
+RuntimeError: broken
+{"asctime": "2026-11-03 09:16:43,407", "levelname": "ERROR", "name": "etl.ingest_flow", "service": "digest_flow", "message": "Ingest flow failed", "exc_info": "Traceback (most recent call last):\n  File \"/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1802__closer-repair-2/etl/ingest_flow.py\", line 935, in ingest_flow\n    rows = await resolved_fetcher(identifier, since)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1802__closer-repair-2/tests/test_issue_1802_coverage.py\", line 333, in fetch\n    raise RuntimeError(\"broken\")\nRuntimeError: broken", "taskName": "Task-1", "identifier": "bad", "since": "2026-01-01", "jurisdiction": "us"}
+09:16:43.408 | INFO    | etl.ingest_flow - Ingest flow finished
+{"asctime": "2026-11-03 09:16:43,408", "levelname": "INFO", "name": "etl.ingest_flow", "service": "digest_flow", "message": "Ingest flow finished", "taskName": "Task-1", "total_rows": 1, "jurisdiction": "us"}
+------------------------------ Captured log call -------------------------------
+INFO     etl.ingest_flow:logging_setup.py:147 Ingest flow completed
+WARNING  etl.ingest_flow:ingest_flow.py:944 No filings found
+ERROR    etl.ingest_flow:ingest_flow.py:949 Ingest flow failed
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1802__closer-repair-2/etl/ingest_flow.py", line 935, in ingest_flow
+    rows = await resolved_fetcher(identifier, since)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1802__closer-repair-2/tests/test_issue_1802_coverage.py", line 333, in fetch
+    raise RuntimeError("broken")
+RuntimeError: broken
+INFO     etl.ingest_flow:logging_setup.py:147 Ingest flow finished
+=========================== short test summary info ============================
+FAILED tests/test_issue_1802_coverage.py::test_ingest_flow_collects_rows_handles_per_identifier_failures_and_rejects_bad_fetcher
