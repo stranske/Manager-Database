@@ -1,0 +1,13 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________ test_submit_feedback_persists_and_forwards __________________
+tests/test_chat_coverage_round_1840.py:497: in test_submit_feedback_persists_and_forwards
+    assert result == {"ok": True, "feedback_id": 99}
+E   AssertionError: assert {'ok': True, ...back_id': 100} == {'ok': True, ...dback_id': 99}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'feedback_id': 100} != {'feedback_id': 99}
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_submit_feedback_persists_and_forwards

@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_manager_id_column_falls_back_when_helper_returns_none __________
+tests/test_chat_coverage_round_1840.py:619: in test_manager_id_column_falls_back_when_helper_returns_none
+    assert chat._manager_id_column(SimpleNamespace()) == "id"
+E   AssertionError: assert 'broken' == 'id'
+E     
+E     - id
+E     + broken
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_manager_id_column_falls_back_when_helper_returns_none

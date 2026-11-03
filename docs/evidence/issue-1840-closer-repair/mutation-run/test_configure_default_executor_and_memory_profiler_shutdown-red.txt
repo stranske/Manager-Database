@@ -1,0 +1,9 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_configure_default_executor_and_memory_profiler_shutdown _________
+tests/test_chat_coverage_round_1840.py:810: in test_configure_default_executor_and_memory_profiler_shutdown
+    assert seen["executor"] is chat._APP_EXECUTOR
+E   assert <concurrent.futures.thread.ThreadPoolExecutor object at 0x16e3d2ea0> is <concurrent.futures.thread.ThreadPoolExecutor object at 0x16e3d2db0>
+E    +  where <concurrent.futures.thread.ThreadPoolExecutor object at 0x16e3d2db0> = chat._APP_EXECUTOR
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_configure_default_executor_and_memory_profiler_shutdown

@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_record_chat_fleet_safe_swallows_observability_failures __________
+tests/test_chat_coverage_round_1840.py:71: in test_record_chat_fleet_safe_swallows_observability_failures
+    chat._record_chat_fleet_safe(
+api/chat.py:1066: in _record_chat_fleet_safe
+    record_chat_event(
+tests/test_chat_coverage_round_1840.py:68: in boom
+    raise RuntimeError("fleet down")
+E   RuntimeError: fleet down
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_record_chat_fleet_safe_swallows_observability_failures

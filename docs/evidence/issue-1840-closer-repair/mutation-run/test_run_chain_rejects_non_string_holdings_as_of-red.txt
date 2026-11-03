@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_run_chain_rejects_non_string_holdings_as_of _______________
+tests/test_chat_coverage_round_1840.py:293: in test_run_chain_rejects_non_string_holdings_as_of
+    await chat._run_chain("holdings_analysis", "positions", {"as_of": 20240615}, None)
+api/chat.py:974: in _run_chain
+    holdings_as_of = datetime.fromisoformat(raw_cutoff.replace("Z", "+00:00"))
+                                            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'int' object has no attribute 'replace'
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_chain_rejects_non_string_holdings_as_of

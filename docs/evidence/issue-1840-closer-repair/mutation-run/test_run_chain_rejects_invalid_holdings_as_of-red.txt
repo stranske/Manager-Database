@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________________ test_run_chain_rejects_invalid_holdings_as_of _________________
+tests/test_chat_coverage_round_1840.py:106: in test_run_chain_rejects_invalid_holdings_as_of
+    with pytest.raises(HTTPException, match="as_of must be a valid ISO"):
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'as_of must be a valid ISO'
+E     Actual message: '400: as_of accepted'
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_chain_rejects_invalid_holdings_as_of

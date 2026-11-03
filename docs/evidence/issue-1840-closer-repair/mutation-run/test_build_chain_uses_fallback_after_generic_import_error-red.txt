@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_build_chain_uses_fallback_after_generic_import_error ___________
+tests/test_chat_coverage_round_1840.py:154: in boom
+    raise ImportError("broken chain")
+E   ImportError: broken chain
+
+The above exception was the direct cause of the following exception:
+tests/test_chat_coverage_round_1840.py:157: in test_build_chain_uses_fallback_after_generic_import_error
+    chain = chat._build_chain("nl_query", None)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api/chat.py:767: in _build_chain
+    raise ChainUnavailableError(f"Chat chain '{chain_name}' failed during import") from exc
+E   api.chat.ChainUnavailableError: Chat chain 'nl_query' failed during import
+------------------------------ Captured log call -------------------------------
+ERROR    api.chat:chat.py:766 Chat chain nl_query failed during import
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1840__closer-repair-2/api/chat.py", line 746, in _build_chain
+    module = importlib.import_module(module_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1840__closer-repair-2/tests/test_chat_coverage_round_1840.py", line 154, in boom
+    raise ImportError("broken chain")
+ImportError: broken chain
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_build_chain_uses_fallback_after_generic_import_error

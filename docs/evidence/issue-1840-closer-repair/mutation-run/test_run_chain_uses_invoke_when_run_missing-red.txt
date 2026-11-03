@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_run_chain_uses_invoke_when_run_missing __________________
+tests/test_chat_coverage_round_1840.py:312: in test_run_chain_uses_invoke_when_run_missing
+    answer, sources, sql, trace = await chat._run_chain(
+api/chat.py:1008: in _run_chain
+    raise RuntimeError(f"Chain '{chain_name}' does not expose run/invoke")
+E   RuntimeError: Chain 'nl_query' does not expose run/invoke
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_chain_uses_invoke_when_run_missing

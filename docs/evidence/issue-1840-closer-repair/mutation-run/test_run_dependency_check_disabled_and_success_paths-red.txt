@@ -1,0 +1,13 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_run_dependency_check_disabled_and_success_paths _____________
+tests/test_chat_coverage_round_1840.py:665: in test_run_dependency_check_disabled_and_success_paths
+    assert disabled == {"healthy": True, "latency_ms": 0, "enabled": False}
+E   AssertionError: assert {'healthy': F...abled': False} == {'healthy': T...abled': False}
+E     
+E     Omitting 2 identical items, use -vv to show
+E     Differing items:
+E     {'healthy': False} != {'healthy': True}
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_dependency_check_disabled_and_success_paths

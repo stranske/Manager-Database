@@ -1,0 +1,8 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_get_health_executor_recreates_after_shutdown _______________
+tests/test_chat_coverage_round_1840.py:61: in test_get_health_executor_recreates_after_shutdown
+    assert replacement is not seeded
+E   assert <concurrent.futures.thread.ThreadPoolExecutor object at 0x30442c410> is not <concurrent.futures.thread.ThreadPoolExecutor object at 0x30442c410>
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_get_health_executor_recreates_after_shutdown

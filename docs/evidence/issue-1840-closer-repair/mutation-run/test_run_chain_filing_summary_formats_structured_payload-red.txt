@@ -1,0 +1,8 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_run_chain_filing_summary_formats_structured_payload ___________
+tests/test_chat_coverage_round_1840.py:356: in test_run_chain_filing_summary_formats_structured_payload
+    assert "Northstar" in answer
+E   AssertionError: assert 'Northstar' in 'Wrong manager filing summary (2024-03-31)\nTotal positions: 2\nEstimated AUM: 12\nTop positions: Alpha\nNotable changes: Added Alpha\nRisk flags: Concentrated'
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_chain_filing_summary_formats_structured_payload

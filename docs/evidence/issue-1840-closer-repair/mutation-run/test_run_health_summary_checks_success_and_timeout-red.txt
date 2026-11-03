@@ -1,0 +1,8 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_run_health_summary_checks_success_and_timeout ______________
+tests/test_chat_coverage_round_1840.py:692: in test_run_health_summary_checks_success_and_timeout
+    assert results["database"][0]["healthy"] is True
+E   assert False is True
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_health_summary_checks_success_and_timeout

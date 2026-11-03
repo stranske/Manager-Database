@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_run_chain_requires_filing_id_for_filing_summary _____________
+tests/test_chat_coverage_round_1840.py:126: in test_run_chain_requires_filing_id_for_filing_summary
+    with pytest.raises(HTTPException, match="filing_summary requires context.filing_id"):
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'filing_summary requires context.filing_id'
+E     Actual message: '400: ok'
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_chain_requires_filing_id_for_filing_summary

@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_normalize_sources_and_extract_chain_payload_object_paths _________
+tests/test_chat_coverage_round_1840.py:33: in test_normalize_sources_and_extract_chain_payload_object_paths
+    assert chat._normalize_sources("plain") == []
+E   AssertionError: assert [{'broken': True}] == []
+E     
+E     Left contains one more item: {'broken': True}
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_normalize_sources_and_extract_chain_payload_object_paths

@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_enforce_chat_rate_limit_session_budget_after_ip_passes __________
+tests/test_chat_coverage_round_1840.py:239: in test_enforce_chat_rate_limit_session_budget_after_ip_passes
+    assert exc.value.detail == "Rate limit exceeded"
+E   AssertionError: assert 'Rate limit ok' == 'Rate limit exceeded'
+E     
+E     - Rate limit exceeded
+E     + Rate limit ok
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_enforce_chat_rate_limit_session_budget_after_ip_passes

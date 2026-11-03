@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_resolve_chain_name_falls_back_when_classifier_returns_unknown ______
+tests/test_chat_coverage_round_1840.py:224: in test_resolve_chain_name_falls_back_when_classifier_returns_unknown
+    assert chat._resolve_chain_name("auto", "anything", {}) == "rag_search"
+E   AssertionError: assert 'mystery_chain' == 'rag_search'
+E     
+E     - rag_search
+E     + mystery_chain
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_resolve_chain_name_falls_back_when_classifier_returns_unknown
