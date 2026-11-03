@@ -108,5 +108,18 @@ mutation above is the independently re-run proof retained in `activism-filter-*.
 
 ```text
 $ /opt/anaconda3/bin/python3 -m pytest -q tests/test_issue_1830_coverage.py
-8 passed (see focused-pytest.txt)
+........                                                                 [100%]
+8 passed (module; warnings omitted — see focused-pytest.txt)
 ```
+
+## CI pytest (main-based revision under test)
+
+Repository `CI` workflow. This evidence PR is docs-only (Gate skips Python jobs).
+The #1874 test module runs on `main`:
+
+| Run | Trigger | Python 3.13 summary |
+| --- | --- | --- |
+| [41120968097](https://github.com/stranske/Manager-Database/actions/runs/41120968097) | `main` after #1874 merge | `2542 passed, 28 skipped, 355 warnings in 92.73s` |
+| [41583791672](https://github.com/stranske/Manager-Database/actions/runs/41583791672) | current `main` | `2588 passed, 28 skipped, 356 warnings in 134.66s` |
+
+Gate on this PR: [41587009769](https://github.com/stranske/Manager-Database/actions/runs/41587009769) — success (Python CI skipped).
