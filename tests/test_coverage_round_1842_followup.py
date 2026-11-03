@@ -1,42 +1,16 @@
-"""Round 1842 follow-up: remaining dashboard/chat helper branches.
+"""Round 1842 follow-up: dashboard/chat helpers and legacy SQLite migration.
 
-Coverage evidence (issue #1842 acceptance; head 514f4837)
----------------------------------------------------------
-Hosted Gate (Python CI 3.13/3.14 on PR #1876) is the authoritative run; local
-spot-check when Dropbox venv is usable:
-
-  PYTHONPATH=. python3.12 -m pytest tests/test_coverage_round_1842_followup.py \\
-    --cov=ui.dashboard --cov=api.chat --cov=api.managers --cov-report=term -q
-
-Module ``--cov`` totals with only this file (local 2026-10-31): dashboard 11%,
-``api/chat.py`` 30%, ``api/managers.py`` 18% (2377 stmts / 21% total). Pairing
-with ``tests/test_coverage_round_1842.py`` raises dashboard/chat/managers to
-44%/37%/23% (34% total) — the follow-up closes helper branches called out in
-#1842 after the primary round-1842 chunk landed via #1843.
-
-Per-test deliberate-break / revert (each FAIL when broken, PASS when restored):
-
-* ``test_api_base_url_prefers_alerts_env`` — break: assert
-  ``_api_base_url()`` ignores ``ALERTS_API_BASE_URL``; revert restores env
-  precedence (alerts → API → localhost default).
-* ``test_load_unacknowledged_alert_count_offline_mode`` — break: drop
-  ``UI_OFFLINE`` short-circuit so ``httpx.Client`` is constructed; revert
-  keeps offline guard and cache clear.
-* ``test_render_active_campaigns_widget_empty_snapshot`` — break: expect a
-  non-empty caption when the snapshot DataFrame is empty; revert restores the
-  "No active materialized campaign snapshot" caption paths.
-* ``test_chat_normalizers_and_chain_context_name_resolution`` — break: return
-  ``None`` from ``_parse_date_range`` for valid ISO pairs; revert restores list
-  and dict date parsing plus SQLite manager-name resolution.
-* ``test_universe_schema_quality_flags_on_partial_legacy_sqlite_table`` — break:
-  skip ``_ensure_universe_schema``; revert adds ``quality_flags`` to partial
-  legacy ``managers`` tables.
+Checked 2026-11-03: production-mutation assertion failures and restored passes
+for all five tests are recorded in repair PR #1881. See
+``docs/evidence/issue-1842-closer-repair.md`` for commands, comparable Python
+3.13 Gate evidence (50 uncovered units before and after), and deferrals.
 """
 
 from __future__ import annotations
 
 import sqlite3
 from datetime import date
+from unittest.mock import MagicMock
 
 import pandas as pd
 
@@ -66,12 +40,12 @@ def test_load_unacknowledged_alert_count_offline_mode(monkeypatch):
     dashboard.load_unacknowledged_alert_count.clear()
     monkeypatch.setenv("UI_OFFLINE", "1")
 
-    def fail_client(*_args, **_kwargs):
-        raise AssertionError("httpx.Client should not be constructed in offline mode")
-
-    monkeypatch.setattr(dashboard.httpx, "Client", fail_client)
+    client_ctor = MagicMock()
+    monkeypatch.setattr(dashboard.httpx, "Client", client_ctor)
     try:
-        assert dashboard.load_unacknowledged_alert_count() == 0
+        result = dashboard.load_unacknowledged_alert_count()
+        assert client_ctor.call_count == 0
+        assert result == 0
     finally:
         dashboard.load_unacknowledged_alert_count.clear()
 
