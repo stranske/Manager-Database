@@ -179,6 +179,54 @@ def test_search_postgres_activism_preserves_filing_context(monkeypatch):
     assert params == ("Target", "Target", "Target", 20)
 
 
+@pytest.mark.parametrize("identifier_columns", [[], ["resolved_ticker", "isin"]])
+def test_search_postgres_holdings_without_identifiers_keep_cusip_context(
+    monkeypatch, identifier_columns
+):
+    monkeypatch.setattr(search, "table_exists", lambda conn, table: table == "holdings")
+    monkeypatch.setattr(search, "get_table_columns", lambda conn, table: identifier_columns)
+    conn = Mock()
+    conn.execute.return_value.fetchall.return_value = [
+        (
+            42,
+            "Alpha",
+            "Needle Corp",
+            "CUSIP",
+            "2024-05-01",
+            *([None] * len(identifier_columns)),
+            0,
+            0,
+        )
+    ]
+
+    results = search.universal_search("Needle", conn, limit=5, entity_type="holding")
+
+    assert [result.model_dump() for result in results] == [
+        {
+            "entity_type": "holding",
+            "entity_id": 42,
+            "manager_name": "Alpha",
+            "headline": "Needle Corp (CUSIP)",
+            "snippet": "CUSIP: CUSIP",
+            "relevance": pytest.approx(0.6),
+            "url": None,
+            "timestamp": "2024-05-01",
+        }
+    ]
+    conn.execute.assert_called_once()
+    sql, params = conn.execute.call_args.args
+    # Bind counts cover all SELECT/WHERE/ORDER BY identifier-rank expressions.
+    assert params == ("Needle",) * (6 + 3 * len(identifier_columns)) + (5,)
+    assert sql.count("%s") == len(params)
+    if identifier_columns:
+        assert "COALESCE(h.name_of_issuer, '') || ' ' ||" in sql
+        for column in identifier_columns:
+            assert f"h.{column}" in sql
+    else:
+        assert "resolved_" not in sql
+        assert "h.isin" not in sql
+
+
 def test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery(monkeypatch):
     from etl import insider_flow, short_interest_flow
 

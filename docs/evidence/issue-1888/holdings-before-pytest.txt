@@ -1,0 +1,18 @@
+........................................................................ [ 93%]
+...../opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7de9cbeed8a0>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7de9adb3ea70>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+                                                                    [100%]
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.14.9-final-0 ________________
+
+Name            Stmts   Miss Branch BrPart  Cover   Missing
+-----------------------------------------------------------
+api/search.py     294      5    118      6    97%   23->26, 28-31, 67, 93, 310->312, 373->375, 656->663
+-----------------------------------------------------------
+TOTAL             294      5    118      6    97%
+Coverage JSON written to file /tmp/issue1888-search-next-before.json
+77 passed, 28 warnings in 2.72s

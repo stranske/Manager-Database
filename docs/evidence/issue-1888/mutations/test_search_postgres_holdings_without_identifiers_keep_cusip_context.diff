@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -369,7 +369,7 @@
+             ]
+             issuer_rank, identifier_rank = tail[len(resolved_identifier_columns) :]
+             headline = f"{issuer or 'Holding'} ({cusip or 'n/a'})"
+-            identifier_parts = [f"CUSIP: {cusip or 'n/a'}"]
++            identifier_parts = [f"CUSIP: {cusip or 'n/a'}", "Resolved: None"]
+             if resolved_values:
+                 identifier_parts.append("Resolved: " + " / ".join(resolved_values))
+             snippet = " | ".join(identifier_parts)

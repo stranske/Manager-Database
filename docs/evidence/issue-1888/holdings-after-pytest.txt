@@ -1,0 +1,24 @@
+........................................................................ [ 91%]
+......./opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:453: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76fb1edb9030>
+  @classmethod
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:453: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76fb1ea925c0>
+  @classmethod
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:453: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76fb1e9bab60>
+  @classmethod
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+                                                                  [100%]/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/_pytest/unraisableexception.py:33: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76fb1fecbd30>
+  gc.collect()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.14.9-final-0 ________________
+
+Name            Stmts   Miss Branch BrPart  Cover   Missing
+-----------------------------------------------------------
+api/search.py     294      4    118      3    98%   23->26, 28-31, 93, 656->663
+-----------------------------------------------------------
+TOTAL             294      4    118      3    98%
+Coverage JSON written to file /tmp/issue1888-search-next-after.json
+79 passed, 26 warnings in 2.51s

@@ -710,3 +710,69 @@ with a patch for application to the PR branch. No protected file is changed.
 PR body, `needs-human` label and blocker-comment publication were each rejected:
 `MCP tool call requires approval, but approval policy is never`. The prepared
 checkmarks remain local. PR #1889 is verified open and ready (`isDraft=false`).
+
+
+## PostgreSQL nullable identifier follow-up (2026-11-04)
+
+One parametrized behavior test adds two cases for PostgreSQL holdings search with
+no resolved-identifier columns and with null identifier values. It asserts the
+complete returned result, CUSIP-only context, SQL bind count/order, and the absence
+of references to unavailable columns. PostgreSQL execution is modeled; a live
+server is not claimed. No production code changed. The touched search path has
+no negative-cache misuse: `deduped` stores concrete `SearchResult` objects only.
+
+Current-main CI artifact transfer was retried and still returns `URLError`.
+Main remains `a7f4e626bb4b8359a64c56a56211218e41b6020a`, and the exact artifact
+base/ranking and approximately 180-unit CI comparison remain unchecked.
+
+Matched targeted verification, before and after adding these two cases:
+
+```sh
+pytest tests/test_search.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-next-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+pytest tests/test_search.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-next-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+The `api/search.py` table reports **97% to 98%**, missing statements/branches
+**5+6=11 to 4+3=7**, with **77 to 79 passed**. These are targeted local results,
+not CI artifact credit. Raw measurements: `holdings-before-coverage.json`,
+`holdings-after-coverage.json`, and adjacent pytest logs. Remaining misses are the
+optional Pydantic import fallback (28–31, 23→26), blank-score guard (93), and empty
+SQLite database-list path (656→663). No claim that these cannot be covered.
+
+Related suites: **198 passed, 2 existing nightly skips**
+(`holdings-regression-pytest.txt`). Required Black repository check passes
+(**452 files unchanged**); Ruff passes for both changed Python files. Broad
+validation uses the previously documented `/tmp/issue1888-runtime` event-loop
+wakeup shim to avoid the sandbox's stalled worker-thread callbacks.
+
+Mutation receipt 37 changes actual `api/search.py` source in a disposable checkout
+to append bogus `Resolved: None` context. Both cases fail with exit **1** and pass
+with exit **0** after byte-exact restoration. The `.diff`, red/green logs, and
+source hashes are in `mutations/`. Replay with:
+
+```sh
+python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-holdings-mutations --output docs/evidence/issue-1888/mutations --start-at 36
+```
+
+The main checkout still rejects `git add` because `.git/index.lock` is read-only.
+A writable local clone at `/tmp/issue1888-holdings-proof` is used to commit the
+reviewable source and evidence change. No protected workflow files are edited.
+
+The writable clone independently passes the required repository Black check
+(452 files unchanged) and all 79 targeted search cases. Publishing the prepared
+body, adding `needs-human`, and posting the blocker comment were all rejected by
+the GitHub tools: `MCP tool call requires approval, but approval policy is never`.
+No live PR metadata update is claimed.
+
+Full local suite completed with **3 failed, 2645 passed, 28 skipped** in 258.45s:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime timeout 300 pytest tests/ -m 'not slow' --tb=short --disable-warnings
+```
+
+Exit **1**. Failures are the same three already recorded before this follow-up:
+chat dependency errors timing out (`test_coverage_round_1842`), edgartools attempting
+to write `/home/runner/.edgar` (`test_edgar_integration`), and the sandbox refusing
+a local socket (`test_wasm_static_routes`). Full output: `holdings-full-pytest.txt`.
+No existing test was skipped, disabled, or changed to accommodate these failures.
+This does not satisfy the CI pytest acceptance criterion.

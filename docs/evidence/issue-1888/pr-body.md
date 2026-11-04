@@ -30,71 +30,7 @@ Source issue #1806; merged PR #1808 delivered: PR #1808 added one test-only modu
 - [ ] `pytest` passes in CI.
 <!-- auto-status-summary:end -->
 
-<details>
 
-<summary>Full Issue Text</summary>
-
-
-
-<!-- closer-core/v1 followup-of=stranske/Manager-Database#1806@1808 -->
-## Why
-Three repair attempts by cursor, codex and claude produced no PR, so another repair on #1806 is unlikely to land. The remainder is a clearly scoped piece: the one ranked target #1808 skipped (etl/edgar_flow.py, 26 uncovered units) plus the biggest remaining gaps, with the CI before/after numbers recorded properly.
-Source issue #1806; merged PR #1808 delivered: PR #1808 added one test-only module with 8 focused tests for helpers in digest_flow, signals, search, daily_report and asic, with no production changes. It does not cover EDGAR, and no CI coverage reduction is shown against the ~180-unit target.
-
-## Scope
-- Re-rank targets by the repo's coverage-gap ranking (escaped-defect priority, then churn, then uncovered mass) from the CI Gate coverage artifact on current main. Record the main-branch figure for uncovered statements+branches as the exact base.
-- Add tests for etl/edgar_flow.py (26 uncovered units), or write a concrete per-target explanation of why a branch cannot be meaningfully covered.
-- Cover the largest remaining gaps among the 149 units left after #1808: api/search.py (52), ui/daily_report.py (35), api/signals.py (27). Prefer behaviour-level tests over helper-level ones.
-- Strengthen the weak assertions in tests/test_issue_1806_coverage.py: headline_markdown escaping with an exact expected string, and exact error messages in the digest guard tests. Move the universal_search guard checks out of the parametrized rank/distance test.
-- For every new test, run a real break-and-revert (break the covered code, confirm the test fails, revert, confirm it passes) and paste the commands and outputs into the PR body.
-- Check for the negative-cache pattern (`cache.get(key) is None` used as 'not yet cached') in any code touched. Fix any instance with a minimal diff and explain it in the PR body.
-
-## Non-Goals
-- Do not redo work that PR #1808 already delivered.
-
-## Tasks
-- [ ] Re-rank targets by the repo's coverage-gap ranking (escaped-defect priority, then churn, then uncovered mass) from the CI Gate coverage artifact on current main. Record the main-branch figure for uncovered statements+branches as the exact base.
-- [x] Add tests for etl/edgar_flow.py (26 uncovered units), or write a concrete per-target explanation of why a branch cannot be meaningfully covered.
-- [x] Cover the largest remaining gaps among the 149 units left after #1808: api/search.py (52), ui/daily_report.py (35), api/signals.py (27). Prefer behaviour-level tests over helper-level ones.
-- [x] Strengthen the weak assertions in tests/test_issue_1806_coverage.py: headline_markdown escaping with an exact expected string, and exact error messages in the digest guard tests. Move the universal_search guard checks out of the parametrized rank/distance test.
-- [x] For every new test, run a real break-and-revert (break the covered code, confirm the test fails, revert, confirm it passes) and paste the commands and outputs into the PR body.
-- [x] Check for the negative-cache pattern (`cache.get(key) is None` used as 'not yet cached') in any code touched. Fix any instance with a minimal diff and explain it in the PR body.
-
-## Acceptance Criteria
-- [ ] The PR body quotes the CI Gate coverage uncovered statements+branches for the targets on main before and after, taken from CI artifacts, with the reduction at or above ~180 units across the ranked targets. Each target that falls short has a written explanation.
-- [x] etl/edgar_flow.py has new tests that execute its uncovered branches, or the PR body explains each branch that could not be covered.
-- [x] The PR body contains the break-and-revert command output for every new test function (fail when broken, pass when reverted).
-- [x] Any production change is limited to a real bug found by a test and is explained in the PR body. Otherwise the diff is test-only.
-- [ ] `pytest` passes in CI.
-
-## Implementation Notes
-Verifier report (excerpt):
-
-```
- Completeness: scores within 1 point (avg 3.0/10, range 3.0-3.0)
-- Quality: scores within 1 point (avg 7.5/10, range 7.0-8.0)
-- Testing: scores within 1 point (avg 6.0/10, range 6.0-6.0)
-- Risks: scores within 1 point (avg 9.0/10, range 9.0-9.0)
-
-### Disagreement
-No major disagreements detected.
-
-### Unique Insights
-- openai: The issue’s primary quantitative acceptance criterion is not met or demonstrated. The PR body explicitly states that it does not establish the required approximately 180 whole-CI uncovered statement-and-branch reduction, and reports 149 uncovered units still remaining across the ranked targets.; EDGAR (`etl/edgar_flow.py`) is named as a target but is not exercised by the new module. The acceptance criteria permit an uncovered target only when the PR explains why it could not be meaningfully covered; the PR instead says EDGAR remains for later work and provides no such justification.; The issue requires break-and-revert proof for every new test. The PR body claims a later eight-target causal-proof audit, but the required underlying artifacts/logs are unavailable in the supplied evidence. Therefore that explicit deliverable cannot be verified, and a PASS is not supportable.; The added tests provide useful focused coverage but do not substantiate the issue’s whole-CI coverage objective. The local per-file focused-suite percentages are explicitly not a substitute for the required CI-level reduction.
-- anthropic: The issue's core quantitative acceptance criterion (targets' uncovered statements+branches down by ~180 or more, or each unreachable target explained) is not met. The PR body admits it 'does not establish the issue body's roughly 180 CI-unit reduction'. A later audit puts the whole-CI uncovered count for the targets at 149 total (digest 3, signals 27, search 52, daily-report 35, EDGAR 26, ASIC 6), with no exact-base comparison.; etl/edgar_flow.py, a ranked target, is not exercised at all by the added module (26 uncovered units remain). Nothing shows it cannot meaningfully be tested, so the alternative of explaining each target that could not be covered is also unmet.; The PR body reports local focused-suite percentages rather than the CI Gate coverage figures the issue says the PR is judged on. The PR's own audit says the exact-base whole-CI artifact was never bound, and the Gate coverage artifacts I could see were partially truncated or unavailable, so I cannot verify any CI-level improvement.; The break-and-revert proof was initially given for only one test (search). A later audit added causal proof for all eight test functions, which is a good outcome. The audit text itself says the criterion is only partially addressed, and the ~180-unit gap still blocks it.; The tests are small, but several assertions are weak. The `'<x>' not in headline_markdown` check and the loose `in` substring checks would pass on many broken variants. The `universal_search` assertions are bundled into a parametrized rank/distance test, which mixes concerns and repeats the same calls for every parameter set.; The diff itself is correct. It adds one test file with no production changes, which matches the low-blast-radius requirement, and the code is clean and readable.
-
-### 🔍 LangSmith Traces
-- [openai](https://smith.langchain.com/r/lc_run--01a14acf-4ef4-7630-961c-969e5200bbdd-0)
-- [anthropic](https://smith.langchain.com/r/lc_run--01a14acf-6d6c-7ed0-8ae3-9799d7a04f6b-0)
-
----
-
-Workflow state fingerprint for Agents Verifier. Do not edit.
-```
-
-
-
-</details>
 
 —
 PR created automatically to engage Codex.
@@ -166,7 +102,7 @@ CI validation remain required before acceptance can be marked complete.
 
 ## Break-and-revert proof for every new function
 
-All 36 receipts have red exit **1** and restored exit **0**. Mutations edit actual
+All 37 receipts have red exit **1** and restored exit **0**. Mutations edit actual
 runtime source in disposable `/tmp` checkouts; original/restored hashes match.
 Commands and exact output excerpts follow. Each linked red/green file retains
 complete output and the environment/cwd; each linked diff records the source edit.
@@ -1244,3 +1180,55 @@ Publication for the nullable-ticker follow-up was rejected for all three actions
 PR body update, `needs-human` label and blocker comment. Each returned
 `MCP tool call requires approval, but approval policy is never`. The prepared body
 and evidence remain local. PR #1889 is verified open with `isDraft=false`.
+
+
+## PostgreSQL nullable identifier follow-up
+
+Two cases assert complete holdings search results and SQL bind counts with absent
+identifier columns or null identifier values. Search targeted coverage rises
+**97% to 98%**, uncovered statements+branches **11 to 7**, with **79 passed**.
+Related suites: **198 passed, 2 existing nightly skips**. Required repository
+Black check (452 files) and Ruff pass. PostgreSQL execution is modeled. No
+production change; scoped negative-cache audit remains clear. Exact CI base,
+ranking and ~180-unit comparison remain blocked by artifact transfer (`URLError`).
+This local addition has no final-candidate CI result yet.
+
+### 37. `test_search_postgres_holdings_without_identifiers_keep_cusip_context`
+
+Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context.diff).
+[Broken output](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-red.txt),
+[restored output](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-green.txt).
+Same command against deliberately broken then restored source:
+
+```sh
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_holdings_without_identifiers_keep_cusip_context -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+Broken: snippet 'CUSIP: CUSIP | Resolved: None' != 'CUSIP: CUSIP'
+2 failed, 6 warnings in 0.80s
+exit: 1
+
+Restored:
+2 passed, 6 warnings in 0.78s
+exit: 0
+```
+
+Publication of this follow-up body, `needs-human` label, and blocker comment was
+rejected: `MCP tool call requires approval, but approval policy is never`.
+The writable clone independently passes Black (452 files) and 79 search cases.
+PR #1889 remains open and ready for review; the local prepared body is not a
+claim that live PR metadata was updated.
+
+Full local suite completed with **3 failed, 2645 passed, 28 skipped** in 258.45s:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime timeout 300 pytest tests/ -m 'not slow' --tb=short --disable-warnings
+```
+
+Exit **1**. Failures are the same three already recorded before this follow-up:
+chat dependency errors timing out (`test_coverage_round_1842`), edgartools attempting
+to write `/home/runner/.edgar` (`test_edgar_integration`), and the sandbox refusing
+a local socket (`test_wasm_static_routes`). Full output: `holdings-full-pytest.txt`.
+No existing test was skipped, disabled, or changed to accommodate these failures.
+This does not satisfy the CI pytest acceptance criterion.

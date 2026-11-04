@@ -304,6 +304,14 @@ CASES = [
         "            ).fetchall()\n",
         1,
     ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_search_postgres_holdings_without_identifiers_keep_cusip_context",
+        "api/search.py",
+        "\n            identifier_parts = [f\"CUSIP: {cusip or 'n/a'}\"]",
+        '\n            identifier_parts = [f"CUSIP: {cusip or \'n/a\'}", "Resolved: None"]',
+        1,
+    ),
 ]
 
 
