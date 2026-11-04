@@ -1,0 +1,107 @@
+[
+  {
+    "test": "tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database",
+    "source": "api/search.py",
+    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards",
+    "source": "etl/digest_flow.py",
+    "sha256": "eebfae88c84f204770c1d7307d9ef43c5e7d3f4f38d756cc3826baf4fd66374f",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings",
+    "source": "api/search.py",
+    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate",
+    "source": "api/search.py",
+    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context",
+    "source": "api/search.py",
+    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings",
+    "source": "api/signals.py",
+    "sha256": "6aaa884d143c2f452543adafac506ac0a3b75d920a60e2ea1234e551cfe01524",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
+  }
+]

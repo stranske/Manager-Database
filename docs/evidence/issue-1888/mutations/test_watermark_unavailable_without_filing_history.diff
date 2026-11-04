@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -381,7 +381,7 @@
+     try:
+         filing_columns = get_table_columns(conn, "filings")
+         if "filed_date" not in filing_columns or "manager_id" not in filing_columns:
+-            return None
++            return "2000-01-01"
+         manager_id = _manager_id_for_cik(conn, cik)
+         if manager_id is None:
+             return None

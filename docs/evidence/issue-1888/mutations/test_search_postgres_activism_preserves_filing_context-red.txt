@@ -1,0 +1,57 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_search_postgres_activism_preserves_filing_context ____________
+tests/test_issue_1888_coverage.py:101: in test_search_postgres_activism_preserves_filing_context
+    assert results[0].model_dump() == {
+E   AssertionError: assert {'entity_type... (5.5%)', ...} == {'entity_type... (5.5%)', ...}
+E     
+E     Omitting 7 identical items, use -vv to show
+E     Differing items:
+E     {'snippet': 'SC 13D | Wrong: CUSIP | Filed: 2024-05-01'} != {'snippet': 'SC 13D | CUSIP: CUSIP | Filed: 2024-05-01'}
+E     
+E     Full diff:
+E       {
+E           'entity_type': 'filing',
+E           'entity_id': 12,
+E           'manager_name': 'Alpha',
+E           'headline': '13D Filing: Alpha -> Target (5.5%)',
+E     -     'snippet': 'SC 13D | CUSIP: CUSIP | Filed: 2024-05-01',
+E     ?                               -------
+E     +     'snippet': 'SC 13D | Wrong: CUSIP | Filed: 2024-05-01',
+E     ?                         +++++++
+E     -     'relevance': 0.8666666667 ± 8.7e-07,
+E     ?                             ^^^^^^^^^^
+E     +     'relevance': 0.8666666666666667,
+E     ?                             ^^^^^^
+E           'url': 'https://example.test/12',
+E           'timestamp': '2024-05-01',
+E       }
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context - AssertionError: assert {'entity_type... (5.5%)', ...} == {'entity_type... (5.5%)', ...}
+  
+  Omitting 7 identical items, use -vv to show
+  Differing items:
+  {'snippet': 'SC 13D | Wrong: CUSIP | Filed: 2024-05-01'} != {'snippet': 'SC 13D | CUSIP: CUSIP | Filed: 2024-05-01'}
+  
+  Full diff:
+    {
+        'entity_type': 'filing',
+        'entity_id': 12,
+        'manager_name': 'Alpha',
+        'headline': '13D Filing: Alpha -> Target (5.5%)',
+  -     'snippet': 'SC 13D | CUSIP: CUSIP | Filed: 2024-05-01',
+  ?                               -------
+  +     'snippet': 'SC 13D | Wrong: CUSIP | Filed: 2024-05-01',
+  ?                         +++++++
+  -     'relevance': 0.8666666667 ± 8.7e-07,
+  ?                             ^^^^^^^^^^
+  +     'relevance': 0.8666666666666667,
+  ?                             ^^^^^^
+        'url': 'https://example.test/12',
+        'timestamp': '2024-05-01',
+    }
+1 failed, 6 warnings in 0.81s
+
+exit: 1

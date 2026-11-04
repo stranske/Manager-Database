@@ -1,0 +1,26 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history -m 'not slow' --tb=short --disable-warnings
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+___________ test_watermark_unavailable_without_filing_history[None] ____________
+tests/test_edgar_flow.py:60: in test_watermark_unavailable_without_filing_history
+    assert flow._latest_filed_date_for_cik("missing") is None
+E   AssertionError: assert '2000-01-01' is None
+E    +  where '2000-01-01' = <function _latest_filed_date_for_cik at 0x7476d6065380>('missing')
+E    +    where <function _latest_filed_date_for_cik at 0x7476d6065380> = flow._latest_filed_date_for_cik
+____ test_watermark_unavailable_without_filing_history[manager_id INTEGER] _____
+tests/test_edgar_flow.py:60: in test_watermark_unavailable_without_filing_history
+    assert flow._latest_filed_date_for_cik("missing") is None
+E   AssertionError: assert '2000-01-01' is None
+E    +  where '2000-01-01' = <function _latest_filed_date_for_cik at 0x7476d6065380>('missing')
+E    +    where <function _latest_filed_date_for_cik at 0x7476d6065380> = flow._latest_filed_date_for_cik
+=========================== short test summary info ============================
+FAILED tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history[None] - AssertionError: assert '2000-01-01' is None
+ +  where '2000-01-01' = <function _latest_filed_date_for_cik at 0x7476d6065380>('missing')
+ +    where <function _latest_filed_date_for_cik at 0x7476d6065380> = flow._latest_filed_date_for_cik
+FAILED tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history[manager_id INTEGER] - AssertionError: assert '2000-01-01' is None
+ +  where '2000-01-01' = <function _latest_filed_date_for_cik at 0x7476d6065380>('missing')
+ +    where <function _latest_filed_date_for_cik at 0x7476d6065380> = flow._latest_filed_date_for_cik
+2 failed, 1 passed, 8 warnings in 1.67s
+
+exit: 1

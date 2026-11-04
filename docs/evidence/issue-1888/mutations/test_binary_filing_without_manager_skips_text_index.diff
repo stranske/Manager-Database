@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -431,7 +431,7 @@
+                 manager_lock_id = manager_id
+             raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
+             raw_hash = hashlib.sha256(raw_bytes).hexdigest()[:16]
+-            accession = str(filing.get("accession") or "unknown")
++            accession = str(filing.get("accession") or "incorrect")
+             raw_key = f"raw/edgar/{raw_hash}_{accession}.xml"
+ 
+             S3.put_object(Bucket=BUCKET, Key=raw_key, Body=raw, ServerSideEncryption="AES256")

@@ -1,10 +1,12 @@
 import hashlib
 import json
+import logging
 import sqlite3
 import sys
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -12,6 +14,177 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import etl.edgar_flow as flow
 from etl import point_in_time
+
+
+@pytest.mark.parametrize(
+    "schema, rows",
+    [
+        (None, []),
+        ("name TEXT, cik TEXT", []),
+        ("manager_id INTEGER, name TEXT", []),
+        ("id INTEGER, cik TEXT", [(None, "0")]),
+        ("id INTEGER, cik TEXT", [(7, "other")]),
+        ("id INTEGER, cik TEXT", [(7, "0")]),
+    ],
+)
+def test_manager_lookup_rejects_missing_or_deleted_manager(monkeypatch, schema, rows):
+    conn = sqlite3.connect(":memory:")
+    try:
+        if schema:
+            conn.execute(f"CREATE TABLE managers ({schema})")
+            conn.executemany("INSERT INTO managers VALUES (?, ?)", rows)
+        deleted = Mock(return_value=True)
+        monkeypatch.setattr(flow, "manager_deletion_active", deleted)
+        assert flow._manager_id_for_cik(conn, "0") is None
+        if rows == [(7, "0")]:
+            deleted.assert_called_once_with(conn, 7)
+        else:
+            deleted.assert_not_called()
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    "schema", [None, "manager_id INTEGER", "manager_id INTEGER, filed_date TEXT"]
+)
+def test_watermark_unavailable_without_filing_history(monkeypatch, tmp_path, schema):
+    db_path = tmp_path / "watermark.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        if schema:
+            conn.execute(f"CREATE TABLE filings ({schema})")
+        conn.commit()
+    finally:
+        conn.close()
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    assert flow._latest_filed_date_for_cik("missing") is None
+
+
+def test_holdings_resolution_failure_preserves_raw_rows(monkeypatch, caplog):
+    conn = sqlite3.connect(":memory:")
+    try:
+        flow._ensure_legacy_tables(conn)
+        conn.execute("INSERT INTO holdings(filing_id, cusip) VALUES (1, 'OLD')")
+        resolver = Mock(side_effect=RuntimeError("resolver unavailable"))
+        monkeypatch.setattr(flow, "resolve_holding_identifiers", resolver)
+        with caplog.at_level(logging.WARNING, logger=flow.__name__):
+            flow._replace_holdings_for_filing(
+                conn,
+                filing_id=1,
+                rows=[{"cusip": "RAW", "sshPrnamt": "12", "value": "34"}],
+                manager_id=None,
+                cik="0",
+                accession="1",
+                filed_date=None,
+            )
+        assert conn.execute("SELECT cusip, shares, value_usd FROM holdings").fetchall() == [
+            ("RAW", 12, 34)
+        ]
+        assert resolver.call_count == 1
+        assert "Identifier resolution failed; inserting raw holdings" in caplog.messages
+    finally:
+        conn.close()
+
+
+def test_empty_holdings_do_not_delete_existing_rows(monkeypatch):
+    conn = sqlite3.connect(":memory:")
+    try:
+        flow._ensure_legacy_tables(conn)
+        conn.execute("INSERT INTO holdings(filing_id, cusip) VALUES (1, 'KEEP')")
+        resolver = Mock(side_effect=AssertionError("empty holdings must not resolve"))
+        monkeypatch.setattr(flow, "resolve_holding_identifiers", resolver)
+        flow._replace_holdings_for_filing(
+            conn, filing_id=1, rows=[], manager_id=1, cik="0", accession="1", filed_date=None
+        )
+        assert conn.execute("SELECT cusip FROM holdings").fetchall() == [("KEEP",)]
+        resolver.assert_not_called()
+    finally:
+        conn.close()
+
+
+def test_bitemporal_unowned_filing_rerun_preserves_version(monkeypatch, tmp_path):
+    conn = _connect_bitemporal_holdings_db(tmp_path)
+    resolver = Mock()
+    monkeypatch.setattr(flow, "resolve_holding_identifiers", resolver)
+    try:
+        kwargs = {
+            "filing_id": 1,
+            "rows": [{"cusip": "AAA", "sshPrnamt": 12, "value": 34}],
+            "manager_id": None,
+            "cik": "0",
+            "accession": "1",
+            "filed_date": "2024-05-01",
+        }
+        flow._replace_holdings_for_filing(conn, **kwargs)
+        flow._replace_holdings_for_filing(conn, **kwargs)
+        assert [
+            tuple(row)
+            for row in conn.execute(
+                "SELECT cusip, shares, value_usd, version, superseded_at FROM holdings"
+            )
+        ] == [("AAA", 12, 34.0, 1, None)]
+        resolver.assert_called_once()
+    finally:
+        conn.close()
+
+
+@pytest.mark.asyncio
+async def test_deletion_during_second_download_keeps_first_filing(monkeypatch, tmp_path):
+    db_path = tmp_path / "deletion.db"
+    _setup_relational_schema(db_path)
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "ADAPTER", MultiFilingAdapter())
+    lock = Mock(side_effect=[True, False])
+    release = Mock()
+    objects = Mock()
+    alerts = AsyncMock()
+    monkeypatch.setattr(flow, "acquire_manager_ingestion_lock", lock)
+    monkeypatch.setattr(flow, "release_manager_ingestion_lock", release)
+    monkeypatch.setattr(flow.S3, "put_object", objects)
+    monkeypatch.setattr(flow, "store_document", Mock())
+    monkeypatch.setattr(flow, "resolve_holding_identifiers", Mock())
+    monkeypatch.setattr(flow, "fire_alerts_for_event", alerts)
+
+    rows = await flow.fetch_and_store.fn("0", "2024-01-01")
+
+    assert rows == [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
+    assert lock.call_count == 2
+    assert release.call_count == objects.call_count == alerts.await_count == 1
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM filings").fetchone() == (1,)
+        assert conn.execute("SELECT shares FROM holdings").fetchall() == [(1,)]
+
+
+@pytest.mark.asyncio
+async def test_binary_filing_without_manager_skips_text_index(monkeypatch, tmp_path):
+    db_path = tmp_path / "binary.db"
+    adapter = DummyAdapter()
+    adapter.list_new_filings = AsyncMock(return_value=[{}])
+    adapter.download = AsyncMock(return_value=b"<xml/>")
+    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
+    monkeypatch.setattr(flow, "ADAPTER", adapter)
+    objects, document = Mock(), Mock()
+    alerts = AsyncMock()
+    monkeypatch.setattr(flow.S3, "put_object", objects)
+    monkeypatch.setattr(flow, "store_document", document)
+    monkeypatch.setattr(flow, "resolve_holding_identifiers", Mock())
+    monkeypatch.setattr(flow, "fire_alerts_for_event", alerts)
+
+    rows = await flow.fetch_and_store.fn("0", "2024-01-01")
+
+    assert rows == [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
+    document.assert_not_called()
+    raw_key = f"raw/edgar/{hashlib.sha256(b'<xml/>').hexdigest()[:16]}_unknown.xml"
+    objects.assert_called_once_with(
+        Bucket=flow.BUCKET, Key=raw_key, Body=b"<xml/>", ServerSideEncryption="AES256"
+    )
+    event = alerts.await_args.args[1]
+    assert event.manager_id is None
+    assert "filing_id" not in event.payload
+    assert event.payload["accession"] == "unknown"
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM filings").fetchone() == (0,)
+        assert conn.execute("SELECT filing_id, manager_id FROM holdings").fetchall() == [(0, None)]
 
 
 class DummyAdapter:

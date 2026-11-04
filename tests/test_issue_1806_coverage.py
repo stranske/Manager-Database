@@ -35,15 +35,21 @@ async def test_digest_delivery_configuration_guards(monkeypatch):
     digest = digest_flow.DigestDocument(datetime.now(UTC), 24)
     monkeypatch.delenv("DIGEST_EMAIL_FROM", raising=False)
     monkeypatch.delenv("ALERT_EMAIL_FROM", raising=False)
-    assert (await digest_flow.deliver_digest_email(digest)).skipped
+    missing_sender = await digest_flow.deliver_digest_email(digest)
+    assert missing_sender.skipped
+    assert missing_sender.error_message == "DIGEST_EMAIL_FROM is not configured"
     monkeypatch.setenv("DIGEST_EMAIL_FROM", "sender@example.test")
     monkeypatch.delenv("DIGEST_EMAIL_TO", raising=False)
     monkeypatch.delenv("ALERT_EMAIL_TO", raising=False)
-    assert "TO is not configured" in (await digest_flow.deliver_digest_email(digest)).error_message
+    assert (await digest_flow.deliver_digest_email(digest)).error_message == (
+        "DIGEST_EMAIL_TO is not configured"
+    )
     monkeypatch.setenv("DIGEST_EMAIL_TO", "recipient@example.test")
     monkeypatch.setenv("DIGEST_EMAIL_PROVIDER", "sendgrid")
     monkeypatch.delenv("SENDGRID_API_KEY", raising=False)
-    assert "SENDGRID_API_KEY" in (await digest_flow.deliver_digest_email(digest)).error_message
+    assert (await digest_flow.deliver_digest_email(digest)).error_message == (
+        "SENDGRID_API_KEY is not configured"
+    )
 
 
 @pytest.mark.parametrize(
@@ -78,6 +84,9 @@ def test_signal_date_helpers_and_empty_schema_guards():
 def test_search_score_components_clamp_invalid_inputs(rank, distance, expected):
     assert search._normalize_rank(rank) == expected[0]
     assert search._vector_relevance(distance) == expected[1]
+
+
+def test_search_guards_return_before_accessing_database():
     assert search.universal_search(" ", object()) == []
     assert search.universal_search("query", object(), limit=0) == []
 
@@ -100,7 +109,7 @@ def test_daily_report_formatters_cover_empty_and_directional_values():
     assert "↓ -2" in daily_report.format_shares_delta(3, 1)
     assert "n/a" in daily_report.format_percent_change(0, 2)
     assert "+$2.00" in daily_report.format_value_delta(1, 3)
-    assert "<x>" not in daily_report.headline_markdown("<x>", None)
+    assert daily_report.headline_markdown("<x>", None) == "&lt;x&gt;"
     assert "Contrarian: BUY vs SELL" in daily_report.format_signal_badge("BUY", "SELL")
 
 

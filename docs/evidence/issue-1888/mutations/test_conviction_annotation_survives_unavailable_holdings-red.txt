@@ -1,0 +1,53 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_conviction_annotation_survives_unavailable_holdings ___________
+tests/test_issue_1888_coverage.py:134: in test_conviction_annotation_survives_unavailable_holdings
+    assert [row.model_dump() for row in rows] == [
+E   AssertionError: assert [{'cusip': 'A...': 50.0, ...}] == [{'cusip': 'A...': 50.0, ...}]
+E     
+E     At index 0 diff: {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'value_usd': 300.0, 'conviction_pct': 50.0, 'portfolio_weight': 0.5, 'insider_net_direction': None, 'short_interest_pct': None, 'short_interest_report_date': None, 'short_interest_source': None} != {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'value_usd': 300.0, 'conviction_pct': 50.0, 'portfolio_weight': 0.5, 'insider_net_direction': 'BUY', 'short_interest_pct': None, 'short_interest_report_date': None, 'short_interest_source': None}
+E     
+E     Full diff:
+E       [
+E           {
+E               'cusip': 'AAA',
+E               'name_of_issuer': 'Issuer',
+E               'value_usd': 300.0,
+E               'conviction_pct': 50.0,
+E               'portfolio_weight': 0.5,
+E     -         'insider_net_direction': 'BUY',
+E     ?                                  ^^^^^
+E     +         'insider_net_direction': None,
+E     ?                                  ^^^^
+E               'short_interest_pct': None,
+E               'short_interest_report_date': None,
+E               'short_interest_source': None,
+E           },
+E       ]
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings - AssertionError: assert [{'cusip': 'A...': 50.0, ...}] == [{'cusip': 'A...': 50.0, ...}]
+  
+  At index 0 diff: {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'value_usd': 300.0, 'conviction_pct': 50.0, 'portfolio_weight': 0.5, 'insider_net_direction': None, 'short_interest_pct': None, 'short_interest_report_date': None, 'short_interest_source': None} != {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'value_usd': 300.0, 'conviction_pct': 50.0, 'portfolio_weight': 0.5, 'insider_net_direction': 'BUY', 'short_interest_pct': None, 'short_interest_report_date': None, 'short_interest_source': None}
+  
+  Full diff:
+    [
+        {
+            'cusip': 'AAA',
+            'name_of_issuer': 'Issuer',
+            'value_usd': 300.0,
+            'conviction_pct': 50.0,
+            'portfolio_weight': 0.5,
+  -         'insider_net_direction': 'BUY',
+  ?                                  ^^^^^
+  +         'insider_net_direction': None,
+  ?                                  ^^^^
+            'short_interest_pct': None,
+            'short_interest_report_date': None,
+            'short_interest_source': None,
+        },
+    ]
+1 failed, 6 warnings in 0.91s
+
+exit: 1

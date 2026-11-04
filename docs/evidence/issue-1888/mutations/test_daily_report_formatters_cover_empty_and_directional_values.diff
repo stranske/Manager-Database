@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -190,7 +190,7 @@
+     text = html.escape(str(headline).strip()) if headline else "Untitled"
+     text = text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+     if not url:
+-        return text
++        return text + "!"
+     raw_url = str(url).strip()
+     if not raw_url:
+         return text

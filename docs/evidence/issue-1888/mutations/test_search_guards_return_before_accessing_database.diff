@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -938,7 +938,7 @@
+ ) -> list[SearchResult]:
+     """Search across all entity types and return ranked results."""
+     if not query.strip() or limit <= 0:
+-        return []
++        return [None]
+ 
+     results = (
+         _search_sqlite(query, conn, limit)
