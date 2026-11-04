@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -108,7 +108,7 @@
+         )
+         table = pd.read_sql_query(query, conn, params=(date,))
+     except Exception:
+-        table = pd.DataFrame()
++        raise
+     finally:
+         conn.close()
+     return table

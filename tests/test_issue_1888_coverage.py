@@ -754,3 +754,107 @@ def test_report_latest_date_query_errors_close_connections_and_are_retried(monke
         ]
     finally:
         daily_report.latest_report_date.clear()
+
+
+@pytest.mark.parametrize(
+    "amount, topics, expected_deltas",
+    [
+        (None, None, ["-", "-", "-"]),
+        ("unavailable", "   ", ["-", "-", "-"]),
+        (100, "guidance", ["→ 0", "→ $0.00", "0.0%"]),
+    ],
+    ids=["missing", "invalid", "unchanged"],
+)
+def test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals(
+    monkeypatch, tmp_path, amount, topics, expected_deltas
+):
+    from tests.test_daily_report import setup_db
+
+    db_path = setup_db(tmp_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE daily_diffs SET shares_prev = ?, shares_curr = ?, "
+            "value_prev = ?, value_curr = ? WHERE cusip = 'AAA'",
+            (amount,) * 4,
+        )
+        conn.execute("UPDATE news_items SET topics = ?", (topics,))
+        conn.execute("INSERT INTO managers VALUES ('blank-manager', '   ')")
+        conn.execute("DELETE FROM contrarian_signals")
+        conn.executemany(
+            "INSERT INTO contrarian_signals "
+            "(manager_id, cusip, direction, consensus_direction, report_date) "
+            "VALUES (?, ?, 'SELL', 'BUY', '2024-05-01')",
+            [("m1", "AAA"), ("blank-manager", "BBB"), ("m2", "   ")],
+        )
+    monkeypatch.setenv("DB_PATH", db_path)
+    caches = [
+        daily_report.load_diffs,
+        daily_report.load_news,
+        daily_report.load_activism_events,
+        daily_report.load_crowded_trades,
+        daily_report.load_contrarian_signals,
+        daily_report.latest_report_date,
+        daily_report.nearest_report_date,
+    ]
+    for cached in caches:
+        cached.clear()
+    ui = MagicMock()
+    ui.date_input.return_value = dt.date(2024, 5, 1)
+    ui.tabs.return_value = [MagicMock() for _ in range(3)]
+    ui.columns.return_value = [Mock() for _ in range(5)]
+    ui.selectbox.side_effect = ["Manager count", "All topics"]
+    expected_badge = daily_report.format_signal_badge("SELL", "BUY")
+    badge = Mock(wraps=daily_report.format_signal_badge)
+    monkeypatch.setattr(daily_report, "format_signal_badge", badge)
+    monkeypatch.setattr(daily_report, "st", ui)
+    monkeypatch.setattr(daily_report, "require_login", lambda: True)
+    try:
+        daily_report.main()
+
+        displayed = pd.read_html(
+            io.StringIO(ui.markdown.call_args_list[0].args[0]), keep_default_na=False
+        )[0].set_index("cusip")
+        assert displayed.loc["AAA", ["Shares Δ", "Value Δ", "% Δ"]].tolist() == expected_deltas
+        assert displayed["Signals"].to_dict() == {
+            "AAA": "Contrarian: SELL vs BUY",
+            "BBB": "-",
+        }
+        badge.assert_called_once_with("SELL", "BUY")
+
+        downloads = {call.args[0]: call.args[1] for call in ui.download_button.call_args_list}
+        exported = pd.read_csv(
+            io.BytesIO(downloads["Download CSV"]), keep_default_na=False
+        ).set_index("cusip")
+        expected_html = [f"<span style='color:#666;'>{value}</span>" for value in expected_deltas]
+        assert exported.loc["AAA", ["Shares Δ", "Value Δ", "% Δ"]].tolist() == expected_html
+        assert exported.loc["AAA", "Signals"] == expected_badge
+        assert exported.loc["BBB", "Signals"] == "<span style='color:#666;'>-</span>"
+        news = pd.read_csv(io.BytesIO(downloads["Download News CSV"]), keep_default_na=False)
+        assert news["Topics"].tolist() == ["guidance" if topics == "guidance" else ""] * 2
+    finally:
+        for cached in caches:
+            cached.clear()
+
+
+def test_report_missing_activism_table_caches_empty_result_and_closes(monkeypatch, tmp_path):
+    db_path = tmp_path / "optional-activism.db"
+    with sqlite3.connect(db_path) as setup:
+        setup.execute("CREATE TABLE managers (manager_id TEXT, name TEXT)")
+    setup.close()
+    connection = sqlite3.connect(db_path)
+    connect = Mock(return_value=connection)
+    monkeypatch.setattr(daily_report, "connect_db", connect)
+    daily_report.load_activism_events.clear()
+    try:
+        pd.testing.assert_frame_equal(
+            daily_report.load_activism_events("2024-05-01"), pd.DataFrame()
+        )
+        pd.testing.assert_frame_equal(
+            daily_report.load_activism_events("2024-05-01"), pd.DataFrame()
+        )
+        connect.assert_called_once_with()
+        with pytest.raises(sqlite3.ProgrammingError, match="Cannot operate on a closed database"):
+            connection.execute("SELECT 1")
+    finally:
+        connection.close()
+        daily_report.load_activism_events.clear()

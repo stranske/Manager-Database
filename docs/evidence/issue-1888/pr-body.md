@@ -43,15 +43,17 @@ deletions and persistence. Search/signal/report tests cover legacy and vector
 results, annotations, page sorting/filtering and export behavior. PostgreSQL is
 modeled; live-server validation is not claimed.
 
-The latest follow-up extends the SQLite vector-failure test with an empty
-`PRAGMA database_list` response. It checks the complete text-search result, skips
-vector search without a database path, and preserves the caller's connection.
-Matched search suites pass **86 before / 87 after**; targeted `api/search.py`
-coverage rises **98% to 99%**, missing statements+branches **7 to 6**. Related
-suites pass **175 tests, 2 existing nightly skips**. The required repository Black
-check passes (452 files unchanged); Ruff passes. These are local measurements,
-not CI artifact credit. See [the evidence README](docs/evidence/issue-1888/README.md#empty-database-metadata-follow-up-2026-11-04)
-for commands, raw JSON, and a real fail/restore/pass check.
+The latest follow-up adds two report behavior test functions (four cases). Real
+SQLite loaders verify unknown versus zero deltas, exact display/CSV agreement,
+blank topics, incomplete signal identifiers and cached empty activism results
+with connection cleanup. Matched targeted coverage rises **97% to 99%**, missing
+statements+branches **13 to 2**; only the script entry point remains. Related
+suites pass **187 tests, 2 existing nightly skips**. Black passes (452 files
+unchanged); Ruff passes. These are local measurements, not CI artifact credit.
+See [the evidence README](docs/evidence/issue-1888/README.md#report-missing-values-and-optional-activism-follow-up-2026-11-04)
+for raw JSON, commands and source mutation proof. Published head `86e8040` passed
+Gate run `41822356850` on Python 3.13 and 3.14 before these changes; the new tests
+still require CI validation.
 
 Negative-cache audit completed across EDGAR, search, signals, report, digest and
 ASIC. No `cache.get(key) is None` misuse was found. Search's `deduped` only stores
@@ -103,7 +105,7 @@ CI validation remain required before acceptance can be marked complete.
 
 ## Break-and-revert proof for every new function
 
-All 37 receipts have red exit **1** and restored exit **0**. Mutations edit actual
+All 39 receipts have red exit **1** and restored exit **0**. Mutations edit actual
 runtime source in disposable `/tmp` checkouts; original/restored hashes match.
 Commands and exact output excerpts follow. Each linked red/green file retains
 complete output and the environment/cwd; each linked diff records the source edit.
@@ -1284,3 +1286,55 @@ rejected the PR body update, `needs-human` label, and blocker comment with
 `MCP tool call requires approval, but approval policy is never`. The live PR body
 was not reconciled. Primary Git metadata is read-only (`.git/index.lock` creation
 fails); the test change and evidence are preserved in a writable-clone commit.
+
+### 38. `test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals`
+
+Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals.diff).
+
+Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals-red.txt).
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+3 failed, 14 warnings in 1.93s
+exit: 1
+```
+
+Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals-green.txt).
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+3 passed, 14 warnings in 1.75s
+exit: 0
+```
+
+### 39. `test_report_missing_activism_table_caches_empty_result_and_closes`
+
+Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes.diff).
+
+Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes-red.txt).
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_missing_activism_table_caches_empty_result_and_closes -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+1 failed, 6 warnings in 0.84s
+exit: 1
+```
+
+Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes-green.txt).
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_missing_activism_table_caches_empty_result_and_closes -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+1 passed, 6 warnings in 0.73s
+exit: 0
+```

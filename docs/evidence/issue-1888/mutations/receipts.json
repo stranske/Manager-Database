@@ -257,5 +257,19 @@
     "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
     "red": 1,
     "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_report_missing_activism_table_caches_empty_result_and_closes",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
   }
 ]

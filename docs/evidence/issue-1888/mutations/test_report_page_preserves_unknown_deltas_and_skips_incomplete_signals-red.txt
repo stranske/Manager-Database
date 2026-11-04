@@ -1,0 +1,63 @@
+cwd: /tmp/issue1888-report-mutations
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals -m 'not slow' --tb=short --disable-warnings
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals[missing] _
+tests/test_issue_1888_coverage.py:822: in test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals
+    badge.assert_called_once_with("SELL", "BUY")
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:997: in assert_called_once_with
+    raise AssertionError(msg)
+E   AssertionError: Expected 'mock' to be called once. Called 3 times.
+E   Calls: [call('SELL', 'BUY'), call('SELL', 'BUY'), call('SELL', 'BUY')].
+----------------------------- Captured stderr call -----------------------------
+2026-11-04 13:33:44.904 No runtime found, using MemoryCacheStorageManager
+2026-11-04 13:33:44.904 No runtime found, using MemoryCacheStorageManager
+2026-11-04 13:33:44.904 No runtime found, using MemoryCacheStorageManager
+2026-11-04 13:33:44.904 No runtime found, using MemoryCacheStorageManager
+2026-11-04 13:33:44.904 No runtime found, using MemoryCacheStorageManager
+2026-11-04 13:33:44.904 No runtime found, using MemoryCacheStorageManager
+2026-11-04 13:33:44.904 No runtime found, using MemoryCacheStorageManager
+13:33:44.913 | INFO    | ui.daily_report - daily_report.load_diffs completed
+{"asctime": "2026-11-04 13:33:44,913", "levelname": "INFO", "name": "ui.daily_report", "service": "daily_diff_flow", "message": "daily_report.load_diffs completed", "date": "2024-05-01", "elapsed_ms": 0.8348520000254211}
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+_ test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals[invalid] _
+tests/test_issue_1888_coverage.py:822: in test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals
+    badge.assert_called_once_with("SELL", "BUY")
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:997: in assert_called_once_with
+    raise AssertionError(msg)
+E   AssertionError: Expected 'mock' to be called once. Called 3 times.
+E   Calls: [call('SELL', 'BUY'), call('SELL', 'BUY'), call('SELL', 'BUY')].
+----------------------------- Captured stderr call -----------------------------
+13:33:45.054 | INFO    | ui.daily_report - daily_report.load_diffs completed
+{"asctime": "2026-11-04 13:33:45,054", "levelname": "INFO", "name": "ui.daily_report", "service": "daily_diff_flow", "message": "daily_report.load_diffs completed", "date": "2024-05-01", "elapsed_ms": 0.762572999974509}
+------------------------------ Captured log call -------------------------------
+INFO     ui.daily_report:daily_report.py:46 daily_report.load_diffs completed
+_ test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals[unchanged] _
+tests/test_issue_1888_coverage.py:822: in test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals
+    badge.assert_called_once_with("SELL", "BUY")
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:997: in assert_called_once_with
+    raise AssertionError(msg)
+E   AssertionError: Expected 'mock' to be called once. Called 3 times.
+E   Calls: [call('SELL', 'BUY'), call('SELL', 'BUY'), call('SELL', 'BUY')].
+----------------------------- Captured stderr call -----------------------------
+13:33:45.145 | INFO    | ui.daily_report - daily_report.load_diffs completed
+{"asctime": "2026-11-04 13:33:45,145", "levelname": "INFO", "name": "ui.daily_report", "service": "daily_diff_flow", "message": "daily_report.load_diffs completed", "date": "2024-05-01", "elapsed_ms": 0.7443459999194602}
+------------------------------ Captured log call -------------------------------
+INFO     ui.daily_report:daily_report.py:46 daily_report.load_diffs completed
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals[missing] - AssertionError: Expected 'mock' to be called once. Called 3 times.
+Calls: [call('SELL', 'BUY'), call('SELL', 'BUY'), call('SELL', 'BUY')].
+FAILED tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals[invalid] - AssertionError: Expected 'mock' to be called once. Called 3 times.
+Calls: [call('SELL', 'BUY'), call('SELL', 'BUY'), call('SELL', 'BUY')].
+FAILED tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals[unchanged] - AssertionError: Expected 'mock' to be called once. Called 3 times.
+Calls: [call('SELL', 'BUY'), call('SELL', 'BUY'), call('SELL', 'BUY')].
+3 failed, 14 warnings in 1.93s
+
+exit: 1

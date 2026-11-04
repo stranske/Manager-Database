@@ -840,3 +840,85 @@ predates the current local case and does not complete its CI acceptance checkbox
 The current main base remains `a7f4e626`. PR #1889 is open and ready for review.
 Primary `.git` is read-only, so a writable-clone commit preserves this change;
 the primary checkout retains the same source and evidence edits for handoff.
+
+
+## Report missing values and optional activism follow-up (2026-11-04)
+
+The first unchecked task remains blocked. The connector lists main Gate artifact
+`13265760076` and returns a ZIP reference, but `gh run download 41702885246 --repo
+stranske/Manager-Database --name gate-coverage-3.13-1 --dir
+/tmp/issue1888-gate-main` fails with `error connecting to api.github.com` (exit 1).
+No artifact JSON or exact CI base is verified. The current published head
+`86e8040` passed Gate run `41822356850`, with successful pytest steps in both Python
+3.13 and 3.14 jobs (`report-values-ci-status.json`). This predates these additions;
+CI acceptance for the new changes remains open.
+
+Two test functions (four cases) advance the report behavior task. The page test
+uses real SQLite loaders and checks missing/invalid amounts remain unknown,
+unchanged amounts render zero deltas, and HTML and CSV agree exactly. Missing or
+blank topics export as empty strings. Whitespace-only signal identifiers are
+ignored, while a complete manager/CUSIP pair retains its annotation. The optional
+activism test uses an actual database without activism tables, verifies the empty
+result is cached, and verifies its connection is closed. Production is unchanged.
+
+Matched targeted commands, before and after adding the tests (replace PHASE with
+before or after, respectively):
+
+```sh
+pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=json:/tmp/issue1888-report-PHASE.json --cov-report=term-missing --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+| Phase | Passed | Statements | Missing statements | Branches | Missing branches | Cover |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Before | 52 | 303 | 7 | 78 | 6 | 97% |
+| After | 56 | 303 | 1 | 78 | 1 | 99% |
+
+Local missing statements+branches fall **13 to 2**, a reduction of **11**. Raw JSON
+and terminal output are `report-values-{before,after}-{coverage.json,pytest.txt}`.
+The only residual is the script entry point (line 569 and arc 568→569). This local,
+incremental delta cannot be added to the previous deltas or credited as CI evidence.
+
+Receipts 38–39 in `mutations/receipts.json` record real source changes in the
+throwaway checkout `/tmp/issue1888-report-mutations`. Changing the signal key guard
+from `and` to `or` produces **3 failed**, exit 1; restoring it produces **3 passed**,
+exit 0. Replacing the activism missing-table fallback with a raise produces
+**1 failed**, exit 1; restoring it produces **1 passed**, exit 0. Complete commands,
+outputs and diffs are adjacent to the receipts. All 39 receipts have red=1,
+green=0 and matching original/restored source hashes. To replay these two cases,
+copy the first 37 receipts to the output directory before running:
+
+```sh
+python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-report-mutations --output /tmp/issue1888-report-proof --start-at 37
+```
+
+Validation after formatting:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime black --line-length 100 tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+PYTHONPATH=/tmp/issue1888-runtime timeout 60 black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
+ruff check tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+PYTHONPATH=/tmp/issue1888-runtime timeout 120 pytest tests/test_issue_1888_coverage.py tests/test_issue_1806_coverage.py tests/test_issue_1816_coverage.py tests/test_search.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_signals_api.py tests/test_edgar_flow.py tests/test_bitemporal_holdings.py -m 'not slow' --tb=short --disable-warnings
+```
+
+Black passes (452 files unchanged), Ruff passes, and related suites report
+**187 passed, 2 existing nightly skips**. Full output is in
+`report-values-black.txt` and `report-values-regression-pytest.txt`. The earlier
+unshimmed Black and regression invocations stalled at the sandbox thread wakeup
+boundary; the commands above use the previously documented temporary polling shim.
+No tests or security behavior were disabled. The negative-cache audit remains
+clear in the scoped runtime modules. The new optional-activism case explicitly
+checks caching of an empty result, without a production cache change.
+
+The primary `.git` mount rejects `git add` with `Read-only file system`. The code,
+mutation receipts and evidence are preserved in a commit in a writable `/tmp`
+clone, while the primary checkout retains the same edits for automation handoff.
+
+### Publication status for this follow-up
+
+PR-body replacement, the `needs-human` label, and a blocker comment were all
+rejected with `MCP tool call requires approval, but approval policy is never`.
+The live PR body and labels were not updated. The prepared body, test changes and
+mutation proof remain local for the automation handoff. Required follow-up is to
+publish the changes, apply the prepared body, retrieve the main Gate JSON for the
+exact ranking/comparison, and run CI on the resulting head. PR #1889 was verified
+open with `draft=false` at handoff. No acceptance checkbox was newly checked.

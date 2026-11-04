@@ -312,6 +312,22 @@ CASES = [
         '\n            identifier_parts = [f"CUSIP: {cusip or \'n/a\'}", "Resolved: None"]',
         1,
     ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals",
+        "ui/daily_report.py",
+        "                if manager_name and cusip:\n",
+        "                if manager_name or cusip:\n",
+        1,
+    ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_report_missing_activism_table_caches_empty_result_and_closes",
+        "ui/daily_report.py",
+        "    except Exception:\n        table = pd.DataFrame()\n",
+        "    except Exception:\n        raise\n",
+        1,
+    ),
 ]
 
 
