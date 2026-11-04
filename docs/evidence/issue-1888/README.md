@@ -515,3 +515,76 @@ Gate outcome, and coverage artifact identities. For the previous published head,
 the Python 3.13 artifact is `13296162876`, and Python 3.14 is `13296791087`. Their
 JSON contents have not been read; neither artifact is credited as measurement for
 these new local tests. PR #1889 was rechecked open with draft=false.
+
+## Date-lookup cache and error follow-up (2026-11-04)
+
+Two new functions (five cases) verify report date lookup behavior. A real SQLite
+schema supplies empty, invalid, tied and exact-match dates. Repeated empty-date
+message rendering must reuse the cached result, including `None`, after the
+connection closes. Ties prefer the newer date. A separate test verifies that a
+locked-database error propagates with its exact message, closes the connection,
+and retries on the next call. There is no production change. Reinspection of the
+six scoped runtime modules found no negative-cache sentinel misuse.
+
+Matched local targeted coverage against preceding published head `c1a5b73`:
+
+```sh
+pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-date-lookup-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-date-lookup-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+Before: **41 passed**, report **96%**, missing statements+branches **8+7=15**.
+After: **46 passed**, report **97%**, missing statements+branches **7+6=13**.
+Raw JSON and terminal logs are `date-lookup-{before,after}-coverage.json` and
+`date-lookup-{before,after}-pytest.txt`. This is a two-unit local improvement
+against the preceding head, not a CI-main measurement or an amount to add to
+previous deltas with different selections.
+
+Broader affected suites: **181 passed, 1 existing nightly skip**. Coverage:
+search **97%**, signals **91%**, EDGAR **98%**, report **97%**. Raw terminal output
+is `date-lookup-regression-pytest.txt`.
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_edgar_flow.py tests/test_ingest_flow.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+PYTHONPATH=/tmp/issue1888-runtime black --line-length 100 tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+PYTHONPATH=/tmp/issue1888-runtime black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
+ruff check tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+```
+
+The required repository-wide Black check passes (452 files unchanged), and Ruff
+passes. The temporary event-loop shim documented earlier is used for the broader
+suite and Black; plain targeted pytest also passes. An initial Black invocation
+without the shim was interrupted; the required successful check uses the shim.
+
+Receipts 32–33 record actual source mutations: choosing the farthest date causes
+the tie and exact-match cases to fail; omitting connection closure causes the
+error-path test to fail. Restoring each source makes the same function pass. All
+33 receipts have red exit 1 and green exit 0, with identical restored hashes.
+Commands and exact output excerpts are in `pr-body.md`; complete logs/diffs are
+under `mutations/`. To replay just this follow-up, copy the updated test module
+into a disposable local clone, seed the output directory with the first 31
+receipts, and run:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-date-lookup-proof --output docs/evidence/issue-1888/mutations --start-at 31
+```
+
+The reconciliation review confirmed that the prior EDGAR, search/signal/report,
+assertion, mutation and cache-audit tasks have supporting evidence. The prepared
+body reconciles all repeated checkbox instances: **16 complete, six open**.
+Updating the live body was rejected by the approval policy (`never`), so those
+checkmarks remain local. Current main still matches `a7f4e626`; transferring its
+coverage artifact again failed with `URLError`. The first task remains blocked.
+Gate run `41780939810` passed Python 3.13/3.14 Pytest steps for published head
+`c1a5b73`. Artifact IDs are `13299645909` and `13299486485`; their JSON has not
+been read. This is not CI evidence for the five new local cases. Exact CI ranking,
+base and comparison remain open, as does final-candidate CI validation.
+
+The primary `.git` directory is read-only (`git add` cannot create `index.lock`).
+The source commit is preserved in `/tmp/issue1888-date-lookup-proof`, with
+`date-lookup-followup.patch` for application in a writable checkout. No protected
+file is changed and no remote publication is claimed.
+
+The `needs-human` label and blocker-comment attempts were also rejected with
+`MCP tool call requires approval, but approval policy is never`. These actions
+were not published. PR #1889 remains open and ready for review.

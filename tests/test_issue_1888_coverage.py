@@ -3,7 +3,7 @@
 import datetime as dt
 import io
 import sqlite3
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, call
 
 import pandas as pd
 import pytest
@@ -506,5 +506,67 @@ def test_report_login_stop_prevents_database_access(monkeypatch):
         ui.date_input.assert_not_called()
         ui.tabs.assert_not_called()
         connect.assert_not_called()
+    finally:
+        daily_report.latest_report_date.clear()
+
+
+@pytest.mark.parametrize(
+    "dates, expected",
+    [
+        ([], None),
+        ([None, "not-a-date"], None),
+        (["2024-04-29", "2024-05-01"], dt.date(2024, 5, 1)),
+        (["2024-04-29", "2024-04-30", "2024-05-01"], dt.date(2024, 4, 30)),
+    ],
+    ids=["empty", "invalid", "tie-prefers-newer", "exact-match"],
+)
+def test_report_nearest_date_caches_empty_and_populated_results(
+    monkeypatch, tmp_path, dates, expected
+):
+    db_path = tmp_path / "report-dates.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE daily_diffs (report_date TEXT)")
+        conn.executemany("INSERT INTO daily_diffs VALUES (?)", [(value,) for value in dates])
+    conn.close()
+    connection = sqlite3.connect(db_path)
+    connect = Mock(return_value=connection)
+    monkeypatch.setattr(daily_report, "connect_db", connect)
+    daily_report.nearest_report_date.clear()
+    try:
+        assert daily_report.nearest_report_date("2024-04-30") == expected
+        message = (
+            "No data for this date."
+            if expected is None
+            else f"No data for this date — nearest report is {expected.isoformat()}."
+        )
+        # Repeated rendering must reuse even a cached None, after the connection closes.
+        assert daily_report.empty_report_date_message("2024-04-30") == message
+        assert daily_report.empty_report_date_message("2024-04-30") == message
+        connect.assert_called_once_with()
+        with pytest.raises(sqlite3.ProgrammingError, match="Cannot operate on a closed database"):
+            connection.execute("SELECT 1")
+    finally:
+        connection.close()
+        daily_report.nearest_report_date.clear()
+
+
+def test_report_latest_date_query_errors_close_connections_and_are_retried(monkeypatch):
+    connections = [Mock(), Mock()]
+    connect = Mock(side_effect=connections)
+    query = Mock(side_effect=pd.errors.DatabaseError("database is locked"))
+    monkeypatch.setattr(daily_report, "connect_db", connect)
+    monkeypatch.setattr(daily_report.pd, "read_sql_query", query)
+    daily_report.latest_report_date.clear()
+    try:
+        for connection in connections:
+            with pytest.raises(pd.errors.DatabaseError) as exc_info:
+                daily_report.latest_report_date()
+            assert str(exc_info.value) == "database is locked"
+            connection.close.assert_called_once_with()
+        assert connect.call_count == 2
+        assert query.call_args_list == [
+            call("SELECT MAX(report_date) AS report_date FROM daily_diffs", connection)
+            for connection in connections
+        ]
     finally:
         daily_report.latest_report_date.clear()

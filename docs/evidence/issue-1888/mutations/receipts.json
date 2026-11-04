@@ -215,5 +215,19 @@
     "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
     "red": 1,
     "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_report_nearest_date_caches_empty_and_populated_results",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_report_latest_date_query_errors_close_connections_and_are_retried",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
   }
 ]

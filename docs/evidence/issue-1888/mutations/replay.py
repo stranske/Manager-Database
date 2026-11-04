@@ -259,6 +259,22 @@ CASES = [
         "    if not require_login():\n        pass",
         1,
     ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_report_nearest_date_caches_empty_and_populated_results",
+        "ui/daily_report.py",
+        "return min(\n        candidates, key=lambda candidate:",
+        "return max(\n        candidates, key=lambda candidate:",
+        1,
+    ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_report_latest_date_query_errors_close_connections_and_are_retried",
+        "ui/daily_report.py",
+        "finally:\n        conn.close()\n    return max(candidates)",
+        "finally:\n        pass\n    return max(candidates)",
+        1,
+    ),
 ]
 
 

@@ -107,12 +107,14 @@ deletions and persistence. Search/signal/report tests cover legacy and vector
 results, annotations, page sorting/filtering and export behavior. PostgreSQL is
 modeled; live-server validation is not claimed.
 
-This follow-up adds five news-loader/headline cases. Matched targeted report
-coverage rises **92% to 93%**, with missing statements+branches **29 to 25**.
-Affected suites: **173 passed, 1 existing nightly skip**. Targeted coverage table:
-search **97%**, signals **91%**, EDGAR **98%**, report **93%**. Black's required
-repository check passes (452 files unchanged); Ruff passes. Commands and raw reports
-are in [the evidence README](docs/evidence/issue-1888/README.md#news-loading-and-negative-cache-audit-2026-11-04).
+This follow-up adds five date-lookup cases, including empty/invalid date results,
+newer-date tie breaking, exact matches, connection cleanup, and retry after query
+errors. Matched targeted report coverage rises **96% to 97%**, with missing
+statements+branches **15 to 13**. Affected suites: **181 passed, 1 existing nightly
+skip**. Targeted coverage table: search **97%**, signals **91%**, EDGAR **98%**,
+report **97%**. Black's required repository check passes (452 files unchanged);
+Ruff passes. These are local results, not a CI artifact comparison. Commands and
+raw reports are in [the evidence README](docs/evidence/issue-1888/README.md#date-lookup-cache-and-error-follow-up-2026-11-04).
 
 Negative-cache audit completed across EDGAR, search, signals, report, digest and
 ASIC. No `cache.get(key) is None` misuse was found. Search's `deduped` only stores
@@ -155,7 +157,8 @@ Per-target shortfalls: the four-target local main base is only 132 units, so a
 scheduled CLI entry point and logging paths in the focused run. Search retains
 optional imports, score guards, and optional-schema/null branches. Signals retains
 optional imports and guards in the targeted selection. Report retains compatibility
-error/empty-value guards, login/entry-point wiring, and iteration/sort arcs.
+error/empty-value guards, the script entry point, and an incomplete annotation
+branch. Login and date-navigation wiring are covered by the preceding tests.
 These are residual coverage paths, not assertions that they cannot be tested.
 [The README](docs/evidence/issue-1888/README.md) records the specific measurements
 and remaining branches for each stage. Current-main CI measurement and candidate
@@ -163,7 +166,7 @@ CI validation remain required before acceptance can be marked complete.
 
 ## Break-and-revert proof for every new function
 
-All 31 receipts have red exit **1** and restored exit **0**. Mutations edit actual
+All 33 receipts have red exit **1** and restored exit **0**. Mutations edit actual
 runtime source in disposable `/tmp` checkouts; original/restored hashes match.
 Commands and exact output excerpts follow. Each linked red/green file retains
 complete output and the environment/cwd; each linked diff records the source edit.
@@ -1056,3 +1059,77 @@ identifies the prior published head's coverage artifacts: `13296162876` for
 Python 3.13 and `13296791087` for 3.14. These are handoff identifiers, not inspected
 coverage contents or CI validation of the new tests. PR #1889 remains open and
 ready for review (`draft=false`).
+
+### 32. `test_report_nearest_date_caches_empty_and_populated_results`
+
+Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results.diff).
+
+Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results-red.txt).
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_nearest_date_caches_empty_and_populated_results -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+2 failed, 2 passed, 6 warnings in 0.99s
+exit: 1
+```
+
+Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results-green.txt).
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_nearest_date_caches_empty_and_populated_results -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+4 passed, 6 warnings in 0.95s
+exit: 0
+```
+
+### 33. `test_report_latest_date_query_errors_close_connections_and_are_retried`
+
+Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried.diff).
+
+Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried-red.txt).
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_query_errors_close_connections_and_are_retried -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+1 failed, 6 warnings in 0.95s
+exit: 1
+```
+
+Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried-green.txt).
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_query_errors_close_connections_and_are_retried -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+1 passed, 6 warnings in 0.88s
+exit: 0
+```
+
+## Date-lookup follow-up and publication state
+
+The new SQLite date lookup checks verify that cached `None` is reused after the
+connection closes, and that equal-distance choices prefer the newer date. A
+separate error test verifies exact operational errors, connection closure, and
+retry rather than caching a transient failure. Both functions have real source
+mutation receipts above. No production bug or production edit is claimed.
+
+Published head `c1a5b73198727c351a7b0bc4c3ce603ca5196323` passed the Python 3.13
+and 3.14 Pytest steps in [Gate 41780939810](https://github.com/stranske/Manager-Database/actions/runs/41780939810).
+Its Python 3.13 coverage artifact is `13299645909`; Python 3.14 is `13299486485`.
+Artifact contents remain unread. This CI result predates these five local cases,
+so the final-candidate CI checkbox remains open. Current main is still
+`a7f4e626bb4b8359a64c56a56211218e41b6020a`; transfer of its artifact still fails.
+The exact CI base/ranking and ~180-unit comparison therefore remain unverified.
+
+PR body publication was rejected because the tool requires approval while this
+run's approval policy is `never`. The primary Git metadata mount is read-only.
+The tested source change is preserved in `/tmp/issue1888-date-lookup-proof` with a
+patch in the evidence directory. This prepared body reconciles verified tasks;
+it does not claim the live PR checkboxes were updated.
