@@ -1,0 +1,26 @@
+cwd: /tmp/issue1888-edgar-mutations
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged -m 'not slow' --tb=short --disable-warnings
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_upsert_without_raw_key_leaves_legacy_table_unchanged[filing_id INTEGER PRIMARY KEY] _
+tests/test_edgar_flow.py:656: in test_upsert_without_raw_key_leaves_legacy_table_unchanged
+    assert flow._upsert_filing_legacy(conn, 100, "13F-HR", "2024-05-01", "raw.xml") == 0
+E   AssertionError: assert 99 == 0
+E    +  where 99 = <function _upsert_filing_legacy at 0x781131b90720>(<sqlite3.Connection object at 0x7811346533d0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+E    +    where <function _upsert_filing_legacy at 0x781131b90720> = flow._upsert_filing_legacy
+__ test_upsert_without_raw_key_leaves_legacy_table_unchanged[unrelated TEXT] ___
+tests/test_edgar_flow.py:656: in test_upsert_without_raw_key_leaves_legacy_table_unchanged
+    assert flow._upsert_filing_legacy(conn, 100, "13F-HR", "2024-05-01", "raw.xml") == 0
+E   AssertionError: assert 99 == 0
+E    +  where 99 = <function _upsert_filing_legacy at 0x781131b90720>(<sqlite3.Connection object at 0x7811319d74c0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+E    +    where <function _upsert_filing_legacy at 0x781131b90720> = flow._upsert_filing_legacy
+=========================== short test summary info ============================
+FAILED tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged[filing_id INTEGER PRIMARY KEY] - AssertionError: assert 99 == 0
+ +  where 99 = <function _upsert_filing_legacy at 0x781131b90720>(<sqlite3.Connection object at 0x7811346533d0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+ +    where <function _upsert_filing_legacy at 0x781131b90720> = flow._upsert_filing_legacy
+FAILED tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged[unrelated TEXT] - AssertionError: assert 99 == 0
+ +  where 99 = <function _upsert_filing_legacy at 0x781131b90720>(<sqlite3.Connection object at 0x7811319d74c0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+ +    where <function _upsert_filing_legacy at 0x781131b90720> = flow._upsert_filing_legacy
+2 failed, 8 warnings in 0.96s
+
+exit: 1

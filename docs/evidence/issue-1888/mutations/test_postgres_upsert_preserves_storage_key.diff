@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -221,7 +221,7 @@
+     columns = get_table_columns(conn, "filings")
+     storage_columns = ", storage_key" if "storage_key" in columns else ""
+     storage_values = ", %s" if "storage_key" in columns else ""
+-    storage_update = ", storage_key = EXCLUDED.storage_key" if "storage_key" in columns else ""
++    storage_update = ", storage_key = filings.storage_key" if "storage_key" in columns else ""
+     params: tuple[Any, ...] = (manager_id, filing_type, filed_date, "edgar", raw_key, payload)
+     if "storage_key" in columns:
+         params = (*params, raw_key)

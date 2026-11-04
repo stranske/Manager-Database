@@ -160,3 +160,57 @@ update was created. `pr-body.md` preserves the prepared replacement body, includ
 all mutation outputs and only verified task checkmarks. `source.patch` preserves
 the three test-file changes for application in a writable checkout. No protected
 workflow is changed.
+
+## EDGAR follow-up verification (2026-11-04)
+
+Six further test functions (10 cases) cover reverse-order original/amendment
+history, watermarks on schemas without `source`, schemas without supported insert
+columns, SQLite triggers that suppress `RETURNING` rows, and PostgreSQL storage-key
+SQL generation including empty returned rows. The PostgreSQL check uses a mock;
+it does not claim live PostgreSQL validation. There is no production change.
+
+```sh
+pytest tests/test_edgar_flow.py --cov=etl.edgar_flow --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-edgar-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+pytest tests/test_edgar_flow.py tests/test_ingest_flow.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py -m 'not slow' --tb=short --disable-warnings
+pytest tests/test_bitemporal_holdings.py -m 'not slow' --tb=short --disable-warnings
+```
+
+Results: **47 passed, 1 skipped**; **99 passed, 1 skipped**; and **20 passed,
+1 skipped**, respectively. All skips are existing nightly tests. Python 3.14.8.
+The targeted EDGAR coverage table reports **98%** (236 statements, 5 missing;
+72 branches, 1 missing). The identical EDGAR-only command before these additions
+reported **94%** (12 missing statements and 7 missing branches). The measured local
+uncovered-unit reduction is **19 to 6 = 13**, with raw JSON in
+`edgar-followup-before-coverage.json` and `edgar-followup-after-coverage.json`.
+These are targeted local measurements, not whole-suite or CI artifact credit.
+The previously listed schema, fallback, reverse-order and watermark gaps are now
+covered. Remaining misses in this focused run are log proxy forwarding (74, 77–78)
+and the scheduled CLI entry point (534, 536, arc 533→534). The latter is integration
+wiring; these tests exercise ingestion directly without starting a live scheduler.
+
+All six functions failed against an actual source edit and passed after restoring
+the original bytes. Receipts 16–21, their exact diffs, and complete output are in
+`mutations/`. To replay only these additions after replaying cases 1–15:
+
+```sh
+python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-edgar-mutations --output /tmp/issue1888-edgar-proof --start-at 15
+```
+
+The disposable checkout was produced by extracting `git archive HEAD`, then copying
+in the updated `tests/test_edgar_flow.py`. All original/restored EDGAR source hashes
+match. No `cache.get(key) is None` negative-cache pattern occurs in the tested
+EDGAR module. Ruff passes for both changed Python files. Black formatting and the
+required repository check pass (452 unchanged), using the previously documented
+`/tmp/issue1888-runtime` event-loop wakeup shim. No tests were disabled or skipped
+beyond the repository's existing nightly configuration. The CI baseline/ranking,
+~180-unit CI comparison, and CI-pytest acceptance checkboxes remain open.
+
+### Follow-up publication blocker
+
+The follow-up `git add tests/test_edgar_flow.py docs/evidence/issue-1888` failed:
+`Unable to create .git/index.lock: Read-only file system`. No commit can be created
+in this checkout. Updating PR #1889 with this prepared body was rejected with:
+`MCP tool call requires approval, but approval policy is never`. The live PR was
+verified open with draft=false; its body has not been updated. The baseline,
+CI-artifact reduction and CI pytest acceptance checks remain open. The local
+verified checkmarks in this prepared body are not a claim of live PR publication.

@@ -1,0 +1,26 @@
+cwd: /tmp/issue1888-edgar-mutations
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero -m 'not slow' --tb=short --disable-warnings
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_upsert_ignored_by_trigger_returns_existing_id_or_zero[None] _______
+tests/test_edgar_flow.py:678: in test_upsert_ignored_by_trigger_returns_existing_id_or_zero
+    assert flow._upsert_filing_legacy(conn, 100, "13F-HR", "2024-05-01", "raw.xml") == (
+E   AssertionError: assert 99 == ((None or 0))
+E    +  where 99 = <function _upsert_filing_legacy at 0x7456beafc720>(<sqlite3.Connection object at 0x7456c144f3d0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+E    +    where <function _upsert_filing_legacy at 0x7456beafc720> = flow._upsert_filing_legacy
+________ test_upsert_ignored_by_trigger_returns_existing_id_or_zero[42] ________
+tests/test_edgar_flow.py:678: in test_upsert_ignored_by_trigger_returns_existing_id_or_zero
+    assert flow._upsert_filing_legacy(conn, 100, "13F-HR", "2024-05-01", "raw.xml") == (
+E   AssertionError: assert 99 == ((42))
+E    +  where 99 = <function _upsert_filing_legacy at 0x7456beafc720>(<sqlite3.Connection object at 0x7456be94b4c0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+E    +    where <function _upsert_filing_legacy at 0x7456beafc720> = flow._upsert_filing_legacy
+=========================== short test summary info ============================
+FAILED tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero[None] - AssertionError: assert 99 == ((None or 0))
+ +  where 99 = <function _upsert_filing_legacy at 0x7456beafc720>(<sqlite3.Connection object at 0x7456c144f3d0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+ +    where <function _upsert_filing_legacy at 0x7456beafc720> = flow._upsert_filing_legacy
+FAILED tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero[42] - AssertionError: assert 99 == ((42))
+ +  where 99 = <function _upsert_filing_legacy at 0x7456beafc720>(<sqlite3.Connection object at 0x7456be94b4c0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+ +    where <function _upsert_filing_legacy at 0x7456beafc720> = flow._upsert_filing_legacy
+2 failed, 8 warnings in 0.96s
+
+exit: 1

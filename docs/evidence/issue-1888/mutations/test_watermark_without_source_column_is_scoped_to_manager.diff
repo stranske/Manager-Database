@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -386,7 +386,7 @@
+         if manager_id is None:
+             return None
+         marker = get_placeholder(conn)
+-        where = f"manager_id = {marker}"
++        where = f"manager_id <> {marker}"
+         params: list[Any] = [manager_id]
+         if "source" in filing_columns:
+             where += f" AND source = {marker}"

@@ -103,5 +103,47 @@
     "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
     "red": 1,
     "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current",
+    "source": "etl/edgar_flow.py",
+    "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
+    "red": 1,
+    "green": 0
   }
 ]
