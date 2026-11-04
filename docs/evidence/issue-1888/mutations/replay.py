@@ -227,6 +227,22 @@ CASES = [
         'if doc_id is None:\n                raise ValueError("missing document ID")',
         1,
     ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_report_postgres_news_caches_results_by_date_and_closes",
+        "ui/daily_report.py",
+        '"WHERE n.published_at::date = %s "',
+        '"WHERE n.published_at::date = ? "',
+        1,
+    ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_report_whitespace_news_url_keeps_escaped_headline",
+        "ui/daily_report.py",
+        "if not raw_url:\n        return text",
+        'if not raw_url:\n        return text + "!"',
+        1,
+    ),
 ]
 
 

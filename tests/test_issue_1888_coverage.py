@@ -357,3 +357,60 @@ def test_search_postgres_ignores_vector_hits_without_document_id(monkeypatch):
         (6, "Document", "", 0.5),
     ]
     vector.assert_called_once_with("Elliott", k=20, connection=conn)
+
+
+@pytest.mark.parametrize("outcome", ["populated", "empty", "query_error"])
+def test_report_postgres_news_caches_results_by_date_and_closes(monkeypatch, outcome):
+    columns = [
+        "headline",
+        "url",
+        "published_at",
+        "source",
+        "topics",
+        "confidence",
+        "manager_name",
+    ]
+    expected = pd.DataFrame(columns=columns)
+    if outcome == "populated":
+        expected = pd.DataFrame(
+            [["Market update", None, "2024-05-01T10:00:00", "Wire", None, 0.8, None]],
+            columns=columns,
+        )
+    connections = [Mock(), Mock()]
+    connect = Mock(side_effect=connections)
+    read_query = Mock(return_value=expected)
+    if outcome == "query_error":
+        read_query.side_effect = pd.errors.DatabaseError("news temporarily unavailable")
+    monkeypatch.setattr(daily_report, "connect_db", connect)
+    monkeypatch.setattr(daily_report.pd, "read_sql_query", read_query)
+    daily_report.load_news.clear()
+    try:
+        pd.testing.assert_frame_equal(daily_report.load_news("2024-05-01"), expected)
+        pd.testing.assert_frame_equal(daily_report.load_news("2024-05-01"), expected)
+        connect.assert_called_once_with()
+        read_query.assert_called_once()
+        connections[0].close.assert_called_once_with()
+
+        # Empty and failed-query results are cached too; another date must query again.
+        pd.testing.assert_frame_equal(daily_report.load_news("2024-05-02"), expected)
+        assert connect.call_count == 2
+        assert read_query.call_count == 2
+        connections[1].close.assert_called_once_with()
+        for call, connection, date in zip(
+            read_query.call_args_list, connections, ["2024-05-01", "2024-05-02"], strict=True
+        ):
+            sql, actual_connection = call.args
+            assert actual_connection is connection
+            assert "LEFT JOIN managers m ON m.manager_id = n.manager_id" in sql
+            assert "WHERE n.published_at::date = %s" in sql
+            assert sql.endswith("ORDER BY n.published_at DESC LIMIT 50")
+            assert call.kwargs == {"params": (date,)}
+    finally:
+        daily_report.load_news.clear()
+
+
+@pytest.mark.parametrize("url", [" ", "\t\n"])
+def test_report_whitespace_news_url_keeps_escaped_headline(url):
+    assert (
+        daily_report.headline_markdown(r"  [Desk] \ <x> &  ", url) == r"\[Desk\] \\ &lt;x&gt; &amp;"
+    )

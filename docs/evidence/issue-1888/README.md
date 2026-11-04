@@ -322,3 +322,88 @@ fallback boundaries`). Its 75 affected tests and the required repository-wide
 Black check pass before committing. The primary checkout retains the same file
 changes, but its branch cannot be advanced while Git metadata is read-only. Exact
 terminal captures and mutation diffs retain their original output whitespace.
+
+## News loading and negative-cache audit (2026-11-04)
+
+Two new test functions (five parametrized cases) cover PostgreSQL news-query
+construction, result preservation, empty/error-result caching by date, connection
+cleanup on every uncached request, and whitespace-only headline URLs with exact
+escaped-text assertions. PostgreSQL query execution is mocked, not live-server
+validation. No production change was needed.
+
+The negative-cache audit is complete across `etl/edgar_flow.py`, `api/search.py`,
+`api/signals.py`, `ui/daily_report.py`, `etl/digest_flow.py`, and `adapters/asic.py`:
+
+```sh
+rg -n '\.get\(|cache' api/search.py api/signals.py ui/daily_report.py etl/edgar_flow.py etl/digest_flow.py adapters/asic.py
+```
+
+Every lookup was inspected with its writes. No cache uses a stored `None` as an
+uncached sentinel. Search's `deduped` values are always `SearchResult` objects;
+`None` means no result has been inserted. Signals' `ticker_by_cusip` may contain
+`None`, but it is populated once from holdings and its reads do not trigger another
+lookup. The report uses Streamlit's cache directly. The new loader test verifies
+that empty and query-error DataFrames do not trigger repeated database requests
+for the same date, while a different date does. This supports the checked audit
+item without inventing a production bug.
+
+Matched local commands, before and after this round's test additions:
+
+```sh
+pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-news-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-news-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+Before: **33 passed**, report **92%**, missing statements+branches **14+15=29**.
+After: **38 passed**, report **93%**, missing statements+branches **12+13=25**.
+The four-unit reduction is local and incremental against `0448712`, not a CI main
+baseline or an amount to add to previous deltas. Raw JSON and terminal output are
+`news-{before,after}-coverage.json` and `news-{before,after}-pytest.txt`.
+
+Broader validation: **173 passed, 1 existing nightly skip**, with search **97%**,
+signals **91%**, EDGAR **98%**, and report **93%** in the targeted selection:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_edgar_flow.py tests/test_ingest_flow.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+PYTHONPATH=/tmp/issue1888-runtime black --line-length 100 tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+PYTHONPATH=/tmp/issue1888-runtime timeout --preserve-status --signal=INT 20 black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
+ruff check tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+```
+
+All commands exit 0; Black reports 452 files unchanged. The temporary event-loop
+wakeup shim described above also wraps `uvloop.new_event_loop` to schedule the same
+10ms polling callback, because this installation of Black uses uvloop. No repository
+runtime or security setting is changed. An initial affected-suite run without the
+shim stalled and was interrupted; the captured successful run uses the shim.
+
+Mutation receipts 28–29 retain exact source diffs, commands, red/green output, and
+matching restored hashes. All five cases fail with the mutation and pass after
+restoration. Replay in the disposable local clone:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-news-proof --output docs/evidence/issue-1888/mutations --start-at 27
+```
+
+The first unchecked task remains blocked: `gh api
+repos/stranske/Manager-Database/commits/main --jq .sha` returns `error connecting to
+api.github.com`. The connector returns a ZIP reference for artifact `13265760076`,
+but that does not verify its coverage JSON. No exact CI baseline/ranking, CI
+reduction, or CI-pytest completion is claimed. PR #1889 is open with draft=false.
+The prepared PR body now includes command/output excerpts for all 29 mutation
+receipts, with links to complete logs, and stays below GitHub's body size limit.
+
+Publication attempt for this follow-up: staging in the primary checkout fails with
+`Unable to create .git/index.lock: Read-only file system`. Updating PR #1889's body
+and title is rejected: `MCP tool call requires approval, but approval policy is
+never`. The prepared body therefore remains local; the cache task is verified in
+this evidence but has not been checked in the live PR. The source commit is being
+preserved in the writable local clone `/tmp/issue1888-news-proof` after running
+Black and the affected report suites there. No protected file is changed.
+
+The `needs-human` label and blocker-comment attempts were rejected by the same
+approval check. The isolated checkout's report suites pass (38 tests), and its
+required repository-wide Black check passes (452 unchanged). Raw mutation stdout
+and unified diffs preserve their original whitespace; source and prose pass the
+scoped whitespace check. The local source commit uses the subject
+`test: verify report news caching and blank URL handling`. PR #1889 was rechecked
+open with draft=false, with its remote head unchanged by this run.

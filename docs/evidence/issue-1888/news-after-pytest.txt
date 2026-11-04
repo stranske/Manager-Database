@@ -1,0 +1,17 @@
+....................................../opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/ast.py:46: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7b8fc37ef3d0>
+  return compile(source, filename, mode, flags,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/collections/__init__.py:453: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7b8fc37ef100>
+  @classmethod
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+                                   [100%]
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.14.8-final-0 ________________
+
+Name                 Stmts   Miss Branch BrPart  Cover   Missing
+----------------------------------------------------------------
+ui/daily_report.py     303     12     78     11    93%   110-111, 152, 155, 228, 245, 295, 349, 354-355, 367->364, 489, 533->538, 569
+----------------------------------------------------------------
+TOTAL                  303     12     78     11    93%
+Coverage JSON written to file /tmp/issue1888-news-after.json
+38 passed, 15 warnings in 1.75s

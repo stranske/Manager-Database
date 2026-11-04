@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -193,7 +193,7 @@
+         return text
+     raw_url = str(url).strip()
+     if not raw_url:
+-        return text
++        return text + "!"
+     # Wrap the URL in <> so markdown handles parentheses in links correctly.
+     return f"[{text}](<{raw_url}>)"
+ 
