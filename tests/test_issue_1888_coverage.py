@@ -479,14 +479,17 @@ def test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids(
     assert conn.execute.call_args.args[1] == (report_date, 3, 5)
 
 
-@pytest.mark.parametrize("failure", ["database_list", "embedding"])
+@pytest.mark.parametrize("failure", ["database_list", "empty_database_list", "embedding"])
 def test_search_sqlite_vector_failure_preserves_text_results(monkeypatch, tmp_path, failure):
     import embeddings
 
     class Connection(sqlite3.Connection):
         def execute(self, sql, parameters=()):
-            if failure == "database_list" and sql == "PRAGMA database_list":
-                raise sqlite3.OperationalError("database list unavailable")
+            if sql == "PRAGMA database_list":
+                if failure == "database_list":
+                    raise sqlite3.OperationalError("database list unavailable")
+                if failure == "empty_database_list":
+                    return Mock(fetchall=Mock(return_value=[]))
             return super().execute(sql, parameters)
 
     conn = sqlite3.connect(tmp_path / "fallback.db", factory=Connection)
@@ -513,7 +516,7 @@ def test_search_sqlite_vector_failure_preserves_text_results(monkeypatch, tmp_pa
                 "timestamp": None,
             }
         ]
-        if failure == "database_list":
+        if failure in {"database_list", "empty_database_list"}:
             vector.assert_not_called()
         else:
             vector.assert_called_once_with("needle", db_path=str(tmp_path / "fallback.db"), k=20)

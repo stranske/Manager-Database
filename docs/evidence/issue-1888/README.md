@@ -776,3 +776,67 @@ to write `/home/runner/.edgar` (`test_edgar_integration`), and the sandbox refus
 a local socket (`test_wasm_static_routes`). Full output: `holdings-full-pytest.txt`.
 No existing test was skipped, disabled, or changed to accommodate these failures.
 This does not satisfy the CI pytest acceptance criterion.
+
+
+## Empty database metadata follow-up (2026-11-04)
+
+Reviewed the eleven branch commits through `49f5341` and verified all 37 existing
+mutation receipts have red=1 / green=0. The previous prepared body already has the
+verified EDGAR, behavior coverage, assertion, mutation and negative-cache boxes
+checked. Live PR reconciliation, label and comment updates were attempted before
+new implementation and rejected by the approval system. Exact CI artifact base
+and ranking remain blocked: artifact `13265760076` transfer still returns
+`URLError`. No local count is promoted to a CI count.
+
+The existing SQLite vector-failure test now also models a connection reporting no
+database metadata. It verifies the entire text result and that vector search is
+not called; an additional SQL assertion verifies the caller's connection remains
+usable. No production change or negative-cache misuse was found.
+
+Matched commands, before and after adding the case (substitute `before` or `after`
+for `PHASE` in the JSON destination):
+
+```sh
+pytest tests/test_issue_1888_coverage.py tests/test_search.py tests/test_issue_1806_coverage.py tests/test_issue_1816_coverage.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=json:docs/evidence/issue-1888/metadata-PHASE-coverage.json --cov-report=term-missing --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+| Phase | Passed | Statements | Missing statements | Branches | Missing branches | Cover |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Before | 86 | 294 | 4 | 118 | 3 | 98% |
+| After | 87 | 294 | 4 | 118 | 2 | 99% |
+
+Local missing units drop **7 to 6** (arc `656->663`); these counts cannot be added
+to earlier stages. Raw JSON: `metadata-before-coverage.json` and
+`metadata-after-coverage.json`; after output: `metadata-after-pytest.txt`.
+Remaining misses cover optional dependency imports and the scorer's blank-query
+guard. Public `universal_search` rejects blank queries before scoring, so that
+helper guard is unreachable through the public entry point.
+
+Real break-and-revert: `metadata-fallback.diff` adds an early empty-result return
+when metadata is absent. Running the test function in a disposable checkout gives
+**1 failed, 2 passed**, exit 1; restoring original bytes gives **3 passed**, exit 0.
+Full commands/output are `metadata-fallback-red.txt` and
+`metadata-fallback-green.txt`; the SHA-256 restoration receipt is
+`metadata-fallback-receipt.json`. The prepared PR body includes the command and
+output. This is an extended case in an existing function, so the original 37
+function receipts remain unchanged.
+
+```sh
+black --line-length 100 tests/test_issue_1888_coverage.py
+PYTHONPATH=/tmp/issue1888-runtime timeout 60 black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
+ruff check tests/test_issue_1888_coverage.py
+PYTHONPATH=/tmp/issue1888-runtime timeout 120 pytest tests/test_issue_1888_coverage.py tests/test_issue_1806_coverage.py tests/test_issue_1816_coverage.py tests/test_search.py tests/test_daily_report.py tests/test_signals_api.py tests/test_edgar_flow.py tests/test_bitemporal_holdings.py -m 'not slow' --tb=short --disable-warnings
+```
+
+Black passes for 452 files (`metadata-black.txt`); Ruff passes; related suites
+report **175 passed, 2 existing nightly skips** (`metadata-regression-pytest.txt`).
+The direct repository Black check hung on sandbox event-loop wakeup; it was
+interrupted and repeated with the previously documented temporary polling shim.
+No test or security behavior was disabled.
+
+`metadata-ci-status.json` records successful Gate run `41815491478` for published
+head `49f5341`. Both Python 3.13 and 3.14 jobs have successful pytest steps. This
+predates the current local case and does not complete its CI acceptance checkbox.
+The current main base remains `a7f4e626`. PR #1889 is open and ready for review.
+Primary `.git` is read-only, so a writable-clone commit preserves this change;
+the primary checkout retains the same source and evidence edits for handoff.

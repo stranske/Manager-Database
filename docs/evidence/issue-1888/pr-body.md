@@ -43,14 +43,15 @@ deletions and persistence. Search/signal/report tests cover legacy and vector
 results, annotations, page sorting/filtering and export behavior. PostgreSQL is
 modeled; live-server validation is not claimed.
 
-This follow-up adds five date-lookup cases, including empty/invalid date results,
-newer-date tie breaking, exact matches, connection cleanup, and retry after query
-errors. Matched targeted report coverage rises **96% to 97%**, with missing
-statements+branches **15 to 13**. Affected suites: **181 passed, 1 existing nightly
-skip**. Targeted coverage table: search **97%**, signals **91%**, EDGAR **98%**,
-report **97%**. Black's required repository check passes (452 files unchanged);
-Ruff passes. These are local results, not a CI artifact comparison. Commands and
-raw reports are in [the evidence README](docs/evidence/issue-1888/README.md#date-lookup-cache-and-error-follow-up-2026-11-04).
+The latest follow-up extends the SQLite vector-failure test with an empty
+`PRAGMA database_list` response. It checks the complete text-search result, skips
+vector search without a database path, and preserves the caller's connection.
+Matched search suites pass **86 before / 87 after**; targeted `api/search.py`
+coverage rises **98% to 99%**, missing statements+branches **7 to 6**. Related
+suites pass **175 tests, 2 existing nightly skips**. The required repository Black
+check passes (452 files unchanged); Ruff passes. These are local measurements,
+not CI artifact credit. See [the evidence README](docs/evidence/issue-1888/README.md#empty-database-metadata-follow-up-2026-11-04)
+for commands, raw JSON, and a real fail/restore/pass check.
 
 Negative-cache audit completed across EDGAR, search, signals, report, digest and
 ASIC. No `cache.get(key) is None` misuse was found. Search's `deduped` only stores
@@ -1232,3 +1233,54 @@ to write `/home/runner/.edgar` (`test_edgar_integration`), and the sandbox refus
 a local socket (`test_wasm_static_routes`). Full output: `holdings-full-pytest.txt`.
 No existing test was skipped, disabled, or changed to accommodate these failures.
 This does not satisfy the CI pytest acceptance criterion.
+
+
+## Empty database metadata follow-up (2026-11-04)
+
+This extends an existing test function with one parametrized case; no production
+files or new test functions are added. A SQLite connection subclass models an
+empty database-list response. Full text results must remain available when vector
+search has no usable database path. Local coverage eliminates the `656->663` arc.
+Remaining search misses are the optional Pydantic import fallback (28-31), the
+optional psycopg-import arc (23->26), and the blank `_score_result` guard (93).
+The public search entry point rejects blank queries before calling the scorer;
+this last guard cannot be reached through normal public search behavior.
+
+The [source mutation](docs/evidence/issue-1888/metadata-fallback.diff) deliberately
+drops text results when metadata is empty. The same command was run against
+broken then restored source in `/tmp/issue1888-metadata-commit`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+Broken:
+FAILED tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results[empty_database_list] - AssertionError: assert [] == [{'entity_typ... 'memo', ...}]
+1 failed, 2 passed, 6 warnings in 0.92s
+exit: 1
+
+Restored:
+3 passed, 6 warnings in 0.90s
+exit: 0
+```
+
+[Full failing output](docs/evidence/issue-1888/metadata-fallback-red.txt),
+[full restored output](docs/evidence/issue-1888/metadata-fallback-green.txt), and
+[restoration receipt](docs/evidence/issue-1888/metadata-fallback-receipt.json).
+The original 37 function receipts remain intact.
+
+Reconciliation reviewed all eleven branch commits through `49f5341`: the prepared
+checkboxes reflect verified EDGAR and broader search/signal/report tests, exact
+assertions, mutation proof, and the completed negative-cache audit. No runtime
+diff exists. Gate [41815491478](https://github.com/stranske/Manager-Database/actions/runs/41815491478)
+passed pytest for the published `49f5341` head on Python 3.13 and 3.14; see
+[metadata](docs/evidence/issue-1888/metadata-ci-status.json). That result predates
+this added case, so candidate CI remains unchecked.
+
+The main artifact transfer still fails with `URLError`; exact CI baseline/ranking
+and the approximately 180-unit comparison remain unchecked. The approval system
+rejected the PR body update, `needs-human` label, and blocker comment with
+`MCP tool call requires approval, but approval policy is never`. The live PR body
+was not reconciled. Primary Git metadata is read-only (`.git/index.lock` creation
+fails); the test change and evidence are preserved in a writable-clone commit.
