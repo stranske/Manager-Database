@@ -254,11 +254,20 @@ signals module has additional tests outside this targeted selection.
 
 Every new function has a real source mutation and restoration recorded in receipts
 22–27: all red exits are 1 and all restored exits are 0. Exact source diffs, full
-commands/output, and original/restored hashes are in `mutations/`. The replay command
-ran after copying the changed test module into the disposable archived checkout:
+commands/output, and original/restored hashes are in `mutations/`. To replay after
+copying the changed test module into the disposable archived checkout, seed a
+separate output directory with the first 21 receipts. This leaves checked-in
+evidence intact and runs cases 22 onward, including all six boundary functions:
 
 ```sh
-PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-boundaries --output docs/evidence/issue-1888/mutations --start-at 21
+mkdir -p /tmp/issue1888-boundaries-replay
+python - <<'PY'
+import json
+from pathlib import Path
+receipts = json.loads(Path('docs/evidence/issue-1888/mutations/receipts.json').read_text())
+Path('/tmp/issue1888-boundaries-replay/receipts.json').write_text(json.dumps(receipts[:21]))
+PY
+PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-boundaries --output /tmp/issue1888-boundaries-replay --start-at 21
 ```
 
 The CI-artifact baseline remains blocked: `gh run download 41702885246 -n
@@ -407,3 +416,102 @@ and unified diffs preserve their original whitespace; source and prose pass the
 scoped whitespace check. The local source commit uses the subject
 `test: verify report news caching and blank URL handling`. PR #1889 was rechecked
 open with draft=false, with its remote head unchanged by this run.
+
+## Date navigation follow-up (2026-11-04)
+
+Two test functions (three cases) cover the login stop and date-navigation branches.
+The navigation test seeds two dates in SQLite and exercises real report loaders.
+It verifies the older selection is preserved unless the latest-report button is
+pressed, then checks rendered HTML rows, exported rows, filenames, and news content.
+The login test models Streamlit's stop exception and verifies that no date widget,
+tab, or database access occurs after login is rejected. There is no production edit.
+
+Matched targeted coverage on Python 3.14.9, against preceding head `63569b1`:
+
+```sh
+# Before: disposable git archive of 63569b1 in /tmp/issue1888-navigation-before
+pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-navigation-baseline.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+# After: primary checkout
+pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-navigation-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+Before: **38 passed**, report **93%**, missing statements+branches **12+13=25**.
+After: **41 passed**, report **96%**, missing statements+branches **8+7=15**.
+Raw JSON and terminal captures are `navigation-{before,after}-coverage.json` and
+`navigation-{before,after}-pytest.txt`. This ten-unit improvement is local and
+incremental; it cannot be added to earlier measurements with different baselines.
+An initial concurrent measurement collected the new tests before they were ready;
+it was discarded. The retained baseline was rerun in the unchanged archived tree.
+
+Broader validation and formatting:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_edgar_flow.py tests/test_ingest_flow.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+PYTHONPATH=/tmp/issue1888-runtime black --line-length 100 tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+PYTHONPATH=/tmp/issue1888-runtime black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
+ruff check tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+```
+
+Results: **176 passed, 1 existing nightly skip**; search **97%**, signals **91%**,
+EDGAR **98%**, report **96%**. The full affected-suite capture is
+`navigation-regression-pytest.txt`. Black passes with 452 unchanged files; Ruff
+passes. The same temporary event-loop wakeup shim described above is used for
+Black and the broader async suites. No tests or security controls are disabled.
+
+Mutation receipts 30–31 contain actual source diffs, exact commands, full red/green
+output, and matching original/restored source hashes. Reversing the latest-date
+button condition makes both navigation cases fail; deleting the login stop makes
+the login case fail. Both commands pass after restoring the source. To replay only
+this follow-up without overwriting checked-in evidence:
+
+```sh
+git clone --local --no-hardlinks . /tmp/issue1888-navigation-proof
+mkdir -p /tmp/issue1888-navigation-replay
+python - <<'PY'
+import json
+from pathlib import Path
+receipts = json.loads(Path('docs/evidence/issue-1888/mutations/receipts.json').read_text())
+Path('/tmp/issue1888-navigation-replay/receipts.json').write_text(json.dumps(receipts[:29]))
+PY
+python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-navigation-proof --output /tmp/issue1888-navigation-replay --start-at 29
+```
+
+When replaying uncommitted changes, copy the current test module into the clone
+first. The mutation runner itself is invoked from the primary checkout. All 31
+receipts and exact output excerpts are included in `pr-body.md`.
+
+Before these additions, the existing changed suites passed **84 tests with one
+existing skip**, and all 29 prior receipts were verified red=1/green=0. The prepared
+PR body now reconciles all 22 checkboxes, including repeated task instances: **16
+complete, six open**. The live body update, `needs-human` label, and blocker comment
+were rejected by the tool approval policy (`never`). Publication is not claimed.
+
+The connector confirms current main remains
+`a7f4e626bb4b8359a64c56a56211218e41b6020a`, and main Gate artifact `13265760076`
+still matches it. Shell GitHub access fails, and a download reference alone is not
+coverage JSON evidence. Exact CI ranking/base and the ~180-unit comparison remain
+open. Gate run `41774281794` passed Python 3.13 and 3.14 Pytest steps for the prior
+published head `63569b1`; this is not CI validation of the new local additions.
+The primary `.git` mount is read-only, so this follow-up is committed in
+`/tmp/issue1888-navigation-proof` and supplied as a patch for the branch owner.
+
+
+Full-suite attempt:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime timeout --signal=INT 240 pytest tests/ -m 'not slow' --tb=short --disable-warnings
+```
+
+The timeout exits **124**, with **2 failed, 2527 passed, 28 skipped** reported
+before interruption in Streamlit's local script runner. The two failures are the
+previously recorded chat dependency timeout (`timeout` instead of `dependency
+down`) and edgartools attempting to create `/home/runner/.edgar` on the read-only
+mount. This is an incomplete local run, not a successful full-suite result. The
+complete capture is `navigation-full-pytest.txt`; existing tests were not changed
+or disabled. All 176 directly affected tests passed in the separate targeted run.
+
+`navigation-ci-metadata.json` records the connector-verified main SHA, published
+Gate outcome, and coverage artifact identities. For the previous published head,
+the Python 3.13 artifact is `13296162876`, and Python 3.14 is `13296791087`. Their
+JSON contents have not been read; neither artifact is credited as measurement for
+these new local tests. PR #1889 was rechecked open with draft=false.

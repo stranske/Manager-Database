@@ -1,0 +1,81 @@
+cwd: /tmp/issue1888-navigation-proof
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_date_navigation_keeps_display_and_export_in_sync -m 'not slow' --tb=short --disable-warnings
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_report_date_navigation_keeps_display_and_export_in_sync[False] ______
+tests/test_issue_1888_coverage.py:464: in test_report_date_navigation_keeps_display_and_export_in_sync
+    assert exported["cusip"].tolist() == expected_cusips
+E   AssertionError: assert ['AAA', 'BBB'] == ['OLDER']
+E     
+E     At index 0 diff: 'AAA' != 'OLDER'
+E     Left contains one more item: 'BBB'
+E     
+E     Full diff:
+E       [
+E     -     'OLDER',
+E     +     'AAA',
+E     +     'BBB',
+E       ]
+----------------------------- Captured stderr call -----------------------------
+2026-11-04 05:35:56.777 No runtime found, using MemoryCacheStorageManager
+2026-11-04 05:35:56.777 No runtime found, using MemoryCacheStorageManager
+2026-11-04 05:35:56.777 No runtime found, using MemoryCacheStorageManager
+2026-11-04 05:35:56.778 No runtime found, using MemoryCacheStorageManager
+2026-11-04 05:35:56.778 No runtime found, using MemoryCacheStorageManager
+2026-11-04 05:35:56.778 No runtime found, using MemoryCacheStorageManager
+2026-11-04 05:35:56.778 No runtime found, using MemoryCacheStorageManager
+05:35:56.791 | INFO    | ui.daily_report - daily_report.load_diffs completed
+{"asctime": "2026-11-04 05:35:56,791", "levelname": "INFO", "name": "ui.daily_report", "service": "daily_diff_flow", "message": "daily_report.load_diffs completed", "date": "2024-05-01", "elapsed_ms": 1.3151690000086091}
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+______ test_report_date_navigation_keeps_display_and_export_in_sync[True] ______
+tests/test_issue_1888_coverage.py:464: in test_report_date_navigation_keeps_display_and_export_in_sync
+    assert exported["cusip"].tolist() == expected_cusips
+E   AssertionError: assert ['OLDER'] == ['AAA', 'BBB']
+E     
+E     At index 0 diff: 'OLDER' != 'AAA'
+E     Right contains one more item: 'BBB'
+E     
+E     Full diff:
+E       [
+E     +     'OLDER',
+E     -     'AAA',
+E     -     'BBB',
+E       ]
+----------------------------- Captured stderr call -----------------------------
+05:35:56.938 | INFO    | ui.daily_report - daily_report.load_diffs completed
+{"asctime": "2026-11-04 05:35:56,938", "levelname": "INFO", "name": "ui.daily_report", "service": "daily_diff_flow", "message": "daily_report.load_diffs completed", "date": "2024-04-30", "elapsed_ms": 1.5772590000437958}
+------------------------------ Captured log call -------------------------------
+INFO     ui.daily_report:daily_report.py:46 daily_report.load_diffs completed
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_report_date_navigation_keeps_display_and_export_in_sync[False] - AssertionError: assert ['AAA', 'BBB'] == ['OLDER']
+  
+  At index 0 diff: 'AAA' != 'OLDER'
+  Left contains one more item: 'BBB'
+  
+  Full diff:
+    [
+  -     'OLDER',
+  +     'AAA',
+  +     'BBB',
+    ]
+FAILED tests/test_issue_1888_coverage.py::test_report_date_navigation_keeps_display_and_export_in_sync[True] - AssertionError: assert ['OLDER'] == ['AAA', 'BBB']
+  
+  At index 0 diff: 'OLDER' != 'AAA'
+  Right contains one more item: 'BBB'
+  
+  Full diff:
+    [
+  +     'OLDER',
+  -     'AAA',
+  -     'BBB',
+    ]
+2 failed, 12 warnings in 2.38s
+
+exit: 1

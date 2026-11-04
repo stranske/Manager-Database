@@ -414,3 +414,97 @@ def test_report_whitespace_news_url_keeps_escaped_headline(url):
     assert (
         daily_report.headline_markdown(r"  [Desk] \ <x> &  ", url) == r"\[Desk\] \\ &lt;x&gt; &amp;"
     )
+
+
+@pytest.mark.parametrize("go_to_latest", [False, True])
+def test_report_date_navigation_keeps_display_and_export_in_sync(
+    monkeypatch, tmp_path, go_to_latest
+):
+    from tests.test_daily_report import setup_db
+
+    db_path = setup_db(tmp_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO daily_diffs "
+            "(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+            "shares_prev, shares_curr, value_prev, value_curr) "
+            "VALUES ('m1', '2024-04-30', 'OLDER', 'Older Position', 'ADD', 0, 5, 0, 50)"
+        )
+    monkeypatch.setenv("DB_PATH", db_path)
+    caches = [
+        daily_report.load_diffs,
+        daily_report.load_news,
+        daily_report.load_activism_events,
+        daily_report.load_crowded_trades,
+        daily_report.load_contrarian_signals,
+        daily_report.latest_report_date,
+        daily_report.nearest_report_date,
+    ]
+    for cached in caches:
+        cached.clear()
+    ui = MagicMock()
+    ui.date_input.return_value = dt.date(2024, 4, 30)
+    ui.button.return_value = go_to_latest
+    ui.tabs.return_value = [MagicMock() for _ in range(3)]
+    ui.columns.return_value = [Mock() for _ in range(5)]
+    ui.selectbox.side_effect = ["Manager count", "All topics"]
+    monkeypatch.setattr(daily_report, "st", ui)
+    monkeypatch.setattr(daily_report, "require_login", lambda: True)
+    try:
+        daily_report.main()
+
+        ui.date_input.assert_called_once_with("Date", dt.date(2024, 5, 1))
+        ui.button.assert_called_once_with("Go to latest report date (2024-05-01)")
+        expected_date = "2024-05-01" if go_to_latest else "2024-04-30"
+        expected_cusips = ["AAA", "BBB"] if go_to_latest else ["OLDER"]
+        diff_download = next(
+            call for call in ui.download_button.call_args_list if call.args[0] == "Download CSV"
+        )
+        exported = pd.read_csv(io.BytesIO(diff_download.args[1]))
+        assert exported["cusip"].tolist() == expected_cusips
+        assert diff_download.kwargs == {
+            "file_name": f"diff_{expected_date}.csv",
+            "mime": "text/csv",
+        }
+        displayed = pd.read_html(io.StringIO(ui.markdown.call_args_list[0].args[0]))[0]
+        assert displayed["cusip"].tolist() == expected_cusips
+        if go_to_latest:
+            news_download = next(
+                call
+                for call in ui.download_button.call_args_list
+                if call.args[0] == "Download News CSV"
+            )
+            news = pd.read_csv(io.BytesIO(news_download.args[1]))
+            assert news["Headline"].tolist() == ["Headline1", "Headline2"]
+            assert news_download.kwargs["file_name"] == "news_2024-05-01.csv"
+        else:
+            assert [call.args[0] for call in ui.download_button.call_args_list] == ["Download CSV"]
+            assert [call.args[0] for call in ui.info.call_args_list] == [
+                "No data for this date — nearest report is 2024-04-30.",
+                "No news for this date.",
+            ]
+    finally:
+        for cached in caches:
+            cached.clear()
+
+
+def test_report_login_stop_prevents_database_access(monkeypatch):
+    class LoginRequired(Exception):
+        pass
+
+    ui = MagicMock()
+    ui.stop.side_effect = LoginRequired
+    connect = Mock(side_effect=AssertionError("database accessed before login"))
+    monkeypatch.setattr(daily_report, "st", ui)
+    monkeypatch.setattr(daily_report, "require_login", lambda: False)
+    monkeypatch.setattr(daily_report, "connect_db", connect)
+    daily_report.latest_report_date.clear()
+    try:
+        with pytest.raises(LoginRequired):
+            daily_report.main()
+        ui.stop.assert_called_once_with()
+        ui.date_input.assert_not_called()
+        ui.tabs.assert_not_called()
+        connect.assert_not_called()
+    finally:
+        daily_report.latest_report_date.clear()

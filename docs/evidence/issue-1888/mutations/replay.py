@@ -243,6 +243,22 @@ CASES = [
         'if not raw_url:\n        return text + "!"',
         1,
     ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_report_date_navigation_keeps_display_and_export_in_sync",
+        "ui/daily_report.py",
+        '        if st.button(f"Go to latest report date ({latest_date.isoformat()})"):',
+        '        if not st.button(f"Go to latest report date ({latest_date.isoformat()})"):',
+        1,
+    ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_report_login_stop_prevents_database_access",
+        "ui/daily_report.py",
+        "    if not require_login():\n        st.stop()",
+        "    if not require_login():\n        pass",
+        1,
+    ),
 ]
 
 
