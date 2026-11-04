@@ -1,0 +1,11 @@
+--- a/api/signals.py
++++ b/api/signals.py
+@@ -155,7 +155,7 @@
+             except (TypeError, ValueError):
+                 continue
+         return parsed
+-    return []
++    return [1]
+ 
+ 
+ def _manager_id_column(conn: Any) -> str | None:

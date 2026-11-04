@@ -145,5 +145,47 @@
     "sha256": "c1a286374d04b570d08704e65615c36f2370980a2e1f73db22b9f6e4434a5647",
     "red": 1,
     "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources",
+    "source": "ui/daily_report.py",
+    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids",
+    "source": "api/signals.py",
+    "sha256": "6aaa884d143c2f452543adafac506ac0a3b75d920a60e2ea1234e551cfe01524",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results",
+    "source": "api/search.py",
+    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id",
+    "source": "api/search.py",
+    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+    "red": 1,
+    "green": 0
   }
 ]

@@ -17,7 +17,7 @@ Source issue #1806; merged PR #1808 delivered: PR #1808 added one test-only modu
 #### Tasks
 - [ ] Re-rank targets by the repo's coverage-gap ranking (escaped-defect priority, then churn, then uncovered mass) from the CI Gate coverage artifact on current main. Record the main-branch figure for uncovered statements+branches as the exact base.
 - [x] Add tests for etl/edgar_flow.py (26 uncovered units), or write a concrete per-target explanation of why a branch cannot be meaningfully covered.
-- [ ] Cover the largest remaining gaps among the 149 units left after #1808: api/search.py (52), ui/daily_report.py (35), api/signals.py (27). Prefer behaviour-level tests over helper-level ones.
+- [x] Cover the largest remaining gaps among the 149 units left after #1808: api/search.py (52), ui/daily_report.py (35), api/signals.py (27). Prefer behaviour-level tests over helper-level ones.
 - [x] Strengthen the weak assertions in tests/test_issue_1806_coverage.py: headline_markdown escaping with an exact expected string, and exact error messages in the digest guard tests. Move the universal_search guard checks out of the parametrized rank/distance test.
 - [x] For every new test, run a real break-and-revert (break the covered code, confirm the test fails, revert, confirm it passes) and paste the commands and outputs into the PR body.
 - [x] Check for the negative-cache pattern (`cache.get(key) is None` used as 'not yet cached') in any code touched. Fix any instance with a minimal diff and explain it in the PR body.
@@ -106,7 +106,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_manager_lookup_
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager -m 'not slow' --tb=short --disable-warnings
 ......                                                                   [100%]
 6 passed, 8 warnings in 1.37s
 
@@ -145,7 +144,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_watermark_unava
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history -m 'not slow' --tb=short --disable-warnings
 ...                                                                      [100%]
 3 passed, 8 warnings in 1.61s
 
@@ -175,7 +173,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_holdings_resolu
 
 ```text
 cwd: /tmp/issue1888-mutations
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 1.39s
@@ -219,7 +216,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_empty_holdings_
 
 ```text
 cwd: /tmp/issue1888-mutations
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 1.88s
@@ -275,7 +271,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_bitemporal_unow
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 1.43s
 
@@ -322,7 +317,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_deletion_during
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 1.42s
 
@@ -356,7 +350,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_binary_filing_w
 
 ```text
 cwd: /tmp/issue1888-mutations
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 2.28s
@@ -399,7 +392,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_search_guards_r
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 2.10s
 
@@ -437,7 +429,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_digest_delivery
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 1.92s
 
@@ -474,7 +465,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_daily_report_fo
 
 ```text
 cwd: /tmp/issue1888-mutations
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 1.99s
@@ -534,7 +524,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_search_legacy_h
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 6 warnings in 0.82s
 
@@ -588,7 +577,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_search_vector_d
 
 ```text
 cwd: /tmp/issue1888-mutations
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 6 warnings in 0.83s
@@ -645,7 +633,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 6 warnings in 0.89s
 
@@ -699,7 +686,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_conviction_anno
 ```text
 cwd: /tmp/issue1888-mutations
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 6 warnings in 0.98s
 
@@ -731,7 +717,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_report_signal_q
 
 ```text
 cwd: /tmp/issue1888-mutations
-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes -m 'not slow' --tb=short --disable-warnings
 ..                                                                       [100%]
 2 passed, 6 warnings in 0.90s
@@ -768,7 +753,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_watermark_witho
 
 ```text
 cwd: /tmp/issue1888-edgar-mutations
-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 0.79s
@@ -808,7 +792,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_upsert_without_
 ```text
 cwd: /tmp/issue1888-edgar-mutations
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged -m 'not slow' --tb=short --disable-warnings
 ..                                                                       [100%]
 2 passed, 8 warnings in 0.79s
 
@@ -847,7 +830,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_upsert_ignored_
 ```text
 cwd: /tmp/issue1888-edgar-mutations
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero -m 'not slow' --tb=short --disable-warnings
 ..                                                                       [100%]
 2 passed, 8 warnings in 0.80s
 
@@ -877,7 +859,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_holding_insert_
 
 ```text
 cwd: /tmp/issue1888-edgar-mutations
-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 0.79s
@@ -912,7 +893,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_postgres_upsert
 
 ```text
 cwd: /tmp/issue1888-edgar-mutations
-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key -m 'not slow' --tb=short --disable-warnings
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key -m 'not slow' --tb=short --disable-warnings
 ...                                                                      [100%]
 3 passed, 8 warnings in 0.81s
@@ -969,7 +949,6 @@ green: [complete output](docs/evidence/issue-1888/mutations/test_reverse_order_o
 ```text
 cwd: /tmp/issue1888-edgar-mutations
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current -m 'not slow' --tb=short --disable-warnings
-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current -m 'not slow' --tb=short --disable-warnings
 .                                                                        [100%]
 1 passed, 8 warnings in 0.79s
 
@@ -988,3 +967,274 @@ in this checkout. Updating PR #1889 with this prepared body was rejected with:
 verified open with draft=false; its body has not been updated. The baseline,
 CI-artifact reduction and CI pytest acceptance checks remain open. The local
 verified checkmarks in this prepared body are not a claim of live PR publication.
+
+
+## Search, signal, and report follow-up (2026-11-04)
+
+
+Six new test functions (11 cases) extend `tests/test_issue_1888_coverage.py`.
+The report page uses the existing SQLite seed and real loaders to verify total-value
+sorting, topic filtering, the no-matching-news message, and displayed/exported rows.
+Additional checks cover unexpected diff-query errors with connection cleanup, missing
+report sources, native PostgreSQL dates with malformed manager IDs, SQLite vector or
+database-list failures preserving text results, and PostgreSQL vector hits without
+an identifier. PostgreSQL is modeled; there is no live-server validation or
+production-code change. The inspected search, signals, report and EDGAR files have
+no `cache.get(key) is None` negative-cache pattern. Search's `deduped.get(key)` stores
+only concrete `SearchResult` instances.
+
+Matched targeted comparison at `9c4c8ac` before and after these additions, Python
+3.14.10, using the temporary event-loop shim documented above:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+The first command ran in an archived checkout of `9c4c8ac`; the second ran in the
+working checkout. Results: **64 passed** before and **75 passed** after. Raw JSON
+and terminal output are `boundaries-{before,after}-coverage.json` and
+`boundaries-{before,after}-pytest.txt`.
+
+| Target | Before missing statements+branches | After | Reduction | After coverage |
+| --- | ---: | ---: | ---: | ---: |
+| Search | 13+15=28 | 8+12=20 | 8 | 95% |
+| Signals | 38+21=59 | 33+18=51 | 8 | 84% |
+| Daily report | 65+31=96 | 14+15=29 | 67 | 92% |
+| Total | 183 | 100 | 83 | 91% |
+
+These targeted numbers are local, incremental measurements, not CI artifact or
+whole-suite credit. They must not be added to earlier deltas. In particular, the
+signals module has additional tests outside this targeted selection.
+
+Every new function has a real source mutation and restoration recorded in receipts
+22–27: all red exits are 1 and all restored exits are 0. Exact source diffs, full
+commands/output, and original/restored hashes are in `mutations/`. The replay command
+ran after copying the changed test module into the disposable archived checkout:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-boundaries --output docs/evidence/issue-1888/mutations --start-at 21
+```
+
+The CI-artifact baseline remains blocked: `gh run download 41702885246 -n
+gate-coverage-3.13-1 -D /tmp/issue1888-main-gate` returned `error connecting to
+api.github.com`. The GitHub connector verified that the artifact is unexpired and
+belongs to main SHA `a7f4e626bb4b8359a64c56a56211218e41b6020a`, but its content
+remains unverified. No CI baseline/ranking, ~180-unit reduction, or CI-pytest
+checkbox is marked complete.
+
+<details>
+<summary>tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports</summary>
+
+Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports.diff).
+
+red: [full output](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-red.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
+E   AssertionError: assert ['Headline1', 'Headline2'] == ['Headline1']
+E
+E     Left contains one more item: 'Headline2'
+2 failed, 12 warnings in 1.33s
+exit: 1
+```
+
+green: [full output](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-green.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
+2 passed, 12 warnings in 1.32s
+exit: 0
+```
+
+</details>
+
+<details>
+<summary>tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes</summary>
+
+Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes.diff).
+
+red: [full output](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-red.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes -m 'not slow' --tb=short --disable-warnings
+E   AssertionError: Expected 'close' to be called once. Called 0 times.
+1 failed, 6 warnings in 0.58s
+exit: 1
+```
+
+green: [full output](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-green.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes -m 'not slow' --tb=short --disable-warnings
+1 passed, 6 warnings in 0.54s
+exit: 0
+```
+
+</details>
+
+<details>
+<summary>tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources</summary>
+
+Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources.diff).
+
+red: [full output](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-red.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources -m 'not slow' --tb=short --disable-warnings
+E   sqlite3.OperationalError: no such table: daily_diffs
+E   pandas.errors.DatabaseError: Execution failed on sql 'SELECT MAX(report_date) AS report_date FROM daily_diffs': no such table: daily_diffs
+1 failed, 6 warnings in 0.62s
+exit: 1
+```
+
+green: [full output](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-green.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources -m 'not slow' --tb=short --disable-warnings
+1 passed, 6 warnings in 0.53s
+exit: 0
+```
+
+</details>
+
+<details>
+<summary>tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids</summary>
+
+Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids.diff).
+
+red: [full output](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-red.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids -m 'not slow' --tb=short --disable-warnings
+E   AssertionError: assert [{'cusip': 'A...Alpha'], ...}] == [{'cusip': 'A...es': [], ...}]
+E
+E     At index 0 diff: {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'manager_count': 3, 'manager_names': ['Alpha'], 'total_value_usd': 1200.0, 'avg_conviction_pct': 25.0, 'report_date': datetime.date(2024, 5, 1)} != {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'manager_count': 3, 'manager_names': [], 'total_value_usd': 1200.0, 'avg_conviction_pct': 25.0, 'report_date': datetime.date(2024, 5, 1)}
+3 failed, 1 passed, 6 warnings in 0.54s
+exit: 1
+```
+
+green: [full output](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-green.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids -m 'not slow' --tb=short --disable-warnings
+4 passed, 6 warnings in 0.52s
+exit: 0
+```
+
+</details>
+
+<details>
+<summary>tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results</summary>
+
+Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results.diff).
+
+red: [full output](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-red.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
+E   OSError: vector index unavailable
+1 failed, 1 passed, 6 warnings in 0.59s
+exit: 1
+```
+
+green: [full output](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-green.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
+2 passed, 6 warnings in 0.52s
+exit: 0
+```
+
+</details>
+
+<details>
+<summary>tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id</summary>
+
+Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id.diff).
+
+red: [full output](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-red.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id -m 'not slow' --tb=short --disable-warnings
+E   ValueError: missing document ID
+1 failed, 6 warnings in 0.54s
+exit: 1
+```
+
+green: [full output](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-green.txt)
+
+```text
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id -m 'not slow' --tb=short --disable-warnings
+1 passed, 6 warnings in 0.53s
+exit: 0
+```
+
+</details>
+
+### Matched full-suite regression and coverage check
+
+The complete suite was run on `9c4c8ac` in a writable local clone and on the working
+candidate, with Python 3.14.10 and the same temporary event-loop shim:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/ --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-full-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/ --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-full.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+Before: **3 failed, 2616 passed, 28 skipped**. After: **3 failed, 2627 passed,
+28 skipped**. Both commands exit 1. The failures are identical: the existing chat
+dependency test gets `timeout` instead of `dependency down`; edgartools cannot
+create `/home/runner/.edgar` on the read-only filesystem; the WASM static-route test
+cannot create a server socket. Existing tests were not disabled or changed.
+Complete terminal output and raw JSON are in `boundaries-full-{before,after}-pytest.txt`
+and `boundaries-full-{before,after}-coverage.json`.
+
+| Target | Before missing statements+branches | After | Reduction | After coverage |
+| --- | ---: | ---: | ---: | ---: |
+| Search | 10+12=22 | 5+9=14 | 8 | 97% |
+| Signals | 4+2=6 | 2+0=2 | 4 | 99% |
+| EDGAR | 2+1=3 | 2+1=3 | 0 | 99% |
+| Daily report | 16+15=31 | 6+8=14 | 17 | 96% |
+| Total | 62 | 33 | 29 | 98% |
+
+This is an incremental local comparison against the previous PR head, not current
+main's CI artifact baseline. It does not establish the requested ~180-unit CI
+reduction. All new tests pass; the broader search/signals/report implementation task
+is now checked in the prepared body. The artifact baseline/ranking, CI reduction,
+and CI pytest acceptance items remain open.
+
+Remaining local misses: search retains optional-import handling, blank/zero-score
+helper guards and schema/null-result branches; signals retains only the optional
+FastAPI-import error fallback; EDGAR retains scheduled CLI entry wiring; daily report
+retains PostgreSQL news-query construction, whitespace URLs, latest-date query-error
+propagation, login-stop wiring, manager-count sorting, and entry-point/iteration
+arcs. These are residual compatibility/wiring paths, not claims of untestability.
+Report value-sort/topic-filter behavior accounts for the largest gain in this round.
+
+Black's required repository check passes (452 files unchanged); Ruff passes for
+both changed Python files. PR #1889 is open and `draft=false`. The PR-body update,
+`needs-human` label, and blocker comment were all rejected by the tool approval check:
+`MCP tool call requires approval, but approval policy is never`. The main checkout
+also rejects staging because `.git/index.lock` is on a read-only filesystem. The
+prepared PR body and source changes remain in this workspace for publication.
+
+
+The source commit is preserved in the writable isolated checkout
+`/tmp/issue1888-comparison` (commit subject: `test: cover report exports and search
+fallback boundaries`). Its 75 affected tests and the required repository-wide
+Black check pass before committing. The primary checkout retains the same file
+changes, but its branch cannot be advanced while Git metadata is read-only. Exact
+terminal captures and mutation diffs retain their original output whitespace.

@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -503,7 +503,7 @@
+         for hit in vector_hits:
+             doc_id = hit.get("doc_id")
+             if doc_id is None:
+-                continue
++                raise ValueError("missing document ID")
+             content = str(hit.get("content") or "").strip()
+             headline = str(hit.get("filename") or "").strip() or content[:80] or "Document"
+             results.append(

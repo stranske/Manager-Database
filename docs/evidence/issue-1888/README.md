@@ -214,3 +214,111 @@ in this checkout. Updating PR #1889 with this prepared body was rejected with:
 verified open with draft=false; its body has not been updated. The baseline,
 CI-artifact reduction and CI pytest acceptance checks remain open. The local
 verified checkmarks in this prepared body are not a claim of live PR publication.
+
+## Search, signal, and report follow-up (2026-11-04)
+
+Six new test functions (11 cases) extend `tests/test_issue_1888_coverage.py`.
+The report page uses the existing SQLite seed and real loaders to verify total-value
+sorting, topic filtering, the no-matching-news message, and displayed/exported rows.
+Additional checks cover unexpected diff-query errors with connection cleanup, missing
+report sources, native PostgreSQL dates with malformed manager IDs, SQLite vector or
+database-list failures preserving text results, and PostgreSQL vector hits without
+an identifier. PostgreSQL is modeled; there is no live-server validation or
+production-code change. The inspected search, signals, report and EDGAR files have
+no `cache.get(key) is None` negative-cache pattern. Search's `deduped.get(key)` stores
+only concrete `SearchResult` instances.
+
+Matched targeted comparison at `9c4c8ac` before and after these additions, Python
+3.14.10, using the temporary event-loop shim documented above:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+The first command ran in an archived checkout of `9c4c8ac`; the second ran in the
+working checkout. Results: **64 passed** before and **75 passed** after. Raw JSON
+and terminal output are `boundaries-{before,after}-coverage.json` and
+`boundaries-{before,after}-pytest.txt`.
+
+| Target | Before missing statements+branches | After | Reduction | After coverage |
+| --- | ---: | ---: | ---: | ---: |
+| Search | 13+15=28 | 8+12=20 | 8 | 95% |
+| Signals | 38+21=59 | 33+18=51 | 8 | 84% |
+| Daily report | 65+31=96 | 14+15=29 | 67 | 92% |
+| Total | 183 | 100 | 83 | 91% |
+
+These targeted numbers are local, incremental measurements, not CI artifact or
+whole-suite credit. They must not be added to earlier deltas. In particular, the
+signals module has additional tests outside this targeted selection.
+
+Every new function has a real source mutation and restoration recorded in receipts
+22–27: all red exits are 1 and all restored exits are 0. Exact source diffs, full
+commands/output, and original/restored hashes are in `mutations/`. The replay command
+ran after copying the changed test module into the disposable archived checkout:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-boundaries --output docs/evidence/issue-1888/mutations --start-at 21
+```
+
+The CI-artifact baseline remains blocked: `gh run download 41702885246 -n
+gate-coverage-3.13-1 -D /tmp/issue1888-main-gate` returned `error connecting to
+api.github.com`. The GitHub connector verified that the artifact is unexpired and
+belongs to main SHA `a7f4e626bb4b8359a64c56a56211218e41b6020a`, but its content
+remains unverified. No CI baseline/ranking, ~180-unit reduction, or CI-pytest
+checkbox is marked complete.
+
+### Matched full-suite regression and coverage check
+
+The complete suite was run on `9c4c8ac` in a writable local clone and on the working
+candidate, with Python 3.14.10 and the same temporary event-loop shim:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/ --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-full-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/ --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-full.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+Before: **3 failed, 2616 passed, 28 skipped**. After: **3 failed, 2627 passed,
+28 skipped**. Both commands exit 1. The failures are identical: the existing chat
+dependency test gets `timeout` instead of `dependency down`; edgartools cannot
+create `/home/runner/.edgar` on the read-only filesystem; the WASM static-route test
+cannot create a server socket. Existing tests were not disabled or changed.
+Complete terminal output and raw JSON are in `boundaries-full-{before,after}-pytest.txt`
+and `boundaries-full-{before,after}-coverage.json`.
+
+| Target | Before missing statements+branches | After | Reduction | After coverage |
+| --- | ---: | ---: | ---: | ---: |
+| Search | 10+12=22 | 5+9=14 | 8 | 97% |
+| Signals | 4+2=6 | 2+0=2 | 4 | 99% |
+| EDGAR | 2+1=3 | 2+1=3 | 0 | 99% |
+| Daily report | 16+15=31 | 6+8=14 | 17 | 96% |
+| Total | 62 | 33 | 29 | 98% |
+
+This is an incremental local comparison against the previous PR head, not current
+main's CI artifact baseline. It does not establish the requested ~180-unit CI
+reduction. All new tests pass; the broader search/signals/report implementation task
+is now checked in the prepared body. The artifact baseline/ranking, CI reduction,
+and CI pytest acceptance items remain open.
+
+Remaining local misses: search retains optional-import handling, blank/zero-score
+helper guards and schema/null-result branches; signals retains only the optional
+FastAPI-import error fallback; EDGAR retains scheduled CLI entry wiring; daily report
+retains PostgreSQL news-query construction, whitespace URLs, latest-date query-error
+propagation, login-stop wiring, manager-count sorting, and entry-point/iteration
+arcs. These are residual compatibility/wiring paths, not claims of untestability.
+Report value-sort/topic-filter behavior accounts for the largest gain in this round.
+
+Black's required repository check passes (452 files unchanged); Ruff passes for
+both changed Python files. PR #1889 is open and `draft=false`. The PR-body update,
+`needs-human` label, and blocker comment were all rejected by the tool approval check:
+`MCP tool call requires approval, but approval policy is never`. The main checkout
+also rejects staging because `.git/index.lock` is on a read-only filesystem. The
+prepared PR body and source changes remain in this workspace for publication.
+
+
+The source commit is preserved in the writable isolated checkout
+`/tmp/issue1888-comparison` (commit subject: `test: cover report exports and search
+fallback boundaries`). Its 75 affected tests and the required repository-wide
+Black check pass before committing. The primary checkout retains the same file
+changes, but its branch cannot be advanced while Git metadata is read-only. Exact
+terminal captures and mutation diffs retain their original output whitespace.
