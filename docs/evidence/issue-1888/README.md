@@ -644,3 +644,69 @@ Publication attempt for this follow-up: updating PR #1889's prepared body, addin
 `needs-human`, and posting the blocker comment were each rejected:
 `MCP tool call requires approval, but approval policy is never`.
 No live body, label, or comment update was published by this run.
+
+
+## Nullable ticker negative-cache audit (2026-11-04)
+
+The first unchecked task remains blocked. Current main is still
+`a7f4e626bb4b8359a64c56a56211218e41b6020a`. The GitHub connector returns a ZIP
+reference for artifact `13265760076` from successful CI run `41702885246`, but
+transferring its bytes into the sandbox fails with `URLError`. A returned link
+cannot establish the artifact's coverage counts. No exact CI baseline, CI ranking,
+or 180-unit reduction is claimed.
+
+The next incomplete task is the negative-cache audit. Inspected EDGAR, digest,
+ASIC, search, signals and daily report. Search's `deduped.get(key)` only holds
+concrete `SearchResult` values; `None` correctly denotes absence. Signals loads
+`ticker_by_cusip` once, retains SQL NULL as `None`, and passes that value to optional
+CUSIP annotations without a second holdings query. Streamlit owns report caching;
+the existing empty/error/date tests verify that behavior. No misuse requiring a
+production fix was found.
+
+A new behavior test uses real SQLite holdings, conviction, insider and short-interest
+tables, with spies wrapping the real annotation functions. It checks a null ticker,
+a missing holding and a resolved ticker in one request. Complete response payloads
+retain the original scoring and CUSIP annotations, and the SQL trace proves the
+holdings lookup occurs once. A real source mutation adds the `get(cusip) is None`
+requery pattern: the test fails because two extra holdings queries appear. Reverting
+the source makes it pass. Receipt 36 includes the exact diff, commands, output and
+matching restored source hash; all 36 receipts have red=1 and green=0.
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_issue_1888_coverage.py tests/test_signals_api.py --cov=api.signals --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+Matched targeted results: **45 passed before, 46 passed after**, signals **84%**
+in both runs (33 missing statements, 16 missing branches). This test strengthens
+behavioral verification of the audit; it adds no coverage reduction. Full terminal
+output is in `null-ticker-{before,after}-pytest.txt`.
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_edgar_flow.py tests/test_ingest_flow.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+PYTHONPATH=/tmp/issue1888-runtime black --line-length 100 tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+PYTHONPATH=/tmp/issue1888-runtime black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
+ruff check tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
+```
+
+Broader affected suites: **184 passed, 1 existing nightly skip**; search **97%**,
+signals **91%**, EDGAR **98%**, report **97%**. Output is in
+`null-ticker-regression-pytest.txt`. Black's required repository check passes
+(452 files unchanged); Ruff passes. The temporary event-loop wakeup shim documented
+above is needed in this sandbox; an initial unshimmed run stalled and was interrupted.
+No repository runtime or security setting was changed. CI validation for this new
+local test remains outstanding.
+
+Replay the new receipt in a disposable clone containing the updated test:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-null-ticker-proof --output docs/evidence/issue-1888/mutations --start-at 35
+```
+
+The primary `.git` mount remains read-only: `git add` fails to create `index.lock`.
+The tested source and evidence are preserved in the writable disposable clone,
+with a patch for application to the PR branch. No protected file is changed.
+
+
+PR body, `needs-human` label and blocker-comment publication were each rejected:
+`MCP tool call requires approval, but approval policy is never`. The prepared
+checkmarks remain local. PR #1889 is verified open and ready (`isDraft=false`).

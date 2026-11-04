@@ -166,7 +166,7 @@ CI validation remain required before acceptance can be marked complete.
 
 ## Break-and-revert proof for every new function
 
-All 33 receipts have red exit **1** and restored exit **0**. Mutations edit actual
+All 36 receipts have red exit **1** and restored exit **0**. Mutations edit actual
 runtime source in disposable `/tmp` checkouts; original/restored hashes match.
 Commands and exact output excerpts follow. Each linked red/green file retains
 complete output and the environment/cwd; each linked diff records the source edit.
@@ -1200,3 +1200,47 @@ Publication attempt for this follow-up: updating PR #1889's prepared body, addin
 `needs-human`, and posting the blocker comment were each rejected:
 `MCP tool call requires approval, but approval policy is never`.
 No live body, label, or comment update was published by this run.
+
+
+## Nullable ticker negative-cache audit
+
+Completed the scoped negative-cache audit with a behavior test using real SQLite
+holdings and annotations. Null/missing ticker entries preserve CUSIP annotations
+without a second holdings lookup. No production bug or production change. A source
+mutation adds the negative-cache requery and fails on two extra SQL queries;
+restoration passes. Matched targeted suites: **45 to 46 passed**, signals **84%**
+unchanged; this adds no coverage reduction. Broader suites: **184 passed, 1 existing
+nightly skip**. Required Black repository check (452 files) and Ruff pass.
+
+Current main remains `a7f4e626`; downloading its CI artifact into the sandbox still
+fails with `URLError`. Exact CI base/ranking and the ~180-unit comparison remain
+unchecked. This new local test has no candidate CI result yet. Primary Git metadata
+is read-only; a writable-clone commit and patch preserve the follow-up.
+
+### 36. `test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery`
+
+Source mutation: [diff](docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery.diff).
+Broken: [complete output](docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery-red.txt).
+Restored: [complete output](docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery-green.txt).
+The same command runs with broken and restored source:
+
+```sh
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+Broken:
+Left contains 2 more items, first extra item: 'SELECT cusip, resolved_ticker FROM holdings WHERE filing_id = 2'
+1 failed, 6 warnings in 0.92s
+exit: 1
+
+Restored:
+1 passed, 6 warnings in 0.94s
+exit: 0
+```
+
+
+Publication for the nullable-ticker follow-up was rejected for all three actions:
+PR body update, `needs-human` label and blocker comment. Each returned
+`MCP tool call requires approval, but approval policy is never`. The prepared body
+and evidence remain local. PR #1889 is verified open with `isDraft=false`.

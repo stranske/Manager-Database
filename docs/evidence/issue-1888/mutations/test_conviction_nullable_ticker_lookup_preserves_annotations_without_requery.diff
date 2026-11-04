@@ -1,0 +1,14 @@
+--- a/api/signals.py
++++ b/api/signals.py
+@@ -352,6 +352,11 @@
+     out: list[ConvictionScoreResponse] = []
+     for row in rows:
+         cusip = str(row[0])
++        if ticker_by_cusip.get(cusip) is None:
++            conn.execute(
++                f"SELECT cusip, resolved_ticker FROM holdings WHERE filing_id = {ph}",
++                (resolved_filing_id,),
++            ).fetchall()
+         direction = None
+         if annotate_insider is not None:
+             direction = annotate_insider(

@@ -179,6 +179,75 @@ def test_search_postgres_activism_preserves_filing_context(monkeypatch):
     assert params == ("Target", "Target", "Target", 20)
 
 
+def test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery(monkeypatch):
+    from etl import insider_flow, short_interest_flow
+
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.executescript("""
+            CREATE TABLE conviction_scores (
+                manager_id INTEGER, filing_id INTEGER, cusip TEXT, name_of_issuer TEXT,
+                value_usd REAL, conviction_pct REAL, portfolio_weight REAL
+            );
+            CREATE TABLE holdings (filing_id INTEGER, cusip TEXT, resolved_ticker TEXT);
+            INSERT INTO conviction_scores VALUES
+                (1, 2, 'AAA', 'Unresolved', 300, 50, 0.5),
+                (1, 2, 'BBB', 'Absent', 200, 30, 0.3),
+                (1, 2, 'CCC', 'Resolved', 100, 20, 0.2);
+            INSERT INTO holdings VALUES (2, 'AAA', NULL), (2, 'CCC', 'KNOWN');
+        """)
+        insider_flow.ensure_insider_transactions_table(conn)
+        short_interest_flow.ensure_short_interest_table(conn)
+        conn.executescript("""
+            INSERT INTO insider_transactions
+                (issuer_cik, ticker, txn_code, shares, acquired_disposed, cusip)
+            VALUES ('1', NULL, 'P', 10, 'A', 'AAA'), ('2', NULL, 'S', 5, 'D', 'BBB');
+            INSERT INTO short_interest
+                (ticker, cusip, short_interest_pct, report_date, source)
+            VALUES ('OLD', 'AAA', 12.5, '2024-05-01', 'finra'),
+                   ('OTHER', 'BBB', 20, '2024-05-02', 'finra');
+        """)
+        insider = Mock(wraps=insider_flow.insider_net_direction_for_ticker)
+        short_interest = Mock(wraps=short_interest_flow.short_interest_annotation)
+        monkeypatch.setattr(insider_flow, "insider_net_direction_for_ticker", insider)
+        monkeypatch.setattr(short_interest_flow, "short_interest_annotation", short_interest)
+        queries = []
+        conn.set_trace_callback(queries.append)
+
+        rows = signals.query_conviction_scores(conn, 1, filing_id=2)
+
+        assert [row.model_dump() for row in rows] == [
+            {
+                "cusip": cusip,
+                "name_of_issuer": name,
+                "value_usd": value,
+                "conviction_pct": conviction,
+                "portfolio_weight": weight,
+                "insider_net_direction": direction,
+                "short_interest_pct": interest,
+                "short_interest_report_date": report_date,
+                "short_interest_source": "finra" if interest is not None else None,
+            }
+            for cusip, name, value, conviction, weight, direction, interest, report_date in [
+                ("AAA", "Unresolved", 300.0, 50.0, 0.5, "net buy", 12.5, dt.date(2024, 5, 1)),
+                ("BBB", "Absent", 200.0, 30.0, 0.3, "net sell", 20.0, dt.date(2024, 5, 2)),
+                ("CCC", "Resolved", 100.0, 20.0, 0.2, "unknown", None, None),
+            ]
+        ]
+        expected_calls = [
+            call(conn, None, cusip="AAA"),
+            call(conn, None, cusip="BBB"),
+            call(conn, "KNOWN", cusip="CCC"),
+        ]
+        assert insider.call_args_list == expected_calls
+        assert short_interest.call_args_list == expected_calls
+        assert [sql for sql in queries if sql.startswith("SELECT ") and "FROM holdings" in sql] == [
+            "SELECT cusip, resolved_ticker FROM holdings WHERE filing_id = 2"
+        ]
+    finally:
+        conn.close()
+
+
 def test_conviction_annotation_survives_unavailable_holdings(monkeypatch):
     from etl import insider_flow
 

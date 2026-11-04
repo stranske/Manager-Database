@@ -243,5 +243,12 @@
     "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
     "red": 1,
     "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery",
+    "source": "api/signals.py",
+    "sha256": "6aaa884d143c2f452543adafac506ac0a3b75d920a60e2ea1234e551cfe01524",
+    "red": 1,
+    "green": 0
   }
 ]

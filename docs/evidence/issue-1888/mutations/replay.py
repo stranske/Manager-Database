@@ -291,6 +291,19 @@ CASES = [
         '        if not manager_columns or "name" in manager_columns:\n',
         1,
     ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery",
+        "api/signals.py",
+        "    for row in rows:\n        cusip = str(row[0])\n",
+        "    for row in rows:\n        cusip = str(row[0])\n"
+        "        if ticker_by_cusip.get(cusip) is None:\n"
+        "            conn.execute(\n"
+        '                f"SELECT cusip, resolved_ticker FROM holdings WHERE filing_id = {ph}",\n'
+        "                (resolved_filing_id,),\n"
+        "            ).fetchall()\n",
+        1,
+    ),
 ]
 
 
