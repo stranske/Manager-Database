@@ -275,6 +275,22 @@ CASES = [
         "finally:\n        pass\n    return max(candidates)",
         1,
     ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_search_partial_sqlite_schema_keeps_filings_searchable",
+        "api/search.py",
+        "        if doc_text_col:\n",
+        "        if doc_columns:\n",
+        1,
+    ),
+    (
+        "tests/test_issue_1888_coverage.py",
+        "test_search_activism_without_manager_table_preserves_subject_context",
+        "api/search.py",
+        '        if manager_columns and "name" in manager_columns:\n',
+        '        if not manager_columns or "name" in manager_columns:\n',
+        1,
+    ),
 ]
 
 

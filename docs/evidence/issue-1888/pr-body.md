@@ -1133,3 +1133,70 @@ run's approval policy is `never`. The primary Git metadata mount is read-only.
 The tested source change is preserved in `/tmp/issue1888-date-lookup-proof` with a
 patch in the evidence directory. This prepared body reconciles verified tasks;
 it does not claim the live PR checkboxes were updated.
+
+
+## Partial search schema follow-up
+
+Two SQLite behavior tests assert complete filing and activism results with missing
+optional schema metadata. No production change. Matched local search coverage is
+**95% to 96%**, missing statements+branches **8+12=20 to 7+8=15** (59 to 61 passing
+tests). Broader affected suites: **183 passed, 1 existing nightly skip**. Black's
+required repository check (452 files) and Ruff pass. Negative-cache audit remains
+clear. Main is still `a7f4e626`; artifact transfer fails with `URLError`, so the
+exact CI ranking/base and ~180-unit comparison remain open. The primary `.git`
+mount is read-only; a writable-clone commit and patch preserve this follow-up.
+
+### 34. `test_search_partial_sqlite_schema_keeps_filings_searchable`
+
+Red: [complete output](docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-red.txt).
+
+```sh
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+1 failed, 6 warnings in 0.57s
+exit: 1
+```
+
+Green: [complete output](docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-green.txt).
+
+```sh
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+1 passed, 6 warnings in 0.55s
+exit: 0
+```
+
+### 35. `test_search_activism_without_manager_table_preserves_subject_context`
+
+Red: [complete output](docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-red.txt).
+
+```sh
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+1 failed, 6 warnings in 0.57s
+exit: 1
+```
+
+Green: [complete output](docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-green.txt).
+
+```sh
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context -m 'not slow' --tb=short --disable-warnings
+```
+
+```text
+1 passed, 6 warnings in 0.55s
+exit: 0
+```
+
+
+
+Publication attempt for this follow-up: updating PR #1889's prepared body, adding
+`needs-human`, and posting the blocker comment were each rejected:
+`MCP tool call requires approval, but approval policy is never`.
+No live body, label, or comment update was published by this run.

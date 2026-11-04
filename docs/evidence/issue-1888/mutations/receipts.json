@@ -229,5 +229,19 @@
     "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
     "red": 1,
     "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable",
+    "source": "api/search.py",
+    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+    "red": 1,
+    "green": 0
+  },
+  {
+    "test": "tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context",
+    "source": "api/search.py",
+    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+    "red": 1,
+    "green": 0
   }
 ]

@@ -588,3 +588,59 @@ file is changed and no remote publication is claimed.
 The `needs-human` label and blocker-comment attempts were also rejected with
 `MCP tool call requires approval, but approval policy is never`. These actions
 were not published. PR #1889 remains open and ready for review.
+
+
+## Partial search schema follow-up (2026-11-04)
+
+Two new functions use real SQLite queries to verify that metadata-only documents
+are skipped while legacy filings remain searchable, and that activism results
+retain subject context without a managers table. Both assert the complete result
+payload, including absent metadata and relevance. No production change is needed.
+The `cache.get(key) is None` audit remains clear across the six scoped modules;
+search's deduplication map stores only concrete `SearchResult` instances.
+
+Matched local comparison against published head `df688df`, Python 3.14.8:
+
+```sh
+pytest tests/test_issue_1888_coverage.py tests/test_search.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-schema-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+pytest tests/test_issue_1888_coverage.py tests/test_search.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-schema-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+```
+
+Before: **59 passed**, search **95%**, missing statements+branches **8+12=20**.
+After: **61 passed**, search **96%**, missing statements+branches **7+8=15**.
+The five-unit local reduction is not CI-main artifact credit. Raw JSON and full
+output are `search-schema-{before,after}-{coverage.json,pytest.txt}`.
+
+Broader affected suites: **183 passed, 1 existing nightly skip**. The command is
+in `search-schema-regression-pytest.txt` below; the same suites and options as the
+date-lookup regression were used with JSON output to
+`/tmp/issue1888-search-schema-regression.json`. Coverage is search **97%**, signals
+**91%**, EDGAR **98%**, report **97%**. As previously documented, the temporary
+`/tmp/issue1888-runtime` event-loop wakeup shim was required for the async suite
+and repository-wide Black check. An initial plain run was interrupted when it
+stalled; no test was modified or disabled. Black formats both changed Python files,
+the required repository-wide Black check passes (452 unchanged), and Ruff passes.
+
+Receipts 34–35 contain actual source edits that produce SQLite errors for missing
+text columns and an unavailable manager join. The same commands pass after source
+restoration, with matching source hashes. All 35 receipts are red=1/green=0.
+The new diffs, complete output, commands and excerpts are in `mutations/` and
+`pr-body.md`. Replay only this follow-up after seeding the first 33 receipts:
+
+```sh
+python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-schema-proof --output docs/evidence/issue-1888/mutations --start-at 33
+```
+
+The connector confirms main still resolves to `a7f4e626`, and artifact
+`13265760076` belongs to that main Gate run. Transferring the ZIP again fails with
+`URLError`; exact artifact-based ranking and CI-main coverage remain unverified.
+The primary checkout rejects `git add` with `Read-only file system`. A commit of
+this follow-up is prepared in the writable clone `/tmp/issue1888-schema-proof`,
+with `search-schema-followup.patch` supplied for application to the branch.
+The six CI-dependent checkboxes remain open; no live PR update is claimed here.
+
+
+Publication attempt for this follow-up: updating PR #1889's prepared body, adding
+`needs-human`, and posting the blocker comment were each rejected:
+`MCP tool call requires approval, but approval policy is never`.
+No live body, label, or comment update was published by this run.

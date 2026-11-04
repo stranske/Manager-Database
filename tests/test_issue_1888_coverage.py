@@ -12,6 +12,70 @@ from api import search, signals
 from ui import daily_report
 
 
+def test_search_partial_sqlite_schema_keeps_filings_searchable():
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.executescript("""
+            CREATE TABLE documents (doc_id INTEGER PRIMARY KEY, filename TEXT);
+            CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, raw_key TEXT);
+            CREATE TABLE holdings (
+                holding_id INTEGER PRIMARY KEY, filing_id INTEGER, name_of_issuer TEXT, cusip TEXT
+            );
+            INSERT INTO documents VALUES (1, 'needle.pdf');
+            INSERT INTO filings VALUES (42, NULL, 'needle.xml');
+        """)
+
+        results = search.universal_search("needle", conn)
+
+        # Metadata-only documents must not prevent querying a legacy filing schema.
+        assert [result.model_dump() for result in results] == [
+            {
+                "entity_type": "filing",
+                "entity_id": 42,
+                "manager_name": None,
+                "headline": "Filing filing",
+                "snippet": "Raw key: needle.xml | Period end: n/a",
+                "relevance": pytest.approx(0.8),
+                "url": None,
+                "timestamp": None,
+            }
+        ]
+    finally:
+        conn.close()
+
+
+def test_search_activism_without_manager_table_preserves_subject_context():
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.executescript("""
+            CREATE TABLE activism_filings (
+                filing_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_type TEXT,
+                subject_company TEXT, subject_cusip TEXT, ownership_pct REAL,
+                filed_date TEXT, url TEXT
+            );
+            INSERT INTO activism_filings VALUES (
+                42, 7, 'SC 13D', 'needle Corp', NULL, NULL, NULL, NULL
+            );
+        """)
+
+        results = search.universal_search("needle", conn, entity_type="filing")
+
+        assert [result.model_dump() for result in results] == [
+            {
+                "entity_type": "filing",
+                "entity_id": 42,
+                "manager_name": None,
+                "headline": "13D Filing: Unknown manager -> needle Corp (n/a)",
+                "snippet": "SC 13D | CUSIP: n/a | Filed: n/a",
+                "relevance": pytest.approx(0.8),
+                "url": None,
+                "timestamp": None,
+            }
+        ]
+    finally:
+        conn.close()
+
+
 def test_search_legacy_holdings_return_filing_groups_and_holdings():
     conn = sqlite3.connect(":memory:")
     try:
