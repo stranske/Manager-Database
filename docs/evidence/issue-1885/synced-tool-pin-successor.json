@@ -1,0 +1,8 @@
+{
+  "schema": "dashboard-synced-tool-pin-successor/v1",
+  "previous_validator_sha256": "0d5880682352899c8341a02dd4b1dc6fa5d0d3c4b8b72efb965679abaa42cc34",
+  "current_validator_sha256": "baac48557ec888d00ee2f372a2f2b07335714889c104fba2f369a7e907202bc1",
+  "decision": "Issue stranske/Manager-Database#1885: the Workflows dev-tool sync (autofix-versions.env) rewrites the exact mypy, pytest and pytest-cov pins as well as Black, Ruff and Coverage; sync PR #1884 (mypy 2.4.1, pytest 9.2.0, coverage 7.17.1) was rejected by the pin check that admitted only the formatters.",
+  "synced_dev_tools": ["black", "ruff", "coverage", "mypy", "pytest-cov", "pytest"],
+  "allowed_change": "Exact numeric pins of the six synced dev tools above. Ranges, wildcards, extras, other dev or runtime dependencies, project metadata and historical evidence remain protected."
+}

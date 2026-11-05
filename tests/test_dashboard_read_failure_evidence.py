@@ -66,10 +66,10 @@ def validate_dashboard_source_binding(root, expected, *, binding=None):
     )
     assert tool_successor["schema"] == "dashboard-tool-pin-successor/v1"
     assert tool_successor["previous_validator_sha256"] == binding["current_validator_sha256"]
-    floor_successor = python_floor_successor(tool_successor)
+    pin_successor = synced_tool_pin_successor(python_floor_successor(tool_successor))
     assert (
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
-        == floor_successor["current_validator_sha256"]
+        == pin_successor["current_validator_sha256"]
     )
 
 
@@ -84,6 +84,20 @@ def python_floor_successor(tool_successor):
         == successor["previous_validator_sha256"]
     )
     assert successor["admitted_changes"] == PYTHON_FLOOR_CHANGES
+    return successor
+
+
+def synced_tool_pin_successor(floor_successor):
+    """Issue 1885: exact pins of every synced dev tool, not only the formatters, are tool inputs."""
+    folder = ROOT / "docs/evidence/issue-1885"
+    successor = json.loads((folder / "synced-tool-pin-successor.json").read_text())
+    assert successor["schema"] == "dashboard-synced-tool-pin-successor/v1"
+    assert successor["previous_validator_sha256"] == floor_successor["current_validator_sha256"]
+    assert (
+        digest((folder / "previous-validator.py.txt").read_bytes())
+        == successor["previous_validator_sha256"]
+    )
+    assert successor["synced_dev_tools"] == list(SYNCED_DEV_TOOLS)
     return successor
 
 
@@ -380,14 +394,21 @@ def test_dashboard_archived_reuse_refusal_and_black_receipt(archive):
     assert "409 files would be left unchanged." in archive["md-black.log"].decode()
 
 
+# Dev tools whose exact pins the Workflows dev-tool sync (autofix-versions.env) rewrites. Issue
+# 1885: the sync bumps mypy and pytest as well as the formatters, so every synced pin is a
+# version-only tool input. Longer names first so "pytest-cov" is not read as "pytest".
+SYNCED_DEV_TOOLS = ("black", "ruff", "coverage", "mypy", "pytest-cov", "pytest")
+SYNCED_DEV_TOOL_PATTERN = "(" + "|".join(re.escape(name) for name in SYNCED_DEV_TOOLS) + ")"
+
+
 def normalized_dashboard_project(raw):
-    """Only exact Black/Ruff/Coverage version values are mutable tool inputs."""
+    """Only exact version values of the synced dev tools are mutable tool inputs."""
     project = tomllib.loads(raw.decode())
     dependencies = project["project"]["optional-dependencies"]["dev"]
     seen = set()
     normalized = []
     for value in dependencies:
-        tool = re.match(r"(black|ruff|coverage)(?=[^A-Za-z0-9_-]|$)", value, re.IGNORECASE)
+        tool = re.match(SYNCED_DEV_TOOL_PATTERN + r"(?=[^A-Za-z0-9_-]|$)", value, re.IGNORECASE)
         if tool:
             name = tool.group(1).lower()
             assert name not in seen, f"Duplicate tool requirement: {name}"
@@ -396,12 +417,12 @@ def normalized_dashboard_project(raw):
             # Other operators, URLs, extras, markers or wildcard pins are not
             # an allowed version-only change to that historical input.
             assert re.fullmatch(
-                r"(black|ruff|coverage)==[0-9]+(?:\.[0-9]+){1,3}", value, re.IGNORECASE
+                SYNCED_DEV_TOOL_PATTERN + r"==[0-9]+(?:\.[0-9]+){1,3}", value, re.IGNORECASE
             ), name
             normalized.append(name + "==0")
         else:
             normalized.append(value)
-    assert seen == {"black", "ruff", "coverage"}
+    assert seen == set(SYNCED_DEV_TOOLS)
     project["project"]["optional-dependencies"]["dev"] = normalized
     return project
 
@@ -443,10 +464,10 @@ def validate_review_recovery_current_inputs(root, manifest):
     assert (
         tool_successor["previous_validator_sha256"] == source_successor["current_validator_sha256"]
     )
-    floor_successor = python_floor_successor(tool_successor)
+    pin_successor = synced_tool_pin_successor(python_floor_successor(tool_successor))
     assert (
         digest((root / "tests/test_dashboard_read_failure_evidence.py").read_bytes())
-        == floor_successor["current_validator_sha256"]
+        == pin_successor["current_validator_sha256"]
     )
     current = normalized_dashboard_project((root / "pyproject.toml").read_bytes())
     historical = apply_python_floor_changes(
@@ -493,7 +514,10 @@ def test_review_recovery_accepts_exact_coverage_pin_without_other_project_change
     "package,mutation",
     [
         ("project-name", "rename"),
-        ("pytest", "version"),
+        ("pytest-asyncio", "pin"),
+        ("pytest", "range"),
+        ("mypy", "wildcard"),
+        ("pytest-cov", "extras"),
         ("black", "range"),
         ("ruff", "wildcard"),
         ("black", "extras"),
@@ -507,6 +531,8 @@ def test_review_recovery_rejects_non_formatter_or_non_exact_changes(package, mut
     original = (folder / "generated-pyproject.toml").read_text()
     if package == "project-name":
         old, new = 'name = "manager-database"', 'name = "different-product"'
+    elif package == "pytest-asyncio":
+        old, new = '"pytest-asyncio"', '"pytest-asyncio==1.0"'
     else:
         dependencies = tomllib.loads(original)["project"]["optional-dependencies"]["dev"]
         pin = next(value for value in dependencies if value.startswith(package + "=="))
@@ -523,6 +549,27 @@ def test_review_recovery_rejects_non_formatter_or_non_exact_changes(package, mut
         assert normalized_dashboard_project(
             original.replace(old, new).encode()
         ) == normalized_dashboard_project((folder / "historical-pyproject.toml").read_bytes())
+
+
+# The exact pin bumps carried by dev-tool sync PR #1884 (issue 1885), which this validator rejected.
+SYNC_PR_1884_BUMPS = {"mypy": "2.4.1", "pytest": "9.2.0", "coverage": "7.17.1"}
+
+
+def test_review_recovery_accepts_synced_dev_tool_pin_bumps(tmp_path):
+    manifest = json.loads((EVIDENCE / "review-recovery-20261012/manifest.json").read_text())
+    for name in manifest["current_inputs"]:
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / name).read_bytes())
+    project = tmp_path / "pyproject.toml"
+    raw = project.read_text()
+    dependencies = tomllib.loads(raw)["project"]["optional-dependencies"]["dev"]
+    for tool, version in SYNC_PR_1884_BUMPS.items():
+        pin = next(value for value in dependencies if value.startswith(tool + "=="))
+        assert raw.count(json.dumps(pin)) == 1
+        raw = raw.replace(json.dumps(pin), json.dumps(tool + "==" + version))
+    project.write_text(raw)
+    validate_review_recovery_current_inputs(tmp_path, manifest)
 
 
 @pytest.mark.parametrize("changed", [SOURCE, "tests/test_dashboard_read_failure_evidence.py"])
