@@ -36,6 +36,15 @@ def test_check_test_dependencies_recommends_existing_commands() -> None:
     assert not missing
 
 
+RECEIPT_PASS_MARKERS = (
+    "maint-dependabot-auto-lock.yml includes all non-empty extras",
+    "No hardcoded dependency version pins found in tests",
+    "Dependency helper recommendations reference existing script paths",
+    "Tests expect dict-based metadata",
+    "All validation checks passed!",
+)
+
+
 def test_validator_passes_on_current_repository() -> None:
     result = subprocess.run(
         [sys.executable, "scripts/validate_dependency_test_setup.py"],
@@ -46,7 +55,31 @@ def test_validator_passes_on_current_repository() -> None:
     )
 
     assert result.returncode == 0, result.stdout
-    assert "maint-dependabot-auto-lock.yml includes all non-empty extras" in result.stdout
+    receipt = Path("docs/evidence/issue-1885/validate_dependency_test_setup.txt").read_text(
+        encoding="utf-8"
+    )
+    assert re.search(r"(?m)^exit_status:\s*0\s*$", receipt)
+    assert "scripts/validate_dependency_test_setup.py" in receipt
+    for marker in RECEIPT_PASS_MARKERS:
+        assert marker in result.stdout
+        assert marker in receipt
+
+
+def test_focused_pytest_receipt_records_a_passing_run() -> None:
+    receipt = Path("docs/evidence/issue-1885/focused-pytest.txt").read_text(encoding="utf-8")
+    assert re.search(r"(?m)^exit_status:\s*0\s*$", receipt)
+    assert "tests/test_validate_dependency_test_setup.py" in receipt
+    assert "tests/test_dashboard_read_failure_evidence.py" in receipt
+    assert "47 tests passed, 0 failed, 0 deselected" in receipt
+
+
+def test_full_pytest_receipt_records_a_passing_not_nightly_run() -> None:
+    receipt = Path("docs/evidence/issue-1885/full-pytest-not-nightly-py313.txt").read_text(
+        encoding="utf-8"
+    )
+    assert re.search(r"(?m)^exit_status:\s*0\s*$", receipt)
+    assert "pytest -m 'not nightly'" in receipt
+    assert "2593 passed, 26 skipped, 0 failed" in receipt
 
 
 def test_validator_fails_when_current_dependabot_workflow_is_missing(
