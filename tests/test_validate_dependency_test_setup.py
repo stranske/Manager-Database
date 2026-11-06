@@ -65,6 +65,14 @@ def test_validator_passes_on_current_repository() -> None:
         assert marker in receipt
 
 
+def test_focused_pytest_receipt_records_a_passing_run() -> None:
+    receipt = Path("docs/evidence/issue-1885/focused-pytest.txt").read_text(encoding="utf-8")
+    assert re.search(r"(?m)^exit_status:\s*0\s*$", receipt)
+    assert "tests/test_validate_dependency_test_setup.py" in receipt
+    assert "tests/test_dashboard_read_failure_evidence.py" in receipt
+    assert "47 tests passed, 0 failed, 0 deselected" in receipt
+
+
 def test_validator_fails_when_current_dependabot_workflow_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
