@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_context_filter_requested_detects_empty_and_non_empty_values _______
+tests/test_chat_coverage_round_1840.py:27: in test_context_filter_requested_detects_empty_and_non_empty_values
+    assert chat._context_filter_requested({"manager_ids": [1]}, "manager_ids") is True
+E   AssertionError: assert False is True
+E    +  where False = <function _context_filter_requested at 0x303a18e00>({'manager_ids': [1]}, 'manager_ids')
+E    +    where <function _context_filter_requested at 0x303a18e00> = chat._context_filter_requested
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_context_filter_requested_detects_empty_and_non_empty_values

@@ -1,0 +1,8 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________________ test_chat_api_requires_llm_client _______________________
+tests/test_chat_coverage_round_1840.py:385: in test_chat_api_requires_llm_client
+    with pytest.raises(HTTPException) as exc:
+E   Failed: DID NOT RAISE HTTPException
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_chat_api_requires_llm_client

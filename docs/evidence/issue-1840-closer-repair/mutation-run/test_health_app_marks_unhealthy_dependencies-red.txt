@@ -1,0 +1,9 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_health_app_marks_unhealthy_dependencies _________________
+tests/test_chat_coverage_round_1840.py:841: in test_health_app_marks_unhealthy_dependencies
+    assert response.status_code == 503
+E   assert 200 == 503
+E    +  where 200 = <starlette.responses.JSONResponse object at 0x30415c1d0>.status_code
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_health_app_marks_unhealthy_dependencies

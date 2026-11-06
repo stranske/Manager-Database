@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_parse_date_range_and_empty_manager_name_edges ______________
+tests/test_chat_coverage_round_1840.py:564: in test_parse_date_range_and_empty_manager_name_edges
+    assert chat._parse_date_range(["2024-01-01", "2024-02-01"]) is not None
+E   AssertionError: assert None is not None
+E    +  where None = <function _parse_date_range at 0x16a518b80>(['2024-01-01', '2024-02-01'])
+E    +    where <function _parse_date_range at 0x16a518b80> = chat._parse_date_range
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_parse_date_range_and_empty_manager_name_edges

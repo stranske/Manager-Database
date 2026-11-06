@@ -1,0 +1,13 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_fallback_filing_summary_chain_optional_filing_id _____________
+tests/test_chat_coverage_round_1840.py:571: in test_fallback_filing_summary_chain_optional_filing_id
+    assert with_id == {"answer": "Filing summary for filing 11", "sources": []}
+E   AssertionError: assert {'answer': 'b...'sources': []} == {'answer': 'F...'sources': []}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'answer': 'broken'} != {'answer': 'Filing summary for filing 11'}
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_fallback_filing_summary_chain_optional_filing_id

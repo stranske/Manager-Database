@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_run_chain_raises_when_chain_lacks_run_and_invoke _____________
+tests/test_chat_coverage_round_1840.py:330: in test_run_chain_raises_when_chain_lacks_run_and_invoke
+    await chat._run_chain("rag_search", "q", {}, None)
+api/chat.py:1017: in _run_chain
+    if asyncio.iscoroutine(result):
+                           ^^^^^^
+E   UnboundLocalError: cannot access local variable 'result' where it is not associated with a value
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_chain_raises_when_chain_lacks_run_and_invoke

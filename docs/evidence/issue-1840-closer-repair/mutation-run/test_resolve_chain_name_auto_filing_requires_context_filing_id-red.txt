@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_resolve_chain_name_auto_filing_requires_context_filing_id ________
+tests/test_chat_coverage_round_1840.py:16: in test_resolve_chain_name_auto_filing_requires_context_filing_id
+    assert chat._resolve_chain_name("auto", "summarize the 13F filing", {}) == "rag_search"
+E   AssertionError: assert 'nl_query' == 'rag_search'
+E     
+E     - rag_search
+E     + nl_query
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_resolve_chain_name_auto_filing_requires_context_filing_id

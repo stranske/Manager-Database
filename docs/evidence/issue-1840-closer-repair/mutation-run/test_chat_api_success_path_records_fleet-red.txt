@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________ test_chat_api_success_path_records_fleet ___________________
+tests/test_chat_coverage_round_1840.py:416: in test_chat_api_success_path_records_fleet
+    assert response.response_id == "run-88"
+E   AssertionError: assert 'wrong-id' == 'run-88'
+E     
+E     - run-88
+E     + wrong-id
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_chat_api_success_path_records_fleet

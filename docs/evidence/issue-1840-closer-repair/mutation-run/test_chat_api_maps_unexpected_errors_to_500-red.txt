@@ -1,0 +1,19 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_chat_api_maps_unexpected_errors_to_500 __________________
+tests/test_chat_coverage_round_1840.py:469: in test_chat_api_maps_unexpected_errors_to_500
+    assert exc.value.status_code == 500
+E   AssertionError: assert 502 == 500
+E    +  where 502 = HTTPException(status_code=502, detail='Research assistant error. Check server logs.').status_code
+E    +    where HTTPException(status_code=502, detail='Research assistant error. Check server logs.') = <ExceptionInfo HTTPException(status_code=502, detail='Research assistant error. Check server logs.') tblen=2>.value
+------------------------------ Captured log call -------------------------------
+ERROR    api.chat:chat.py:1213 Chat error: boom
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1840__closer-repair-2/api/chat.py", line 1136, in chat_api
+    answer, sources, sql, trace_url = await _run_chain(
+                                      ^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1840__closer-repair-2/tests/test_chat_coverage_round_1840.py", line 460, in boom
+    raise RuntimeError("boom")
+RuntimeError: boom
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_chat_api_maps_unexpected_errors_to_500

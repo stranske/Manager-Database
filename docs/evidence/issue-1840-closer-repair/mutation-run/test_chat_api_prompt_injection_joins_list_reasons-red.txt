@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_chat_api_prompt_injection_joins_list_reasons _______________
+tests/test_chat_coverage_round_1840.py:739: in test_chat_api_prompt_injection_joins_list_reasons
+    assert exc.value.detail == "Input rejected: override, exfil"
+E   AssertionError: assert 'Input rejected: broken' == 'Input reject...erride, exfil'
+E     
+E     - Input rejected: override, exfil
+E     + Input rejected: broken
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_chat_api_prompt_injection_joins_list_reasons

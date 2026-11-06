@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________ test_chat_api_disabled_zone_returns_notice __________________
+tests/test_chat_coverage_round_1840.py:373: in test_chat_api_disabled_zone_returns_notice
+    assert response.chain_used == "disabled"
+E   AssertionError: assert 'enabled' == 'disabled'
+E     
+E     - disabled
+E     + enabled
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_chat_api_disabled_zone_returns_notice

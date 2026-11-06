@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________________ test_build_chain_instantiates_imported_classes ________________
+tests/test_chat_coverage_round_1840.py:546: in test_build_chain_instantiates_imported_classes
+    assert isinstance(chat._build_chain("filing_summary", client), FakeFiling)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api/chat.py:772: in _build_chain
+    return chain_cls(llm=client_info.client if client_info else None, db_conn=db_conn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: test_build_chain_instantiates_imported_classes.<locals>.FakeFiling.__init__() got an unexpected keyword argument 'llm'
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_build_chain_instantiates_imported_classes

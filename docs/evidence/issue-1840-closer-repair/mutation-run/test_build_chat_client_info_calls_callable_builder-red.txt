@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_build_chat_client_info_calls_callable_builder ______________
+tests/test_chat_coverage_round_1840.py:614: in test_build_chat_client_info_calls_callable_builder
+    assert chat._build_chat_client_info() is marker
+E   assert None is <object object at 0x303881a70>
+E    +  where None = <function _build_chat_client_info at 0x303c18860>()
+E    +    where <function _build_chat_client_info at 0x303c18860> = chat._build_chat_client_info
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_build_chat_client_info_calls_callable_builder

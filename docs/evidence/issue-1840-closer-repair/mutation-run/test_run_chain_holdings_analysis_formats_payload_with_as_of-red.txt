@@ -1,0 +1,8 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_run_chain_holdings_analysis_formats_payload_with_as_of __________
+tests/test_chat_coverage_round_1840.py:278: in test_run_chain_holdings_analysis_formats_payload_with_as_of
+    assert "Concentrated book." in answer
+E   assert 'Concentrated book.' in 'broken thesis\nTop positions: 037833100\nConcentration metrics: {"top_10": 0.55}'
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_run_chain_holdings_analysis_formats_payload_with_as_of

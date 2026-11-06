@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________________ test_rate_limiter_clear_resets_window _____________________
+tests/test_chat_coverage_round_1840.py:559: in test_rate_limiter_clear_resets_window
+    assert limiter.check_and_record("client-a") is True
+E   AssertionError: assert False is True
+E    +  where False = check_and_record('client-a')
+E    +    where check_and_record = <api.chat.InMemoryChatRateLimiter object at 0x16a920740>.check_and_record
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_rate_limiter_clear_resets_window

@@ -1,0 +1,8 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_enforce_chat_rate_limit_raises_when_budget_exceeded ___________
+tests/test_chat_coverage_round_1840.py:177: in test_enforce_chat_rate_limit_raises_when_budget_exceeded
+    with pytest.raises(HTTPException) as first:
+E   Failed: DID NOT RAISE HTTPException
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_enforce_chat_rate_limit_raises_when_budget_exceeded

@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_attach_langsmith_feedback_success_path __________________
+tests/test_chat_coverage_round_1840.py:754: in test_attach_langsmith_feedback_success_path
+    assert (
+E   AssertionError: assert False is True
+E    +  where False = <function _attach_langsmith_feedback at 0x17bf196c0>(FeedbackRequest(response_id='run-1', rating=4, comment='ok'))
+E    +    where <function _attach_langsmith_feedback at 0x17bf196c0> = chat._attach_langsmith_feedback
+E    +    and   FeedbackRequest(response_id='run-1', rating=4, comment='ok') = <class 'api.chat.FeedbackRequest'>(response_id='run-1', rating=4, comment='ok')
+E    +      where <class 'api.chat.FeedbackRequest'> = chat.FeedbackRequest
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_attach_langsmith_feedback_success_path

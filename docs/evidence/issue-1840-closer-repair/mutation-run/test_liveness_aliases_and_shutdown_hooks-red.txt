@@ -1,0 +1,14 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________ test_liveness_aliases_and_shutdown_hooks ___________________
+tests/test_chat_coverage_round_1840.py:772: in test_liveness_aliases_and_shutdown_hooks
+    assert chat.health_live() == {"healthy": True, "uptime_s": 9}
+E   AssertionError: assert {'healthy': False} == {'healthy': T...'uptime_s': 9}
+E     
+E     Differing items:
+E     {'healthy': False} != {'healthy': True}
+E     Right contains 1 more item:
+E     {'uptime_s': 9}
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_liveness_aliases_and_shutdown_hooks

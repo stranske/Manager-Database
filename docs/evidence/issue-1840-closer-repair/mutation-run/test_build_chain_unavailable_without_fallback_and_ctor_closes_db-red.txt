@@ -1,0 +1,17 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_build_chain_unavailable_without_fallback_and_ctor_closes_db _______
+tests/test_chat_coverage_round_1840.py:582: in test_build_chain_unavailable_without_fallback_and_ctor_closes_db
+    with pytest.raises(chat.ChainUnavailableError, match="unavailable"):
+E   Failed: DID NOT RAISE ChainUnavailableError
+------------------------------ Captured log call -------------------------------
+ERROR    api.chat:chat.py:756 Chat chain nl_query is unavailable
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1840__closer-repair-2/api/chat.py", line 746, in _build_chain
+    module = importlib.import_module(module_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1840__closer-repair-2/tests/test_chat_coverage_round_1840.py", line 579, in missing
+    raise ModuleNotFoundError("chains.nl_query")
+ModuleNotFoundError: chains.nl_query
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_build_chain_unavailable_without_fallback_and_ctor_closes_db

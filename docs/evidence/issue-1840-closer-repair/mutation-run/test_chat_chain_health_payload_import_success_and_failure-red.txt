@@ -1,0 +1,13 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_chat_chain_health_payload_import_success_and_failure ___________
+tests/test_chat_coverage_round_1840.py:642: in test_chat_chain_health_payload_import_success_and_failure
+    assert payload == {"healthy": True, "available": True, "fallback_enabled": False}
+E   AssertionError: assert {'healthy': F...abled': False} == {'healthy': T...abled': False}
+E     
+E     Omitting 2 identical items, use -vv to show
+E     Differing items:
+E     {'healthy': False} != {'healthy': True}
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_chat_chain_health_payload_import_success_and_failure

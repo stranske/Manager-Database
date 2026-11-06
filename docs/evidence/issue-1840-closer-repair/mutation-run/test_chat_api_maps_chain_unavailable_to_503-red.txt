@@ -1,0 +1,19 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_chat_api_maps_chain_unavailable_to_503 __________________
+tests/test_chat_coverage_round_1840.py:444: in test_chat_api_maps_chain_unavailable_to_503
+    assert exc.value.status_code == 503
+E   AssertionError: assert 502 == 503
+E    +  where 502 = HTTPException(status_code=502, detail='rag_search missing').status_code
+E    +    where HTTPException(status_code=502, detail='rag_search missing') = <ExceptionInfo HTTPException(status_code=502, detail='rag_search missing') tblen=2>.value
+------------------------------ Captured log call -------------------------------
+ERROR    api.chat:chat.py:1185 Chat chain unavailable: rag_search missing
+Traceback (most recent call last):
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1840__closer-repair-2/api/chat.py", line 1136, in chat_api
+    answer, sources, sql, trace_url = await _run_chain(
+                                      ^^^^^^^^^^^^^^^^^
+  File "/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1840__closer-repair-2/tests/test_chat_coverage_round_1840.py", line 435, in boom
+    raise chat.ChainUnavailableError("rag_search missing")
+api.chat.ChainUnavailableError: rag_search missing
+=========================== short test summary info ============================
+FAILED tests/test_chat_coverage_round_1840.py::test_chat_api_maps_chain_unavailable_to_503
