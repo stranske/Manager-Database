@@ -1,0 +1,62 @@
+$ pytest tests/test_dashboard_read_failure_evidence.py::test_review_recovery_accepts_synced_dev_tool_pin_bumps -q --tb=short
+exit=1
+
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_review_recovery_accepts_synced_dev_tool_pin_bumps ____________
+tests/test_dashboard_read_failure_evidence.py:576: in test_review_recovery_accepts_synced_dev_tool_pin_bumps
+    validate_review_recovery_current_inputs(tmp_path, manifest)
+tests/test_dashboard_read_failure_evidence.py:484: in validate_review_recovery_current_inputs
+    assert current == historical
+E   AssertionError: assert {'project': {...(/|$)'}, ...}} == {'project': {...(/|$)'}, ...}}
+E     
+E     Omitting 2 identical items, use -vv to show
+E     Differing items:
+E     {'project': {'name': 'manager-database', 'version': '0.1.0', 'description': 'Manager Database Application', 'readme': 'README.md', ...}} != {'project': {'name': 'manager-database', 'version': '0.1.0', 'description': 'Manager Database Application', 'readme': 'README.md', ...}}
+E     Use -v to get more diff
+=============================== warnings summary ===============================
+.venv313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/.venv313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    _AST_STR_TYPES: tuple = (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
+.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
+.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_dashboard_read_failure_evidence.py::test_review_recovery_accepts_synced_dev_tool_pin_bumps

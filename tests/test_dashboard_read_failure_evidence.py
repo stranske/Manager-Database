@@ -532,7 +532,11 @@ def test_review_recovery_rejects_non_formatter_or_non_exact_changes(package, mut
     if package == "project-name":
         old, new = 'name = "manager-database"', 'name = "different-product"'
     elif package == "pytest-asyncio":
-        old, new = '"pytest-asyncio"', '"pytest-asyncio==1.0"'
+        dependencies = tomllib.loads(original)["project"]["optional-dependencies"]["dev"]
+        entry = next(value for value in dependencies if value.split("[", 1)[0] == package)
+        synthetic = ".".join(str(len(part)) for part in package.split("-"))
+        pinned = package + "==" + synthetic
+        old, new = json.dumps(entry), json.dumps(pinned)
     else:
         dependencies = tomllib.loads(original)["project"]["optional-dependencies"]["dev"]
         pin = next(value for value in dependencies if value.startswith(package + "=="))
