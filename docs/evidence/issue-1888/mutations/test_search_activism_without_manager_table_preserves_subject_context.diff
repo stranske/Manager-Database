@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -872,7 +872,7 @@
+         manager_columns = get_table_columns(conn, "managers")
+         manager_join = ""
+         manager_name_expr = "NULL"
+-        if manager_columns and "name" in manager_columns:
++        if not manager_columns or "name" in manager_columns:
+             manager_id_col = "manager_id" if "manager_id" in manager_columns else "id"
+             manager_join = f" LEFT JOIN managers m ON m.{manager_id_col} = af.manager_id"
+             manager_name_expr = "m.name"

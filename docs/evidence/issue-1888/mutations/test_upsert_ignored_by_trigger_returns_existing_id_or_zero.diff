@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -217,7 +217,7 @@
+         existing = conn.execute(
+             "SELECT filing_id FROM filings WHERE raw_key = ?", (raw_key,)
+         ).fetchone()
+-        return int(existing[0]) if existing and existing[0] is not None else 0
++        return 99
+     columns = get_table_columns(conn, "filings")
+     storage_columns = ", storage_key" if "storage_key" in columns else ""
+     storage_values = ", %s" if "storage_key" in columns else ""

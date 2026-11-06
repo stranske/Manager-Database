@@ -1,0 +1,44 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_deletion_during_second_download_keeps_first_filing ____________
+tests/test_edgar_flow.py:150: in test_deletion_during_second_download_keeps_first_filing
+    assert rows == [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
+E   AssertionError: assert [] == [{'nameOfIssu...shPrnamt': 1}]
+E     
+E     Right contains one more item: {'nameOfIssuer': 'Corp', 'cusip': 'AAA', 'value': 1, 'sshPrnamt': 1}
+E     
+E     Full diff:
+E     + []
+E     - [
+E     -     {
+E     -         'nameOfIssuer': 'Corp',
+E     -         'cusip': 'AAA',
+E     -         'value': 1,
+E     -         'sshPrnamt': 1,
+E     -     },
+E     - ]
+----------------------------- Captured stderr call -----------------------------
+00:53:28.668 | WARNING | etl.edgar_flow - Manager deletion started during EDGAR download; stopping ingestion
+{"asctime": "2026-11-04 00:53:28,668", "levelname": "WARNING", "name": "etl.edgar_flow", "service": "ingest_flow", "message": "Manager deletion started during EDGAR download; stopping ingestion", "manager_id": 100, "cik": "0"}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.edgar_flow:edgar_flow.py:426 Manager deletion started during EDGAR download; stopping ingestion
+=========================== short test summary info ============================
+FAILED tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing - AssertionError: assert [] == [{'nameOfIssu...shPrnamt': 1}]
+  
+  Right contains one more item: {'nameOfIssuer': 'Corp', 'cusip': 'AAA', 'value': 1, 'sshPrnamt': 1}
+  
+  Full diff:
+  + []
+  - [
+  -     {
+  -         'nameOfIssuer': 'Corp',
+  -         'cusip': 'AAA',
+  -         'value': 1,
+  -         'sshPrnamt': 1,
+  -     },
+  - ]
+1 failed, 8 warnings in 1.98s
+
+exit: 1

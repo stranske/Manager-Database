@@ -1,0 +1,47 @@
+{
+  "main_sha": "a7f4e626bb4b8359a64c56a56211218e41b6020a",
+  "main_run_id": 41702885246,
+  "main_artifact_id": 13265760076,
+  "published_head": "63569b14c96b5314b26b13b3fb9f10c7d9480bdf",
+  "published_gate_run_id": 41774281794,
+  "published_gate_conclusion": "success",
+  "artifacts": [
+    {
+      "id": 13296791087,
+      "name": "gate-coverage-3.14-1",
+      "expired": false,
+      "head_sha": "63569b14c96b5314b26b13b3fb9f10c7d9480bdf",
+      "digest": "sha256:1594e5e0d3815da4786661b6826e6584e33281ee60e57cb6aab98bbde32c1577"
+    },
+    {
+      "id": 13296622167,
+      "name": "gate-coverage-summary",
+      "expired": false,
+      "head_sha": "63569b14c96b5314b26b13b3fb9f10c7d9480bdf",
+      "digest": "sha256:fd3a9d9916f5700d49b8dfa18f599450e73261ef904ab566851af51e2bfb2146"
+    },
+    {
+      "id": 13296412633,
+      "name": "gate-coverage-trend-history",
+      "expired": false,
+      "head_sha": "63569b14c96b5314b26b13b3fb9f10c7d9480bdf",
+      "digest": "sha256:12b084e183b9c936ff6b0ee4f39e6db1c78ef9c271f6db66b0c89f59074063bd"
+    },
+    {
+      "id": 13296382832,
+      "name": "gate-coverage-trend",
+      "expired": false,
+      "head_sha": "63569b14c96b5314b26b13b3fb9f10c7d9480bdf",
+      "digest": "sha256:7d1044d2f0fa1157844ffdc034243bb4ff95565aa0275c5da7fd0c69d542f588"
+    },
+    {
+      "id": 13296162876,
+      "name": "gate-coverage-3.13-1",
+      "expired": false,
+      "head_sha": "63569b14c96b5314b26b13b3fb9f10c7d9480bdf",
+      "digest": "sha256:0c8ac1822e7fc73e016d0d493eab0f3d6b5e44661b92415e29f354063accb04e"
+    }
+  ],
+  "artifact_contents_verified": false,
+  "new_local_commit_ci_status": "pending publication"
+}

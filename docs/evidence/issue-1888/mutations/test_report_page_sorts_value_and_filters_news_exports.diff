@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -530,7 +530,7 @@
+         selected_topic = st.selectbox(
+             "Filter by topic", topic_choices(news), key=f"news_topic_{date_str}"
+         )
+-        if selected_topic != "All topics":
++        if selected_topic == "All topics":
+             news = news[
+                 news["topics"].apply(lambda value: selected_topic in parse_topics(value))
+             ].reset_index(drop=True)

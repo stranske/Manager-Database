@@ -1,0 +1,10 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -39,7 +39,6 @@
+         if is_sqlite and "no such table" in str(exc).lower() and "mv_daily_report" in str(exc):
+             df = pd.read_sql_query(fallback_query, conn, params=(date,))
+         else:
+-            conn.close()
+             raise
+     conn.close()
+     elapsed_ms = (time.perf_counter() - started) * 1000

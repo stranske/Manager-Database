@@ -1,0 +1,48 @@
+{
+  "main_sha": "a7f4e626bb4b8359a64c56a56211218e41b6020a",
+  "main_run_id": 41702885246,
+  "main_artifact_id": 13265760076,
+  "artifact_transfer": "URLError; no artifact content verified",
+  "published_head": "49f534126f3421846942cb0adcbb959f1d8249f0",
+  "gate_run_id": 41815491478,
+  "pytest_jobs": [
+    {
+      "id": 126525270504,
+      "name": "Python CI / python 3.14",
+      "status": "completed",
+      "conclusion": "success",
+      "pytest": {
+        "name": "Pytest (unit tests with coverage)",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 20
+      }
+    },
+    {
+      "id": 126525270957,
+      "name": "Python CI / python 3.13",
+      "status": "completed",
+      "conclusion": "success",
+      "pytest": {
+        "name": "Pytest (unit tests with coverage)",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 20
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 13314861372,
+      "name": "gate-coverage-3.13-1",
+      "digest": "sha256:7b392ffd0043b5ad9e603cbbcb42efa031ad9f586fcb010e61a97e52c145ff60",
+      "head_sha": "49f534126f3421846942cb0adcbb959f1d8249f0"
+    },
+    {
+      "id": 13313929751,
+      "name": "gate-coverage-3.14-1",
+      "digest": "sha256:461d592c37c34554c9945a237082990eaf464d4b536f95d72dd17c6ffda399cc",
+      "head_sha": "49f534126f3421846942cb0adcbb959f1d8249f0"
+    }
+  ]
+}

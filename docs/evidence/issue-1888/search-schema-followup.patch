@@ -1,0 +1,500 @@
+From 3dc0e9ea80a405611e53231b5aef2b847c2d7f56 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Wed, 4 Nov 2026 07:35:13 +0000
+Subject: [PATCH] test: cover search results with partial SQLite schemas
+
+---
+ docs/evidence/issue-1888/README.md            | 56 ++++++++++++++++
+ .../issue-1888/mutations/receipts.json        | 14 ++++
+ docs/evidence/issue-1888/mutations/replay.py  | 16 +++++
+ ..._table_preserves_subject_context-green.txt |  6 ++
+ ...er_table_preserves_subject_context-red.txt | 18 +++++
+ ...nager_table_preserves_subject_context.diff | 11 +++
+ ..._schema_keeps_filings_searchable-green.txt |  6 ++
+ ...te_schema_keeps_filings_searchable-red.txt | 18 +++++
+ ...qlite_schema_keeps_filings_searchable.diff | 11 +++
+ docs/evidence/issue-1888/pr-body.md           | 67 +++++++++++++++++++
+ .../search-schema-after-coverage.json         |  1 +
+ .../issue-1888/search-schema-after-pytest.txt | 17 +++++
+ .../search-schema-before-coverage.json        |  1 +
+ .../search-schema-before-pytest.txt           | 17 +++++
+ .../search-schema-regression-pytest.txt       | 23 +++++++
+ tests/test_issue_1888_coverage.py             | 64 ++++++++++++++++++
+ 16 files changed, 346 insertions(+)
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-green.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-red.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context.diff
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-green.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-red.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable.diff
+ create mode 100644 docs/evidence/issue-1888/search-schema-after-coverage.json
+ create mode 100644 docs/evidence/issue-1888/search-schema-after-pytest.txt
+ create mode 100644 docs/evidence/issue-1888/search-schema-before-coverage.json
+ create mode 100644 docs/evidence/issue-1888/search-schema-before-pytest.txt
+ create mode 100644 docs/evidence/issue-1888/search-schema-regression-pytest.txt
+
+diff --git a/docs/evidence/issue-1888/README.md b/docs/evidence/issue-1888/README.md
+index a446060..a482470 100644
+--- a/docs/evidence/issue-1888/README.md
++++ b/docs/evidence/issue-1888/README.md
+@@ -588,3 +588,59 @@ file is changed and no remote publication is claimed.
+ The `needs-human` label and blocker-comment attempts were also rejected with
+ `MCP tool call requires approval, but approval policy is never`. These actions
+ were not published. PR #1889 remains open and ready for review.
++
++
++## Partial search schema follow-up (2026-11-04)
++
++Two new functions use real SQLite queries to verify that metadata-only documents
++are skipped while legacy filings remain searchable, and that activism results
++retain subject context without a managers table. Both assert the complete result
++payload, including absent metadata and relevance. No production change is needed.
++The `cache.get(key) is None` audit remains clear across the six scoped modules;
++search's deduplication map stores only concrete `SearchResult` instances.
++
++Matched local comparison against published head `df688df`, Python 3.14.8:
++
++```sh
++pytest tests/test_issue_1888_coverage.py tests/test_search.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-schema-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
++pytest tests/test_issue_1888_coverage.py tests/test_search.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-schema-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
++```
++
++Before: **59 passed**, search **95%**, missing statements+branches **8+12=20**.
++After: **61 passed**, search **96%**, missing statements+branches **7+8=15**.
++The five-unit local reduction is not CI-main artifact credit. Raw JSON and full
++output are `search-schema-{before,after}-{coverage.json,pytest.txt}`.
++
++Broader affected suites: **183 passed, 1 existing nightly skip**. The command is
++in `search-schema-regression-pytest.txt` below; the same suites and options as the
++date-lookup regression were used with JSON output to
++`/tmp/issue1888-search-schema-regression.json`. Coverage is search **97%**, signals
++**91%**, EDGAR **98%**, report **97%**. As previously documented, the temporary
++`/tmp/issue1888-runtime` event-loop wakeup shim was required for the async suite
++and repository-wide Black check. An initial plain run was interrupted when it
++stalled; no test was modified or disabled. Black formats both changed Python files,
++the required repository-wide Black check passes (452 unchanged), and Ruff passes.
++
++Receipts 34–35 contain actual source edits that produce SQLite errors for missing
++text columns and an unavailable manager join. The same commands pass after source
++restoration, with matching source hashes. All 35 receipts are red=1/green=0.
++The new diffs, complete output, commands and excerpts are in `mutations/` and
++`pr-body.md`. Replay only this follow-up after seeding the first 33 receipts:
++
++```sh
++python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-schema-proof --output docs/evidence/issue-1888/mutations --start-at 33
++```
++
++The connector confirms main still resolves to `a7f4e626`, and artifact
++`13265760076` belongs to that main Gate run. Transferring the ZIP again fails with
++`URLError`; exact artifact-based ranking and CI-main coverage remain unverified.
++The primary checkout rejects `git add` with `Read-only file system`. A commit of
++this follow-up is prepared in the writable clone `/tmp/issue1888-schema-proof`,
++with `search-schema-followup.patch` supplied for application to the branch.
++The six CI-dependent checkboxes remain open; no live PR update is claimed here.
++
++
++Publication attempt for this follow-up: updating PR #1889's prepared body, adding
++`needs-human`, and posting the blocker comment were each rejected:
++`MCP tool call requires approval, but approval policy is never`.
++No live body, label, or comment update was published by this run.
+diff --git a/docs/evidence/issue-1888/mutations/receipts.json b/docs/evidence/issue-1888/mutations/receipts.json
+index 4227916..d5e62cb 100644
+--- a/docs/evidence/issue-1888/mutations/receipts.json
++++ b/docs/evidence/issue-1888/mutations/receipts.json
+@@ -229,5 +229,19 @@
+     "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
+     "red": 1,
+     "green": 0
++  },
++  {
++    "test": "tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable",
++    "source": "api/search.py",
++    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
++    "red": 1,
++    "green": 0
++  },
++  {
++    "test": "tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context",
++    "source": "api/search.py",
++    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
++    "red": 1,
++    "green": 0
+   }
+ ]
+diff --git a/docs/evidence/issue-1888/mutations/replay.py b/docs/evidence/issue-1888/mutations/replay.py
+index c6263ff..81616d4 100644
+--- a/docs/evidence/issue-1888/mutations/replay.py
++++ b/docs/evidence/issue-1888/mutations/replay.py
+@@ -275,6 +275,22 @@ CASES = [
+         "finally:\n        pass\n    return max(candidates)",
+         1,
+     ),
++    (
++        "tests/test_issue_1888_coverage.py",
++        "test_search_partial_sqlite_schema_keeps_filings_searchable",
++        "api/search.py",
++        "        if doc_text_col:\n",
++        "        if doc_columns:\n",
++        1,
++    ),
++    (
++        "tests/test_issue_1888_coverage.py",
++        "test_search_activism_without_manager_table_preserves_subject_context",
++        "api/search.py",
++        '        if manager_columns and "name" in manager_columns:\n',
++        '        if not manager_columns or "name" in manager_columns:\n',
++        1,
++    ),
+ ]
+ 
+ 
+diff --git a/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-green.txt b/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-green.txt
+new file mode 100644
+index 0000000..0d723e4
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-green.txt
+@@ -0,0 +1,6 @@
++cwd: /tmp/issue1888-schema-proof
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context -m 'not slow' --tb=short --disable-warnings
++.                                                                        [100%]
++1 passed, 6 warnings in 0.55s
++
++exit: 0
+diff --git a/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-red.txt b/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-red.txt
+new file mode 100644
+index 0000000..ed94b50
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-red.txt
+@@ -0,0 +1,18 @@
++cwd: /tmp/issue1888-schema-proof
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context -m 'not slow' --tb=short --disable-warnings
++F                                                                        [100%]
++=================================== FAILURES ===================================
++_____ test_search_activism_without_manager_table_preserves_subject_context _____
++tests/test_issue_1888_coverage.py:61: in test_search_activism_without_manager_table_preserves_subject_context
++    results = search.universal_search("needle", conn, entity_type="filing")
++              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++api/search.py:944: in universal_search
++    _search_sqlite(query, conn, limit)
++api/search.py:879: in _search_sqlite
++    rows = conn.execute(
++E   sqlite3.OperationalError: no such table: managers
++=========================== short test summary info ============================
++FAILED tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context - sqlite3.OperationalError: no such table: managers
++1 failed, 6 warnings in 0.57s
++
++exit: 1
+diff --git a/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context.diff b/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context.diff
+new file mode 100644
+index 0000000..5f47255
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context.diff
+@@ -0,0 +1,11 @@
++--- a/api/search.py
+++++ b/api/search.py
++@@ -872,7 +872,7 @@
++         manager_columns = get_table_columns(conn, "managers")
++         manager_join = ""
++         manager_name_expr = "NULL"
++-        if manager_columns and "name" in manager_columns:
+++        if not manager_columns or "name" in manager_columns:
++             manager_id_col = "manager_id" if "manager_id" in manager_columns else "id"
++             manager_join = f" LEFT JOIN managers m ON m.{manager_id_col} = af.manager_id"
++             manager_name_expr = "m.name"
+diff --git a/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-green.txt b/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-green.txt
+new file mode 100644
+index 0000000..15aab3b
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-green.txt
+@@ -0,0 +1,6 @@
++cwd: /tmp/issue1888-schema-proof
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable -m 'not slow' --tb=short --disable-warnings
++.                                                                        [100%]
++1 passed, 6 warnings in 0.55s
++
++exit: 0
+diff --git a/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-red.txt b/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-red.txt
+new file mode 100644
+index 0000000..bf754b6
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-red.txt
+@@ -0,0 +1,18 @@
++cwd: /tmp/issue1888-schema-proof
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable -m 'not slow' --tb=short --disable-warnings
++F                                                                        [100%]
++=================================== FAILURES ===================================
++__________ test_search_partial_sqlite_schema_keeps_filings_searchable __________
++tests/test_issue_1888_coverage.py:28: in test_search_partial_sqlite_schema_keeps_filings_searchable
++    results = search.universal_search("needle", conn)
++              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++api/search.py:944: in universal_search
++    _search_sqlite(query, conn, limit)
++api/search.py:626: in _search_sqlite
++    rows = conn.execute(
++E   sqlite3.OperationalError: no such column: None
++=========================== short test summary info ============================
++FAILED tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable - sqlite3.OperationalError: no such column: None
++1 failed, 6 warnings in 0.57s
++
++exit: 1
+diff --git a/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable.diff b/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable.diff
+new file mode 100644
+index 0000000..b4562f3
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable.diff
+@@ -0,0 +1,11 @@
++--- a/api/search.py
+++++ b/api/search.py
++@@ -622,7 +622,7 @@
++         doc_filename_col = "filename" if "filename" in doc_columns else "''"
++         doc_manager_col = "manager_id" if "manager_id" in doc_columns else "NULL"
++         doc_created_col = "created_at" if "created_at" in doc_columns else "NULL"
++-        if doc_text_col:
+++        if doc_columns:
++             rows = conn.execute(
++                 f"SELECT {doc_id_col}, {doc_manager_col}, {doc_filename_col}, {doc_text_col}, {doc_created_col} FROM documents "
++                 f"WHERE COALESCE({doc_filename_col}, '') LIKE ? OR COALESCE({doc_text_col}, '') LIKE ? LIMIT ?",
+diff --git a/docs/evidence/issue-1888/pr-body.md b/docs/evidence/issue-1888/pr-body.md
+index b76450c..7055db2 100644
+--- a/docs/evidence/issue-1888/pr-body.md
++++ b/docs/evidence/issue-1888/pr-body.md
+@@ -1133,3 +1133,70 @@ run's approval policy is `never`. The primary Git metadata mount is read-only.
+ The tested source change is preserved in `/tmp/issue1888-date-lookup-proof` with a
+ patch in the evidence directory. This prepared body reconciles verified tasks;
+ it does not claim the live PR checkboxes were updated.
++
++
++## Partial search schema follow-up
++
++Two SQLite behavior tests assert complete filing and activism results with missing
++optional schema metadata. No production change. Matched local search coverage is
++**95% to 96%**, missing statements+branches **8+12=20 to 7+8=15** (59 to 61 passing
++tests). Broader affected suites: **183 passed, 1 existing nightly skip**. Black's
++required repository check (452 files) and Ruff pass. Negative-cache audit remains
++clear. Main is still `a7f4e626`; artifact transfer fails with `URLError`, so the
++exact CI ranking/base and ~180-unit comparison remain open. The primary `.git`
++mount is read-only; a writable-clone commit and patch preserve this follow-up.
++
++### 34. `test_search_partial_sqlite_schema_keeps_filings_searchable`
++
++Red: [complete output](docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-red.txt).
++
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++1 failed, 6 warnings in 0.57s
++exit: 1
++```
++
++Green: [complete output](docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-green.txt).
++
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++1 passed, 6 warnings in 0.55s
++exit: 0
++```
++
++### 35. `test_search_activism_without_manager_table_preserves_subject_context`
++
++Red: [complete output](docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-red.txt).
++
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++1 failed, 6 warnings in 0.57s
++exit: 1
++```
++
++Green: [complete output](docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-green.txt).
++
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++1 passed, 6 warnings in 0.55s
++exit: 0
++```
++
++
++
++Publication attempt for this follow-up: updating PR #1889's prepared body, adding
++`needs-human`, and posting the blocker comment were each rejected:
++`MCP tool call requires approval, but approval policy is never`.
++No live body, label, or comment update was published by this run.
+diff --git a/docs/evidence/issue-1888/search-schema-after-coverage.json b/docs/evidence/issue-1888/search-schema-after-coverage.json
+new file mode 100644
+index 0000000..c081015
+--- /dev/null
++++ b/docs/evidence/issue-1888/search-schema-after-coverage.json
+@@ -0,0 +1 @@
++{"meta": {"format": 3, "version": "7.17.0", "timestamp": "2026-11-04T07:31:45.540588", "branch_coverage": true, "show_contexts": false}, "files": {"api/search.py": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 63, 64, 65, 66, 68, 71, 72, 73, 74, 75, 77, 80, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 103, 108, 109, 110, 111, 113, 114, 117, 118, 119, 120, 121, 122, 123, 128, 129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528, 531, 532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930, 933, 940, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 287, "num_statements": 294, "percent_covered": 96.35922330097087, "percent_covered_display": "96", "missing_lines": 7, "excluded_lines": 4, "percent_statements_covered": 97.61904761904762, "percent_statements_covered_display": "98", "num_branches": 118, "num_partial_branches": 8, "covered_branches": 110, "missing_branches": 8, "percent_branches_covered": 93.22033898305085, "percent_branches_covered_display": "93"}, "missing_lines": [28, 29, 31, 67, 76, 93, 941], "excluded_lines": [12, 13, 14, 15], "executed_branches": [[23, 24], [64, 65], [64, 66], [66, 68], [73, 74], [73, 75], [75, 77], [92, 94], [110, 111], [110, 113], [119, 120], [119, 121], [131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507], [537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[23, 26], [66, 67], [75, 76], [92, 93], [310, 312], [373, 375], [656, 663], [940, 941]], "functions": {"_normalize_rank": {"executed_lines": [63, 64, 65, 66, 68], "summary": {"covered_lines": 5, "num_statements": 6, "percent_covered": 80.0, "percent_covered_display": "80", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 83.33333333333333, "percent_statements_covered_display": "83", "num_branches": 4, "num_partial_branches": 1, "covered_branches": 3, "missing_branches": 1, "percent_branches_covered": 75.0, "percent_branches_covered_display": "75"}, "missing_lines": [67], "excluded_lines": [], "start_line": 62, "executed_branches": [[64, 65], [64, 66], [66, 68]], "missing_branches": [[66, 67]]}, "_vector_relevance": {"executed_lines": [72, 73, 74, 75, 77], "summary": {"covered_lines": 5, "num_statements": 6, "percent_covered": 80.0, "percent_covered_display": "80", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 83.33333333333333, "percent_statements_covered_display": "83", "num_branches": 4, "num_partial_branches": 1, "covered_branches": 3, "missing_branches": 1, "percent_branches_covered": 75.0, "percent_branches_covered_display": "75"}, "missing_lines": [76], "excluded_lines": [], "start_line": 71, "executed_branches": [[73, 74], [73, 75], [75, 77]], "missing_branches": [[75, 76]]}, "_score_result": {"executed_lines": [89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100], "summary": {"covered_lines": 11, "num_statements": 12, "percent_covered": 85.71428571428571, "percent_covered_display": "86", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [93], "excluded_lines": [], "start_line": 80, "executed_branches": [[92, 94]], "missing_branches": [[92, 93]]}, "_format_activism_filing_headline": {"executed_lines": [108, 109, 110, 111, 113, 114], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 103, "executed_branches": [[110, 111], [110, 113]], "missing_branches": []}, "_sqlite_manager_name_map": {"executed_lines": [118, 119, 120, 121, 122, 123], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 117, "executed_branches": [[119, 120], [119, 121]], "missing_branches": []}, "_search_postgres": {"executed_lines": [129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528], "summary": {"covered_lines": 71, "num_statements": 71, "percent_covered": 98.0952380952381, "percent_covered_display": "98", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 34, "num_partial_branches": 2, "covered_branches": 32, "missing_branches": 2, "percent_branches_covered": 94.11764705882354, "percent_branches_covered_display": "94"}, "missing_lines": [], "excluded_lines": [], "start_line": 128, "executed_branches": [[131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507]], "missing_branches": [[310, 312], [373, 375]]}, "_search_sqlite": {"executed_lines": [532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930], "summary": {"covered_lines": 137, "num_statements": 137, "percent_covered": 99.49238578680203, "percent_covered_display": "99", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 60, "num_partial_branches": 1, "covered_branches": 59, "missing_branches": 1, "percent_branches_covered": 98.33333333333333, "percent_branches_covered_display": "98"}, "missing_lines": [], "excluded_lines": [], "start_line": 531, "executed_branches": [[537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930]], "missing_branches": [[656, 663]]}, "universal_search": {"executed_lines": [940, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 13, "num_statements": 14, "percent_covered": 90.9090909090909, "percent_covered_display": "91", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 92.85714285714286, "percent_statements_covered_display": "93", "num_branches": 8, "num_partial_branches": 1, "covered_branches": 7, "missing_branches": 1, "percent_branches_covered": 87.5, "percent_branches_covered_display": "88"}, "missing_lines": [941], "excluded_lines": [], "start_line": 933, "executed_branches": [[940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[940, 941]]}, "": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 71, 80, 103, 117, 128, 531, 933], "summary": {"covered_lines": 33, "num_statements": 36, "percent_covered": 89.47368421052632, "percent_covered_display": "89", "missing_lines": 3, "excluded_lines": 4, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [28, 29, 31], "excluded_lines": [12, 13, 14, 15], "start_line": 1, "executed_branches": [[23, 24]], "missing_branches": [[23, 26]]}}, "classes": {"SearchResult": {"executed_lines": [], "summary": {"covered_lines": 0, "num_statements": 0, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 36, "executed_branches": [], "missing_branches": []}, "": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 63, 64, 65, 66, 68, 71, 72, 73, 74, 75, 77, 80, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 103, 108, 109, 110, 111, 113, 114, 117, 118, 119, 120, 121, 122, 123, 128, 129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528, 531, 532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930, 933, 940, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 287, "num_statements": 294, "percent_covered": 96.35922330097087, "percent_covered_display": "96", "missing_lines": 7, "excluded_lines": 4, "percent_statements_covered": 97.61904761904762, "percent_statements_covered_display": "98", "num_branches": 118, "num_partial_branches": 8, "covered_branches": 110, "missing_branches": 8, "percent_branches_covered": 93.22033898305085, "percent_branches_covered_display": "93"}, "missing_lines": [28, 29, 31, 67, 76, 93, 941], "excluded_lines": [12, 13, 14, 15], "start_line": 1, "executed_branches": [[23, 24], [64, 65], [64, 66], [66, 68], [73, 74], [73, 75], [75, 77], [92, 94], [110, 111], [110, 113], [119, 120], [119, 121], [131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507], [537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[23, 26], [66, 67], [75, 76], [92, 93], [310, 312], [373, 375], [656, 663], [940, 941]]}}}}, "totals": {"covered_lines": 287, "num_statements": 294, "percent_covered": 96.35922330097087, "percent_covered_display": "96", "missing_lines": 7, "excluded_lines": 4, "percent_statements_covered": 97.61904761904762, "percent_statements_covered_display": "98", "num_branches": 118, "num_partial_branches": 8, "covered_branches": 110, "missing_branches": 8, "percent_branches_covered": 93.22033898305085, "percent_branches_covered_display": "93"}}
+\ No newline at end of file
+diff --git a/docs/evidence/issue-1888/search-schema-after-pytest.txt b/docs/evidence/issue-1888/search-schema-after-pytest.txt
+new file mode 100644
+index 0000000..92db166
+--- /dev/null
++++ b/docs/evidence/issue-1888/search-schema-after-pytest.txt
+@@ -0,0 +1,17 @@
++.............................................................            [100%]/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/_pytest/unraisableexception.py:33: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7ff1a77ef1f0>
++  gc.collect()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/_pytest/unraisableexception.py:33: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7ff1653ad6c0>
++  gc.collect()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++
++================================ tests coverage ================================
++_______________ coverage: platform linux, python 3.14.8-final-0 ________________
++
++Name            Stmts   Miss Branch BrPart  Cover   Missing
++-----------------------------------------------------------
++api/search.py     294      7    118      8    96%   23->26, 28-31, 67, 76, 93, 310->312, 373->375, 656->663, 941
++-----------------------------------------------------------
++TOTAL             294      7    118      8    96%
++Coverage JSON written to file /tmp/issue1888-search-schema-after.json
++61 passed, 28 warnings in 1.68s
+diff --git a/docs/evidence/issue-1888/search-schema-before-coverage.json b/docs/evidence/issue-1888/search-schema-before-coverage.json
+new file mode 100644
+index 0000000..0891eae
+--- /dev/null
++++ b/docs/evidence/issue-1888/search-schema-before-coverage.json
+@@ -0,0 +1 @@
++{"meta": {"format": 3, "version": "7.17.0", "timestamp": "2026-11-04T07:31:04.955823", "branch_coverage": true, "show_contexts": false}, "files": {"api/search.py": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 63, 64, 65, 66, 68, 71, 72, 73, 74, 75, 77, 80, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 103, 108, 109, 110, 113, 114, 117, 118, 119, 120, 121, 122, 123, 128, 129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528, 531, 532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930, 933, 940, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 286, "num_statements": 294, "percent_covered": 95.14563106796116, "percent_covered_display": "95", "missing_lines": 8, "excluded_lines": 4, "percent_statements_covered": 97.27891156462584, "percent_statements_covered_display": "97", "num_branches": 118, "num_partial_branches": 12, "covered_branches": 106, "missing_branches": 12, "percent_branches_covered": 89.83050847457628, "percent_branches_covered_display": "90"}, "missing_lines": [28, 29, 31, 67, 76, 93, 111, 941], "excluded_lines": [12, 13, 14, 15], "executed_branches": [[23, 24], [64, 65], [64, 66], [66, 68], [73, 74], [73, 75], [75, 77], [92, 94], [110, 113], [119, 120], [119, 121], [131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507], [537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [894, 905], [894, 930], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[23, 26], [66, 67], [75, 76], [92, 93], [110, 111], [310, 312], [373, 375], [625, 709], [656, 663], [835, 842], [875, 879], [940, 941]], "functions": {"_normalize_rank": {"executed_lines": [63, 64, 65, 66, 68], "summary": {"covered_lines": 5, "num_statements": 6, "percent_covered": 80.0, "percent_covered_display": "80", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 83.33333333333333, "percent_statements_covered_display": "83", "num_branches": 4, "num_partial_branches": 1, "covered_branches": 3, "missing_branches": 1, "percent_branches_covered": 75.0, "percent_branches_covered_display": "75"}, "missing_lines": [67], "excluded_lines": [], "start_line": 62, "executed_branches": [[64, 65], [64, 66], [66, 68]], "missing_branches": [[66, 67]]}, "_vector_relevance": {"executed_lines": [72, 73, 74, 75, 77], "summary": {"covered_lines": 5, "num_statements": 6, "percent_covered": 80.0, "percent_covered_display": "80", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 83.33333333333333, "percent_statements_covered_display": "83", "num_branches": 4, "num_partial_branches": 1, "covered_branches": 3, "missing_branches": 1, "percent_branches_covered": 75.0, "percent_branches_covered_display": "75"}, "missing_lines": [76], "excluded_lines": [], "start_line": 71, "executed_branches": [[73, 74], [73, 75], [75, 77]], "missing_branches": [[75, 76]]}, "_score_result": {"executed_lines": [89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100], "summary": {"covered_lines": 11, "num_statements": 12, "percent_covered": 85.71428571428571, "percent_covered_display": "86", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [93], "excluded_lines": [], "start_line": 80, "executed_branches": [[92, 94]], "missing_branches": [[92, 93]]}, "_format_activism_filing_headline": {"executed_lines": [108, 109, 110, 113, 114], "summary": {"covered_lines": 5, "num_statements": 6, "percent_covered": 75.0, "percent_covered_display": "75", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 83.33333333333333, "percent_statements_covered_display": "83", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [111], "excluded_lines": [], "start_line": 103, "executed_branches": [[110, 113]], "missing_branches": [[110, 111]]}, "_sqlite_manager_name_map": {"executed_lines": [118, 119, 120, 121, 122, 123], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 117, "executed_branches": [[119, 120], [119, 121]], "missing_branches": []}, "_search_postgres": {"executed_lines": [129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528], "summary": {"covered_lines": 71, "num_statements": 71, "percent_covered": 98.0952380952381, "percent_covered_display": "98", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 34, "num_partial_branches": 2, "covered_branches": 32, "missing_branches": 2, "percent_branches_covered": 94.11764705882354, "percent_branches_covered_display": "94"}, "missing_lines": [], "excluded_lines": [], "start_line": 128, "executed_branches": [[131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507]], "missing_branches": [[310, 312], [373, 375]]}, "_search_sqlite": {"executed_lines": [532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930], "summary": {"covered_lines": 137, "num_statements": 137, "percent_covered": 97.96954314720813, "percent_covered_display": "98", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 60, "num_partial_branches": 4, "covered_branches": 56, "missing_branches": 4, "percent_branches_covered": 93.33333333333333, "percent_branches_covered_display": "93"}, "missing_lines": [], "excluded_lines": [], "start_line": 531, "executed_branches": [[537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [894, 905], [894, 930]], "missing_branches": [[625, 709], [656, 663], [835, 842], [875, 879]]}, "universal_search": {"executed_lines": [940, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 13, "num_statements": 14, "percent_covered": 90.9090909090909, "percent_covered_display": "91", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 92.85714285714286, "percent_statements_covered_display": "93", "num_branches": 8, "num_partial_branches": 1, "covered_branches": 7, "missing_branches": 1, "percent_branches_covered": 87.5, "percent_branches_covered_display": "88"}, "missing_lines": [941], "excluded_lines": [], "start_line": 933, "executed_branches": [[940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[940, 941]]}, "": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 71, 80, 103, 117, 128, 531, 933], "summary": {"covered_lines": 33, "num_statements": 36, "percent_covered": 89.47368421052632, "percent_covered_display": "89", "missing_lines": 3, "excluded_lines": 4, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [28, 29, 31], "excluded_lines": [12, 13, 14, 15], "start_line": 1, "executed_branches": [[23, 24]], "missing_branches": [[23, 26]]}}, "classes": {"SearchResult": {"executed_lines": [], "summary": {"covered_lines": 0, "num_statements": 0, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 36, "executed_branches": [], "missing_branches": []}, "": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 63, 64, 65, 66, 68, 71, 72, 73, 74, 75, 77, 80, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 103, 108, 109, 110, 113, 114, 117, 118, 119, 120, 121, 122, 123, 128, 129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528, 531, 532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930, 933, 940, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 286, "num_statements": 294, "percent_covered": 95.14563106796116, "percent_covered_display": "95", "missing_lines": 8, "excluded_lines": 4, "percent_statements_covered": 97.27891156462584, "percent_statements_covered_display": "97", "num_branches": 118, "num_partial_branches": 12, "covered_branches": 106, "missing_branches": 12, "percent_branches_covered": 89.83050847457628, "percent_branches_covered_display": "90"}, "missing_lines": [28, 29, 31, 67, 76, 93, 111, 941], "excluded_lines": [12, 13, 14, 15], "start_line": 1, "executed_branches": [[23, 24], [64, 65], [64, 66], [66, 68], [73, 74], [73, 75], [75, 77], [92, 94], [110, 113], [119, 120], [119, 121], [131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507], [537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [894, 905], [894, 930], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[23, 26], [66, 67], [75, 76], [92, 93], [110, 111], [310, 312], [373, 375], [625, 709], [656, 663], [835, 842], [875, 879], [940, 941]]}}}}, "totals": {"covered_lines": 286, "num_statements": 294, "percent_covered": 95.14563106796116, "percent_covered_display": "95", "missing_lines": 8, "excluded_lines": 4, "percent_statements_covered": 97.27891156462584, "percent_statements_covered_display": "97", "num_branches": 118, "num_partial_branches": 12, "covered_branches": 106, "missing_branches": 12, "percent_branches_covered": 89.83050847457628, "percent_branches_covered_display": "90"}}
+\ No newline at end of file
+diff --git a/docs/evidence/issue-1888/search-schema-before-pytest.txt b/docs/evidence/issue-1888/search-schema-before-pytest.txt
+new file mode 100644
+index 0000000..998af99
+--- /dev/null
++++ b/docs/evidence/issue-1888/search-schema-before-pytest.txt
+@@ -0,0 +1,17 @@
++.........................................................../opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7c3d9b3067a0>
++  result = tuple_new(cls, iterable)
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7c3d5ad7dd50>
++  result = tuple_new(cls, iterable)
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++              [100%]
++================================ tests coverage ================================
++_______________ coverage: platform linux, python 3.14.8-final-0 ________________
++
++Name            Stmts   Miss Branch BrPart  Cover   Missing
++-----------------------------------------------------------
++api/search.py     294      8    118     12    95%   23->26, 28-31, 67, 76, 93, 111, 310->312, 373->375, 625->709, 656->663, 835->842, 875->879, 941
++-----------------------------------------------------------
++TOTAL             294      8    118     12    95%
++Coverage JSON written to file /tmp/issue1888-search-schema-before.json
++59 passed, 28 warnings in 2.63s
+diff --git a/docs/evidence/issue-1888/search-schema-regression-pytest.txt b/docs/evidence/issue-1888/search-schema-regression-pytest.txt
+new file mode 100644
+index 0000000..319570c
+--- /dev/null
++++ b/docs/evidence/issue-1888/search-schema-regression-pytest.txt
+@@ -0,0 +1,23 @@
++PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_edgar_flow.py tests/test_ingest_flow.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-schema-regression.json --cov-fail-under=0 -m "not slow" --tb=short --disable-warnings
++...............s........................................................ [ 39%]
++........................................................................ [ 78%]
++......................................../opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/ast.py:46: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x703bb14fee30>
++  return compile(source, filename, mode, flags,
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/ast.py:46: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x703bb0eacf40>
++  return compile(source, filename, mode, flags,
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++                                 [100%]
++================================ tests coverage ================================
++_______________ coverage: platform linux, python 3.14.8-final-0 ________________
++
++Name                 Stmts   Miss Branch BrPart  Cover   Missing
++----------------------------------------------------------------
++api/search.py          294      5    118      6    97%   23->26, 28-31, 67, 93, 310->312, 373->375, 656->663
++api/signals.py         248     17     66     10    91%   14-18, 104, 139, 168, 173, 191, 195, 201-202, 255, 259, 311, 398-399
++etl/edgar_flow.py      236      4     72      1    98%   77-78, 534-536
++ui/daily_report.py     303      7     78      6    97%   110-111, 152, 155, 228, 245, 367->364, 569
++----------------------------------------------------------------
++TOTAL                 1081     33    334     23    96%
++Coverage JSON written to file /tmp/issue1888-search-schema-regression.json
++183 passed, 1 skipped, 64 warnings in 3.07s
+diff --git a/tests/test_issue_1888_coverage.py b/tests/test_issue_1888_coverage.py
+index 35f6ee7..863e88e 100644
+--- a/tests/test_issue_1888_coverage.py
++++ b/tests/test_issue_1888_coverage.py
+@@ -12,6 +12,70 @@ from api import search, signals
+ from ui import daily_report
+ 
+ 
++def test_search_partial_sqlite_schema_keeps_filings_searchable():
++    conn = sqlite3.connect(":memory:")
++    try:
++        conn.executescript("""
++            CREATE TABLE documents (doc_id INTEGER PRIMARY KEY, filename TEXT);
++            CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, raw_key TEXT);
++            CREATE TABLE holdings (
++                holding_id INTEGER PRIMARY KEY, filing_id INTEGER, name_of_issuer TEXT, cusip TEXT
++            );
++            INSERT INTO documents VALUES (1, 'needle.pdf');
++            INSERT INTO filings VALUES (42, NULL, 'needle.xml');
++        """)
++
++        results = search.universal_search("needle", conn)
++
++        # Metadata-only documents must not prevent querying a legacy filing schema.
++        assert [result.model_dump() for result in results] == [
++            {
++                "entity_type": "filing",
++                "entity_id": 42,
++                "manager_name": None,
++                "headline": "Filing filing",
++                "snippet": "Raw key: needle.xml | Period end: n/a",
++                "relevance": pytest.approx(0.8),
++                "url": None,
++                "timestamp": None,
++            }
++        ]
++    finally:
++        conn.close()
++
++
++def test_search_activism_without_manager_table_preserves_subject_context():
++    conn = sqlite3.connect(":memory:")
++    try:
++        conn.executescript("""
++            CREATE TABLE activism_filings (
++                filing_id INTEGER PRIMARY KEY, manager_id INTEGER, filing_type TEXT,
++                subject_company TEXT, subject_cusip TEXT, ownership_pct REAL,
++                filed_date TEXT, url TEXT
++            );
++            INSERT INTO activism_filings VALUES (
++                42, 7, 'SC 13D', 'needle Corp', NULL, NULL, NULL, NULL
++            );
++        """)
++
++        results = search.universal_search("needle", conn, entity_type="filing")
++
++        assert [result.model_dump() for result in results] == [
++            {
++                "entity_type": "filing",
++                "entity_id": 42,
++                "manager_name": None,
++                "headline": "13D Filing: Unknown manager -> needle Corp (n/a)",
++                "snippet": "SC 13D | CUSIP: n/a | Filed: n/a",
++                "relevance": pytest.approx(0.8),
++                "url": None,
++                "timestamp": None,
++            }
++        ]
++    finally:
++        conn.close()
++
++
+ def test_search_legacy_holdings_return_filing_groups_and_holdings():
+     conn = sqlite3.connect(":memory:")
+     try:
+-- 
+2.55.0
+

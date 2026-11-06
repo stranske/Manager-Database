@@ -1,0 +1,29 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_search_guards_return_before_accessing_database ______________
+tests/test_issue_1806_coverage.py:90: in test_search_guards_return_before_accessing_database
+    assert search.universal_search(" ", object()) == []
+E   assert [None] == []
+E     
+E     Left contains one more item: None
+E     
+E     Full diff:
+E     - []
+E     + [
+E     +     None,
+E     + ]
+=========================== short test summary info ============================
+FAILED tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database - assert [None] == []
+  
+  Left contains one more item: None
+  
+  Full diff:
+  - []
+  + [
+  +     None,
+  + ]
+1 failed, 8 warnings in 1.97s
+
+exit: 1

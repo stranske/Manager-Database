@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -364,7 +364,7 @@
+             for row in contrarian.itertuples(index=False):
+                 manager_name = str(getattr(row, "manager_name", "") or "").strip()
+                 cusip = str(getattr(row, "cusip", "") or "").strip()
+-                if manager_name and cusip:
++                if manager_name or cusip:
+                     contrarian_lookup[(manager_name, cusip)] = format_signal_badge(
+                         getattr(row, "direction", None),
+                         getattr(row, "consensus_direction", None),

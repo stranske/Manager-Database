@@ -1,0 +1,6 @@
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
+..                                                                       [100%]
+2 passed, 12 warnings in 1.32s
+
+exit: 0

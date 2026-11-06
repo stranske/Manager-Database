@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -298,7 +298,7 @@
+             if pd.notna(parsed):
+                 candidates.append(parsed.date())
+     finally:
+-        conn.close()
++        pass
+     return max(candidates) if candidates else None
+ 
+ 

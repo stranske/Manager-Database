@@ -1,0 +1,27 @@
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_search_sqlite_vector_failure_preserves_text_results[embedding] ______
+tests/test_issue_1888_coverage.py:321: in test_search_sqlite_vector_failure_preserves_text_results
+    results = search.universal_search("needle", conn, entity_type="document")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api/search.py:944: in universal_search
+    _search_sqlite(query, conn, limit)
+api/search.py:667: in _search_sqlite
+    vector_hits = search_documents(query, db_path=db_path, k=limit)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/unittest/mock.py:1176: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/unittest/mock.py:1180: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/unittest/mock.py:1241: in _execute_mock_call
+    raise effect
+E   OSError: vector index unavailable
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results[embedding] - OSError: vector index unavailable
+1 failed, 1 passed, 6 warnings in 0.59s
+
+exit: 1

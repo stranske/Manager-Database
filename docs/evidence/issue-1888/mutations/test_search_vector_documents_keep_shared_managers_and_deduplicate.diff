@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -614,7 +614,7 @@
+                 name = manager_name_by_id.get(int(associated_manager))
+                 if name:
+                     names_by_doc.setdefault(int(doc_id), []).append(name)
+-            document_names = {doc_id: ", ".join(names) for doc_id, names in names_by_doc.items()}
++            document_names = {doc_id: " / ".join(names) for doc_id, names in names_by_doc.items()}
+         doc_id_col = "doc_id" if "doc_id" in doc_columns else "id"
+         doc_text_col = (
+             "text" if "text" in doc_columns else ("content" if "content" in doc_columns else None)

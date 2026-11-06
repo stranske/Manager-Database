@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -366,7 +366,7 @@
+                 version=version if bitemporal else 1,
+                 content_hash=digest if bitemporal else None,
+             )
+-        if bitemporal and not is_authority:
++        if bitemporal and is_authority:
+             # Lower-authority reverse-order ingest: keep history, not current.
+             assert stamp is not None
+             ingest_module._supersede_current_holdings(

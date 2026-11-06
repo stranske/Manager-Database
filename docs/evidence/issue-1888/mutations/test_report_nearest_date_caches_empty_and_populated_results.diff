@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -332,7 +332,7 @@
+     ]
+     if not candidates:
+         return None
+-    return min(
++    return max(
+         candidates, key=lambda candidate: (abs((candidate - target).days), -candidate.toordinal())
+     )
+ 

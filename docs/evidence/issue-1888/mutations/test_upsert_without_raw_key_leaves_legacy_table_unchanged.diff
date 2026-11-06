@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -195,7 +195,7 @@
+         }
+         insert_columns = [column for column in values if column in columns]
+         if not insert_columns or "raw_key" not in insert_columns:
+-            return 0
++            return 99
+         update_columns = [column for column in insert_columns if column != "raw_key"]
+         conflict_action = (
+             "DO UPDATE SET "

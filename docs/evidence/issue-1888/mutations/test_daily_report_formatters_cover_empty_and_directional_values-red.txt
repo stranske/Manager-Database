@@ -1,0 +1,21 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_daily_report_formatters_cover_empty_and_directional_values ________
+tests/test_issue_1806_coverage.py:112: in test_daily_report_formatters_cover_empty_and_directional_values
+    assert daily_report.headline_markdown("<x>", None) == "&lt;x&gt;"
+E   AssertionError: assert '&lt;x&gt;!' == '&lt;x&gt;'
+E     
+E     - &lt;x&gt;
+E     + &lt;x&gt;!
+E     ?          +
+=========================== short test summary info ============================
+FAILED tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values - AssertionError: assert '&lt;x&gt;!' == '&lt;x&gt;'
+  
+  - &lt;x&gt;
+  + &lt;x&gt;!
+  ?          +
+1 failed, 8 warnings in 1.95s
+
+exit: 1

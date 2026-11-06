@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -68,7 +68,7 @@
+                 "m.name AS manager_name "
+                 "FROM news_items n "
+                 "LEFT JOIN managers m ON m.manager_id = n.manager_id "
+-                "WHERE n.published_at::date = %s "
++                "WHERE n.published_at::date = ? "
+                 "ORDER BY n.published_at DESC "
+                 "LIMIT 50"
+             )

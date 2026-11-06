@@ -1,0 +1,61 @@
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_report_page_sorts_value_and_filters_news_exports[merger] _________
+tests/test_issue_1888_coverage.py:220: in test_report_page_sorts_value_and_filters_news_exports
+    assert ui.dataframe.call_args.args[0].data["Headline"].tolist() == ["Headline1"]
+E   AssertionError: assert ['Headline1', 'Headline2'] == ['Headline1']
+E     
+E     Left contains one more item: 'Headline2'
+E     
+E     Full diff:
+E       [
+E           'Headline1',
+E     +     'Headline2',
+E       ]
+----------------------------- Captured stderr call -----------------------------
+2026-11-04 03:34:38.460 No runtime found, using MemoryCacheStorageManager
+2026-11-04 03:34:38.460 No runtime found, using MemoryCacheStorageManager
+2026-11-04 03:34:38.460 No runtime found, using MemoryCacheStorageManager
+2026-11-04 03:34:38.460 No runtime found, using MemoryCacheStorageManager
+2026-11-04 03:34:38.460 No runtime found, using MemoryCacheStorageManager
+2026-11-04 03:34:38.460 No runtime found, using MemoryCacheStorageManager
+2026-11-04 03:34:38.460 No runtime found, using MemoryCacheStorageManager
+03:34:38.468 | INFO    | ui.daily_report - daily_report.load_diffs completed
+{"asctime": "2026-11-04 03:34:38,468", "levelname": "INFO", "name": "ui.daily_report", "service": "daily_diff_flow", "message": "daily_report.load_diffs completed", "date": "2024-05-01", "elapsed_ms": 0.7932930000151828}
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+______ test_report_page_sorts_value_and_filters_news_exports[unavailable] ______
+tests/test_issue_1888_coverage.py:229: in test_report_page_sorts_value_and_filters_news_exports
+    assert ui.dataframe.call_count == 1
+E   AssertionError: assert 2 == 1
+E    +  where 2 = <MagicMock name='mock.dataframe' id='134150996760560'>.call_count
+E    +    where <MagicMock name='mock.dataframe' id='134150996760560'> = <MagicMock id='134150997666048'>.dataframe
+----------------------------- Captured stderr call -----------------------------
+03:34:38.542 | INFO    | ui.daily_report - daily_report.load_diffs completed
+{"asctime": "2026-11-04 03:34:38,542", "levelname": "INFO", "name": "ui.daily_report", "service": "daily_diff_flow", "message": "daily_report.load_diffs completed", "date": "2024-05-01", "elapsed_ms": 0.6967090000102871}
+------------------------------ Captured log call -------------------------------
+INFO     ui.daily_report:daily_report.py:46 daily_report.load_diffs completed
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports[merger] - AssertionError: assert ['Headline1', 'Headline2'] == ['Headline1']
+  
+  Left contains one more item: 'Headline2'
+  
+  Full diff:
+    [
+        'Headline1',
+  +     'Headline2',
+    ]
+FAILED tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports[unavailable] - AssertionError: assert 2 == 1
+ +  where 2 = <MagicMock name='mock.dataframe' id='134150996760560'>.call_count
+ +    where <MagicMock name='mock.dataframe' id='134150996760560'> = <MagicMock id='134150997666048'>.dataframe
+2 failed, 12 warnings in 1.33s
+
+exit: 1

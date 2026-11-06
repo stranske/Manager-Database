@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -622,7 +622,7 @@
+         doc_filename_col = "filename" if "filename" in doc_columns else "''"
+         doc_manager_col = "manager_id" if "manager_id" in doc_columns else "NULL"
+         doc_created_col = "created_at" if "created_at" in doc_columns else "NULL"
+-        if doc_text_col:
++        if doc_columns:
+             rows = conn.execute(
+                 f"SELECT {doc_id_col}, {doc_manager_col}, {doc_filename_col}, {doc_text_col}, {doc_created_col} FROM documents "
+                 f"WHERE COALESCE({doc_filename_col}, '') LIKE ? OR COALESCE({doc_text_col}, '') LIKE ? LIMIT ?",

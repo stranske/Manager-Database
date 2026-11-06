@@ -1,0 +1,11 @@
+--- a/etl/digest_flow.py
++++ b/etl/digest_flow.py
+@@ -285,7 +285,7 @@
+             channel="email",
+             success=True,
+             skipped=True,
+-            error_message="DIGEST_EMAIL_FROM is not configured",
++            error_message="DIGEST_EMAIL_FROM is not configured!",
+         )
+     if not recipients:
+         return DeliveryResult(

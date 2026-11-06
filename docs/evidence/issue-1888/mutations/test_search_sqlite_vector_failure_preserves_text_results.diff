@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -666,7 +666,7 @@
+ 
+                     vector_hits = search_documents(query, db_path=db_path, k=limit)
+                 except Exception:
+-                    vector_hits = []
++                    raise
+ 
+                 for hit in vector_hits:
+                     content = str(hit.get("content") or "").strip()

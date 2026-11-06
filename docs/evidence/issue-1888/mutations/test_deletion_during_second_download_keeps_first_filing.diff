@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -427,7 +427,7 @@
+                         "Manager deletion started during EDGAR download; stopping ingestion",
+                         extra={"manager_id": manager_id, "cik": cik},
+                     )
+-                    return all_rows
++                    return []
+                 manager_lock_id = manager_id
+             raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
+             raw_hash = hashlib.sha256(raw_bytes).hexdigest()[:16]

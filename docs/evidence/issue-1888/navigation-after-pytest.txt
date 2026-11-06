@@ -1,0 +1,11 @@
+.........................................                                [100%]
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.14.9-final-0 ________________
+
+Name                 Stmts   Miss Branch BrPart  Cover   Missing
+----------------------------------------------------------------
+ui/daily_report.py     303      8     78      7    96%   110-111, 152, 155, 228, 245, 295, 367->364, 569
+----------------------------------------------------------------
+TOTAL                  303      8     78      7    96%
+Coverage JSON written to file /tmp/issue1888-navigation-after.json
+41 passed, 23 warnings in 3.02s

@@ -1,0 +1,7 @@
+{
+  "test": "tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results",
+  "source": "api/search.py",
+  "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+  "red": 1,
+  "green": 0
+}

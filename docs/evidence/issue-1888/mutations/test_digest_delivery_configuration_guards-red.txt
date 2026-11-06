@@ -1,0 +1,21 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________ test_digest_delivery_configuration_guards ___________________
+tests/test_issue_1806_coverage.py:40: in test_digest_delivery_configuration_guards
+    assert missing_sender.error_message == "DIGEST_EMAIL_FROM is not configured"
+E   AssertionError: assert 'DIGEST_EMAIL...t configured!' == 'DIGEST_EMAIL...ot configured'
+E     
+E     - DIGEST_EMAIL_FROM is not configured
+E     + DIGEST_EMAIL_FROM is not configured!
+E     ?                                    +
+=========================== short test summary info ============================
+FAILED tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards - AssertionError: assert 'DIGEST_EMAIL...t configured!' == 'DIGEST_EMAIL...ot configured'
+  
+  - DIGEST_EMAIL_FROM is not configured
+  + DIGEST_EMAIL_FROM is not configured!
+  ?                                    +
+1 failed, 8 warnings in 1.96s
+
+exit: 1

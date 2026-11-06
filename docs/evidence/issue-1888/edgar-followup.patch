@@ -1,0 +1,209 @@
+diff --git a/docs/evidence/issue-1888/mutations/replay.py b/docs/evidence/issue-1888/mutations/replay.py
+index da840b4..d5a82b5 100644
+--- a/docs/evidence/issue-1888/mutations/replay.py
++++ b/docs/evidence/issue-1888/mutations/replay.py
+@@ -131,6 +131,54 @@ CASES = [
+         "except Exception:\n        raise",
+         2,
+     ),
++    (
++        "tests/test_edgar_flow.py",
++        "test_watermark_without_source_column_is_scoped_to_manager",
++        "etl/edgar_flow.py",
++        'where = f"manager_id = {marker}"',
++        'where = f"manager_id <> {marker}"',
++        1,
++    ),
++    (
++        "tests/test_edgar_flow.py",
++        "test_upsert_without_raw_key_leaves_legacy_table_unchanged",
++        "etl/edgar_flow.py",
++        'if not insert_columns or "raw_key" not in insert_columns:\n            return 0',
++        'if not insert_columns or "raw_key" not in insert_columns:\n            return 99',
++        1,
++    ),
++    (
++        "tests/test_edgar_flow.py",
++        "test_upsert_ignored_by_trigger_returns_existing_id_or_zero",
++        "etl/edgar_flow.py",
++        "return int(existing[0]) if existing and existing[0] is not None else 0",
++        "return 99",
++        1,
++    ),
++    (
++        "tests/test_edgar_flow.py",
++        "test_holding_insert_without_recognized_columns_preserves_legacy_rows",
++        "etl/edgar_flow.py",
++        "if not insert_columns:\n        return",
++        'if not insert_columns:\n        raise RuntimeError("schema rejected")',
++        1,
++    ),
++    (
++        "tests/test_edgar_flow.py",
++        "test_postgres_upsert_preserves_storage_key",
++        "etl/edgar_flow.py",
++        "storage_key = EXCLUDED.storage_key",
++        "storage_key = filings.storage_key",
++        1,
++    ),
++    (
++        "tests/test_edgar_flow.py",
++        "test_reverse_order_original_keeps_amendment_current",
++        "etl/edgar_flow.py",
++        "if bitemporal and not is_authority:",
++        "if bitemporal and is_authority:",
++        1,
++    ),
+ ]
+ 
+ 
+diff --git a/tests/test_edgar_flow.py b/tests/test_edgar_flow.py
+index 1e587a9..6ded6d3 100644
+--- a/tests/test_edgar_flow.py
++++ b/tests/test_edgar_flow.py
+@@ -628,6 +628,103 @@ def test_latest_filed_date_for_cik_reads_existing_watermark(monkeypatch, tmp_pat
+     assert flow._latest_filed_date_for_cik("0") == "2024-05-01"
+ 
+ 
++def test_watermark_without_source_column_is_scoped_to_manager(monkeypatch, tmp_path):
++    db_path = tmp_path / "legacy-watermark.db"
++    conn = sqlite3.connect(db_path)
++    try:
++        conn.executescript("""
++            CREATE TABLE managers (id INTEGER PRIMARY KEY, cik TEXT);
++            CREATE TABLE filings (manager_id INTEGER, filed_date TEXT);
++            INSERT INTO managers VALUES (1, '0'), (2, 'other');
++            INSERT INTO filings VALUES
++                (1, '2024-02-01'), (1, '2024-05-01'), (1, NULL), (2, '2025-01-01');
++        """)
++        conn.commit()
++    finally:
++        conn.close()
++    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
++
++    assert flow._latest_filed_date_for_cik("0") == "2024-05-01"
++
++
++@pytest.mark.parametrize("schema", ["filing_id INTEGER PRIMARY KEY", "unrelated TEXT"])
++def test_upsert_without_raw_key_leaves_legacy_table_unchanged(schema):
++    conn = sqlite3.connect(":memory:")
++    try:
++        conn.execute(f"CREATE TABLE filings ({schema})")
++
++        assert flow._upsert_filing_legacy(conn, 100, "13F-HR", "2024-05-01", "raw.xml") == 0
++        assert conn.execute("SELECT * FROM filings").fetchall() == []
++    finally:
++        conn.close()
++
++
++@pytest.mark.parametrize("existing_id", [None, 42])
++def test_upsert_ignored_by_trigger_returns_existing_id_or_zero(existing_id):
++    conn = sqlite3.connect(":memory:")
++    try:
++        flow._ensure_legacy_tables(conn)
++        if existing_id is not None:
++            conn.execute(
++                "INSERT INTO filings(filing_id, manager_id, type, source, raw_key) "
++                "VALUES (?, 100, '13F-HR', 'edgar', 'raw.xml')",
++                (existing_id,),
++            )
++        conn.executescript("""
++            CREATE TRIGGER ignore_filing_insert BEFORE INSERT ON filings
++            BEGIN SELECT RAISE(IGNORE); END;
++        """)
++
++        assert flow._upsert_filing_legacy(conn, 100, "13F-HR", "2024-05-01", "raw.xml") == (
++            existing_id or 0
++        )
++        assert conn.execute("SELECT filing_id, raw_key FROM filings").fetchall() == (
++            [] if existing_id is None else [(42, "raw.xml")]
++        )
++    finally:
++        conn.close()
++
++
++def test_holding_insert_without_recognized_columns_preserves_legacy_rows():
++    conn = sqlite3.connect(":memory:")
++    try:
++        conn.executescript("""
++            CREATE TABLE holdings (legacy_note TEXT);
++            INSERT INTO holdings VALUES ('keep');
++        """)
++
++        flow._insert_holding_legacy(
++            conn, 1, {"cusip": "AAA"}, manager_id=100, cik="0", accession="1", filed_date=None
++        )
++
++        assert conn.execute("SELECT * FROM holdings").fetchall() == [("keep",)]
++    finally:
++        conn.close()
++
++
++@pytest.mark.parametrize("returned_row, expected_id", [(None, 0), ((None,), 0), ((42,), 42)])
++def test_postgres_upsert_preserves_storage_key(monkeypatch, returned_row, expected_id):
++    conn = Mock()
++    conn.execute.return_value.fetchone.return_value = returned_row
++    monkeypatch.setattr(flow, "get_table_columns", lambda *_: {"storage_key"})
++
++    assert flow._upsert_filing_legacy(conn, 100, "13F-HR", "2024-05-01", "raw.xml") == expected_id
++
++    conn.execute.assert_called_once()
++    sql, params = conn.execute.call_args.args
++    assert "parsed_payload, storage_key) VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s)" in sql
++    assert "storage_key = EXCLUDED.storage_key" in sql
++    assert params == (
++        100,
++        "13F-HR",
++        "2024-05-01",
++        "edgar",
++        "raw.xml",
++        '{"raw_key": "raw.xml"}',
++        "raw.xml",
++    )
++
++
+ def _connect_bitemporal_holdings_db(tmp_path: Path) -> sqlite3.Connection:
+     conn = sqlite3.connect(tmp_path / "edgar_bitemporal.db")
+     conn.row_factory = sqlite3.Row
+@@ -663,6 +760,41 @@ def _connect_bitemporal_holdings_db(tmp_path: Path) -> sqlite3.Connection:
+     return conn
+ 
+ 
++def test_reverse_order_original_keeps_amendment_current(monkeypatch, tmp_path):
++    conn = _connect_bitemporal_holdings_db(tmp_path)
++    monkeypatch.setattr(flow, "resolve_holding_identifiers", Mock())
++    try:
++        conn.executescript("""
++            INSERT INTO filings VALUES
++                (10, 1, '13F-HR/A', '2024-03-31', '2024-05-15', 'edgar', 'amendment'),
++                (11, 1, '13F-HR', '2024-03-31', '2024-05-15', 'edgar', 'original');
++        """)
++        for filing_id, accession, shares in [(10, "amendment", 250), (11, "original", 100)]:
++            flow._replace_holdings_for_filing(
++                conn,
++                filing_id=filing_id,
++                rows=[{"cusip": "AAA", "sshPrnamt": shares, "value": shares * 10}],
++                manager_id=1,
++                cik="0",
++                accession=accession,
++                filed_date="2024-05-15",
++            )
++
++        assert [
++            tuple(row)
++            for row in conn.execute(
++                "SELECT filing_id, shares, superseded_at IS NULL, "
++                "knowledge_time = superseded_at, version FROM holdings ORDER BY filing_id"
++            )
++        ] == [(10, 250, 1, None, 1), (11, 100, 0, 1, 1)]
++        assert [
++            (r["filing_id"], r["shares"])
++            for r in point_in_time.current_holdings(conn, manager_id=1)
++        ] == [(10, 250)]
++    finally:
++        conn.close()
++
++
+ def test_edgar_replay_original_amendment_original_keeps_amendment(tmp_path):
+     conn = _connect_bitemporal_holdings_db(tmp_path)
+     conn.execute(

@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -352,7 +352,7 @@
+         try:
+             resolve_holding_identifiers(conn, rows, filing_id=filing_id, source="edgar")
+         except Exception:
+-            logger.warning("Identifier resolution failed; inserting raw holdings", exc_info=True)
++            raise
+         for row in rows:
+             _insert_holding_legacy(
+                 conn,

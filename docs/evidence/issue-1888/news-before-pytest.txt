@@ -1,0 +1,14 @@
+.................................                                        [100%]/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/_pytest/unraisableexception.py:33: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7daa1ef94220>
+  gc.collect()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.14.8-final-0 ________________
+
+Name                 Stmts   Miss Branch BrPart  Cover   Missing
+----------------------------------------------------------------
+ui/daily_report.py     303     14     78     13    92%   66, 110-111, 152, 155, 196, 228, 245, 295, 349, 354-355, 367->364, 489, 533->538, 569
+----------------------------------------------------------------
+TOTAL                  303     14     78     13    92%
+Coverage JSON written to file /tmp/issue1888-news-before.json
+33 passed, 16 warnings in 2.37s

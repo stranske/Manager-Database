@@ -1,0 +1,2103 @@
+From 14431ea0c65bd010deffea68e9e037b428cc8e15 Mon Sep 17 00:00:00 2001
+From: Codex <codex@users.noreply.github.com>
+Date: Wed, 4 Nov 2026 04:36:19 +0000
+Subject: [PATCH] test: verify report news caching and blank URL handling
+
+---
+ docs/evidence/issue-1888/README.md            |   85 ++
+ .../issue-1888/mutations/receipts.json        |   14 +
+ docs/evidence/issue-1888/mutations/replay.py  |   16 +
+ ...aches_results_by_date_and_closes-green.txt |    6 +
+ ..._caches_results_by_date_and_closes-red.txt |   27 +
+ ...ews_caches_results_by_date_and_closes.diff |   11 +
+ ..._news_url_keeps_escaped_headline-green.txt |    6 +
+ ...ce_news_url_keeps_escaped_headline-red.txt |   34 +
+ ...space_news_url_keeps_escaped_headline.diff |   11 +
+ .../issue-1888/news-after-coverage.json       |    1 +
+ .../evidence/issue-1888/news-after-pytest.txt |   17 +
+ .../issue-1888/news-before-coverage.json      |    1 +
+ .../issue-1888/news-before-pytest.txt         |   14 +
+ docs/evidence/issue-1888/news-black.txt       |    2 +
+ .../issue-1888/news-regression-pytest.txt     |   18 +
+ docs/evidence/issue-1888/pr-body.md           | 1187 ++++++-----------
+ tests/test_issue_1888_coverage.py             |   57 +
+ 17 files changed, 736 insertions(+), 771 deletions(-)
+ create mode 100644 docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-green.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-red.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes.diff
+ create mode 100644 docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-green.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-red.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline.diff
+ create mode 100644 docs/evidence/issue-1888/news-after-coverage.json
+ create mode 100644 docs/evidence/issue-1888/news-after-pytest.txt
+ create mode 100644 docs/evidence/issue-1888/news-before-coverage.json
+ create mode 100644 docs/evidence/issue-1888/news-before-pytest.txt
+ create mode 100644 docs/evidence/issue-1888/news-black.txt
+ create mode 100644 docs/evidence/issue-1888/news-regression-pytest.txt
+
+diff --git a/docs/evidence/issue-1888/README.md b/docs/evidence/issue-1888/README.md
+index 800736d..53cd5f5 100644
+--- a/docs/evidence/issue-1888/README.md
++++ b/docs/evidence/issue-1888/README.md
+@@ -322,3 +322,88 @@ fallback boundaries`). Its 75 affected tests and the required repository-wide
+ Black check pass before committing. The primary checkout retains the same file
+ changes, but its branch cannot be advanced while Git metadata is read-only. Exact
+ terminal captures and mutation diffs retain their original output whitespace.
++
++## News loading and negative-cache audit (2026-11-04)
++
++Two new test functions (five parametrized cases) cover PostgreSQL news-query
++construction, result preservation, empty/error-result caching by date, connection
++cleanup on every uncached request, and whitespace-only headline URLs with exact
++escaped-text assertions. PostgreSQL query execution is mocked, not live-server
++validation. No production change was needed.
++
++The negative-cache audit is complete across `etl/edgar_flow.py`, `api/search.py`,
++`api/signals.py`, `ui/daily_report.py`, `etl/digest_flow.py`, and `adapters/asic.py`:
++
++```sh
++rg -n '\.get\(|cache' api/search.py api/signals.py ui/daily_report.py etl/edgar_flow.py etl/digest_flow.py adapters/asic.py
++```
++
++Every lookup was inspected with its writes. No cache uses a stored `None` as an
++uncached sentinel. Search's `deduped` values are always `SearchResult` objects;
++`None` means no result has been inserted. Signals' `ticker_by_cusip` may contain
++`None`, but it is populated once from holdings and its reads do not trigger another
++lookup. The report uses Streamlit's cache directly. The new loader test verifies
++that empty and query-error DataFrames do not trigger repeated database requests
++for the same date, while a different date does. This supports the checked audit
++item without inventing a production bug.
++
++Matched local commands, before and after this round's test additions:
++
++```sh
++pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-news-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
++pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-news-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
++```
++
++Before: **33 passed**, report **92%**, missing statements+branches **14+15=29**.
++After: **38 passed**, report **93%**, missing statements+branches **12+13=25**.
++The four-unit reduction is local and incremental against `0448712`, not a CI main
++baseline or an amount to add to previous deltas. Raw JSON and terminal output are
++`news-{before,after}-coverage.json` and `news-{before,after}-pytest.txt`.
++
++Broader validation: **173 passed, 1 existing nightly skip**, with search **97%**,
++signals **91%**, EDGAR **98%**, and report **93%** in the targeted selection:
++
++```sh
++PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_edgar_flow.py tests/test_ingest_flow.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
++PYTHONPATH=/tmp/issue1888-runtime black --line-length 100 tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
++PYTHONPATH=/tmp/issue1888-runtime timeout --preserve-status --signal=INT 20 black --check --line-length 100 --exclude '(\.workflows-lib|node_modules)' .
++ruff check tests/test_issue_1888_coverage.py docs/evidence/issue-1888/mutations/replay.py
++```
++
++All commands exit 0; Black reports 452 files unchanged. The temporary event-loop
++wakeup shim described above also wraps `uvloop.new_event_loop` to schedule the same
++10ms polling callback, because this installation of Black uses uvloop. No repository
++runtime or security setting is changed. An initial affected-suite run without the
++shim stalled and was interrupted; the captured successful run uses the shim.
++
++Mutation receipts 28–29 retain exact source diffs, commands, red/green output, and
++matching restored hashes. All five cases fail with the mutation and pass after
++restoration. Replay in the disposable local clone:
++
++```sh
++PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-news-proof --output docs/evidence/issue-1888/mutations --start-at 27
++```
++
++The first unchecked task remains blocked: `gh api
++repos/stranske/Manager-Database/commits/main --jq .sha` returns `error connecting to
++api.github.com`. The connector returns a ZIP reference for artifact `13265760076`,
++but that does not verify its coverage JSON. No exact CI baseline/ranking, CI
++reduction, or CI-pytest completion is claimed. PR #1889 is open with draft=false.
++The prepared PR body now includes command/output excerpts for all 29 mutation
++receipts, with links to complete logs, and stays below GitHub's body size limit.
++
++Publication attempt for this follow-up: staging in the primary checkout fails with
++`Unable to create .git/index.lock: Read-only file system`. Updating PR #1889's body
++and title is rejected: `MCP tool call requires approval, but approval policy is
++never`. The prepared body therefore remains local; the cache task is verified in
++this evidence but has not been checked in the live PR. The source commit is being
++preserved in the writable local clone `/tmp/issue1888-news-proof` after running
++Black and the affected report suites there. No protected file is changed.
++
++The `needs-human` label and blocker-comment attempts were rejected by the same
++approval check. The isolated checkout's report suites pass (38 tests), and its
++required repository-wide Black check passes (452 unchanged). Raw mutation stdout
++and unified diffs preserve their original whitespace; source and prose pass the
++scoped whitespace check. The local source commit uses the subject
++`test: verify report news caching and blank URL handling`. PR #1889 was rechecked
++open with draft=false, with its remote head unchanged by this run.
+diff --git a/docs/evidence/issue-1888/mutations/receipts.json b/docs/evidence/issue-1888/mutations/receipts.json
+index cae0de1..a75c772 100644
+--- a/docs/evidence/issue-1888/mutations/receipts.json
++++ b/docs/evidence/issue-1888/mutations/receipts.json
+@@ -187,5 +187,19 @@
+     "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
+     "red": 1,
+     "green": 0
++  },
++  {
++    "test": "tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes",
++    "source": "ui/daily_report.py",
++    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
++    "red": 1,
++    "green": 0
++  },
++  {
++    "test": "tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline",
++    "source": "ui/daily_report.py",
++    "sha256": "61951de55799139b52d268f5bade0504c259c98f647e8c71f52fee1da3ed1921",
++    "red": 1,
++    "green": 0
+   }
+ ]
+diff --git a/docs/evidence/issue-1888/mutations/replay.py b/docs/evidence/issue-1888/mutations/replay.py
+index 6b313e5..d293692 100644
+--- a/docs/evidence/issue-1888/mutations/replay.py
++++ b/docs/evidence/issue-1888/mutations/replay.py
+@@ -227,6 +227,22 @@ CASES = [
+         'if doc_id is None:\n                raise ValueError("missing document ID")',
+         1,
+     ),
++    (
++        "tests/test_issue_1888_coverage.py",
++        "test_report_postgres_news_caches_results_by_date_and_closes",
++        "ui/daily_report.py",
++        '"WHERE n.published_at::date = %s "',
++        '"WHERE n.published_at::date = ? "',
++        1,
++    ),
++    (
++        "tests/test_issue_1888_coverage.py",
++        "test_report_whitespace_news_url_keeps_escaped_headline",
++        "ui/daily_report.py",
++        "if not raw_url:\n        return text",
++        'if not raw_url:\n        return text + "!"',
++        1,
++    ),
+ ]
+ 
+ 
+diff --git a/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-green.txt b/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-green.txt
+new file mode 100644
+index 0000000..75619b2
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-green.txt
+@@ -0,0 +1,6 @@
++cwd: /tmp/issue1888-news-proof
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes -m 'not slow' --tb=short --disable-warnings
++...                                                                      [100%]
++3 passed, 6 warnings in 0.55s
++
++exit: 0
+diff --git a/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-red.txt b/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-red.txt
+new file mode 100644
+index 0000000..bbc71ab
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-red.txt
+@@ -0,0 +1,27 @@
++cwd: /tmp/issue1888-news-proof
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes -m 'not slow' --tb=short --disable-warnings
++FFF                                                                      [100%]
++=================================== FAILURES ===================================
++____ test_report_postgres_news_caches_results_by_date_and_closes[populated] ____
++tests/test_issue_1888_coverage.py:405: in test_report_postgres_news_caches_results_by_date_and_closes
++    assert "WHERE n.published_at::date = %s" in sql
++E   AssertionError: assert 'WHERE n.published_at::date = %s' in 'SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, m.name AS manager_name FROM news_items n LEFT JOIN managers m ON m.manager_id = n.manager_id WHERE n.published_at::date = ? ORDER BY n.published_at DESC LIMIT 50'
++----------------------------- Captured stderr call -----------------------------
++2026-11-04 04:31:39.418 No runtime found, using MemoryCacheStorageManager
++------------------------------ Captured log call -------------------------------
++WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
++______ test_report_postgres_news_caches_results_by_date_and_closes[empty] ______
++tests/test_issue_1888_coverage.py:405: in test_report_postgres_news_caches_results_by_date_and_closes
++    assert "WHERE n.published_at::date = %s" in sql
++E   AssertionError: assert 'WHERE n.published_at::date = %s' in 'SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, m.name AS manager_name FROM news_items n LEFT JOIN managers m ON m.manager_id = n.manager_id WHERE n.published_at::date = ? ORDER BY n.published_at DESC LIMIT 50'
++___ test_report_postgres_news_caches_results_by_date_and_closes[query_error] ___
++tests/test_issue_1888_coverage.py:405: in test_report_postgres_news_caches_results_by_date_and_closes
++    assert "WHERE n.published_at::date = %s" in sql
++E   AssertionError: assert 'WHERE n.published_at::date = %s' in 'SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, m.name AS manager_name FROM news_items n LEFT JOIN managers m ON m.manager_id = n.manager_id WHERE n.published_at::date = ? ORDER BY n.published_at DESC LIMIT 50'
++=========================== short test summary info ============================
++FAILED tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes[populated] - AssertionError: assert 'WHERE n.published_at::date = %s' in 'SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, m.name AS manager_name FROM news_items n LEFT JOIN managers m ON m.manager_id = n.manager_id WHERE n.published_at::date = ? ORDER BY n.published_at DESC LIMIT 50'
++FAILED tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes[empty] - AssertionError: assert 'WHERE n.published_at::date = %s' in 'SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, m.name AS manager_name FROM news_items n LEFT JOIN managers m ON m.manager_id = n.manager_id WHERE n.published_at::date = ? ORDER BY n.published_at DESC LIMIT 50'
++FAILED tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes[query_error] - AssertionError: assert 'WHERE n.published_at::date = %s' in 'SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, m.name AS manager_name FROM news_items n LEFT JOIN managers m ON m.manager_id = n.manager_id WHERE n.published_at::date = ? ORDER BY n.published_at DESC LIMIT 50'
++3 failed, 6 warnings in 0.57s
++
++exit: 1
+diff --git a/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes.diff b/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes.diff
+new file mode 100644
+index 0000000..5c71ff5
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes.diff
+@@ -0,0 +1,11 @@
++--- a/ui/daily_report.py
+++++ b/ui/daily_report.py
++@@ -68,7 +68,7 @@
++                 "m.name AS manager_name "
++                 "FROM news_items n "
++                 "LEFT JOIN managers m ON m.manager_id = n.manager_id "
++-                "WHERE n.published_at::date = %s "
+++                "WHERE n.published_at::date = ? "
++                 "ORDER BY n.published_at DESC "
++                 "LIMIT 50"
++             )
+diff --git a/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-green.txt b/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-green.txt
+new file mode 100644
+index 0000000..d116117
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-green.txt
+@@ -0,0 +1,6 @@
++cwd: /tmp/issue1888-news-proof
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline -m 'not slow' --tb=short --disable-warnings
++..                                                                       [100%]
++2 passed, 6 warnings in 0.53s
++
++exit: 0
+diff --git a/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-red.txt b/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-red.txt
+new file mode 100644
+index 0000000..49bf175
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-red.txt
+@@ -0,0 +1,34 @@
++cwd: /tmp/issue1888-news-proof
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline -m 'not slow' --tb=short --disable-warnings
++FF                                                                       [100%]
++=================================== FAILURES ===================================
++__________ test_report_whitespace_news_url_keeps_escaped_headline[ ] ___________
++tests/test_issue_1888_coverage.py:414: in test_report_whitespace_news_url_keeps_escaped_headline
++    assert (
++E   AssertionError: assert '\\[Desk\\] \...;x&gt; &amp;!' == '\\[Desk\\] \...t;x&gt; &amp;'
++E     
++E     - \[Desk\] \\ &lt;x&gt; &amp;
++E     + \[Desk\] \\ &lt;x&gt; &amp;!
++E     ?                            +
++_________ test_report_whitespace_news_url_keeps_escaped_headline[\t\n] _________
++tests/test_issue_1888_coverage.py:414: in test_report_whitespace_news_url_keeps_escaped_headline
++    assert (
++E   AssertionError: assert '\\[Desk\\] \...;x&gt; &amp;!' == '\\[Desk\\] \...t;x&gt; &amp;'
++E     
++E     - \[Desk\] \\ &lt;x&gt; &amp;
++E     + \[Desk\] \\ &lt;x&gt; &amp;!
++E     ?                            +
++=========================== short test summary info ============================
++FAILED tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline[ ] - AssertionError: assert '\\[Desk\\] \...;x&gt; &amp;!' == '\\[Desk\\] \...t;x&gt; &amp;'
++  
++  - \[Desk\] \\ &lt;x&gt; &amp;
++  + \[Desk\] \\ &lt;x&gt; &amp;!
++  ?                            +
++FAILED tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline[\t\n] - AssertionError: assert '\\[Desk\\] \...;x&gt; &amp;!' == '\\[Desk\\] \...t;x&gt; &amp;'
++  
++  - \[Desk\] \\ &lt;x&gt; &amp;
++  + \[Desk\] \\ &lt;x&gt; &amp;!
++  ?                            +
++2 failed, 6 warnings in 0.54s
++
++exit: 1
+diff --git a/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline.diff b/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline.diff
+new file mode 100644
+index 0000000..5688d63
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline.diff
+@@ -0,0 +1,11 @@
++--- a/ui/daily_report.py
+++++ b/ui/daily_report.py
++@@ -193,7 +193,7 @@
++         return text
++     raw_url = str(url).strip()
++     if not raw_url:
++-        return text
+++        return text + "!"
++     # Wrap the URL in <> so markdown handles parentheses in links correctly.
++     return f"[{text}](<{raw_url}>)"
++ 
+diff --git a/docs/evidence/issue-1888/news-after-coverage.json b/docs/evidence/issue-1888/news-after-coverage.json
+new file mode 100644
+index 0000000..138cdd9
+--- /dev/null
++++ b/docs/evidence/issue-1888/news-after-coverage.json
+@@ -0,0 +1 @@
++{"meta": {"format": 3, "version": "7.17.0", "timestamp": "2026-11-04T04:31:14.818081", "branch_coverage": true, "show_contexts": false}, "files": {"ui/daily_report.py": {"executed_lines": [1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 15, 18, 19, 20, 21, 22, 23, 24, 29, 30, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 66, 75, 76, 77, 89, 90, 93, 94, 95, 96, 97, 98, 99, 100, 109, 113, 114, 117, 118, 119, 120, 121, 127, 128, 130, 131, 134, 135, 136, 137, 138, 143, 144, 146, 147, 150, 151, 153, 154, 156, 157, 158, 161, 162, 163, 166, 167, 168, 169, 170, 171, 172, 173, 174, 177, 178, 179, 180, 181, 182, 186, 189, 190, 191, 192, 193, 194, 195, 196, 198, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 248, 249, 250, 255, 256, 259, 260, 261, 262, 269, 270, 271, 279, 280, 281, 282, 283, 289, 290, 291, 292, 293, 294, 296, 297, 298, 299, 301, 302, 305, 306, 307, 308, 309, 315, 316, 317, 318, 319, 320, 321, 322, 323, 325, 327, 328, 333, 334, 335, 340, 341, 342, 343, 344, 347, 348, 350, 351, 352, 353, 356, 357, 358, 359, 360, 361, 362, 364, 365, 366, 367, 368, 372, 373, 374, 375, 376, 379, 382, 383, 384, 389, 394, 399, 404, 407, 410, 413, 423, 426, 427, 428, 430, 431, 432, 433, 435, 436, 439, 440, 441, 444, 451, 454, 464, 465, 466, 467, 468, 470, 471, 474, 475, 478, 483, 484, 493, 503, 517, 518, 524, 525, 526, 527, 528, 530, 533, 534, 538, 539, 540, 542, 545, 547, 548, 549, 550, 551, 552, 553, 554, 559, 560, 568], "summary": {"covered_lines": 291, "num_statements": 303, "percent_covered": 93.43832020997375, "percent_covered_display": "93", "missing_lines": 12, "excluded_lines": 0, "percent_statements_covered": 96.03960396039604, "percent_statements_covered_display": "96", "num_branches": 78, "num_partial_branches": 11, "covered_branches": 65, "missing_branches": 13, "percent_branches_covered": 83.33333333333333, "percent_branches_covered_display": "83"}, "missing_lines": [110, 111, 152, 155, 228, 245, 295, 349, 354, 355, 489, 569], "excluded_lines": [], "executed_branches": [[39, 40], [39, 42], [54, 55], [54, 66], [151, 153], [154, 156], [156, 157], [156, 158], [180, 181], [180, 186], [192, 193], [192, 194], [195, 196], [195, 198], [204, 205], [204, 206], [209, 210], [209, 211], [211, 212], [211, 213], [219, 220], [219, 221], [224, 225], [224, 226], [226, 227], [234, 235], [234, 236], [238, 239], [238, 240], [241, 242], [241, 243], [243, 244], [290, 291], [290, 301], [294, 296], [298, 290], [298, 299], [316, 317], [316, 325], [320, 321], [320, 322], [333, 334], [333, 335], [342, 343], [342, 344], [348, 350], [353, 356], [362, 364], [362, 372], [364, 365], [364, 372], [367, 368], [432, 433], [432, 435], [467, 468], [467, 470], [483, 484], [526, 527], [526, 530], [533, 534], [538, 539], [538, 542], [548, 549], [548, 559], [568, -1]], "missing_branches": [[151, 152], [154, 155], [226, 228], [243, 245], [294, 295], [348, 349], [353, 354], [354, 355], [354, 356], [367, 364], [483, 489], [533, 538], [568, 569]], "functions": {"load_diffs": {"executed_lines": [20, 21, 22, 23, 24, 29, 30, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47], "summary": {"covered_lines": 18, "num_statements": 18, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 19, "executed_branches": [[39, 40], [39, 42]], "missing_branches": []}, "load_news": {"executed_lines": [52, 53, 54, 55, 56, 66, 75, 76, 77, 89, 90], "summary": {"covered_lines": 11, "num_statements": 11, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 51, "executed_branches": [[54, 55], [54, 66]], "missing_branches": []}, "load_activism_events": {"executed_lines": [95, 96, 97, 98, 99, 100, 109, 113, 114], "summary": {"covered_lines": 9, "num_statements": 11, "percent_covered": 81.81818181818181, "percent_covered_display": "82", "missing_lines": 2, "excluded_lines": 0, "percent_statements_covered": 81.81818181818181, "percent_statements_covered_display": "82", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [110, 111], "excluded_lines": [], "start_line": 94, "executed_branches": [], "missing_branches": []}, "load_crowded_trades": {"executed_lines": [119, 120, 121, 127, 128, 130, 131], "summary": {"covered_lines": 7, "num_statements": 7, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 118, "executed_branches": [], "missing_branches": []}, "load_contrarian_signals": {"executed_lines": [136, 137, 138, 143, 144, 146, 147], "summary": {"covered_lines": 7, "num_statements": 7, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 135, "executed_branches": [], "missing_branches": []}, "parse_topics": {"executed_lines": [151, 153, 154, 156, 157, 158], "summary": {"covered_lines": 6, "num_statements": 8, "percent_covered": 71.42857142857143, "percent_covered_display": "71", "missing_lines": 2, "excluded_lines": 0, "percent_statements_covered": 75.0, "percent_statements_covered_display": "75", "num_branches": 6, "num_partial_branches": 2, "covered_branches": 4, "missing_branches": 2, "percent_branches_covered": 66.66666666666667, "percent_branches_covered_display": "67"}, "missing_lines": [152, 155], "excluded_lines": [], "start_line": 150, "executed_branches": [[151, 153], [154, 156], [156, 157], [156, 158]], "missing_branches": [[151, 152], [154, 155]]}, "topic_choices": {"executed_lines": [162, 163], "summary": {"covered_lines": 2, "num_statements": 2, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 161, "executed_branches": [], "missing_branches": []}, "format_news_table": {"executed_lines": [167, 168, 169, 170, 171, 172, 173, 174], "summary": {"covered_lines": 8, "num_statements": 8, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 166, "executed_branches": [], "missing_branches": []}, "topic_badges": {"executed_lines": [178, 179, 180, 181, 182, 186], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 177, "executed_branches": [[180, 181], [180, 186]], "missing_branches": []}, "headline_markdown": {"executed_lines": [190, 191, 192, 193, 194, 195, 196, 198], "summary": {"covered_lines": 8, "num_statements": 8, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 4, "num_partial_branches": 0, "covered_branches": 4, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 189, "executed_branches": [[192, 193], [192, 194], [195, 196], [195, 198]], "missing_branches": []}, "format_shares_delta": {"executed_lines": [202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213], "summary": {"covered_lines": 12, "num_statements": 12, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 6, "num_partial_branches": 0, "covered_branches": 6, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 201, "executed_branches": [[204, 205], [204, 206], [209, 210], [209, 211], [211, 212], [211, 213]], "missing_branches": []}, "format_value_delta": {"executed_lines": [217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227], "summary": {"covered_lines": 11, "num_statements": 12, "percent_covered": 88.88888888888889, "percent_covered_display": "89", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 6, "num_partial_branches": 1, "covered_branches": 5, "missing_branches": 1, "percent_branches_covered": 83.33333333333333, "percent_branches_covered_display": "83"}, "missing_lines": [228], "excluded_lines": [], "start_line": 216, "executed_branches": [[219, 220], [219, 221], [224, 225], [224, 226], [226, 227]], "missing_branches": [[226, 228]]}, "format_percent_change": {"executed_lines": [232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244], "summary": {"covered_lines": 13, "num_statements": 14, "percent_covered": 90.9090909090909, "percent_covered_display": "91", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 92.85714285714286, "percent_statements_covered_display": "93", "num_branches": 8, "num_partial_branches": 1, "covered_branches": 7, "missing_branches": 1, "percent_branches_covered": 87.5, "percent_branches_covered_display": "88"}, "missing_lines": [245], "excluded_lines": [], "start_line": 231, "executed_branches": [[234, 235], [234, 236], [238, 239], [238, 240], [241, 242], [241, 243], [243, 244]], "missing_branches": [[243, 245]]}, "format_activism_event_type": {"executed_lines": [249, 250, 255, 256], "summary": {"covered_lines": 4, "num_statements": 4, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 248, "executed_branches": [], "missing_branches": []}, "format_signal_badge": {"executed_lines": [260, 261, 262], "summary": {"covered_lines": 3, "num_statements": 3, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 259, "executed_branches": [], "missing_branches": []}, "_is_missing_report_source_error": {"executed_lines": [270, 271], "summary": {"covered_lines": 2, "num_statements": 2, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 269, "executed_branches": [], "missing_branches": []}, "latest_report_date": {"executed_lines": [281, 282, 283, 289, 290, 291, 292, 293, 294, 296, 297, 298, 299, 301, 302], "summary": {"covered_lines": 15, "num_statements": 16, "percent_covered": 90.9090909090909, "percent_covered_display": "91", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 93.75, "percent_statements_covered_display": "94", "num_branches": 6, "num_partial_branches": 1, "covered_branches": 5, "missing_branches": 1, "percent_branches_covered": 83.33333333333333, "percent_branches_covered_display": "83"}, "missing_lines": [295], "excluded_lines": [], "start_line": 280, "executed_branches": [[290, 291], [290, 301], [294, 296], [298, 290], [298, 299]], "missing_branches": [[294, 295]]}, "nearest_report_date": {"executed_lines": [307, 308, 309, 315, 316, 317, 318, 319, 320, 321, 322, 323, 325, 327, 328, 333, 334, 335], "summary": {"covered_lines": 18, "num_statements": 18, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 6, "num_partial_branches": 0, "covered_branches": 6, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 306, "executed_branches": [[316, 317], [316, 325], [320, 321], [320, 322], [333, 334], [333, 335]], "missing_branches": []}, "empty_report_date_message": {"executed_lines": [341, 342, 343, 344], "summary": {"covered_lines": 4, "num_statements": 4, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 340, "executed_branches": [[342, 343], [342, 344]], "missing_branches": []}, "main": {"executed_lines": [348, 350, 351, 352, 353, 356, 357, 358, 359, 360, 361, 362, 364, 365, 366, 367, 368, 372, 373, 374, 375, 376, 379, 382, 383, 384, 389, 394, 399, 404, 407, 410, 413, 423, 426, 427, 428, 430, 431, 432, 433, 435, 436, 439, 440, 441, 444, 451, 454, 464, 465, 466, 467, 468, 470, 471, 474, 475, 478, 483, 484, 493, 503, 517, 518, 524, 525, 526, 527, 528, 530, 533, 534, 538, 539, 540, 542, 545, 547, 548, 549, 550, 551, 552, 553, 554, 559, 560], "summary": {"covered_lines": 88, "num_statements": 92, "percent_covered": 90.67796610169492, "percent_covered_display": "91", "missing_lines": 4, "excluded_lines": 0, "percent_statements_covered": 95.65217391304348, "percent_statements_covered_display": "96", "num_branches": 26, "num_partial_branches": 5, "covered_branches": 19, "missing_branches": 7, "percent_branches_covered": 73.07692307692308, "percent_branches_covered_display": "73"}, "missing_lines": [349, 354, 355, 489], "excluded_lines": [], "start_line": 347, "executed_branches": [[348, 350], [353, 356], [362, 364], [362, 372], [364, 365], [364, 372], [367, 368], [432, 433], [432, 435], [467, 468], [467, 470], [483, 484], [526, 527], [526, 530], [533, 534], [538, 539], [538, 542], [548, 549], [548, 559]], "missing_branches": [[348, 349], [353, 354], [354, 355], [354, 356], [367, 364], [483, 489], [533, 538]]}, "": {"executed_lines": [1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 15, 18, 19, 50, 51, 93, 94, 117, 118, 134, 135, 150, 161, 166, 177, 189, 201, 216, 231, 248, 259, 269, 279, 280, 305, 306, 340, 347, 568], "summary": {"covered_lines": 39, "num_statements": 40, "percent_covered": 95.23809523809524, "percent_covered_display": "95", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 97.5, "percent_statements_covered_display": "98", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [569], "excluded_lines": [], "start_line": 1, "executed_branches": [[568, -1]], "missing_branches": [[568, 569]]}}, "classes": {"": {"executed_lines": [1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 15, 18, 19, 20, 21, 22, 23, 24, 29, 30, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 66, 75, 76, 77, 89, 90, 93, 94, 95, 96, 97, 98, 99, 100, 109, 113, 114, 117, 118, 119, 120, 121, 127, 128, 130, 131, 134, 135, 136, 137, 138, 143, 144, 146, 147, 150, 151, 153, 154, 156, 157, 158, 161, 162, 163, 166, 167, 168, 169, 170, 171, 172, 173, 174, 177, 178, 179, 180, 181, 182, 186, 189, 190, 191, 192, 193, 194, 195, 196, 198, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 248, 249, 250, 255, 256, 259, 260, 261, 262, 269, 270, 271, 279, 280, 281, 282, 283, 289, 290, 291, 292, 293, 294, 296, 297, 298, 299, 301, 302, 305, 306, 307, 308, 309, 315, 316, 317, 318, 319, 320, 321, 322, 323, 325, 327, 328, 333, 334, 335, 340, 341, 342, 343, 344, 347, 348, 350, 351, 352, 353, 356, 357, 358, 359, 360, 361, 362, 364, 365, 366, 367, 368, 372, 373, 374, 375, 376, 379, 382, 383, 384, 389, 394, 399, 404, 407, 410, 413, 423, 426, 427, 428, 430, 431, 432, 433, 435, 436, 439, 440, 441, 444, 451, 454, 464, 465, 466, 467, 468, 470, 471, 474, 475, 478, 483, 484, 493, 503, 517, 518, 524, 525, 526, 527, 528, 530, 533, 534, 538, 539, 540, 542, 545, 547, 548, 549, 550, 551, 552, 553, 554, 559, 560, 568], "summary": {"covered_lines": 291, "num_statements": 303, "percent_covered": 93.43832020997375, "percent_covered_display": "93", "missing_lines": 12, "excluded_lines": 0, "percent_statements_covered": 96.03960396039604, "percent_statements_covered_display": "96", "num_branches": 78, "num_partial_branches": 11, "covered_branches": 65, "missing_branches": 13, "percent_branches_covered": 83.33333333333333, "percent_branches_covered_display": "83"}, "missing_lines": [110, 111, 152, 155, 228, 245, 295, 349, 354, 355, 489, 569], "excluded_lines": [], "start_line": 1, "executed_branches": [[39, 40], [39, 42], [54, 55], [54, 66], [151, 153], [154, 156], [156, 157], [156, 158], [180, 181], [180, 186], [192, 193], [192, 194], [195, 196], [195, 198], [204, 205], [204, 206], [209, 210], [209, 211], [211, 212], [211, 213], [219, 220], [219, 221], [224, 225], [224, 226], [226, 227], [234, 235], [234, 236], [238, 239], [238, 240], [241, 242], [241, 243], [243, 244], [290, 291], [290, 301], [294, 296], [298, 290], [298, 299], [316, 317], [316, 325], [320, 321], [320, 322], [333, 334], [333, 335], [342, 343], [342, 344], [348, 350], [353, 356], [362, 364], [362, 372], [364, 365], [364, 372], [367, 368], [432, 433], [432, 435], [467, 468], [467, 470], [483, 484], [526, 527], [526, 530], [533, 534], [538, 539], [538, 542], [548, 549], [548, 559], [568, -1]], "missing_branches": [[151, 152], [154, 155], [226, 228], [243, 245], [294, 295], [348, 349], [353, 354], [354, 355], [354, 356], [367, 364], [483, 489], [533, 538], [568, 569]]}}}}, "totals": {"covered_lines": 291, "num_statements": 303, "percent_covered": 93.43832020997375, "percent_covered_display": "93", "missing_lines": 12, "excluded_lines": 0, "percent_statements_covered": 96.03960396039604, "percent_statements_covered_display": "96", "num_branches": 78, "num_partial_branches": 11, "covered_branches": 65, "missing_branches": 13, "percent_branches_covered": 83.33333333333333, "percent_branches_covered_display": "83"}}
+\ No newline at end of file
+diff --git a/docs/evidence/issue-1888/news-after-pytest.txt b/docs/evidence/issue-1888/news-after-pytest.txt
+new file mode 100644
+index 0000000..6c128b2
+--- /dev/null
++++ b/docs/evidence/issue-1888/news-after-pytest.txt
+@@ -0,0 +1,17 @@
++....................................../opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/ast.py:46: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7b8fc37ef3d0>
++  return compile(source, filename, mode, flags,
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/collections/__init__.py:453: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7b8fc37ef100>
++  @classmethod
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++                                   [100%]
++================================ tests coverage ================================
++_______________ coverage: platform linux, python 3.14.8-final-0 ________________
++
++Name                 Stmts   Miss Branch BrPart  Cover   Missing
++----------------------------------------------------------------
++ui/daily_report.py     303     12     78     11    93%   110-111, 152, 155, 228, 245, 295, 349, 354-355, 367->364, 489, 533->538, 569
++----------------------------------------------------------------
++TOTAL                  303     12     78     11    93%
++Coverage JSON written to file /tmp/issue1888-news-after.json
++38 passed, 15 warnings in 1.75s
+diff --git a/docs/evidence/issue-1888/news-before-coverage.json b/docs/evidence/issue-1888/news-before-coverage.json
+new file mode 100644
+index 0000000..7fa7c13
+--- /dev/null
++++ b/docs/evidence/issue-1888/news-before-coverage.json
+@@ -0,0 +1 @@
++{"meta": {"format": 3, "version": "7.17.0", "timestamp": "2026-11-04T04:30:36.174591", "branch_coverage": true, "show_contexts": false}, "files": {"ui/daily_report.py": {"executed_lines": [1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 15, 18, 19, 20, 21, 22, 23, 24, 29, 30, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 75, 76, 77, 89, 90, 93, 94, 95, 96, 97, 98, 99, 100, 109, 113, 114, 117, 118, 119, 120, 121, 127, 128, 130, 131, 134, 135, 136, 137, 138, 143, 144, 146, 147, 150, 151, 153, 154, 156, 157, 158, 161, 162, 163, 166, 167, 168, 169, 170, 171, 172, 173, 174, 177, 178, 179, 180, 181, 182, 186, 189, 190, 191, 192, 193, 194, 195, 198, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 248, 249, 250, 255, 256, 259, 260, 261, 262, 269, 270, 271, 279, 280, 281, 282, 283, 289, 290, 291, 292, 293, 294, 296, 297, 298, 299, 301, 302, 305, 306, 307, 308, 309, 315, 316, 317, 318, 319, 320, 321, 322, 323, 325, 327, 328, 333, 334, 335, 340, 341, 342, 343, 344, 347, 348, 350, 351, 352, 353, 356, 357, 358, 359, 360, 361, 362, 364, 365, 366, 367, 368, 372, 373, 374, 375, 376, 379, 382, 383, 384, 389, 394, 399, 404, 407, 410, 413, 423, 426, 427, 428, 430, 431, 432, 433, 435, 436, 439, 440, 441, 444, 451, 454, 464, 465, 466, 467, 468, 470, 471, 474, 475, 478, 483, 484, 493, 503, 517, 518, 524, 525, 526, 527, 528, 530, 533, 534, 538, 539, 540, 542, 545, 547, 548, 549, 550, 551, 552, 553, 554, 559, 560, 568], "summary": {"covered_lines": 289, "num_statements": 303, "percent_covered": 92.38845144356955, "percent_covered_display": "92", "missing_lines": 14, "excluded_lines": 0, "percent_statements_covered": 95.37953795379538, "percent_statements_covered_display": "95", "num_branches": 78, "num_partial_branches": 13, "covered_branches": 63, "missing_branches": 15, "percent_branches_covered": 80.76923076923077, "percent_branches_covered_display": "81"}, "missing_lines": [66, 110, 111, 152, 155, 196, 228, 245, 295, 349, 354, 355, 489, 569], "excluded_lines": [], "executed_branches": [[39, 40], [39, 42], [54, 55], [151, 153], [154, 156], [156, 157], [156, 158], [180, 181], [180, 186], [192, 193], [192, 194], [195, 198], [204, 205], [204, 206], [209, 210], [209, 211], [211, 212], [211, 213], [219, 220], [219, 221], [224, 225], [224, 226], [226, 227], [234, 235], [234, 236], [238, 239], [238, 240], [241, 242], [241, 243], [243, 244], [290, 291], [290, 301], [294, 296], [298, 290], [298, 299], [316, 317], [316, 325], [320, 321], [320, 322], [333, 334], [333, 335], [342, 343], [342, 344], [348, 350], [353, 356], [362, 364], [362, 372], [364, 365], [364, 372], [367, 368], [432, 433], [432, 435], [467, 468], [467, 470], [483, 484], [526, 527], [526, 530], [533, 534], [538, 539], [538, 542], [548, 549], [548, 559], [568, -1]], "missing_branches": [[54, 66], [151, 152], [154, 155], [195, 196], [226, 228], [243, 245], [294, 295], [348, 349], [353, 354], [354, 355], [354, 356], [367, 364], [483, 489], [533, 538], [568, 569]], "functions": {"load_diffs": {"executed_lines": [20, 21, 22, 23, 24, 29, 30, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47], "summary": {"covered_lines": 18, "num_statements": 18, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 19, "executed_branches": [[39, 40], [39, 42]], "missing_branches": []}, "load_news": {"executed_lines": [52, 53, 54, 55, 56, 75, 76, 77, 89, 90], "summary": {"covered_lines": 10, "num_statements": 11, "percent_covered": 84.61538461538461, "percent_covered_display": "85", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 90.9090909090909, "percent_statements_covered_display": "91", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [66], "excluded_lines": [], "start_line": 51, "executed_branches": [[54, 55]], "missing_branches": [[54, 66]]}, "load_activism_events": {"executed_lines": [95, 96, 97, 98, 99, 100, 109, 113, 114], "summary": {"covered_lines": 9, "num_statements": 11, "percent_covered": 81.81818181818181, "percent_covered_display": "82", "missing_lines": 2, "excluded_lines": 0, "percent_statements_covered": 81.81818181818181, "percent_statements_covered_display": "82", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [110, 111], "excluded_lines": [], "start_line": 94, "executed_branches": [], "missing_branches": []}, "load_crowded_trades": {"executed_lines": [119, 120, 121, 127, 128, 130, 131], "summary": {"covered_lines": 7, "num_statements": 7, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 118, "executed_branches": [], "missing_branches": []}, "load_contrarian_signals": {"executed_lines": [136, 137, 138, 143, 144, 146, 147], "summary": {"covered_lines": 7, "num_statements": 7, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 135, "executed_branches": [], "missing_branches": []}, "parse_topics": {"executed_lines": [151, 153, 154, 156, 157, 158], "summary": {"covered_lines": 6, "num_statements": 8, "percent_covered": 71.42857142857143, "percent_covered_display": "71", "missing_lines": 2, "excluded_lines": 0, "percent_statements_covered": 75.0, "percent_statements_covered_display": "75", "num_branches": 6, "num_partial_branches": 2, "covered_branches": 4, "missing_branches": 2, "percent_branches_covered": 66.66666666666667, "percent_branches_covered_display": "67"}, "missing_lines": [152, 155], "excluded_lines": [], "start_line": 150, "executed_branches": [[151, 153], [154, 156], [156, 157], [156, 158]], "missing_branches": [[151, 152], [154, 155]]}, "topic_choices": {"executed_lines": [162, 163], "summary": {"covered_lines": 2, "num_statements": 2, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 161, "executed_branches": [], "missing_branches": []}, "format_news_table": {"executed_lines": [167, 168, 169, 170, 171, 172, 173, 174], "summary": {"covered_lines": 8, "num_statements": 8, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 166, "executed_branches": [], "missing_branches": []}, "topic_badges": {"executed_lines": [178, 179, 180, 181, 182, 186], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 177, "executed_branches": [[180, 181], [180, 186]], "missing_branches": []}, "headline_markdown": {"executed_lines": [190, 191, 192, 193, 194, 195, 198], "summary": {"covered_lines": 7, "num_statements": 8, "percent_covered": 83.33333333333333, "percent_covered_display": "83", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 87.5, "percent_statements_covered_display": "88", "num_branches": 4, "num_partial_branches": 1, "covered_branches": 3, "missing_branches": 1, "percent_branches_covered": 75.0, "percent_branches_covered_display": "75"}, "missing_lines": [196], "excluded_lines": [], "start_line": 189, "executed_branches": [[192, 193], [192, 194], [195, 198]], "missing_branches": [[195, 196]]}, "format_shares_delta": {"executed_lines": [202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213], "summary": {"covered_lines": 12, "num_statements": 12, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 6, "num_partial_branches": 0, "covered_branches": 6, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 201, "executed_branches": [[204, 205], [204, 206], [209, 210], [209, 211], [211, 212], [211, 213]], "missing_branches": []}, "format_value_delta": {"executed_lines": [217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227], "summary": {"covered_lines": 11, "num_statements": 12, "percent_covered": 88.88888888888889, "percent_covered_display": "89", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 6, "num_partial_branches": 1, "covered_branches": 5, "missing_branches": 1, "percent_branches_covered": 83.33333333333333, "percent_branches_covered_display": "83"}, "missing_lines": [228], "excluded_lines": [], "start_line": 216, "executed_branches": [[219, 220], [219, 221], [224, 225], [224, 226], [226, 227]], "missing_branches": [[226, 228]]}, "format_percent_change": {"executed_lines": [232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244], "summary": {"covered_lines": 13, "num_statements": 14, "percent_covered": 90.9090909090909, "percent_covered_display": "91", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 92.85714285714286, "percent_statements_covered_display": "93", "num_branches": 8, "num_partial_branches": 1, "covered_branches": 7, "missing_branches": 1, "percent_branches_covered": 87.5, "percent_branches_covered_display": "88"}, "missing_lines": [245], "excluded_lines": [], "start_line": 231, "executed_branches": [[234, 235], [234, 236], [238, 239], [238, 240], [241, 242], [241, 243], [243, 244]], "missing_branches": [[243, 245]]}, "format_activism_event_type": {"executed_lines": [249, 250, 255, 256], "summary": {"covered_lines": 4, "num_statements": 4, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 248, "executed_branches": [], "missing_branches": []}, "format_signal_badge": {"executed_lines": [260, 261, 262], "summary": {"covered_lines": 3, "num_statements": 3, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 259, "executed_branches": [], "missing_branches": []}, "_is_missing_report_source_error": {"executed_lines": [270, 271], "summary": {"covered_lines": 2, "num_statements": 2, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 269, "executed_branches": [], "missing_branches": []}, "latest_report_date": {"executed_lines": [281, 282, 283, 289, 290, 291, 292, 293, 294, 296, 297, 298, 299, 301, 302], "summary": {"covered_lines": 15, "num_statements": 16, "percent_covered": 90.9090909090909, "percent_covered_display": "91", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 93.75, "percent_statements_covered_display": "94", "num_branches": 6, "num_partial_branches": 1, "covered_branches": 5, "missing_branches": 1, "percent_branches_covered": 83.33333333333333, "percent_branches_covered_display": "83"}, "missing_lines": [295], "excluded_lines": [], "start_line": 280, "executed_branches": [[290, 291], [290, 301], [294, 296], [298, 290], [298, 299]], "missing_branches": [[294, 295]]}, "nearest_report_date": {"executed_lines": [307, 308, 309, 315, 316, 317, 318, 319, 320, 321, 322, 323, 325, 327, 328, 333, 334, 335], "summary": {"covered_lines": 18, "num_statements": 18, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 6, "num_partial_branches": 0, "covered_branches": 6, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 306, "executed_branches": [[316, 317], [316, 325], [320, 321], [320, 322], [333, 334], [333, 335]], "missing_branches": []}, "empty_report_date_message": {"executed_lines": [341, 342, 343, 344], "summary": {"covered_lines": 4, "num_statements": 4, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 340, "executed_branches": [[342, 343], [342, 344]], "missing_branches": []}, "main": {"executed_lines": [348, 350, 351, 352, 353, 356, 357, 358, 359, 360, 361, 362, 364, 365, 366, 367, 368, 372, 373, 374, 375, 376, 379, 382, 383, 384, 389, 394, 399, 404, 407, 410, 413, 423, 426, 427, 428, 430, 431, 432, 433, 435, 436, 439, 440, 441, 444, 451, 454, 464, 465, 466, 467, 468, 470, 471, 474, 475, 478, 483, 484, 493, 503, 517, 518, 524, 525, 526, 527, 528, 530, 533, 534, 538, 539, 540, 542, 545, 547, 548, 549, 550, 551, 552, 553, 554, 559, 560], "summary": {"covered_lines": 88, "num_statements": 92, "percent_covered": 90.67796610169492, "percent_covered_display": "91", "missing_lines": 4, "excluded_lines": 0, "percent_statements_covered": 95.65217391304348, "percent_statements_covered_display": "96", "num_branches": 26, "num_partial_branches": 5, "covered_branches": 19, "missing_branches": 7, "percent_branches_covered": 73.07692307692308, "percent_branches_covered_display": "73"}, "missing_lines": [349, 354, 355, 489], "excluded_lines": [], "start_line": 347, "executed_branches": [[348, 350], [353, 356], [362, 364], [362, 372], [364, 365], [364, 372], [367, 368], [432, 433], [432, 435], [467, 468], [467, 470], [483, 484], [526, 527], [526, 530], [533, 534], [538, 539], [538, 542], [548, 549], [548, 559]], "missing_branches": [[348, 349], [353, 354], [354, 355], [354, 356], [367, 364], [483, 489], [533, 538]]}, "": {"executed_lines": [1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 15, 18, 19, 50, 51, 93, 94, 117, 118, 134, 135, 150, 161, 166, 177, 189, 201, 216, 231, 248, 259, 269, 279, 280, 305, 306, 340, 347, 568], "summary": {"covered_lines": 39, "num_statements": 40, "percent_covered": 95.23809523809524, "percent_covered_display": "95", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 97.5, "percent_statements_covered_display": "98", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [569], "excluded_lines": [], "start_line": 1, "executed_branches": [[568, -1]], "missing_branches": [[568, 569]]}}, "classes": {"": {"executed_lines": [1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 15, 18, 19, 20, 21, 22, 23, 24, 29, 30, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 75, 76, 77, 89, 90, 93, 94, 95, 96, 97, 98, 99, 100, 109, 113, 114, 117, 118, 119, 120, 121, 127, 128, 130, 131, 134, 135, 136, 137, 138, 143, 144, 146, 147, 150, 151, 153, 154, 156, 157, 158, 161, 162, 163, 166, 167, 168, 169, 170, 171, 172, 173, 174, 177, 178, 179, 180, 181, 182, 186, 189, 190, 191, 192, 193, 194, 195, 198, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 248, 249, 250, 255, 256, 259, 260, 261, 262, 269, 270, 271, 279, 280, 281, 282, 283, 289, 290, 291, 292, 293, 294, 296, 297, 298, 299, 301, 302, 305, 306, 307, 308, 309, 315, 316, 317, 318, 319, 320, 321, 322, 323, 325, 327, 328, 333, 334, 335, 340, 341, 342, 343, 344, 347, 348, 350, 351, 352, 353, 356, 357, 358, 359, 360, 361, 362, 364, 365, 366, 367, 368, 372, 373, 374, 375, 376, 379, 382, 383, 384, 389, 394, 399, 404, 407, 410, 413, 423, 426, 427, 428, 430, 431, 432, 433, 435, 436, 439, 440, 441, 444, 451, 454, 464, 465, 466, 467, 468, 470, 471, 474, 475, 478, 483, 484, 493, 503, 517, 518, 524, 525, 526, 527, 528, 530, 533, 534, 538, 539, 540, 542, 545, 547, 548, 549, 550, 551, 552, 553, 554, 559, 560, 568], "summary": {"covered_lines": 289, "num_statements": 303, "percent_covered": 92.38845144356955, "percent_covered_display": "92", "missing_lines": 14, "excluded_lines": 0, "percent_statements_covered": 95.37953795379538, "percent_statements_covered_display": "95", "num_branches": 78, "num_partial_branches": 13, "covered_branches": 63, "missing_branches": 15, "percent_branches_covered": 80.76923076923077, "percent_branches_covered_display": "81"}, "missing_lines": [66, 110, 111, 152, 155, 196, 228, 245, 295, 349, 354, 355, 489, 569], "excluded_lines": [], "start_line": 1, "executed_branches": [[39, 40], [39, 42], [54, 55], [151, 153], [154, 156], [156, 157], [156, 158], [180, 181], [180, 186], [192, 193], [192, 194], [195, 198], [204, 205], [204, 206], [209, 210], [209, 211], [211, 212], [211, 213], [219, 220], [219, 221], [224, 225], [224, 226], [226, 227], [234, 235], [234, 236], [238, 239], [238, 240], [241, 242], [241, 243], [243, 244], [290, 291], [290, 301], [294, 296], [298, 290], [298, 299], [316, 317], [316, 325], [320, 321], [320, 322], [333, 334], [333, 335], [342, 343], [342, 344], [348, 350], [353, 356], [362, 364], [362, 372], [364, 365], [364, 372], [367, 368], [432, 433], [432, 435], [467, 468], [467, 470], [483, 484], [526, 527], [526, 530], [533, 534], [538, 539], [538, 542], [548, 549], [548, 559], [568, -1]], "missing_branches": [[54, 66], [151, 152], [154, 155], [195, 196], [226, 228], [243, 245], [294, 295], [348, 349], [353, 354], [354, 355], [354, 356], [367, 364], [483, 489], [533, 538], [568, 569]]}}}}, "totals": {"covered_lines": 289, "num_statements": 303, "percent_covered": 92.38845144356955, "percent_covered_display": "92", "missing_lines": 14, "excluded_lines": 0, "percent_statements_covered": 95.37953795379538, "percent_statements_covered_display": "95", "num_branches": 78, "num_partial_branches": 13, "covered_branches": 63, "missing_branches": 15, "percent_branches_covered": 80.76923076923077, "percent_branches_covered_display": "81"}}
+\ No newline at end of file
+diff --git a/docs/evidence/issue-1888/news-before-pytest.txt b/docs/evidence/issue-1888/news-before-pytest.txt
+new file mode 100644
+index 0000000..67f6da3
+--- /dev/null
++++ b/docs/evidence/issue-1888/news-before-pytest.txt
+@@ -0,0 +1,14 @@
++.................................                                        [100%]/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/_pytest/unraisableexception.py:33: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7daa1ef94220>
++  gc.collect()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++
++================================ tests coverage ================================
++_______________ coverage: platform linux, python 3.14.8-final-0 ________________
++
++Name                 Stmts   Miss Branch BrPart  Cover   Missing
++----------------------------------------------------------------
++ui/daily_report.py     303     14     78     13    92%   66, 110-111, 152, 155, 196, 228, 245, 295, 349, 354-355, 367->364, 489, 533->538, 569
++----------------------------------------------------------------
++TOTAL                  303     14     78     13    92%
++Coverage JSON written to file /tmp/issue1888-news-before.json
++33 passed, 16 warnings in 2.37s
+diff --git a/docs/evidence/issue-1888/news-black.txt b/docs/evidence/issue-1888/news-black.txt
+new file mode 100644
+index 0000000..c8c0c23
+--- /dev/null
++++ b/docs/evidence/issue-1888/news-black.txt
+@@ -0,0 +1,2 @@
++All done! ✨ 🍰 ✨
++452 files would be left unchanged.
+diff --git a/docs/evidence/issue-1888/news-regression-pytest.txt b/docs/evidence/issue-1888/news-regression-pytest.txt
+new file mode 100644
+index 0000000..07f8881
+--- /dev/null
++++ b/docs/evidence/issue-1888/news-regression-pytest.txt
+@@ -0,0 +1,18 @@
++...............s........................................................ [ 41%]
++........................................................................ [ 82%]
++..............................                                           [100%]/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/_pytest/unraisableexception.py:33: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7db3def5ef20>
++  gc.collect()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++
++================================ tests coverage ================================
++_______________ coverage: platform linux, python 3.14.8-final-0 ________________
++
++Name                 Stmts   Miss Branch BrPart  Cover   Missing
++----------------------------------------------------------------
++api/search.py          294      5    118      9    97%   23->26, 28-31, 67, 93, 310->312, 373->375, 625->709, 656->663, 835->842, 875->879
++api/signals.py         248     17     66     10    91%   14-18, 104, 139, 168, 173, 191, 195, 201-202, 255, 259, 311, 398-399
++etl/edgar_flow.py      236      4     72      1    98%   77-78, 534-536
++ui/daily_report.py     303     12     78     11    93%   110-111, 152, 155, 228, 245, 295, 349, 354-355, 367->364, 489, 533->538, 569
++----------------------------------------------------------------
++TOTAL                 1081     38    334     31    95%
++173 passed, 1 skipped, 59 warnings in 2.56s
+diff --git a/docs/evidence/issue-1888/pr-body.md b/docs/evidence/issue-1888/pr-body.md
+index c5074ba..242e2b2 100644
+--- a/docs/evidence/issue-1888/pr-body.md
++++ b/docs/evidence/issue-1888/pr-body.md
+@@ -30,32 +30,41 @@ Source issue #1806; merged PR #1808 delivered: PR #1808 added one test-only modu
+ - [ ] `pytest` passes in CI.
+ <!-- auto-status-summary:end -->
+ 
+-## Verified implementation
+-
+-This PR changes tests and evidence only. The existing EDGAR checks cover deletion,
+-raw persistence, idempotency and unowned filings. Six follow-up functions (10 cases)
+-cover reverse-order amendments, legacy watermark/schema behavior, ignored inserts,
+-and PostgreSQL storage-key SQL generation. PostgreSQL execution is mocked.
+-
+-Local follow-up validation: EDGAR **47 passed, 1 skipped**, affected suites
+-**99 passed, 1 skipped**, bitemporal suite **20 passed, 1 skipped**. Black's required
+-repository check passes (452 files), using the event-loop shim documented in the
+-evidence README; Ruff passes for both changed Python files. Existing nightly skips
+-remain. No production code or protected files changed. The negative-cache pattern
+-was absent in the EDGAR code inspected.
+-
+-### Coverage accounting
+-
+-The required CI-artifact baseline and ranking remain unverified: the previous run
+-identified main artifact `13265760076` for run `41702885246` at
+-`a7f4e626bb4b8359a64c56a56211218e41b6020a`, but its bytes could not be transferred
+-through the restricted sandbox. `ranking.json` is explicitly a provisional repair-
+-subject/churn ranking based on local coverage. No CI reduction or ~180-unit claim
+-is made. Current-main artifact verification and CI pytest remain open tasks.
+-
+-Earlier whole-suite local measurements (not CI artifacts):
+-
+-| Target | Main missing statements+branches | Earlier candidate | Reduction |
++## Verified implementation and validation
++
++Tests and evidence only; no production or protected workflow changes. EDGAR tests
++cover ingestion, reverse-order amendments, schemas, watermarks, idempotency,
++deletions and persistence. Search/signal/report tests cover legacy and vector
++results, annotations, page sorting/filtering and export behavior. PostgreSQL is
++modeled; live-server validation is not claimed.
++
++This follow-up adds five news-loader/headline cases. Matched targeted report
++coverage rises **92% to 93%**, with missing statements+branches **29 to 25**.
++Affected suites: **173 passed, 1 existing nightly skip**. Targeted coverage table:
++search **97%**, signals **91%**, EDGAR **98%**, report **93%**. Black's required
++repository check passes (452 files unchanged); Ruff passes. Commands and raw reports
++are in [the evidence README](docs/evidence/issue-1888/README.md#news-loading-and-negative-cache-audit-2026-11-04).
++
++Negative-cache audit completed across EDGAR, search, signals, report, digest and
++ASIC. No `cache.get(key) is None` misuse was found. Search's `deduped` only stores
++`SearchResult` objects; signals' nullable ticker mapping is populated once and
++never treats `None` as a reason to query again. Report caching is delegated to
++Streamlit. New tests confirm empty/error results are reused for the same date and
++that a different date queries again. No production fix is warranted.
++
++## Coverage accounting and remaining requirements
++
++The main Gate coverage artifact is `13265760076` (`gate-coverage-3.13-1`) from
++[run 41702885246](https://github.com/stranske/Manager-Database/actions/runs/41702885246)
++at `a7f4e626bb4b8359a64c56a56211218e41b6020a`. Artifact transfer is blocked by the
++sandbox; a returned ZIP reference does not verify its JSON. Shell GitHub access
++still fails. The required exact CI base and CI ranking remain unchecked.
++[ranking.json](docs/evidence/issue-1888/ranking.json) is a provisional local ranking
++using repair-subject matches and churn, not verified escaped-defect counts.
++
++Earlier matched local whole-suite coverage (not CI artifact credit):
++
++| Target | Main missing statements+branches | Prior candidate | Reduction |
+ | --- | ---: | ---: | ---: |
+ | EDGAR | 16+16=32 | 9+7=16 | 16 |
+ | Daily report | 20+15=35 | 16+15=31 | 4 |
+@@ -63,1178 +72,814 @@ Earlier whole-suite local measurements (not CI artifacts):
+ | Search | 25+27=52 | 10+12=22 | 30 |
+ | Total | 132 | 75 | 57 |
+ 
+-The follow-up EDGAR-only run improves **94% to 98%**: missing statements+branches
+-fall from **12+7=19** to **5+1=6**, a 13-unit local reduction. This targeted delta
+-must not be added to the earlier whole-suite total. Raw reports and commands are
+-in [the evidence README](docs/evidence/issue-1888/README.md). Remaining focused
+-misses are logging proxy forwarding and the scheduled CLI entry point. Schema
+-fallback, watermark and reverse-order history gaps are now covered. The README
+-retains per-target explanations for search, signals and daily-report shortfalls.
+-The measured earlier local base contains only 132 units across the four main
+-targets; a 180-unit reduction cannot be achieved within that measured base.
++Later EDGAR-focused tests reduce local missing units from **19 to 6**. A later
++matched full-suite comparison for the search/report/signal additions reduces
++**62 to 33** against the preceding PR head. This round's report-focused comparison
++reduces **29 to 25**. These different baselines/selections must not be added.
++The full-suite comparison still has three identical existing failures before and
++after: a chat dependency timeout, edgartools writing its home directory, and a
++WASM server socket blocked by the sandbox. Full logs and counts are in the README.
++No successful CI pytest result or approximately 180-unit CI reduction is claimed.
++
++Per-target shortfalls: the four-target local main base is only 132 units, so a
++180-unit reduction is unattainable within that measured base. EDGAR retains the
++scheduled CLI entry point and logging paths in the focused run. Search retains
++optional imports, score guards, and optional-schema/null branches. Signals retains
++optional imports and guards in the targeted selection. Report retains compatibility
++error/empty-value guards, login/entry-point wiring, and iteration/sort arcs.
++These are residual coverage paths, not assertions that they cannot be tested.
++[The README](docs/evidence/issue-1888/README.md) records the specific measurements
++and remaining branches for each stage. Current-main CI measurement and candidate
++CI validation remain required before acceptance can be marked complete.
++
++## Break-and-revert proof for every new function
++
++All 29 receipts have red exit **1** and restored exit **0**. Mutations edit actual
++runtime source in disposable `/tmp` checkouts; original/restored hashes match.
++Commands and exact output excerpts follow. Each linked red/green file retains
++complete output and the environment/cwd; each linked diff records the source edit.
++[Replay runner](docs/evidence/issue-1888/mutations/replay.py) and
++[receipts](docs/evidence/issue-1888/mutations/receipts.json).
++
++### 1. `test_manager_lookup_rejects_missing_or_deleted_manager`
++
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager.diff).
++
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager-red.txt).
+ 
+-### Break-and-revert proof for every new function
+-
+-The following are exact command and terminal-output excerpts from each real
+-break-and-revert run. Full stdout, source mutation diffs, original/restored hashes,
+-and exit codes are checked in under `docs/evidence/issue-1888/mutations/`.
+-The two strengthened existing functions are included as well.
+-
+-<details>
+-<summary>tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager</summary>
+-
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager.diff).
+-
+-red: [complete output](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert 99 is None
+-E    +  where 99 = <function _manager_id_for_cik at 0x7119adc6c9e0>(<sqlite3.Connection object at 0x7119b0727790>, '0')
+-E    +    where <function _manager_id_for_cik at 0x7119adc6c9e0> = flow._manager_id_for_cik
+ FAILED tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager[None-rows0] - AssertionError: assert 99 is None
+- +  where 99 = <function _manager_id_for_cik at 0x7119adc6c9e0>(<sqlite3.Connection object at 0x7119b0727790>, '0')
+- +    where <function _manager_id_for_cik at 0x7119adc6c9e0> = flow._manager_id_for_cik
+ 1 failed, 5 passed, 8 warnings in 1.70s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager -m 'not slow' --tb=short --disable-warnings
+-......                                                                   [100%]
+-6 passed, 8 warnings in 1.37s
++```
+ 
++```text
++6 passed, 8 warnings in 1.37s
+ exit: 0
+ ```
+ 
+-</details>
++### 2. `test_watermark_unavailable_without_filing_history`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert '2000-01-01' is None
+-E    +  where '2000-01-01' = <function _latest_filed_date_for_cik at 0x7476d6065380>('missing')
+-E    +    where <function _latest_filed_date_for_cik at 0x7476d6065380> = flow._latest_filed_date_for_cik
+-E   AssertionError: assert '2000-01-01' is None
+ FAILED tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history[None] - AssertionError: assert '2000-01-01' is None
+- +  where '2000-01-01' = <function _latest_filed_date_for_cik at 0x7476d6065380>('missing')
+- +    where <function _latest_filed_date_for_cik at 0x7476d6065380> = flow._latest_filed_date_for_cik
+-FAILED tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history[manager_id INTEGER] - AssertionError: assert '2000-01-01' is None
+- +  where '2000-01-01' = <function _latest_filed_date_for_cik at 0x7476d6065380>('missing')
+- +    where <function _latest_filed_date_for_cik at 0x7476d6065380> = flow._latest_filed_date_for_cik
+ 2 failed, 1 passed, 8 warnings in 1.67s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history -m 'not slow' --tb=short --disable-warnings
+-...                                                                      [100%]
+-3 passed, 8 warnings in 1.61s
++```
+ 
++```text
++3 passed, 8 warnings in 1.61s
+ exit: 0
+ ```
+ 
+-</details>
++### 3. `test_holdings_resolution_failure_preserves_raw_rows`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows -m 'not slow' --tb=short --disable-warnings
+-E   RuntimeError: resolver unavailable
+ FAILED tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows - RuntimeError: resolver unavailable
+ 1 failed, 8 warnings in 2.51s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 1.39s
++```
+ 
++```text
++1 passed, 8 warnings in 1.39s
+ exit: 0
+ ```
+ 
+-</details>
++### 4. `test_empty_holdings_do_not_delete_existing_rows`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert [] == [('KEEP',)]
+-E
+-E     Right contains one more item: ('KEEP',)
+-E
+ FAILED tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows - AssertionError: assert [] == [('KEEP',)]
+-
+-  Right contains one more item: ('KEEP',)
+-
+-  Full diff:
+-  + []
+-  - [
+-  -     (
+-  -         'KEEP',
+-  -     ),
+-  - ]
+ 1 failed, 8 warnings in 1.84s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 1.88s
++```
+ 
++```text
++1 passed, 8 warnings in 1.88s
+ exit: 0
+ ```
+ 
+-</details>
++### 5. `test_bitemporal_unowned_filing_rerun_preserves_version`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert [('AAA', 12, ...4.0, 2, None)] == [('AAA', 12, 34.0, 1, None)]
+-E
+-E     At index 0 diff: ('AAA', 12, 34.0, 1, '2026-11-04T00:53:15Z') != ('AAA', 12, 34.0, 1, None)
+-E     Left contains one more item: ('AAA', 12, 34.0, 2, None)
+ FAILED tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version - AssertionError: assert [('AAA', 12, ...4.0, 2, None)] == [('AAA', 12, 34.0, 1, None)]
+-
+-  At index 0 diff: ('AAA', 12, 34.0, 1, '2026-11-04T00:53:15Z') != ('AAA', 12, 34.0, 1, None)
+-  Left contains one more item: ('AAA', 12, 34.0, 2, None)
+-
+-  Full diff:
+-    [
+-        (
+-            'AAA',
+-            12,
+-            34.0,
+-            1,
+-  +         '2026-11-04T00:53:15Z',
+-  +     ),
+-  +     (
+-  +         'AAA',
+-  +         12,
+-  +         34.0,
+-  +         2,
+-            None,
+-        ),
+-    ]
+ 1 failed, 8 warnings in 2.36s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 1.43s
++```
+ 
++```text
++1 passed, 8 warnings in 1.43s
+ exit: 0
+ ```
+ 
+-</details>
++### 6. `test_deletion_during_second_download_keeps_first_filing`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert [] == [{'nameOfIssu...shPrnamt': 1}]
+-E
+-E     Right contains one more item: {'nameOfIssuer': 'Corp', 'cusip': 'AAA', 'value': 1, 'sshPrnamt': 1}
+-E
+ FAILED tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing - AssertionError: assert [] == [{'nameOfIssu...shPrnamt': 1}]
+-
+-  Right contains one more item: {'nameOfIssuer': 'Corp', 'cusip': 'AAA', 'value': 1, 'sshPrnamt': 1}
+-
+-  Full diff:
+-  + []
+-  - [
+-  -     {
+-  -         'nameOfIssuer': 'Corp',
+-  -         'cusip': 'AAA',
+-  -         'value': 1,
+-  -         'sshPrnamt': 1,
+-  -     },
+-  - ]
+ 1 failed, 8 warnings in 1.98s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 1.42s
++```
+ 
++```text
++1 passed, 8 warnings in 1.42s
+ exit: 0
+ ```
+ 
+-</details>
++### 7. `test_binary_filing_without_manager_skips_text_index`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: expected call not found.
+-E   Expected: mock(Bucket='filings', Key='raw/edgar/6eb820e0f9762c61_unknown.xml', Body=b'<xml/>', ServerSideEncryption='AES256')
+-E     Actual: mock(Bucket='filings', Key='raw/edgar/6eb820e0f9762c61_incorrect.xml', Body=b'<xml/>', ServerSideEncryption='AES256')
+ FAILED tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index - AssertionError: expected call not found.
+-Expected: mock(Bucket='filings', Key='raw/edgar/6eb820e0f9762c61_unknown.xml', Body=b'<xml/>', ServerSideEncryption='AES256')
+-  Actual: mock(Bucket='filings', Key='raw/edgar/6eb820e0f9762c61_incorrect.xml', Body=b'<xml/>', ServerSideEncryption='AES256')
+ 1 failed, 8 warnings in 1.78s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 2.28s
++```
+ 
++```text
++1 passed, 8 warnings in 2.28s
+ exit: 0
+ ```
+ 
+-</details>
++### 8. `test_search_guards_return_before_accessing_database`
+ 
+-<details>
+-<summary>tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database</summary>
++Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database -m 'not slow' --tb=short --disable-warnings
+-E   assert [None] == []
+-E
+-E     Left contains one more item: None
+-E
+ FAILED tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database - assert [None] == []
+-
+-  Left contains one more item: None
+-
+-  Full diff:
+-  - []
+-  + [
+-  +     None,
+-  + ]
+ 1 failed, 8 warnings in 1.97s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 2.10s
++```
+ 
++```text
++1 passed, 8 warnings in 2.10s
+ exit: 0
+ ```
+ 
+-</details>
++### 9. `test_digest_delivery_configuration_guards`
+ 
+-<details>
+-<summary>tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards</summary>
++Source: `etl/digest_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert 'DIGEST_EMAIL...t configured!' == 'DIGEST_EMAIL...ot configured'
+-E
+-E     - DIGEST_EMAIL_FROM is not configured
+-E     + DIGEST_EMAIL_FROM is not configured!
+ FAILED tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards - AssertionError: assert 'DIGEST_EMAIL...t configured!' == 'DIGEST_EMAIL...ot configured'
+-
+-  - DIGEST_EMAIL_FROM is not configured
+-  + DIGEST_EMAIL_FROM is not configured!
+-  ?                                    +
+ 1 failed, 8 warnings in 1.96s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 1.92s
++```
+ 
++```text
++1 passed, 8 warnings in 1.92s
+ exit: 0
+ ```
+ 
+-</details>
++### 10. `test_daily_report_formatters_cover_empty_and_directional_values`
+ 
+-<details>
+-<summary>tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values</summary>
++Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert '&lt;x&gt;!' == '&lt;x&gt;'
+-E
+-E     - &lt;x&gt;
+-E     + &lt;x&gt;!
+ FAILED tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values - AssertionError: assert '&lt;x&gt;!' == '&lt;x&gt;'
+-
+-  - &lt;x&gt;
+-  + &lt;x&gt;!
+-  ?          +
+ 1 failed, 8 warnings in 1.95s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 1.99s
++```
+ 
++```text
++1 passed, 8 warnings in 1.99s
+ exit: 0
+ ```
+ 
+-</details>
++### 11. `test_search_legacy_holdings_return_filing_groups_and_holdings`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings</summary>
++Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert [('filing', 1...'2024-05-01')] == [('filing', 1...'2024-05-01')]
+-E
+-E     At index 0 diff: ('filing', 1, '123', 'Filing needle-1', '3 holdings; filed 2024-05-01', '2024-05-01') != ('filing', 1, '123', 'Filing needle-1', '2 holdings; filed 2024-05-01', '2024-05-01')
+-E
+ FAILED tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings - AssertionError: assert [('filing', 1...'2024-05-01')] == [('filing', 1...'2024-05-01')]
+-
+-  At index 0 diff: ('filing', 1, '123', 'Filing needle-1', '3 holdings; filed 2024-05-01', '2024-05-01') != ('filing', 1, '123', 'Filing needle-1', '2 holdings; filed 2024-05-01', '2024-05-01')
+-
+-  Full diff:
+-    [
+-        (
+-            'filing',
+-            1,
+-            '123',
+-            'Filing needle-1',
+-  -         '2 holdings; filed 2024-05-01',
+-  ?          ^
+-  +         '3 holdings; filed 2024-05-01',
+-  ?          ^
+-            '2024-05-01',
+-        ),
+-        (
+-            'holding',
+-            1,
+-            '123',
+-            'needle Corp (AAA)',
+-            'Accession needle-1 filed 2024-05-01',
+-            '2024-05-01',
+-        ),
+-    ]
+ 1 failed, 6 warnings in 0.81s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 6 warnings in 0.82s
++```
+ 
++```text
++1 passed, 6 warnings in 0.82s
+ exit: 0
+ ```
+ 
+-</details>
++### 12. `test_search_vector_documents_keep_shared_managers_and_deduplicate`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate</summary>
++Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert [(1, None, 'm...only result')] == [(1, None, 'm...only result')]
+-E
+-E     At index 1 diff: (2, 'Alpha / Beta', 'vector only result', 'vector only result') != (2, 'Alpha, Beta', 'vector only result', 'vector only result')
+-E
+ FAILED tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate - AssertionError: assert [(1, None, 'm...only result')] == [(1, None, 'm...only result')]
+-
+-  At index 1 diff: (2, 'Alpha / Beta', 'vector only result', 'vector only result') != (2, 'Alpha, Beta', 'vector only result', 'vector only result')
+-
+-  Full diff:
+-    [
+-        (
+-            1,
+-            None,
+-            'memo',
+-            'needle memo',
+-        ),
+-        (
+-            2,
+-  -         'Alpha, Beta',
+-  ?               ^
+-  +         'Alpha / Beta',
+-  ?               ^^
+-            'vector only result',
+-            'vector only result',
+-        ),
+-    ]
+ 1 failed, 6 warnings in 0.82s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 6 warnings in 0.83s
++```
+ 
++```text
++1 passed, 6 warnings in 0.83s
+ exit: 0
+ ```
+ 
+-</details>
++### 13. `test_search_postgres_activism_preserves_filing_context`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context</summary>
++Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert {'entity_type... (5.5%)', ...} == {'entity_type... (5.5%)', ...}
+-E
+-E     Omitting 7 identical items, use -vv to show
+-E     Differing items:
+ FAILED tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context - AssertionError: assert {'entity_type... (5.5%)', ...} == {'entity_type... (5.5%)', ...}
+-
+-  Omitting 7 identical items, use -vv to show
+-  Differing items:
+-  {'snippet': 'SC 13D | Wrong: CUSIP | Filed: 2024-05-01'} != {'snippet': 'SC 13D | CUSIP: CUSIP | Filed: 2024-05-01'}
+-
+-  Full diff:
+-    {
+-        'entity_type': 'filing',
+-        'entity_id': 12,
+-        'manager_name': 'Alpha',
+-        'headline': '13D Filing: Alpha -> Target (5.5%)',
+-  -     'snippet': 'SC 13D | CUSIP: CUSIP | Filed: 2024-05-01',
+-  ?                               -------
+-  +     'snippet': 'SC 13D | Wrong: CUSIP | Filed: 2024-05-01',
+-  ?                         +++++++
+-  -     'relevance': 0.8666666667 ± 8.7e-07,
+-  ?                             ^^^^^^^^^^
+-  +     'relevance': 0.8666666666666667,
+-  ?                             ^^^^^^
+-        'url': 'https://example.test/12',
+-        'timestamp': '2024-05-01',
+-    }
+ 1 failed, 6 warnings in 0.81s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 6 warnings in 0.89s
++```
+ 
++```text
++1 passed, 6 warnings in 0.89s
+ exit: 0
+ ```
+ 
+-</details>
++### 14. `test_conviction_annotation_survives_unavailable_holdings`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings</summary>
++Source: `api/signals.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert [{'cusip': 'A...': 50.0, ...}] == [{'cusip': 'A...': 50.0, ...}]
+-E
+-E     At index 0 diff: {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'value_usd': 300.0, 'conviction_pct': 50.0, 'portfolio_weight': 0.5, 'insider_net_direction': None, 'short_interest_pct': None, 'short_interest_report_date': None, 'short_interest_source': None} != {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'value_usd': 300.0, 'conviction_pct': 50.0, 'portfolio_weight': 0.5, 'insider_net_direction': 'BUY', 'short_interest_pct': None, 'short_interest_report_date': None, 'short_interest_source': None}
+-E
+ FAILED tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings - AssertionError: assert [{'cusip': 'A...': 50.0, ...}] == [{'cusip': 'A...': 50.0, ...}]
+-
+-  At index 0 diff: {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'value_usd': 300.0, 'conviction_pct': 50.0, 'portfolio_weight': 0.5, 'insider_net_direction': None, 'short_interest_pct': None, 'short_interest_report_date': None, 'short_interest_source': None} != {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'value_usd': 300.0, 'conviction_pct': 50.0, 'portfolio_weight': 0.5, 'insider_net_direction': 'BUY', 'short_interest_pct': None, 'short_interest_report_date': None, 'short_interest_source': None}
+-
+-  Full diff:
+-    [
+-        {
+-            'cusip': 'AAA',
+-            'name_of_issuer': 'Issuer',
+-            'value_usd': 300.0,
+-            'conviction_pct': 50.0,
+-            'portfolio_weight': 0.5,
+-  -         'insider_net_direction': 'BUY',
+-  ?                                  ^^^^^
+-  +         'insider_net_direction': None,
+-  ?                                  ^^^^
+-            'short_interest_pct': None,
+-            'short_interest_report_date': None,
+-            'short_interest_source': None,
+-        },
+-    ]
+ 1 failed, 6 warnings in 0.91s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 6 warnings in 0.98s
++```
+ 
++```text
++1 passed, 6 warnings in 0.98s
+ exit: 0
+ ```
+ 
+-</details>
++### 15. `test_report_signal_query_failure_returns_empty_and_closes`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes</summary>
++Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-mutations
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes -m 'not slow' --tb=short --disable-warnings
+-E   sqlite3.OperationalError: database unavailable
+-E   sqlite3.OperationalError: database unavailable
+ FAILED tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes[load_crowded_trades-query_crowded_trades] - sqlite3.OperationalError: database unavailable
+-FAILED tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes[load_contrarian_signals-query_contrarian_signals] - sqlite3.OperationalError: database unavailable
+ 2 failed, 6 warnings in 1.17s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-mutations
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes -m 'not slow' --tb=short --disable-warnings
+-..                                                                       [100%]
+-2 passed, 6 warnings in 0.90s
++```
+ 
++```text
++2 passed, 6 warnings in 0.90s
+ exit: 0
+ ```
+ 
+-</details>
++### 16. `test_watermark_without_source_column_is_scoped_to_manager`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager-red.txt)
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-edgar-mutations
+-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert '2025-01-01' == '2024-05-01'
+-E
+-E     - 2024-05-01
+-E     + 2025-01-01
+ FAILED tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager - AssertionError: assert '2025-01-01' == '2024-05-01'
+-
+-  - 2024-05-01
+-  + 2025-01-01
+ 1 failed, 8 warnings in 0.94s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-edgar-mutations
++```sh
+ PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 0.79s
++```
+ 
++```text
++1 passed, 8 warnings in 0.79s
+ exit: 0
+ ```
+ 
+-</details>
++### 17. `test_upsert_without_raw_key_leaves_legacy_table_unchanged`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged-red.txt)
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-edgar-mutations
+-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert 99 == 0
+-E    +  where 99 = <function _upsert_filing_legacy at 0x781131b90720>(<sqlite3.Connection object at 0x7811346533d0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+-E    +    where <function _upsert_filing_legacy at 0x781131b90720> = flow._upsert_filing_legacy
+-E   AssertionError: assert 99 == 0
+ FAILED tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged[filing_id INTEGER PRIMARY KEY] - AssertionError: assert 99 == 0
+- +  where 99 = <function _upsert_filing_legacy at 0x781131b90720>(<sqlite3.Connection object at 0x7811346533d0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+- +    where <function _upsert_filing_legacy at 0x781131b90720> = flow._upsert_filing_legacy
+-FAILED tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged[unrelated TEXT] - AssertionError: assert 99 == 0
+- +  where 99 = <function _upsert_filing_legacy at 0x781131b90720>(<sqlite3.Connection object at 0x7811319d74c0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+- +    where <function _upsert_filing_legacy at 0x781131b90720> = flow._upsert_filing_legacy
+ 2 failed, 8 warnings in 0.96s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-edgar-mutations
++```sh
+ PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged -m 'not slow' --tb=short --disable-warnings
+-..                                                                       [100%]
+-2 passed, 8 warnings in 0.79s
++```
+ 
++```text
++2 passed, 8 warnings in 0.79s
+ exit: 0
+ ```
+ 
+-</details>
++### 18. `test_upsert_ignored_by_trigger_returns_existing_id_or_zero`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero-red.txt)
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-edgar-mutations
+-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert 99 == ((None or 0))
+-E    +  where 99 = <function _upsert_filing_legacy at 0x7456beafc720>(<sqlite3.Connection object at 0x7456c144f3d0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+-E    +    where <function _upsert_filing_legacy at 0x7456beafc720> = flow._upsert_filing_legacy
+-E   AssertionError: assert 99 == ((42))
+ FAILED tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero[None] - AssertionError: assert 99 == ((None or 0))
+- +  where 99 = <function _upsert_filing_legacy at 0x7456beafc720>(<sqlite3.Connection object at 0x7456c144f3d0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+- +    where <function _upsert_filing_legacy at 0x7456beafc720> = flow._upsert_filing_legacy
+-FAILED tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero[42] - AssertionError: assert 99 == ((42))
+- +  where 99 = <function _upsert_filing_legacy at 0x7456beafc720>(<sqlite3.Connection object at 0x7456be94b4c0>, 100, '13F-HR', '2024-05-01', 'raw.xml')
+- +    where <function _upsert_filing_legacy at 0x7456beafc720> = flow._upsert_filing_legacy
+ 2 failed, 8 warnings in 0.96s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-edgar-mutations
++```sh
+ PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero -m 'not slow' --tb=short --disable-warnings
+-..                                                                       [100%]
+-2 passed, 8 warnings in 0.80s
++```
+ 
++```text
++2 passed, 8 warnings in 0.80s
+ exit: 0
+ ```
+ 
+-</details>
++### 19. `test_holding_insert_without_recognized_columns_preserves_legacy_rows`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows-red.txt)
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-edgar-mutations
+-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows -m 'not slow' --tb=short --disable-warnings
+-E   RuntimeError: schema rejected
+ FAILED tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows - RuntimeError: schema rejected
+ 1 failed, 8 warnings in 0.98s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-edgar-mutations
++```sh
+ PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 0.79s
++```
+ 
++```text
++1 passed, 8 warnings in 0.79s
+ exit: 0
+ ```
+ 
+-</details>
++### 20. `test_postgres_upsert_preserves_storage_key`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key-red.txt)
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-edgar-mutations
+-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert 'storage_key = EXCLUDED.storage_key' in 'INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload, storage_key) VALUES (%s, %s, %s, %...= EXCLUDED.filed_date, parsed_payload = EXCLUDED.parsed_payload, storage_key = filings.storage_key RETURNING filing_id'
+-E   AssertionError: assert 'storage_key = EXCLUDED.storage_key' in 'INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload, storage_key) VALUES (%s, %s, %s, %...= EXCLUDED.filed_date, parsed_payload = EXCLUDED.parsed_payload, storage_key = filings.storage_key RETURNING filing_id'
+-E   AssertionError: assert 'storage_key = EXCLUDED.storage_key' in 'INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload, storage_key) VALUES (%s, %s, %s, %...= EXCLUDED.filed_date, parsed_payload = EXCLUDED.parsed_payload, storage_key = filings.storage_key RETURNING filing_id'
+ FAILED tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key[None-0] - AssertionError: assert 'storage_key = EXCLUDED.storage_key' in 'INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload, storage_key) VALUES (%s, %s, %s, %...= EXCLUDED.filed_date, parsed_payload = EXCLUDED.parsed_payload, storage_key = filings.storage_key RETURNING filing_id'
+-FAILED tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key[returned_row1-0] - AssertionError: assert 'storage_key = EXCLUDED.storage_key' in 'INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload, storage_key) VALUES (%s, %s, %s, %...= EXCLUDED.filed_date, parsed_payload = EXCLUDED.parsed_payload, storage_key = filings.storage_key RETURNING filing_id'
+-FAILED tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key[returned_row2-42] - AssertionError: assert 'storage_key = EXCLUDED.storage_key' in 'INSERT INTO filings(manager_id, type, filed_date, source, raw_key, parsed_payload, storage_key) VALUES (%s, %s, %s, %...= EXCLUDED.filed_date, parsed_payload = EXCLUDED.parsed_payload, storage_key = filings.storage_key RETURNING filing_id'
+ 3 failed, 8 warnings in 0.99s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-edgar-mutations
++```sh
+ PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key -m 'not slow' --tb=short --disable-warnings
+-...                                                                      [100%]
+-3 passed, 8 warnings in 0.81s
++```
+ 
++```text
++3 passed, 8 warnings in 0.81s
+ exit: 0
+ ```
+ 
+-</details>
++### 21. `test_reverse_order_original_keeps_amendment_current`
+ 
+-<details>
+-<summary>tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current</summary>
++Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current-red.txt).
+ 
+-red: [complete output](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current-red.txt)
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-edgar-mutations
+-PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current -m 'not slow' --tb=short --disable-warnings
+-E   assert [(10, 250, 0,..., 1, None, 1)] == [(10, 250, 1,...100, 0, 1, 1)]
+-E
+-E     At index 0 diff: (10, 250, 0, 1, 1) != (10, 250, 1, None, 1)
+-E
+ FAILED tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current - assert [(10, 250, 0,..., 1, None, 1)] == [(10, 250, 1,...100, 0, 1, 1)]
+-
+-  At index 0 diff: (10, 250, 0, 1, 1) != (10, 250, 1, None, 1)
+-
+-  Full diff:
+-    [
+-        (
+-            10,
+-            250,
+-  +         0,
+-            1,
+-  -         None,
+-            1,
+-        ),
+-        (
+-            11,
+-            100,
+-  -         0,
+-            1,
+-  +         None,
+-            1,
+-        ),
+-    ]
+ 1 failed, 8 warnings in 0.95s
+-
+ exit: 1
+ ```
+ 
+-green: [complete output](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-edgar-mutations
++```sh
+ PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current -m 'not slow' --tb=short --disable-warnings
+-.                                                                        [100%]
+-1 passed, 8 warnings in 0.79s
++```
+ 
++```text
++1 passed, 8 warnings in 0.79s
+ exit: 0
+ ```
+ 
+-</details>
+-
++### 22. `test_report_page_sorts_value_and_filters_news_exports`
+ 
+-### Follow-up publication blocker
++Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports.diff).
+ 
+-The follow-up `git add tests/test_edgar_flow.py docs/evidence/issue-1888` failed:
+-`Unable to create .git/index.lock: Read-only file system`. No commit can be created
+-in this checkout. Updating PR #1889 with this prepared body was rejected with:
+-`MCP tool call requires approval, but approval policy is never`. The live PR was
+-verified open with draft=false; its body has not been updated. The baseline,
+-CI-artifact reduction and CI pytest acceptance checks remain open. The local
+-verified checkmarks in this prepared body are not a claim of live PR publication.
+-
+-
+-## Search, signal, and report follow-up (2026-11-04)
+-
+-
+-Six new test functions (11 cases) extend `tests/test_issue_1888_coverage.py`.
+-The report page uses the existing SQLite seed and real loaders to verify total-value
+-sorting, topic filtering, the no-matching-news message, and displayed/exported rows.
+-Additional checks cover unexpected diff-query errors with connection cleanup, missing
+-report sources, native PostgreSQL dates with malformed manager IDs, SQLite vector or
+-database-list failures preserving text results, and PostgreSQL vector hits without
+-an identifier. PostgreSQL is modeled; there is no live-server validation or
+-production-code change. The inspected search, signals, report and EDGAR files have
+-no `cache.get(key) is None` negative-cache pattern. Search's `deduped.get(key)` stores
+-only concrete `SearchResult` instances.
+-
+-Matched targeted comparison at `9c4c8ac` before and after these additions, Python
+-3.14.10, using the temporary event-loop shim documented above:
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-red.txt).
+ 
+ ```sh
+-PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+-PYTHONPATH=/tmp/issue1888-runtime pytest tests/test_issue_1888_coverage.py tests/test_daily_report.py tests/test_daily_report_default_date.py tests/test_daily_report_views.py tests/test_search.py tests/test_signals_api.py --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+-```
+-
+-The first command ran in an archived checkout of `9c4c8ac`; the second ran in the
+-working checkout. Results: **64 passed** before and **75 passed** after. Raw JSON
+-and terminal output are `boundaries-{before,after}-coverage.json` and
+-`boundaries-{before,after}-pytest.txt`.
+-
+-| Target | Before missing statements+branches | After | Reduction | After coverage |
+-| --- | ---: | ---: | ---: | ---: |
+-| Search | 13+15=28 | 8+12=20 | 8 | 95% |
+-| Signals | 38+21=59 | 33+18=51 | 8 | 84% |
+-| Daily report | 65+31=96 | 14+15=29 | 67 | 92% |
+-| Total | 183 | 100 | 83 | 91% |
+-
+-These targeted numbers are local, incremental measurements, not CI artifact or
+-whole-suite credit. They must not be added to earlier deltas. In particular, the
+-signals module has additional tests outside this targeted selection.
+-
+-Every new function has a real source mutation and restoration recorded in receipts
+-22–27: all red exits are 1 and all restored exits are 0. Exact source diffs, full
+-commands/output, and original/restored hashes are in `mutations/`. The replay command
+-ran after copying the changed test module into the disposable archived checkout:
+-
+-```sh
+-PYTHONPATH=/tmp/issue1888-runtime python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-boundaries --output docs/evidence/issue-1888/mutations --start-at 21
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
+ ```
+ 
+-The CI-artifact baseline remains blocked: `gh run download 41702885246 -n
+-gate-coverage-3.13-1 -D /tmp/issue1888-main-gate` returned `error connecting to
+-api.github.com`. The GitHub connector verified that the artifact is unexpired and
+-belongs to main SHA `a7f4e626bb4b8359a64c56a56211218e41b6020a`, but its content
+-remains unverified. No CI baseline/ranking, ~180-unit reduction, or CI-pytest
+-checkbox is marked complete.
+-
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports</summary>
+-
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports.diff).
+-
+-red: [full output](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-red.txt)
+-
+ ```text
+-cwd: /tmp/issue1888-boundaries
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert ['Headline1', 'Headline2'] == ['Headline1']
+-E
+-E     Left contains one more item: 'Headline2'
++FAILED tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports[merger] - AssertionError: assert ['Headline1', 'Headline2'] == ['Headline1']
+ 2 failed, 12 warnings in 1.33s
+ exit: 1
+ ```
+ 
+-green: [full output](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-boundaries
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
+ 2 passed, 12 warnings in 1.32s
+ exit: 0
+ ```
+ 
+-</details>
++### 23. `test_report_diff_unexpected_error_propagates_and_closes`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes</summary>
++Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-red.txt).
+ 
+-red: [full output](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-boundaries
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: Expected 'close' to be called once. Called 0 times.
++FAILED tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes - AssertionError: Expected 'close' to be called once. Called 0 times.
+ 1 failed, 6 warnings in 0.58s
+ exit: 1
+ ```
+ 
+-green: [full output](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-boundaries
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
+ 1 passed, 6 warnings in 0.54s
+ exit: 0
+ ```
+ 
+-</details>
++### 24. `test_report_latest_date_ignores_missing_sources`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources</summary>
++Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-red.txt).
+ 
+-red: [full output](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-boundaries
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources -m 'not slow' --tb=short --disable-warnings
+-E   sqlite3.OperationalError: no such table: daily_diffs
+-E   pandas.errors.DatabaseError: Execution failed on sql 'SELECT MAX(report_date) AS report_date FROM daily_diffs': no such table: daily_diffs
++FAILED tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources - pandas.errors.DatabaseError: Execution failed on sql 'SELECT MAX(report_date) AS report_date FROM daily_diffs': no such table: daily_diffs
+ 1 failed, 6 warnings in 0.62s
+ exit: 1
+ ```
+ 
+-green: [full output](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-boundaries
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
+ 1 passed, 6 warnings in 0.53s
+ exit: 0
+ ```
+ 
+-</details>
++### 25. `test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids</summary>
++Source: `api/signals.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-red.txt).
+ 
+-red: [full output](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-boundaries
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids -m 'not slow' --tb=short --disable-warnings
+-E   AssertionError: assert [{'cusip': 'A...Alpha'], ...}] == [{'cusip': 'A...es': [], ...}]
+-E
+-E     At index 0 diff: {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'manager_count': 3, 'manager_names': ['Alpha'], 'total_value_usd': 1200.0, 'avg_conviction_pct': 25.0, 'report_date': datetime.date(2024, 5, 1)} != {'cusip': 'AAA', 'name_of_issuer': 'Issuer', 'manager_count': 3, 'manager_names': [], 'total_value_usd': 1200.0, 'avg_conviction_pct': 25.0, 'report_date': datetime.date(2024, 5, 1)}
++FAILED tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids["Alpha"-names0] - AssertionError: assert [{'cusip': 'A...Alpha'], ...}] == [{'cusip': 'A...es': [], ...}]
+ 3 failed, 1 passed, 6 warnings in 0.54s
+ exit: 1
+ ```
+ 
+-green: [full output](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-boundaries
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
+ 4 passed, 6 warnings in 0.52s
+ exit: 0
+ ```
+ 
+-</details>
++### 26. `test_search_sqlite_vector_failure_preserves_text_results`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results</summary>
++Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-red.txt).
+ 
+-red: [full output](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-boundaries
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
+-E   OSError: vector index unavailable
++FAILED tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results[embedding] - OSError: vector index unavailable
+ 1 failed, 1 passed, 6 warnings in 0.59s
+ exit: 1
+ ```
+ 
+-green: [full output](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-boundaries
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
+ 2 passed, 6 warnings in 0.52s
+ exit: 0
+ ```
+ 
+-</details>
++### 27. `test_search_postgres_ignores_vector_hits_without_document_id`
+ 
+-<details>
+-<summary>tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id</summary>
++Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id.diff).
+ 
+-Mutation: [exact diff](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id.diff).
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-red.txt).
+ 
+-red: [full output](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-red.txt)
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id -m 'not slow' --tb=short --disable-warnings
++```
+ 
+ ```text
+-cwd: /tmp/issue1888-boundaries
+-PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id -m 'not slow' --tb=short --disable-warnings
+-E   ValueError: missing document ID
++FAILED tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id - ValueError: missing document ID
+ 1 failed, 6 warnings in 0.54s
+ exit: 1
+ ```
+ 
+-green: [full output](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-green.txt)
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-green.txt).
+ 
+-```text
+-cwd: /tmp/issue1888-boundaries
++```sh
+ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
+ 1 passed, 6 warnings in 0.53s
+ exit: 0
+ ```
+ 
+-</details>
++### 28. `test_report_postgres_news_caches_results_by_date_and_closes`
++
++Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes.diff).
++
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-red.txt).
++
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++FAILED tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes[populated] - AssertionError: assert 'WHERE n.published_at::date = %s' in 'SELECT n.headline, n.url, n.published_at, n.source, n.topics, n.confidence, m.name AS manager_name FROM news_items n LEFT JOIN managers m ON m.manager_id = n.manager_id WHERE n.published_at::date = ? ORDER BY n.published_at DESC LIMIT 50'
++3 failed, 6 warnings in 0.57s
++exit: 1
++```
++
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-green.txt).
++
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++3 passed, 6 warnings in 0.55s
++exit: 0
++```
++
++### 29. `test_report_whitespace_news_url_keeps_escaped_headline`
++
++Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline.diff).
++
++Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-red.txt).
+ 
+-### Matched full-suite regression and coverage check
++```sh
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++FAILED tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline[ ] - AssertionError: assert '\\[Desk\\] \...;x&gt; &amp;!' == '\\[Desk\\] \...t;x&gt; &amp;'
++2 failed, 6 warnings in 0.54s
++exit: 1
++```
+ 
+-The complete suite was run on `9c4c8ac` in a writable local clone and on the working
+-candidate, with Python 3.14.10 and the same temporary event-loop shim:
++Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-green.txt).
+ 
+ ```sh
+-PYTHONPATH=/tmp/issue1888-runtime pytest tests/ --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-full-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+-PYTHONPATH=/tmp/issue1888-runtime pytest tests/ --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-boundaries-full.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
+-```
+-
+-Before: **3 failed, 2616 passed, 28 skipped**. After: **3 failed, 2627 passed,
+-28 skipped**. Both commands exit 1. The failures are identical: the existing chat
+-dependency test gets `timeout` instead of `dependency down`; edgartools cannot
+-create `/home/runner/.edgar` on the read-only filesystem; the WASM static-route test
+-cannot create a server socket. Existing tests were not disabled or changed.
+-Complete terminal output and raw JSON are in `boundaries-full-{before,after}-pytest.txt`
+-and `boundaries-full-{before,after}-coverage.json`.
+-
+-| Target | Before missing statements+branches | After | Reduction | After coverage |
+-| --- | ---: | ---: | ---: | ---: |
+-| Search | 10+12=22 | 5+9=14 | 8 | 97% |
+-| Signals | 4+2=6 | 2+0=2 | 4 | 99% |
+-| EDGAR | 2+1=3 | 2+1=3 | 0 | 99% |
+-| Daily report | 16+15=31 | 6+8=14 | 17 | 96% |
+-| Total | 62 | 33 | 29 | 98% |
+-
+-This is an incremental local comparison against the previous PR head, not current
+-main's CI artifact baseline. It does not establish the requested ~180-unit CI
+-reduction. All new tests pass; the broader search/signals/report implementation task
+-is now checked in the prepared body. The artifact baseline/ranking, CI reduction,
+-and CI pytest acceptance items remain open.
+-
+-Remaining local misses: search retains optional-import handling, blank/zero-score
+-helper guards and schema/null-result branches; signals retains only the optional
+-FastAPI-import error fallback; EDGAR retains scheduled CLI entry wiring; daily report
+-retains PostgreSQL news-query construction, whitespace URLs, latest-date query-error
+-propagation, login-stop wiring, manager-count sorting, and entry-point/iteration
+-arcs. These are residual compatibility/wiring paths, not claims of untestability.
+-Report value-sort/topic-filter behavior accounts for the largest gain in this round.
+-
+-Black's required repository check passes (452 files unchanged); Ruff passes for
+-both changed Python files. PR #1889 is open and `draft=false`. The PR-body update,
+-`needs-human` label, and blocker comment were all rejected by the tool approval check:
+-`MCP tool call requires approval, but approval policy is never`. The main checkout
+-also rejects staging because `.git/index.lock` is on a read-only filesystem. The
+-prepared PR body and source changes remain in this workspace for publication.
+-
+-
+-The source commit is preserved in the writable isolated checkout
+-`/tmp/issue1888-comparison` (commit subject: `test: cover report exports and search
+-fallback boundaries`). Its 75 affected tests and the required repository-wide
+-Black check pass before committing. The primary checkout retains the same file
+-changes, but its branch cannot be advanced while Git metadata is read-only. Exact
+-terminal captures and mutation diffs retain their original output whitespace.
++PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++2 passed, 6 warnings in 0.53s
++exit: 0
++```
+diff --git a/tests/test_issue_1888_coverage.py b/tests/test_issue_1888_coverage.py
+index afc3d7b..c561864 100644
+--- a/tests/test_issue_1888_coverage.py
++++ b/tests/test_issue_1888_coverage.py
+@@ -357,3 +357,60 @@ def test_search_postgres_ignores_vector_hits_without_document_id(monkeypatch):
+         (6, "Document", "", 0.5),
+     ]
+     vector.assert_called_once_with("Elliott", k=20, connection=conn)
++
++
++@pytest.mark.parametrize("outcome", ["populated", "empty", "query_error"])
++def test_report_postgres_news_caches_results_by_date_and_closes(monkeypatch, outcome):
++    columns = [
++        "headline",
++        "url",
++        "published_at",
++        "source",
++        "topics",
++        "confidence",
++        "manager_name",
++    ]
++    expected = pd.DataFrame(columns=columns)
++    if outcome == "populated":
++        expected = pd.DataFrame(
++            [["Market update", None, "2024-05-01T10:00:00", "Wire", None, 0.8, None]],
++            columns=columns,
++        )
++    connections = [Mock(), Mock()]
++    connect = Mock(side_effect=connections)
++    read_query = Mock(return_value=expected)
++    if outcome == "query_error":
++        read_query.side_effect = pd.errors.DatabaseError("news temporarily unavailable")
++    monkeypatch.setattr(daily_report, "connect_db", connect)
++    monkeypatch.setattr(daily_report.pd, "read_sql_query", read_query)
++    daily_report.load_news.clear()
++    try:
++        pd.testing.assert_frame_equal(daily_report.load_news("2024-05-01"), expected)
++        pd.testing.assert_frame_equal(daily_report.load_news("2024-05-01"), expected)
++        connect.assert_called_once_with()
++        read_query.assert_called_once()
++        connections[0].close.assert_called_once_with()
++
++        # Empty and failed-query results are cached too; another date must query again.
++        pd.testing.assert_frame_equal(daily_report.load_news("2024-05-02"), expected)
++        assert connect.call_count == 2
++        assert read_query.call_count == 2
++        connections[1].close.assert_called_once_with()
++        for call, connection, date in zip(
++            read_query.call_args_list, connections, ["2024-05-01", "2024-05-02"], strict=True
++        ):
++            sql, actual_connection = call.args
++            assert actual_connection is connection
++            assert "LEFT JOIN managers m ON m.manager_id = n.manager_id" in sql
++            assert "WHERE n.published_at::date = %s" in sql
++            assert sql.endswith("ORDER BY n.published_at DESC LIMIT 50")
++            assert call.kwargs == {"params": (date,)}
++    finally:
++        daily_report.load_news.clear()
++
++
++@pytest.mark.parametrize("url", [" ", "\t\n"])
++def test_report_whitespace_news_url_keeps_escaped_headline(url):
++    assert (
++        daily_report.headline_markdown(r"  [Desk] \ <x> &  ", url) == r"\[Desk\] \\ &lt;x&gt; &amp;"
++    )
+-- 
+2.55.0
+
