@@ -1,16 +1,25 @@
-.........                                                                [100%]
+acceptance_date: 2026-11-06 08:09 CST
+outcome: PASS (47 passed) — includes parametrized cases test_review_recovery_accepts_synced_dev_tool_pin_bumps[False] and [True].
+stop_rule: at most three deliberate-break round-trips plus one full-suite python -m pytest -q; stop at first unresolved step or after 90 minutes wall time.
+
+interpreter: /private/tmp/mgrdb-pr1893-py313/bin/python
+python_version: Python 3.13.13
+repo_head: 93971b160db5e1ef9c1644f17b49864f9698cfe1
+note: venv is outside the repo at /private/tmp/mgrdb-pr1893-py313 (no .venv313 in the checkout).
+
+command:
+cd /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer
+/private/tmp/mgrdb-pr1893-py313/bin/python -m pytest tests/test_validate_dependency_test_setup.py tests/test_dashboard_read_failure_evidence.py -q
+
+exit_status: 0
+
+--- pytest output ---
+
+...............................................                          [100%]
 =============================== warnings summary ===============================
-../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23
-  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.8.7' currently installed).
-    from pandas.core.computation.check import NUMEXPR_INSTALLED
-
-../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56
-  /opt/anaconda3/lib/python3.12/site-packages/pandas/core/arrays/masked.py:56: UserWarning: Pandas requires version '1.4.2' or newer of 'bottleneck' (version '1.3.7' currently installed).
-    from pandas.core import (
-
-../../../../../../opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20
-  /opt/anaconda3/lib/python3.12/site-packages/langsmith/evaluation/_key_extraction.py:20: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
-    (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    _AST_STR_TYPES: tuple = (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
 
 api/chat.py:1528
   /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1528: DeprecationWarning: 
@@ -21,10 +30,10 @@ api/chat.py:1528
           
     @app.on_event("startup")
 
-../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
-../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
-../../../../../../opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675
-  /opt/anaconda3/lib/python3.12/site-packages/fastapi/applications.py:4675: DeprecationWarning: 
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
           on_event is deprecated, use lifespan event handlers instead.
   
           Read more about it in the
@@ -51,4 +60,3 @@ api/chat.py:1835
     @app.on_event("shutdown")
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-focused exit: 0

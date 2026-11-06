@@ -1,10 +1,19 @@
-$ pytest tests/test_dashboard_read_failure_evidence.py::test_review_recovery_accepts_synced_dev_tool_pin_bumps -q --tb=short
-exit=0
+interpreter: /private/tmp/mgrdb-pr1893-py313/bin/python (Python 3.13.13)
+repo_head: 93971b160db5e1ef9c1644f17b49864f9698cfe1
+restored: six-tool validator (current branch) and docs/evidence/issue-1868/python-floor-successor.json current_validator_sha256 0d5880682352899c8341a02dd4b1dc6fa5d0d3c4b8b72efb965679abaa42cc34.
 
-.                                                                        [100%]
+command:
+cd /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer
+/private/tmp/mgrdb-pr1893-py313/bin/python -m pytest tests/test_dashboard_read_failure_evidence.py::test_review_recovery_accepts_synced_dev_tool_pin_bumps -q --tb=short
+
+exit_status: 0
+
+--- pytest output ---
+
+..                                                                       [100%]
 =============================== warnings summary ===============================
-.venv313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19
-  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/.venv313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
     _AST_STR_TYPES: tuple = (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
 
 api/chat.py:1528
@@ -16,10 +25,10 @@ api/chat.py:1528
           
     @app.on_event("startup")
 
-.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
-.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
-.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
-  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
           on_event is deprecated, use lifespan event handlers instead.
   
           Read more about it in the
