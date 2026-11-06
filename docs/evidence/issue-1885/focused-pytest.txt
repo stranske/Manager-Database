@@ -1,4 +1,4 @@
-..............................................                           [100%]
+.........                                                                [100%]
 =============================== warnings summary ===============================
 ../../../../../../opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23
   /opt/anaconda3/lib/python3.12/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.8.7' currently installed).

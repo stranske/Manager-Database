@@ -559,7 +559,8 @@ def test_review_recovery_rejects_non_formatter_or_non_exact_changes(package, mut
 SYNC_PR_1884_BUMPS = {"mypy": "2.4.1", "pytest": "9.2.0", "coverage": "7.17.1"}
 
 
-def test_review_recovery_accepts_synced_dev_tool_pin_bumps(tmp_path):
+@pytest.mark.parametrize("pytest_cov_bump", [False, True])
+def test_review_recovery_accepts_synced_dev_tool_pin_bumps(tmp_path, pytest_cov_bump):
     manifest = json.loads((EVIDENCE / "review-recovery-20261012/manifest.json").read_text())
     for name in manifest["current_inputs"]:
         target = tmp_path / name
@@ -572,6 +573,14 @@ def test_review_recovery_accepts_synced_dev_tool_pin_bumps(tmp_path):
         pin = next(value for value in dependencies if value.startswith(tool + "=="))
         assert raw.count(json.dumps(pin)) == 1
         raw = raw.replace(json.dumps(pin), json.dumps(tool + "==" + version))
+    if pytest_cov_bump:
+        pin = next(value for value in dependencies if value.startswith("pytest-cov=="))
+        version_str = pin.split("==", 1)[1]
+        version_parts = version_str.split(".")
+        new_version = ".".join(version_parts[:-1] + [str(int(version_parts[-1]) + 1)])
+        new_pin = "pytest-cov==" + new_version
+        assert raw.count(json.dumps(pin)) == 1
+        raw = raw.replace(json.dumps(pin), json.dumps(new_pin))
     project.write_text(raw)
     validate_review_recovery_current_inputs(tmp_path, manifest)
 

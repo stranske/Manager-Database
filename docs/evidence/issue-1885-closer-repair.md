@@ -8,7 +8,7 @@ Checked 2026-11-05 (America/Chicago). Closes
 | Field | SHA-256 |
 | --- | --- |
 | `docs/evidence/issue-1885/previous-validator.py.txt` (archived) | `0d5880682352899c8341a02dd4b1dc6fa5d0d3c4b8b72efb965679abaa42cc34` |
-| `tests/test_dashboard_read_failure_evidence.py` (current) | `2d12b36382deb8f4b89095498e8e5df6ae00d40b247db84e9932ac178e18102c` |
+| `tests/test_dashboard_read_failure_evidence.py` (current) | `a75ef95ebc44129c685422014896438586e7a5170cceaa1fb4be8e9896155799` |
 
 Recorded in `docs/evidence/issue-1885/synced-tool-pin-successor.json` (`current_validator_sha256` only; `previous_validator_sha256` unchanged).
 
