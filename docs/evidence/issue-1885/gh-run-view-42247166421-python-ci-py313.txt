@@ -1,0 +1,70 @@
+
+✓ main CI · 42247166421
+Triggered via push about 1 hour ago
+
+JOBS
+✓ Golden offline gate in 1m27s (ID 127992298600)
+✓ Docker stack smoke in 2m5s (ID 127992299026)
+✓ UI screenshot artifact in 5m48s (ID 127992299281)
+✓ Postgres chain integration in 1m57s (ID 127992299302)
+✓ Python CI / Validate inputs in 6s (ID 127992299729)
+✓ Python CI / typecheck-mypy in 1m25s (ID 127993268681)
+✓ Python CI / lint-format in 1m35s (ID 127993268810)
+✓ Python CI / select reusable CI scope in 4s (ID 127993268813)
+✓ Python CI / lint-ruff in 1m4s (ID 127993268853)
+✓ Python CI / python 3.13 in 3m31s (ID 127994213018)
+✓ Python CI / python 3.14 in 3m8s (ID 127994213059)
+✓ Python CI / logs summary in 16s (ID 127996353449)
+
+ANNOTATIONS
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Golden offline gate: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Docker stack smoke: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+UI screenshot artifact: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Postgres chain integration: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / Validate inputs: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / typecheck-mypy: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / lint-format: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / select reusable CI scope: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / lint-ruff: .github#1
+
+- Artifact "gate-coverage-3.13-1" was not found in daily window "2026-11-06". Producer steps may repopulate /home/runner/work/Manager-Database/Manager-Database/artifacts/coverage.
+Python CI / python 3.13: .github#91
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / python 3.13: .github#1
+
+- Artifact "gate-coverage-3.14-1" was not found in daily window "2026-11-06". Producer steps may repopulate /home/runner/work/Manager-Database/Manager-Database/artifacts/coverage.
+Python CI / python 3.14: .github#91
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / python 3.14: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / logs summary: .github#1
+
+
+ARTIFACTS
+ui-screenshots
+langsmith-fleet.ndjson
+gate-coverage-3.14-1
+gate-coverage-3.13-1
+
+For more information about a job, try: gh run view --job=<job-id>
+View this run on GitHub: https://github.com/stranske/Manager-Database/actions/runs/42247166421
