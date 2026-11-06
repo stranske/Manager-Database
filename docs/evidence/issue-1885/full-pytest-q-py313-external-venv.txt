@@ -1,0 +1,161 @@
+acceptance_date: 2026-11-06 08:09 CST
+documented_command (README_bootstrap.md: use pytest -q after editable install; equivalent module form):
+  python -m pip install -e ".[dev,app]"
+  python -m pytest -q
+
+interpreter: /private/tmp/mgrdb-pr1893-py313/bin/python
+python_version: Python 3.13.13
+repo_head: 93971b160db5e1ef9c1644f17b49864f9698cfe1
+note: venv at /private/tmp/mgrdb-pr1893-py313 — not repo-local .venv313; full suite including nightly-marked tests (dialect gate not suppressed).
+
+command:
+cd /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer
+/tmp/mgrdb-pr1893-py313/bin/python -m pytest -q
+
+exit_status: 0
+
+--- pytest output ---
+
+........................................................................ [  2%]
+........................................................................ [  5%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+................................sssssssssssss........................... [ 13%]
+........................................................................ [ 16%]
+........................................................................ [ 19%]
+.............s................sssssss................................... [ 21%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 30%]
+........................................................................ [ 32%]
+........................................................................ [ 35%]
+........................................................................ [ 38%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 46%]
+........................................................................ [ 49%]
+.............s..........s............................................... [ 52%]
+..................................s..................................... [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 60%]
+........................................................................ [ 63%]
+........................................................................ [ 65%]
+........................................................................ [ 68%]
+........................................................................ [ 71%]
+........................................................................ [ 74%]
+........................................................................ [ 76%]
+........................................................................ [ 79%]
+........................................................................ [ 82%]
+...........................................s............................ [ 85%]
+........................................................................ [ 87%]
+....................................................sss................. [ 90%]
+........................................................................ [ 93%]
+........................................................................ [ 96%]
+........................................................................ [ 98%]
+.............................                                            [100%]
+=============================== warnings summary ===============================
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    _AST_STR_TYPES: tuple = (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/pythonjsonlogger/jsonlogger.py:11
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/pythonjsonlogger/jsonlogger.py:11: DeprecationWarning: pythonjsonlogger.jsonlogger has been moved to pythonjsonlogger.json
+    warnings.warn(
+
+tests/test_activism_api.py::test_list_activism_filings_filters
+tests/test_issue_1830_coverage.py::test_activism_date_helpers_and_filtered_queries
+tests/test_issue_1830_coverage.py::test_activism_date_helpers_and_filtered_queries
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/activism.py:203: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_activism_api.py::test_list_activism_events_filters
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/activism.py:264: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_activism_api.py::test_campaign_list_applies_target_date_and_limit_filters
+tests/test_activism_api.py::test_campaign_list_applies_target_date_and_limit_filters
+tests/test_rag_search_chain.py::test_campaign_snapshot_does_not_leak_outside_requested_scope[scope1]
+tests/test_rag_search_chain.py::test_campaign_snapshot_does_not_leak_outside_requested_scope[scope1]
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/activism.py:411: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_chat_api.py::test_holdings_correction_as_of_request_uses_pre_correction_snapshot
+tests/test_chat_api.py::test_holdings_correction_as_of_request_uses_pre_correction_snapshot
+tests/test_holdings_analysis_chain.py::test_correction_superseded_positions_are_not_model_context
+tests/test_holdings_analysis_chain.py::test_correction_superseded_positions_are_not_model_context
+tests/test_holdings_analysis_chain.py::test_correction_superseded_positions_are_not_model_context
+tests/test_holdings_analysis_chain.py::test_correction_superseded_positions_are_not_model_context
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/chains/holdings_analysis.py:144: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute(query, params)
+
+tests/test_daily_report.py::test_load_diffs_and_news
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_signals_api.py::test_get_crowded_trades_filters_by_report_date_and_threshold
+tests/test_signals_api.py::test_crowded_trades_drops_non_finite_values
+tests/test_signals_api.py::test_crowded_trades_drops_non_finite_values
+tests/test_signals_api.py::test_signals_endpoints_return_empty_arrays_for_missing_data
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/signals.py:218: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_daily_report.py::test_load_diffs_and_news
+tests/test_dashboard.py::test_load_signal_helpers
+tests/test_signals_api.py::test_get_contrarian_signals_filters_by_manager
+tests/test_signals_api.py::test_contrarian_signals_drops_non_finite_values
+tests/test_signals_api.py::test_contrarian_signals_drops_non_finite_values
+tests/test_signals_api.py::test_signals_endpoints_return_empty_arrays_for_missing_data
+tests/test_signals_api.py::test_get_contrarian_signals_supports_sqlite_managers_id_shape
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/signals.py:274: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    rows = conn.execute(
+
+tests/test_manager_cache.py: 14 warnings
+tests/test_manager_universe_api.py: 2 warnings
+tests/test_quality_flags.py: 1 warning
+tests/test_rate_limit_contract.py: 1 warning
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/cache.py:73: DeprecationWarning: Call to deprecated setex. (Use 'set' instead.) -- Deprecated since version 2.6.12.
+    client.setex(key, ttl, payload)
+
+tests/test_monitor_memory.py::test_write_samples_respects_max_samples
+tests/test_monitor_memory.py::test_write_samples_respects_max_samples
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/scripts/monitor_memory.py:87: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp = dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

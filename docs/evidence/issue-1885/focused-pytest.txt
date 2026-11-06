@@ -1,0 +1,61 @@
+acceptance_date: 2026-11-06 09:34 CST
+stop_rule: at most two attempts per failing command; stop and report the first unresolved failure.
+interpreter: /private/tmp/mgrdb-pr1893-py313/bin/python
+python_version: Python 3.13.13
+repo_head: 3fb33de2160db8e7256862c7588cab7219895789 (implementation unchanged; this commit only replaces receipts/docs)
+note: venv is outside the repository at /private/tmp/mgrdb-pr1893-py313; no virtual environment exists under the checkout.
+
+command:
+cd /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer
+/private/tmp/mgrdb-pr1893-py313/bin/python -m pytest tests/test_validate_dependency_test_setup.py tests/test_dashboard_read_failure_evidence.py -q
+
+exit_status: 0
+outcome: PASS — 47 tests passed, 0 failed, 0 deselected (47 progress dots; pyproject addopts=-q plus -q suppresses the summary line)
+
+--- complete output ---
+
+...............................................                          [100%]
+=============================== warnings summary ===============================
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    _AST_STR_TYPES: tuple = (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
+
+api/chat.py:1528
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1528: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+api/chat.py:1828
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1828: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+api/chat.py:1835
+  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/api/chat.py:1835: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
