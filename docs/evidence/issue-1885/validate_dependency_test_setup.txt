@@ -1,3 +1,19 @@
+acceptance_date: 2026-11-06 09:34 CST
+stop_rule: at most two attempts per failing command; stop and report the first unresolved failure.
+interpreter: /private/tmp/mgrdb-pr1893-py313/bin/python
+python_version: Python 3.13.13
+repo_head: 3fb33de2160db8e7256862c7588cab7219895789 (implementation unchanged; this commit only replaces receipts/docs)
+note: venv is outside the repository at /private/tmp/mgrdb-pr1893-py313; no virtual environment exists under the checkout.
+
+command:
+cd /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer
+/private/tmp/mgrdb-pr1893-py313/bin/python scripts/validate_dependency_test_setup.py
+
+exit_status: 0
+outcome: PASS (All validation checks passed)
+
+--- complete output ---
+
 ============================================================
 Dependency Test Setup Validation
 ============================================================

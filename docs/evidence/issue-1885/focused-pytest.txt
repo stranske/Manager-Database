@@ -1,19 +1,18 @@
-acceptance_date: 2026-11-06 08:09 CST
-outcome: PASS (47 passed) — includes parametrized cases test_review_recovery_accepts_synced_dev_tool_pin_bumps[False] and [True].
-stop_rule: at most three deliberate-break round-trips plus one full-suite python -m pytest -q; stop at first unresolved step or after 90 minutes wall time.
-
+acceptance_date: 2026-11-06 09:34 CST
+stop_rule: at most two attempts per failing command; stop and report the first unresolved failure.
 interpreter: /private/tmp/mgrdb-pr1893-py313/bin/python
 python_version: Python 3.13.13
-repo_head: 93971b160db5e1ef9c1644f17b49864f9698cfe1
-note: venv is outside the repo at /private/tmp/mgrdb-pr1893-py313 (no .venv313 in the checkout).
+repo_head: 3fb33de2160db8e7256862c7588cab7219895789 (implementation unchanged; this commit only replaces receipts/docs)
+note: venv is outside the repository at /private/tmp/mgrdb-pr1893-py313; no virtual environment exists under the checkout.
 
 command:
 cd /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer
 /private/tmp/mgrdb-pr1893-py313/bin/python -m pytest tests/test_validate_dependency_test_setup.py tests/test_dashboard_read_failure_evidence.py -q
 
 exit_status: 0
+outcome: PASS — 47 tests passed, 0 failed, 0 deselected (47 progress dots; pyproject addopts=-q plus -q suppresses the summary line)
 
---- pytest output ---
+--- complete output ---
 
 ...............................................                          [100%]
 =============================== warnings summary ===============================

@@ -1,49 +1,59 @@
+acceptance_date: 2026-11-06 09:34 CST
+stop_rule: at most two attempts per failing command; stop and report the first unresolved failure.
+interpreter: /private/tmp/mgrdb-pr1893-py313/bin/python
+python_version: Python 3.13.13
+repo_head: 3fb33de2160db8e7256862c7588cab7219895789 (implementation unchanged; this commit only replaces receipts/docs)
+note: venv is outside the repository at /private/tmp/mgrdb-pr1893-py313; no virtual environment exists under the checkout.
+
+command:
+cd /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer
+/private/tmp/mgrdb-pr1893-py313/bin/python -m pytest -m 'not nightly' -q
+
+exit_status: 0
+outcome: PASS — 2593 passed, 26 skipped, 0 failed (counted from progress characters; pyproject addopts=-q plus -q suppresses the summary line). Nightly-marked tests deselected by -m 'not nightly'.
+
+--- complete output ---
+
 ........................................................................ [  2%]
 ........................................................................ [  5%]
 ........................................................................ [  8%]
-........................................................................ [ 11%]
+........................................................................ [ 10%]
 ................................sssssssssssss........................... [ 13%]
 ........................................................................ [ 16%]
 ........................................................................ [ 19%]
-.............s................sssssss................................... [ 22%]
+.............s................sssssss................................... [ 21%]
 ........................................................................ [ 24%]
 ........................................................................ [ 27%]
 ........................................................................ [ 30%]
-........................................................................ [ 33%]
+........................................................................ [ 32%]
 ........................................................................ [ 35%]
 ........................................................................ [ 38%]
 ........................................................................ [ 41%]
-........................................................................ [ 44%]
+........................................................................ [ 43%]
 ........................................................................ [ 46%]
-...F.................................................................... [ 49%]
-............s........................................................... [ 52%]
-................................s....................................... [ 55%]
+........................................................................ [ 49%]
+.............s.......................................................... [ 52%]
+.................................s...................................... [ 54%]
 ........................................................................ [ 57%]
 ........................................................................ [ 60%]
 ........................................................................ [ 63%]
-........................................................................ [ 66%]
+........................................................................ [ 65%]
 ........................................................................ [ 68%]
 ........................................................................ [ 71%]
 ........................................................................ [ 74%]
-........................................................................ [ 77%]
+........................................................................ [ 76%]
 ........................................................................ [ 79%]
 ........................................................................ [ 82%]
 ........................................................................ [ 85%]
-........................................................................ [ 88%]
-.................................................sss.................... [ 90%]
+........................................................................ [ 87%]
+..................................................sss................... [ 90%]
 ........................................................................ [ 93%]
 ........................................................................ [ 96%]
-........................................................................ [ 99%]
-..........................                                               [100%]
-=================================== FAILURES ===================================
-E   assert [Finding(path...", (name,))')] == []
-      
-      Left contains 2 more items, first extra item: Finding(path='.venv313/lib/python3.13/site-packages/mypy/metastore.py', line=216, token='SQLITE ? placeholder', text='cur = db.execute(f"SELECT {field} FROM files2 WHERE path = ?", (name,))')
-      Use -v to get more diff
-/Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/tests/test_dialect_portability_gate.py:21: assert [Finding(path...", (name,))')] == []
+........................................................................ [ 98%]
+...........................                                              [100%]
 =============================== warnings summary ===============================
-.venv313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19
-  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/.venv313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/langsmith/evaluation/_key_extraction.py:19: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
     _AST_STR_TYPES: tuple = (ast.Str, ast.Constant) if hasattr(ast, "Str") else (ast.Constant,)
 
 api/chat.py:1528
@@ -55,10 +65,10 @@ api/chat.py:1528
           
     @app.on_event("startup")
 
-.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
-.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
-.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723
-  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/.venv313/lib/python3.13/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
           on_event is deprecated, use lifespan event handlers instead.
   
           Read more about it in the
@@ -84,8 +94,8 @@ api/chat.py:1835
           
     @app.on_event("shutdown")
 
-.venv313/lib/python3.13/site-packages/pythonjsonlogger/jsonlogger.py:11
-  /Users/teacher/.codex/orchestrator/worktrees/stranske__Manager-Database__1893__closer/.venv313/lib/python3.13/site-packages/pythonjsonlogger/jsonlogger.py:11: DeprecationWarning: pythonjsonlogger.jsonlogger has been moved to pythonjsonlogger.json
+../../../../../../private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/pythonjsonlogger/jsonlogger.py:11
+  /private/tmp/mgrdb-pr1893-py313/lib/python3.13/site-packages/pythonjsonlogger/jsonlogger.py:11: DeprecationWarning: pythonjsonlogger.jsonlogger has been moved to pythonjsonlogger.json
     warnings.warn(
 
 tests/test_activism_api.py::test_list_activism_filings_filters
@@ -147,5 +157,3 @@ tests/test_monitor_memory.py::test_write_samples_respects_max_samples
     timestamp = dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-FAILED tests/test_dialect_portability_gate.py::test_dialect_gate_accepts_current_audited_repo_state
