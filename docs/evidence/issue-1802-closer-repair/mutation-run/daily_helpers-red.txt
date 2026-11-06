@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_daily_report_helpers_and_missing_source_paths ______________
+tests/test_issue_1802_coverage.py:105: in test_daily_report_helpers_and_missing_source_paths
+    assert daily_report.parse_topics(None) == []
+E   AssertionError: assert ['broken'] == []
+E     
+E     Left contains one more item: 'broken'
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_issue_1802_coverage.py::test_daily_report_helpers_and_missing_source_paths

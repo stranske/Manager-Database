@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_digest_rendering_email_and_csv_helpers_cover_empty_and_populated_paths __
+tests/test_issue_1802_coverage.py:27: in test_digest_rendering_email_and_csv_helpers_cover_empty_and_populated_paths
+    assert "B: News" in digest_flow.render_digest_plain_text(populated)
+E   AssertionError: assert 'B: News' in 'Manager activity digest (12h)\nGenerated at: 2026-01-02T00:00:00+00:00\n\nFilings (1)\n- A: 13F filed 2026-01-01 via SEC\n\nNews (1)\n- B: BROKEN (Wire, 2026-01-02)\n\nImportant alerts (1)\n- Rule [C]: Summary (2026-01-02)'
+E    +  where 'Manager activity digest (12h)\nGenerated at: 2026-01-02T00:00:00+00:00\n\nFilings (1)\n- A: 13F filed 2026-01-01 via SEC\n\nNews (1)\n- B: BROKEN (Wire, 2026-01-02)\n\nImportant alerts (1)\n- Rule [C]: Summary (2026-01-02)' = <function render_digest_plain_text at 0x32e286b60>(DigestDocument(generated_at=datetime.datetime(2026, 1, 2, 0, 0, tzinfo=datetime.timezone.utc), lookback_hours=12, fili...alerts=[DigestAlert(rule_name='Rule', event_type='event', fired_at='2026-01-02', summary='Summary', manager_name='C')]))
+E    +    where <function render_digest_plain_text at 0x32e286b60> = digest_flow.render_digest_plain_text
+=========================== short test summary info ============================
+FAILED tests/test_issue_1802_coverage.py::test_digest_rendering_email_and_csv_helpers_cover_empty_and_populated_paths

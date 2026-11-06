@@ -1,0 +1,1 @@
+BASELINE: PYTHONPATH=. /opt/anaconda3/bin/python3 -m pytest -m not nightly --cov --cov-config=pyproject.toml --cov-report=json:docs/evidence/issue-1802-closer-repair/gate-baseline-exclude-1802-module-coverage.json -q --ignore=tests/test_issue_1802_coverage.py
