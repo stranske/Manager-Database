@@ -1,7 +1,9 @@
 # Issue #1885 closer repair (PR #1893)
 
-Checked 2026-11-06 (America/Chicago). Closes
-[#1885](https://github.com/stranske/Manager-Database/issues/1885).
+Historical repair receipts checked 2026-11-06 (America/Chicago). The local repair
+for [#1885](https://github.com/stranske/Manager-Database/issues/1885) merged;
+successor acceptance remains tracked in
+[#1896](https://github.com/stranske/Manager-Database/issues/1896).
 
 ## PR #1893 merge and review (complete)
 
@@ -15,7 +17,7 @@ Checked 2026-11-06 (America/Chicago). Closes
 ## Successor chain vs closed sync PR #1884
 
 - **[#1884](https://github.com/stranske/Manager-Database/pull/1884)** — `state=CLOSED` (not merged), `closedAt=2026-11-05T05:34:44Z`, `headRefOid=d4e2b79923d39b8e3d752147f677de108cea6d20`. Title: deps: sync dev tool versions. Closed when Workflows regenerated a newer consumer sync PR for the same maintenance class (new plan `generation` in the PR-body delivery record).
-- **[#1891](https://github.com/stranske/Manager-Database/pull/1891)** — open successor for the same dev-tool sync automation: title **deps: sync dev tool versions**, branch `deps/sync-dev-versions-058fc8abcab9`, **`headRefOid=4d7a43785cd71b57c434bcb0a60d88e0b3f393a7`** (`gh pr view 1891 --repo stranske/Manager-Database --json state,headRefOid,headRefName`). The PR body’s `sync-pr-delivery-record` omits predecessor/successor PR IDs but replaces the same closed sync intent as #1884 with a new `generation` (`058fc8abcab9`), so **#1891 is treated here as the explicit regenerated successor** to closed #1884. #1891 is not an arbitrary substitute: it is the only open “deps: sync dev tool versions” PR on the repo (`gh pr list --state open --search "sync dev tool"`).
+- **[#1891](https://github.com/stranske/Manager-Database/pull/1891)** — open delivery for the same dev-tool sync intent: title **deps: sync dev tool versions**, branch `deps/sync-dev-versions-058fc8abcab9`, **`headRefOid=4d7a43785cd71b57c434bcb0a60d88e0b3f393a7`** (`gh pr view 1891 --repo stranske/Manager-Database --json state,headRefOid,headRefName`). Both PR-body delivery records identify `durable_issue_url=https://github.com/stranske/Workflows/issues/1836` and `repository=stranske/Manager-Database`; their plan IDs are `dev-tool-44505f50de37` (#1884) and `dev-tool-058fc8abcab9` (#1891). This links their maintenance intent. Both records have empty `predecessor_prs` and `successor_prs`, so they do not establish an explicit controller-recorded successor edge. The refreshed delivery still needs its own record and target SHA.
 - **Why #1891 still fails Gate on that head:** the PR base predates **#1893** merging to `main`. Gate at `4d7a437…` failed **`Python CI / python 3.13`** (and the overall Gate run) with dashboard evidence tests asserting `current == historical` — the **#1885 / #1893** fix is missing on the merge base until #1891 is **rebased or merged with `main`**, or a newer sync PR is opened from an updated base.
 
 ## Scope vs historical sync PR #1884
@@ -90,8 +92,75 @@ gh run view 41956065739 --repo stranske/Manager-Database --json headSha,conclusi
   `classification-rationale=classified: 4 changed file(s); matched python-code, workflow-change, security-relevant`  
   and changed files: `.github/workflows/autofix-versions.env`, `.pre-commit-config.yaml`, `pyproject.toml`, `requirements.lock`. **No “pin conflict” / merge-conflict string appears in that rationale** (this round is dependency-sync path classification, not a pin-merge deadlock finding).
 
-**Named “Evidence” gate:** On commit `4d7a437…`, the GitHub Checks list from `gh pr view 1891 --json statusCheckRollup` includes **CodeRabbit**, **Health 45 Agents Guard**, and **Gate**-related checks; there is **no** separate check whose **name** is exactly `Evidence`. If “Evidence” refers to a verifier or off-GitHub named gate, it is **not present as a distinct check run on this head** in the rollup captured for #1891.
+**Required Evidence acceptance:** The required check is named **`Dev-tool pin update breaks Python CI / python 3.13 (sync PR 1884)`**. Searching only for a check literally named `Evidence` does not identify its mechanism. Neither name appears among the 23 check runs returned for `4d7a437…` on 2026-11-07. The Evidence mechanism, runnable acceptance command and passing target-head receipt remain unidentified; a green path classifier does not satisfy them.
 
 **Passing successor acceptance (still outstanding):** Criteria asked for **passing** `Python CI / python 3.13` and a passing Evidence-equivalent check **on the same successor head**. That is **not** true today: the only Gate run on `4d7a437…` failed Python 3.13 until #1891 incorporates **`main` at or after merge commit `1cd5965635738bd467df8df5975fadc4e4b892f8` (#1893)**. Repair-PR CI on #1893 does not substitute for successor-head acceptance. Controller-owned **`maint-68-sync-consumer-repos.yml`** (or updating #1891’s base branch) remains the path to a **green** Gate rerun on a refreshed sync head.
 
 **Repair-PR / local CI note:** The instruction set for this repair does **not** require running `python -m pytest -m 'not nightly' -q` when only documentation changes; the receipts in this file for full `not nightly` runs remain from PR #1893’s validation work unless re-run explicitly.
+
+## Issue #1896 inspection (2026-11-07 UTC)
+
+- [x] Inspect `normalized_dashboard_project`, `validate_review_recovery_current_inputs`
+  and `synced-tool-pin-successor.json`; verify the six exact-pin exception and
+  rejection of unrelated changes. New regression cases live in
+  `tests/test_dashboard_synced_tool_pin_contract.py`, keeping the digest-bound
+  validator and archived evidence unchanged. All 74 new cases pass under
+  Python 3.14.10: individual and simultaneous six-tool pin bumps; rejection of
+  ranges, wildcards, extras, markers, direct URLs, prereleases, local versions,
+  unpinned, missing and duplicate tools; and rejection of unrelated metadata,
+  runtime dependencies, unsynced dev dependencies, Python floor and mypy settings
+  even after all six pins change.
+
+Runnable command:
+
+```bash
+python -m pytest tests/test_dashboard_synced_tool_pin_contract.py -q -m 'not slow'
+```
+
+The existing evidence module also exits 0 with
+`python -m pytest tests/test_dashboard_read_failure_evidence.py -q -m 'not slow'`
+under Python 3.14.10. These runs validate this repair checkout, not a refreshed
+sync target. The available Python 3.13.18 interpreter has no pytest installed;
+no new Python 3.13 or full-suite successor receipt is claimed.
+
+**Review task discrepancy:** GitHub's PR metadata reports #1895 merged at
+`cbde41a5c00df582d94bde5ee0f5b34267f69569`. The review-thread query returns
+`review_threads=[]`, review submissions return `reviews=[]`, and
+`GET /repos/stranske/Manager-Database/pulls/1895/comments?per_page=100` returns
+`[]`. Conversation comments contain the CodeRabbit spending-cap notice and
+[closer merge marker](https://github.com/stranske/Manager-Database/pull/1895#issuecomment-6692110675).
+No concrete inline objection is available in these responses. The task to
+address that objection remains open pending its comment URL or text. This
+inspection cannot establish review state at the earlier merge time.
+
+**Controller blocker:** `gh pr view 1891 --repo stranske/Manager-Database --json
+state,isDraft,headRefOid,body,statusCheckRollup` fails to connect to
+`api.github.com` in this runner. The GitHub connector supplies read access but
+has no workflow-dispatch tool. It confirms #1891 remains open and ready for
+review on `4d7a43785cd71b57c434bcb0a60d88e0b3f393a7`, with base SHA
+`bbefced1d4b3620e36c95079b3f5969493cae891`. Its delivery record's lease expires
+at `2026-11-08T02:34:04Z`. The controller must reconcile current writer ownership
+through the existing `maint-68-sync-consumer-repos.yml` path; no branch write,
+lease override, workflow edit or merge-gate change was made in this run.
+
+The connector's `GET /repos/stranske/Manager-Database/actions/runs/41956065739`
+confirms `head_sha=4d7a43785cd71b57c434bcb0a60d88e0b3f393a7` and
+`conclusion=failure`; the same head's check-runs endpoint still reports
+`Python CI / python 3.13` as failed. No refreshed head, passing Evidence run or
+subsequent sync-core round is recorded. In particular, the historical green
+`classify changed paths` job above is not a sync-core finding result.
+
+**Commit blocker:** Staging these changes with `git add
+tests/test_dashboard_synced_tool_pin_contract.py
+docs/evidence/issue-1885-closer-repair.md` exits 128: Git cannot create
+`.git/index.lock` because this runner mounts `.git` read-only. The source and
+documentation changes remain in the worktree for a writer-capable runner to
+commit after the formatting gate passes.
+
+Targeted Black and Ruff checks pass for the new test module, and
+`git diff --check` passes. The required repository-wide Black command was
+interrupted (exit 130), so its result remains unverified. Attempts to add
+`needs-human` and post the blocker comment on PR #1899 were both rejected:
+`MCP tool call requires approval, but approval policy is never`. Neither GitHub
+write occurred. PR #1899 was observed open with `draft=false` on
+`aed963ad782f716b269881303753f956dc8ec827`.
