@@ -1,0 +1,66 @@
+
+✓ claude/issue-1885 Gate stranske/Manager-Database#1893 · 42245239464
+Triggered via pull_request about 2 hours ago
+
+JOBS
+✓ resolve Gate PR context in 5s (ID 127985621753)
+✓ generated delivery seal in 4s (ID 127985914812)
+✓ classify changed paths in 10s (ID 127985914831)
+✓ Python CI / Validate inputs in 8s (ID 127986297489)
+✓ Python CI / lint-ruff in 1m37s (ID 127986487964)
+✓ Python CI / lint-format in 1m22s (ID 127986488001)
+✓ Python CI / select reusable CI scope in 4s (ID 127986488002)
+✓ Python CI / typecheck-mypy in 1m20s (ID 127986488093)
+✓ Python CI / python 3.14 in 3m17s (ID 127986821933)
+✓ Python CI / python 3.13 in 4m1s (ID 127986822090)
+✓ Python CI / logs summary in 11s (ID 127989739189)
+✓ gate-summary in 7s (ID 127990378832)
+
+ANNOTATIONS
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+resolve Gate PR context: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+generated delivery seal: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+classify changed paths: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / Validate inputs: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / lint-ruff: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / lint-format: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / select reusable CI scope: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / typecheck-mypy: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / python 3.14: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / python 3.13: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Python CI / logs summary: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+gate-summary: .github#1
+
+
+ARTIFACTS
+gate-coverage-3.13-1
+gate-coverage-3.14-1
+gate-coverage-trend-history
+gate-coverage-trend
+langsmith-fleet.ndjson
+gate-coverage-summary
+
+For more information about a job, try: gh run view --job=<job-id>
+View this run on GitHub: https://github.com/stranske/Manager-Database/actions/runs/42245239464
