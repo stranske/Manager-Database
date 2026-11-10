@@ -1,0 +1,17 @@
+...............s........................................................ [ 54%]
+.........................................................../opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/coverage/sqldata.py:616: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7a2c48a39990>
+  data = [(file_id, self._current_context_id, fromno, tono) for fromno, tono in arcs]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+              [100%]
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.14.9-final-0 ________________
+
+Name                 Stmts   Miss Branch BrPart  Cover   Missing
+----------------------------------------------------------------
+api/search.py          294     10    118     12    95%   23->26, 28-31, 67, 93, 216->288, 310->312, 373->375, 441->447, 506, 625->709, 656->663, 660-661, 668-669, 835->842, 875->879
+api/signals.py         248     13     66      6    94%   14-18, 92, 158, 191, 201-202, 255, 311, 398-399
+etl/edgar_flow.py      236     10     72      7    94%   74, 198, 217-220, 227, 288, 371-372, 391->394, 534-536
+ui/daily_report.py     303     16     78     11    92%   42-43, 66, 196, 295, 349, 354->356, 364-368, 489, 534, 539-540, 569
+----------------------------------------------------------------
+TOTAL                 1081     49    334     36    94%
+130 passed, 1 skipped, 43 warnings in 5.00s

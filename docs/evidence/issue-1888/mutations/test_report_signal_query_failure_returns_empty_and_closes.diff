@@ -1,0 +1,20 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -125,7 +125,7 @@
+             limit=limit,
+         )
+     except Exception:
+-        rows = []
++        raise
+     finally:
+         conn.close()
+     return pd.DataFrame([row.model_dump() for row in rows])
+@@ -141,7 +141,7 @@
+             limit=limit,
+         )
+     except Exception:
+-        rows = []
++        raise
+     finally:
+         conn.close()
+     return pd.DataFrame([row.model_dump() for row in rows])

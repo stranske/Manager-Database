@@ -1,0 +1,104 @@
+........................................................................ [  2%]
+........................................................................ [  5%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+................................sssssssssssss........................... [ 13%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+.............s................sssssss................................... [ 21%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 32%]
+....................F................................................... [ 35%]
+........................................................................ [ 37%]
+........................................................................ [ 40%]
+........................................................................ [ 43%]
+........................................................................ [ 45%]
+........................................................................ [ 48%]
+........s........................s...................................... [ 51%]
+.F...................................................s.................. [ 54%]
+........................................................................ [ 56%]
+........................................................................ [ 59%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 78%]
+........................................................................ [ 81%]
+........................................................................ [ 83%]
+................s....................................................... [ 86%]
+........................................................................ [ 89%]
+.........................sss............................................ [ 91%]
+........................................................................ [ 94%]
+.....................................Invalid token type. Token must be a <class 'bytes'>
+
+=================================== FAILURES ===================================
+__________ test_chat_payload_and_dependency_error_branches_are_stable __________
+tests/test_coverage_round_1842.py:258: in test_chat_payload_and_dependency_error_branches_are_stable
+    assert failed_reason == "dependency down"
+E   AssertionError: assert 'timeout' == 'dependency down'
+E     
+E     - dependency down
+E     + timeout
+_____________ test_real_edgartools_parser_reads_committed_fixture ______________
+tests/test_edgar_integration.py:307: in test_real_edgartools_parser_reads_committed_fixture
+    pytest.importorskip("edgar.thirteenf")
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1314: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:491: in _call_with_frames_removed
+    ???
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1342: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:938: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:763: in exec_module
+    ???
+<frozen importlib._bootstrap>:491: in _call_with_frames_removed
+    ???
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/__init__.py:11: in <module>
+    from edgar._filings import (
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/_filings.py:33: in <module>
+    from edgar.attachments import Attachment, Attachments, AttachmentServer, FilingHomepage
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/attachments.py:35: in <module>
+    from edgar.httpclient import async_http_client
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/httpclient.py:417: in <module>
+    HTTP_MGR = get_http_mgr(request_per_sec_limit=get_edgar_rate_limit_per_sec())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/httpclient.py:211: in get_http_mgr
+    cache_dir = get_cache_directory()
+                ^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/httpclient.py:105: in get_cache_directory
+    cachedir = get_edgar_data_directory() / "_tcache"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/core.py:324: in get_edgar_data_directory
+    return get_data_directory(create=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/paths.py:115: in get_data_directory
+    path.mkdir(parents=True, exist_ok=True)
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/pathlib/__init__.py:1011: in mkdir
+    os.mkdir(self, mode)
+E   OSError: [Errno 30] Read-only file system: '/home/runner/.edgar'
+=========================== short test summary info ============================
+FAILED tests/test_coverage_round_1842.py::test_chat_payload_and_dependency_error_branches_are_stable - AssertionError: assert 'timeout' == 'dependency down'
+  
+  - dependency down
+  + timeout
+FAILED tests/test_edgar_integration.py::test_real_edgartools_parser_reads_committed_fixture - OSError: [Errno 30] Read-only file system: '/home/runner/.edgar'
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/testing/v1/local_script_runner.py:184: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)
+2 failed, 2527 passed, 28 skipped, 64 warnings in 237.57s (0:03:57)

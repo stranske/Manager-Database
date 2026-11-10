@@ -1,0 +1,66 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes -m 'not slow' --tb=short --disable-warnings
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_report_signal_query_failure_returns_empty_and_closes[load_crowded_trades-query_crowded_trades] _
+tests/test_issue_1888_coverage.py:167: in test_report_signal_query_failure_returns_empty_and_closes
+    assert load("2024-05-01").empty
+           ^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:281: in __call__
+    return self._get_or_create_cached_value(args, kwargs, spinner_message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:326: in _get_or_create_cached_value
+    return self._handle_cache_miss(cache, value_key, func_args, func_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:385: in _handle_cache_miss
+    computed_value = self._info.func(*func_args, **func_kwargs)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ui/daily_report.py:121: in load_crowded_trades
+    rows = query_crowded_trades(
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1176: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1180: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1241: in _execute_mock_call
+    raise effect
+E   sqlite3.OperationalError: database unavailable
+----------------------------- Captured stderr call -----------------------------
+2026-11-04 00:55:39.377 No runtime found, using MemoryCacheStorageManager
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+_ test_report_signal_query_failure_returns_empty_and_closes[load_contrarian_signals-query_contrarian_signals] _
+tests/test_issue_1888_coverage.py:167: in test_report_signal_query_failure_returns_empty_and_closes
+    assert load("2024-05-01").empty
+           ^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:281: in __call__
+    return self._get_or_create_cached_value(args, kwargs, spinner_message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:326: in _get_or_create_cached_value
+    return self._handle_cache_miss(cache, value_key, func_args, func_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:385: in _handle_cache_miss
+    computed_value = self._info.func(*func_args, **func_kwargs)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ui/daily_report.py:138: in load_contrarian_signals
+    rows = query_contrarian_signals(
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1176: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1180: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1241: in _execute_mock_call
+    raise effect
+E   sqlite3.OperationalError: database unavailable
+----------------------------- Captured stderr call -----------------------------
+2026-11-04 00:55:39.526 No runtime found, using MemoryCacheStorageManager
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes[load_crowded_trades-query_crowded_trades] - sqlite3.OperationalError: database unavailable
+FAILED tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes[load_contrarian_signals-query_contrarian_signals] - sqlite3.OperationalError: database unavailable
+2 failed, 6 warnings in 1.17s
+
+exit: 1

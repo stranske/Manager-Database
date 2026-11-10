@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -293,7 +293,7 @@
+             except Exception as exc:
+                 if not _is_missing_report_source_error(exc):
+                     raise
+-                continue
++                raise
+             parsed = pd.to_datetime(value, errors="coerce")
+             if pd.notna(parsed):
+                 candidates.append(parsed.date())

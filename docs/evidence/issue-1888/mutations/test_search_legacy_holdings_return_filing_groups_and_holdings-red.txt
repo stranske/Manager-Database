@@ -1,0 +1,63 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_search_legacy_holdings_return_filing_groups_and_holdings _________
+tests/test_issue_1888_coverage.py:27: in test_search_legacy_holdings_return_filing_groups_and_holdings
+    assert [
+E   AssertionError: assert [('filing', 1...'2024-05-01')] == [('filing', 1...'2024-05-01')]
+E     
+E     At index 0 diff: ('filing', 1, '123', 'Filing needle-1', '3 holdings; filed 2024-05-01', '2024-05-01') != ('filing', 1, '123', 'Filing needle-1', '2 holdings; filed 2024-05-01', '2024-05-01')
+E     
+E     Full diff:
+E       [
+E           (
+E               'filing',
+E               1,
+E               '123',
+E               'Filing needle-1',
+E     -         '2 holdings; filed 2024-05-01',
+E     ?          ^
+E     +         '3 holdings; filed 2024-05-01',
+E     ?          ^
+E               '2024-05-01',
+E           ),
+E           (
+E               'holding',
+E               1,
+E               '123',
+E               'needle Corp (AAA)',
+E               'Accession needle-1 filed 2024-05-01',
+E               '2024-05-01',
+E           ),
+E       ]
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings - AssertionError: assert [('filing', 1...'2024-05-01')] == [('filing', 1...'2024-05-01')]
+  
+  At index 0 diff: ('filing', 1, '123', 'Filing needle-1', '3 holdings; filed 2024-05-01', '2024-05-01') != ('filing', 1, '123', 'Filing needle-1', '2 holdings; filed 2024-05-01', '2024-05-01')
+  
+  Full diff:
+    [
+        (
+            'filing',
+            1,
+            '123',
+            'Filing needle-1',
+  -         '2 holdings; filed 2024-05-01',
+  ?          ^
+  +         '3 holdings; filed 2024-05-01',
+  ?          ^
+            '2024-05-01',
+        ),
+        (
+            'holding',
+            1,
+            '123',
+            'needle Corp (AAA)',
+            'Accession needle-1 filed 2024-05-01',
+            '2024-05-01',
+        ),
+    ]
+1 failed, 6 warnings in 0.81s
+
+exit: 1

@@ -1,0 +1,64 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_empty_holdings_do_not_delete_existing_rows ________________
+tests/test_edgar_flow.py:99: in test_empty_holdings_do_not_delete_existing_rows
+    assert conn.execute("SELECT cusip FROM holdings").fetchall() == [("KEEP",)]
+E   AssertionError: assert [] == [('KEEP',)]
+E     
+E     Right contains one more item: ('KEEP',)
+E     
+E     Full diff:
+E     + []
+E     - [
+E     -     (
+E     -         'KEEP',
+E     -     ),
+E     - ]
+----------------------------- Captured stderr call -----------------------------
+00:53:02.677 | WARNING | etl.edgar_flow - Identifier resolution failed; inserting raw holdings
+Traceback (most recent call last):
+  File "/tmp/issue1888-mutations/etl/edgar_flow.py", line 353, in _work
+    resolve_holding_identifiers(conn, rows, filing_id=filing_id, source="edgar")
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py", line 1241, in _execute_mock_call
+    raise effect
+AssertionError: empty holdings must not resolve
+{"asctime": "2026-11-04 00:53:02,677", "levelname": "WARNING", "name": "etl.edgar_flow", "service": "ingest_flow", "message": "Identifier resolution failed; inserting raw holdings", "exc_info": "Traceback (most recent call last):\n  File \"/tmp/issue1888-mutations/etl/edgar_flow.py\", line 353, in _work\n    resolve_holding_identifiers(conn, rows, filing_id=filing_id, source=\"edgar\")\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py\", line 1176, in __call__\n    return self._mock_call(*args, **kwargs)\n           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py\", line 1180, in _mock_call\n    return self._execute_mock_call(*args, **kwargs)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py\", line 1241, in _execute_mock_call\n    raise effect\nAssertionError: empty holdings must not resolve"}
+------------------------------ Captured log call -------------------------------
+WARNING  etl.edgar_flow:edgar_flow.py:355 Identifier resolution failed; inserting raw holdings
+Traceback (most recent call last):
+  File "/tmp/issue1888-mutations/etl/edgar_flow.py", line 353, in _work
+    resolve_holding_identifiers(conn, rows, filing_id=filing_id, source="edgar")
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py", line 1241, in _execute_mock_call
+    raise effect
+AssertionError: empty holdings must not resolve
+=========================== short test summary info ============================
+FAILED tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows - AssertionError: assert [] == [('KEEP',)]
+  
+  Right contains one more item: ('KEEP',)
+  
+  Full diff:
+  + []
+  - [
+  -     (
+  -         'KEEP',
+  -     ),
+  - ]
+1 failed, 8 warnings in 1.84s
+
+exit: 1

@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -81,7 +81,7 @@
+ def _manager_id_for_cik(conn: Any, cik: str) -> int | None:
+     manager_cols = get_table_columns(conn, "managers")
+     if not manager_cols:
+-        return None
++        return 99
+     id_col = (
+         "manager_id" if "manager_id" in manager_cols else ("id" if "id" in manager_cols else None)
+     )

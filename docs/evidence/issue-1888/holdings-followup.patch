@@ -1,0 +1,677 @@
+From d8150addc3a6dd5e8daef076e1ecf11a97256ce9 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Wed, 4 Nov 2026 10:37:25 +0000
+Subject: [PATCH] test: cover PostgreSQL holdings with missing identifiers
+
+---
+ docs/evidence/issue-1888/README.md            |  66 ++++++++++
+ .../issue-1888/holdings-after-coverage.json   |   1 +
+ .../issue-1888/holdings-after-pytest.txt      |  24 ++++
+ .../issue-1888/holdings-before-coverage.json  |   1 +
+ .../issue-1888/holdings-before-pytest.txt     |  18 +++
+ .../issue-1888/holdings-full-pytest.txt       | 118 ++++++++++++++++++
+ .../issue-1888/holdings-regression-pytest.txt |   4 +
+ .../issue-1888/mutations/receipts.json        |   7 ++
+ docs/evidence/issue-1888/mutations/replay.py  |   8 ++
+ ...t_identifiers_keep_cusip_context-green.txt |   6 +
+ ...out_identifiers_keep_cusip_context-red.txt |  94 ++++++++++++++
+ ...ithout_identifiers_keep_cusip_context.diff |  11 ++
+ docs/evidence/issue-1888/pr-body.md           | 118 ++++++++----------
+ tests/test_issue_1888_coverage.py             |  48 +++++++
+ 14 files changed, 459 insertions(+), 65 deletions(-)
+ create mode 100644 docs/evidence/issue-1888/holdings-after-coverage.json
+ create mode 100644 docs/evidence/issue-1888/holdings-after-pytest.txt
+ create mode 100644 docs/evidence/issue-1888/holdings-before-coverage.json
+ create mode 100644 docs/evidence/issue-1888/holdings-before-pytest.txt
+ create mode 100644 docs/evidence/issue-1888/holdings-full-pytest.txt
+ create mode 100644 docs/evidence/issue-1888/holdings-regression-pytest.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-green.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-red.txt
+ create mode 100644 docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context.diff
+
+diff --git a/docs/evidence/issue-1888/README.md b/docs/evidence/issue-1888/README.md
+index 52bbe68..7da3ab7 100644
+--- a/docs/evidence/issue-1888/README.md
++++ b/docs/evidence/issue-1888/README.md
+@@ -710,3 +710,69 @@ with a patch for application to the PR branch. No protected file is changed.
+ PR body, `needs-human` label and blocker-comment publication were each rejected:
+ `MCP tool call requires approval, but approval policy is never`. The prepared
+ checkmarks remain local. PR #1889 is verified open and ready (`isDraft=false`).
++
++
++## PostgreSQL nullable identifier follow-up (2026-11-04)
++
++One parametrized behavior test adds two cases for PostgreSQL holdings search with
++no resolved-identifier columns and with null identifier values. It asserts the
++complete returned result, CUSIP-only context, SQL bind count/order, and the absence
++of references to unavailable columns. PostgreSQL execution is modeled; a live
++server is not claimed. No production code changed. The touched search path has
++no negative-cache misuse: `deduped` stores concrete `SearchResult` objects only.
++
++Current-main CI artifact transfer was retried and still returns `URLError`.
++Main remains `a7f4e626bb4b8359a64c56a56211218e41b6020a`, and the exact artifact
++base/ranking and approximately 180-unit CI comparison remain unchecked.
++
++Matched targeted verification, before and after adding these two cases:
++
++```sh
++pytest tests/test_search.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-next-before.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
++pytest tests/test_search.py tests/test_issue_1806_coverage.py tests/test_issue_1888_coverage.py --cov=api.search --cov-branch --cov-config=pyproject.toml --cov-report=term-missing --cov-report=json:/tmp/issue1888-search-next-after.json --cov-fail-under=0 -m 'not slow' --tb=short --disable-warnings
++```
++
++The `api/search.py` table reports **97% to 98%**, missing statements/branches
++**5+6=11 to 4+3=7**, with **77 to 79 passed**. These are targeted local results,
++not CI artifact credit. Raw measurements: `holdings-before-coverage.json`,
++`holdings-after-coverage.json`, and adjacent pytest logs. Remaining misses are the
++optional Pydantic import fallback (28–31, 23→26), blank-score guard (93), and empty
++SQLite database-list path (656→663). No claim that these cannot be covered.
++
++Related suites: **198 passed, 2 existing nightly skips**
++(`holdings-regression-pytest.txt`). Required Black repository check passes
++(**452 files unchanged**); Ruff passes for both changed Python files. Broad
++validation uses the previously documented `/tmp/issue1888-runtime` event-loop
++wakeup shim to avoid the sandbox's stalled worker-thread callbacks.
++
++Mutation receipt 37 changes actual `api/search.py` source in a disposable checkout
++to append bogus `Resolved: None` context. Both cases fail with exit **1** and pass
++with exit **0** after byte-exact restoration. The `.diff`, red/green logs, and
++source hashes are in `mutations/`. Replay with:
++
++```sh
++python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-holdings-mutations --output docs/evidence/issue-1888/mutations --start-at 36
++```
++
++The main checkout still rejects `git add` because `.git/index.lock` is read-only.
++A writable local clone at `/tmp/issue1888-holdings-proof` is used to commit the
++reviewable source and evidence change. No protected workflow files are edited.
++
++The writable clone independently passes the required repository Black check
++(452 files unchanged) and all 79 targeted search cases. Publishing the prepared
++body, adding `needs-human`, and posting the blocker comment were all rejected by
++the GitHub tools: `MCP tool call requires approval, but approval policy is never`.
++No live PR metadata update is claimed.
++
++Full local suite completed with **3 failed, 2645 passed, 28 skipped** in 258.45s:
++
++```sh
++PYTHONPATH=/tmp/issue1888-runtime timeout 300 pytest tests/ -m 'not slow' --tb=short --disable-warnings
++```
++
++Exit **1**. Failures are the same three already recorded before this follow-up:
++chat dependency errors timing out (`test_coverage_round_1842`), edgartools attempting
++to write `/home/runner/.edgar` (`test_edgar_integration`), and the sandbox refusing
++a local socket (`test_wasm_static_routes`). Full output: `holdings-full-pytest.txt`.
++No existing test was skipped, disabled, or changed to accommodate these failures.
++This does not satisfy the CI pytest acceptance criterion.
+diff --git a/docs/evidence/issue-1888/holdings-after-coverage.json b/docs/evidence/issue-1888/holdings-after-coverage.json
+new file mode 100644
+index 0000000..bd59e07
+--- /dev/null
++++ b/docs/evidence/issue-1888/holdings-after-coverage.json
+@@ -0,0 +1 @@
++{"meta": {"format": 3, "version": "7.17.0", "timestamp": "2026-11-04T10:31:30.700068", "branch_coverage": true, "show_contexts": false}, "files": {"api/search.py": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 80, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 103, 108, 109, 110, 111, 113, 114, 117, 118, 119, 120, 121, 122, 123, 128, 129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528, 531, 532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930, 933, 940, 941, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 290, "num_statements": 294, "percent_covered": 98.30097087378641, "percent_covered_display": "98", "missing_lines": 4, "excluded_lines": 4, "percent_statements_covered": 98.63945578231292, "percent_statements_covered_display": "99", "num_branches": 118, "num_partial_branches": 3, "covered_branches": 115, "missing_branches": 3, "percent_branches_covered": 97.45762711864407, "percent_branches_covered_display": "97"}, "missing_lines": [28, 29, 31, 93], "excluded_lines": [12, 13, 14, 15], "executed_branches": [[23, 24], [64, 65], [64, 66], [66, 67], [66, 68], [73, 74], [73, 75], [75, 76], [75, 77], [92, 94], [110, 111], [110, 113], [119, 120], [119, 121], [131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [310, 312], [365, 366], [365, 395], [373, 374], [373, 375], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507], [537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930], [940, 941], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[23, 26], [92, 93], [656, 663]], "functions": {"_normalize_rank": {"executed_lines": [63, 64, 65, 66, 67, 68], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 4, "num_partial_branches": 0, "covered_branches": 4, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 62, "executed_branches": [[64, 65], [64, 66], [66, 67], [66, 68]], "missing_branches": []}, "_vector_relevance": {"executed_lines": [72, 73, 74, 75, 76, 77], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 4, "num_partial_branches": 0, "covered_branches": 4, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 71, "executed_branches": [[73, 74], [73, 75], [75, 76], [75, 77]], "missing_branches": []}, "_score_result": {"executed_lines": [89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100], "summary": {"covered_lines": 11, "num_statements": 12, "percent_covered": 85.71428571428571, "percent_covered_display": "86", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [93], "excluded_lines": [], "start_line": 80, "executed_branches": [[92, 94]], "missing_branches": [[92, 93]]}, "_format_activism_filing_headline": {"executed_lines": [108, 109, 110, 111, 113, 114], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 103, "executed_branches": [[110, 111], [110, 113]], "missing_branches": []}, "_sqlite_manager_name_map": {"executed_lines": [118, 119, 120, 121, 122, 123], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 117, "executed_branches": [[119, 120], [119, 121]], "missing_branches": []}, "_search_postgres": {"executed_lines": [129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528], "summary": {"covered_lines": 71, "num_statements": 71, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 34, "num_partial_branches": 0, "covered_branches": 34, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 128, "executed_branches": [[131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [310, 312], [365, 366], [365, 395], [373, 374], [373, 375], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507]], "missing_branches": []}, "_search_sqlite": {"executed_lines": [532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930], "summary": {"covered_lines": 137, "num_statements": 137, "percent_covered": 99.49238578680203, "percent_covered_display": "99", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 60, "num_partial_branches": 1, "covered_branches": 59, "missing_branches": 1, "percent_branches_covered": 98.33333333333333, "percent_branches_covered_display": "98"}, "missing_lines": [], "excluded_lines": [], "start_line": 531, "executed_branches": [[537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930]], "missing_branches": [[656, 663]]}, "universal_search": {"executed_lines": [940, 941, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 14, "num_statements": 14, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 8, "num_partial_branches": 0, "covered_branches": 8, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 933, "executed_branches": [[940, 941], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": []}, "": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 71, 80, 103, 117, 128, 531, 933], "summary": {"covered_lines": 33, "num_statements": 36, "percent_covered": 89.47368421052632, "percent_covered_display": "89", "missing_lines": 3, "excluded_lines": 4, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [28, 29, 31], "excluded_lines": [12, 13, 14, 15], "start_line": 1, "executed_branches": [[23, 24]], "missing_branches": [[23, 26]]}}, "classes": {"SearchResult": {"executed_lines": [], "summary": {"covered_lines": 0, "num_statements": 0, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 36, "executed_branches": [], "missing_branches": []}, "": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 80, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 103, 108, 109, 110, 111, 113, 114, 117, 118, 119, 120, 121, 122, 123, 128, 129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528, 531, 532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930, 933, 940, 941, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 290, "num_statements": 294, "percent_covered": 98.30097087378641, "percent_covered_display": "98", "missing_lines": 4, "excluded_lines": 4, "percent_statements_covered": 98.63945578231292, "percent_statements_covered_display": "99", "num_branches": 118, "num_partial_branches": 3, "covered_branches": 115, "missing_branches": 3, "percent_branches_covered": 97.45762711864407, "percent_branches_covered_display": "97"}, "missing_lines": [28, 29, 31, 93], "excluded_lines": [12, 13, 14, 15], "start_line": 1, "executed_branches": [[23, 24], [64, 65], [64, 66], [66, 67], [66, 68], [73, 74], [73, 75], [75, 76], [75, 77], [92, 94], [110, 111], [110, 113], [119, 120], [119, 121], [131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [310, 312], [365, 366], [365, 395], [373, 374], [373, 375], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507], [537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930], [940, 941], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[23, 26], [92, 93], [656, 663]]}}}}, "totals": {"covered_lines": 290, "num_statements": 294, "percent_covered": 98.30097087378641, "percent_covered_display": "98", "missing_lines": 4, "excluded_lines": 4, "percent_statements_covered": 98.63945578231292, "percent_statements_covered_display": "99", "num_branches": 118, "num_partial_branches": 3, "covered_branches": 115, "missing_branches": 3, "percent_branches_covered": 97.45762711864407, "percent_branches_covered_display": "97"}}
+\ No newline at end of file
+diff --git a/docs/evidence/issue-1888/holdings-after-pytest.txt b/docs/evidence/issue-1888/holdings-after-pytest.txt
+new file mode 100644
+index 0000000..ee8657d
+--- /dev/null
++++ b/docs/evidence/issue-1888/holdings-after-pytest.txt
+@@ -0,0 +1,24 @@
++........................................................................ [ 91%]
++......./opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:453: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76fb1edb9030>
++  @classmethod
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:453: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76fb1ea925c0>
++  @classmethod
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:453: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76fb1e9bab60>
++  @classmethod
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++                                                                  [100%]/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/_pytest/unraisableexception.py:33: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76fb1fecbd30>
++  gc.collect()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++
++================================ tests coverage ================================
++_______________ coverage: platform linux, python 3.14.9-final-0 ________________
++
++Name            Stmts   Miss Branch BrPart  Cover   Missing
++-----------------------------------------------------------
++api/search.py     294      4    118      3    98%   23->26, 28-31, 93, 656->663
++-----------------------------------------------------------
++TOTAL             294      4    118      3    98%
++Coverage JSON written to file /tmp/issue1888-search-next-after.json
++79 passed, 26 warnings in 2.51s
+diff --git a/docs/evidence/issue-1888/holdings-before-coverage.json b/docs/evidence/issue-1888/holdings-before-coverage.json
+new file mode 100644
+index 0000000..a4a33f2
+--- /dev/null
++++ b/docs/evidence/issue-1888/holdings-before-coverage.json
+@@ -0,0 +1 @@
++{"meta": {"format": 3, "version": "7.17.0", "timestamp": "2026-11-04T10:30:43.344417", "branch_coverage": true, "show_contexts": false}, "files": {"api/search.py": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 63, 64, 65, 66, 68, 71, 72, 73, 74, 75, 76, 77, 80, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 103, 108, 109, 110, 111, 113, 114, 117, 118, 119, 120, 121, 122, 123, 128, 129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528, 531, 532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930, 933, 940, 941, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 289, "num_statements": 294, "percent_covered": 97.33009708737865, "percent_covered_display": "97", "missing_lines": 5, "excluded_lines": 4, "percent_statements_covered": 98.29931972789116, "percent_statements_covered_display": "98", "num_branches": 118, "num_partial_branches": 6, "covered_branches": 112, "missing_branches": 6, "percent_branches_covered": 94.91525423728814, "percent_branches_covered_display": "95"}, "missing_lines": [28, 29, 31, 67, 93], "excluded_lines": [12, 13, 14, 15], "executed_branches": [[23, 24], [64, 65], [64, 66], [66, 68], [73, 74], [73, 75], [75, 76], [75, 77], [92, 94], [110, 111], [110, 113], [119, 120], [119, 121], [131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507], [537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930], [940, 941], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[23, 26], [66, 67], [92, 93], [310, 312], [373, 375], [656, 663]], "functions": {"_normalize_rank": {"executed_lines": [63, 64, 65, 66, 68], "summary": {"covered_lines": 5, "num_statements": 6, "percent_covered": 80.0, "percent_covered_display": "80", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 83.33333333333333, "percent_statements_covered_display": "83", "num_branches": 4, "num_partial_branches": 1, "covered_branches": 3, "missing_branches": 1, "percent_branches_covered": 75.0, "percent_branches_covered_display": "75"}, "missing_lines": [67], "excluded_lines": [], "start_line": 62, "executed_branches": [[64, 65], [64, 66], [66, 68]], "missing_branches": [[66, 67]]}, "_vector_relevance": {"executed_lines": [72, 73, 74, 75, 76, 77], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 4, "num_partial_branches": 0, "covered_branches": 4, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 71, "executed_branches": [[73, 74], [73, 75], [75, 76], [75, 77]], "missing_branches": []}, "_score_result": {"executed_lines": [89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100], "summary": {"covered_lines": 11, "num_statements": 12, "percent_covered": 85.71428571428571, "percent_covered_display": "86", "missing_lines": 1, "excluded_lines": 0, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [93], "excluded_lines": [], "start_line": 80, "executed_branches": [[92, 94]], "missing_branches": [[92, 93]]}, "_format_activism_filing_headline": {"executed_lines": [108, 109, 110, 111, 113, 114], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 103, "executed_branches": [[110, 111], [110, 113]], "missing_branches": []}, "_sqlite_manager_name_map": {"executed_lines": [118, 119, 120, 121, 122, 123], "summary": {"covered_lines": 6, "num_statements": 6, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 2, "num_partial_branches": 0, "covered_branches": 2, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 117, "executed_branches": [[119, 120], [119, 121]], "missing_branches": []}, "_search_postgres": {"executed_lines": [129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528], "summary": {"covered_lines": 71, "num_statements": 71, "percent_covered": 98.0952380952381, "percent_covered_display": "98", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 34, "num_partial_branches": 2, "covered_branches": 32, "missing_branches": 2, "percent_branches_covered": 94.11764705882354, "percent_branches_covered_display": "94"}, "missing_lines": [], "excluded_lines": [], "start_line": 128, "executed_branches": [[131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507]], "missing_branches": [[310, 312], [373, 375]]}, "_search_sqlite": {"executed_lines": [532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930], "summary": {"covered_lines": 137, "num_statements": 137, "percent_covered": 99.49238578680203, "percent_covered_display": "99", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 60, "num_partial_branches": 1, "covered_branches": 59, "missing_branches": 1, "percent_branches_covered": 98.33333333333333, "percent_branches_covered_display": "98"}, "missing_lines": [], "excluded_lines": [], "start_line": 531, "executed_branches": [[537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930]], "missing_branches": [[656, 663]]}, "universal_search": {"executed_lines": [940, 941, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 14, "num_statements": 14, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 8, "num_partial_branches": 0, "covered_branches": 8, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 933, "executed_branches": [[940, 941], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": []}, "": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 71, 80, 103, 117, 128, 531, 933], "summary": {"covered_lines": 33, "num_statements": 36, "percent_covered": 89.47368421052632, "percent_covered_display": "89", "missing_lines": 3, "excluded_lines": 4, "percent_statements_covered": 91.66666666666667, "percent_statements_covered_display": "92", "num_branches": 2, "num_partial_branches": 1, "covered_branches": 1, "missing_branches": 1, "percent_branches_covered": 50.0, "percent_branches_covered_display": "50"}, "missing_lines": [28, 29, 31], "excluded_lines": [12, 13, 14, 15], "start_line": 1, "executed_branches": [[23, 24]], "missing_branches": [[23, 26]]}}, "classes": {"SearchResult": {"executed_lines": [], "summary": {"covered_lines": 0, "num_statements": 0, "percent_covered": 100.0, "percent_covered_display": "100", "missing_lines": 0, "excluded_lines": 0, "percent_statements_covered": 100.0, "percent_statements_covered_display": "100", "num_branches": 0, "num_partial_branches": 0, "covered_branches": 0, "missing_branches": 0, "percent_branches_covered": 100.0, "percent_branches_covered_display": "100"}, "missing_lines": [], "excluded_lines": [], "start_line": 36, "executed_branches": [], "missing_branches": []}, "": {"executed_lines": [3, 5, 6, 7, 9, 10, 17, 18, 23, 24, 26, 27, 33, 36, 39, 40, 41, 42, 43, 44, 45, 46, 49, 57, 59, 62, 63, 64, 65, 66, 68, 71, 72, 73, 74, 75, 76, 77, 80, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 103, 108, 109, 110, 111, 113, 114, 117, 118, 119, 120, 121, 122, 123, 128, 129, 131, 132, 150, 151, 152, 171, 172, 194, 195, 196, 197, 216, 217, 249, 260, 265, 269, 288, 289, 290, 300, 303, 306, 309, 310, 311, 312, 316, 320, 323, 365, 366, 367, 370, 371, 372, 373, 374, 375, 376, 395, 396, 418, 419, 420, 439, 440, 441, 442, 447, 468, 469, 470, 471, 472, 491, 492, 497, 498, 499, 500, 501, 503, 504, 505, 506, 507, 508, 509, 528, 531, 532, 533, 534, 536, 537, 538, 539, 544, 549, 550, 551, 564, 565, 571, 572, 586, 587, 591, 592, 593, 606, 607, 608, 609, 610, 611, 614, 615, 616, 617, 618, 619, 622, 623, 624, 625, 626, 631, 632, 633, 634, 635, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 667, 668, 669, 671, 672, 673, 674, 675, 680, 681, 682, 683, 684, 685, 709, 710, 711, 712, 722, 723, 728, 729, 732, 736, 752, 753, 754, 755, 756, 757, 758, 759, 760, 777, 782, 783, 784, 785, 798, 803, 804, 805, 806, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 833, 834, 835, 836, 837, 838, 839, 840, 842, 850, 851, 852, 853, 854, 855, 871, 872, 873, 874, 875, 876, 877, 878, 879, 894, 905, 908, 913, 917, 930, 933, 940, 941, 943, 949, 954, 955, 956, 957, 958, 959, 960, 961, 963, 964], "summary": {"covered_lines": 289, "num_statements": 294, "percent_covered": 97.33009708737865, "percent_covered_display": "97", "missing_lines": 5, "excluded_lines": 4, "percent_statements_covered": 98.29931972789116, "percent_statements_covered_display": "98", "num_branches": 118, "num_partial_branches": 6, "covered_branches": 112, "missing_branches": 6, "percent_branches_covered": 94.91525423728814, "percent_branches_covered_display": "95"}, "missing_lines": [28, 29, 31, 67, 93], "excluded_lines": [12, 13, 14, 15], "start_line": 1, "executed_branches": [[23, 24], [64, 65], [64, 66], [66, 68], [73, 74], [73, 75], [75, 76], [75, 77], [92, 94], [110, 111], [110, 113], [119, 120], [119, 121], [131, 132], [131, 171], [150, 151], [150, 171], [171, 172], [171, 216], [194, 195], [194, 216], [216, 217], [216, 288], [249, 260], [249, 288], [288, 289], [288, 395], [310, 311], [365, 366], [365, 395], [373, 374], [395, 396], [395, 439], [418, 419], [418, 439], [439, 440], [439, 528], [441, 442], [441, 447], [468, 469], [468, 491], [503, 504], [503, 528], [505, 506], [505, 507], [537, 538], [537, 564], [549, 550], [549, 564], [564, 565], [564, 586], [571, 572], [571, 606], [586, 587], [586, 606], [591, 592], [591, 606], [607, 608], [607, 709], [609, 610], [609, 618], [611, 614], [611, 617], [615, 611], [615, 616], [625, 626], [625, 709], [631, 632], [631, 653], [656, 657], [658, 659], [658, 663], [663, 664], [663, 709], [671, 672], [671, 709], [673, 674], [673, 675], [680, 681], [680, 682], [710, 711], [710, 819], [711, 712], [711, 777], [752, 753], [752, 819], [757, 758], [757, 759], [782, 783], [782, 798], [803, 804], [803, 819], [819, 820], [819, 871], [835, 836], [835, 842], [850, 851], [850, 871], [871, 872], [871, 930], [875, 876], [875, 879], [894, 905], [894, 930], [940, 941], [940, 943], [955, 956], [955, 963], [956, 957], [956, 958], [960, 955], [960, 961]], "missing_branches": [[23, 26], [66, 67], [92, 93], [310, 312], [373, 375], [656, 663]]}}}}, "totals": {"covered_lines": 289, "num_statements": 294, "percent_covered": 97.33009708737865, "percent_covered_display": "97", "missing_lines": 5, "excluded_lines": 4, "percent_statements_covered": 98.29931972789116, "percent_statements_covered_display": "98", "num_branches": 118, "num_partial_branches": 6, "covered_branches": 112, "missing_branches": 6, "percent_branches_covered": 94.91525423728814, "percent_branches_covered_display": "95"}}
+\ No newline at end of file
+diff --git a/docs/evidence/issue-1888/holdings-before-pytest.txt b/docs/evidence/issue-1888/holdings-before-pytest.txt
+new file mode 100644
+index 0000000..73fcfd0
+--- /dev/null
++++ b/docs/evidence/issue-1888/holdings-before-pytest.txt
+@@ -0,0 +1,18 @@
++........................................................................ [ 93%]
++...../opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7de9cbeed8a0>
++  result = tuple_new(cls, iterable)
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7de9adb3ea70>
++  result = tuple_new(cls, iterable)
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++                                                                    [100%]
++================================ tests coverage ================================
++_______________ coverage: platform linux, python 3.14.9-final-0 ________________
++
++Name            Stmts   Miss Branch BrPart  Cover   Missing
++-----------------------------------------------------------
++api/search.py     294      5    118      6    97%   23->26, 28-31, 67, 93, 310->312, 373->375, 656->663
++-----------------------------------------------------------
++TOTAL             294      5    118      6    97%
++Coverage JSON written to file /tmp/issue1888-search-next-before.json
++77 passed, 28 warnings in 2.72s
+diff --git a/docs/evidence/issue-1888/holdings-full-pytest.txt b/docs/evidence/issue-1888/holdings-full-pytest.txt
+new file mode 100644
+index 0000000..5fcab60
+--- /dev/null
++++ b/docs/evidence/issue-1888/holdings-full-pytest.txt
+@@ -0,0 +1,118 @@
++........................................................................ [  2%]
++........................................................................ [  5%]
++........................................................................ [  8%]
++........................................................................ [ 10%]
++................................sssssssssssss........................... [ 13%]
++........................................................................ [ 16%]
++........................................................................ [ 18%]
++.............s................sssssss................................... [ 21%]
++........................................................................ [ 24%]
++........................................................................ [ 26%]
++........................................................................ [ 29%]
++........................................................................ [ 32%]
++....................F................................................... [ 34%]
++........................................................................ [ 37%]
++........................................................................ [ 40%]
++........................................................................ [ 43%]
++........................................................................ [ 45%]
++........................................................................ [ 48%]
++........s........................s...................................... [ 51%]
++.F...................................................s.................. [ 53%]
++........................................................................ [ 56%]
++........................................................................ [ 59%]
++........................................................................ [ 61%]
++........................................................................ [ 64%]
++........................................................................ [ 67%]
++........................................................................ [ 69%]
++........................................................................ [ 72%]
++........................................................................ [ 75%]
++........................................................................ [ 78%]
++........................................................................ [ 80%]
++........................................................................ [ 83%]
++..........................s............................................. [ 86%]
++........................................................................ [ 88%]
++...................................sss.................................. [ 91%]
++........................................................................ [ 94%]
++........................................................................ [ 96%]
++........................................................................ [ 99%]
++..........F.                                                             [100%]
++=================================== FAILURES ===================================
++__________ test_chat_payload_and_dependency_error_branches_are_stable __________
++tests/test_coverage_round_1842.py:258: in test_chat_payload_and_dependency_error_branches_are_stable
++    assert failed_reason == "dependency down"
++E   AssertionError: assert 'timeout' == 'dependency down'
++E     
++E     - dependency down
++E     + timeout
++_____________ test_real_edgartools_parser_reads_committed_fixture ______________
++tests/test_edgar_integration.py:307: in test_real_edgartools_parser_reads_committed_fixture
++    pytest.importorskip("edgar.thirteenf")
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/importlib/__init__.py:88: in import_module
++    return _bootstrap._gcd_import(name[level:], package, level)
++           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++<frozen importlib._bootstrap>:1406: in _gcd_import
++    ???
++<frozen importlib._bootstrap>:1371: in _find_and_load
++    ???
++<frozen importlib._bootstrap>:1314: in _find_and_load_unlocked
++    ???
++<frozen importlib._bootstrap>:491: in _call_with_frames_removed
++    ???
++<frozen importlib._bootstrap>:1406: in _gcd_import
++    ???
++<frozen importlib._bootstrap>:1371: in _find_and_load
++    ???
++<frozen importlib._bootstrap>:1342: in _find_and_load_unlocked
++    ???
++<frozen importlib._bootstrap>:938: in _load_unlocked
++    ???
++<frozen importlib._bootstrap_external>:763: in exec_module
++    ???
++<frozen importlib._bootstrap>:491: in _call_with_frames_removed
++    ???
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/__init__.py:11: in <module>
++    from edgar._filings import (
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/_filings.py:33: in <module>
++    from edgar.attachments import Attachment, Attachments, AttachmentServer, FilingHomepage
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/attachments.py:35: in <module>
++    from edgar.httpclient import async_http_client
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/httpclient.py:417: in <module>
++    HTTP_MGR = get_http_mgr(request_per_sec_limit=get_edgar_rate_limit_per_sec())
++               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/httpclient.py:211: in get_http_mgr
++    cache_dir = get_cache_directory()
++                ^^^^^^^^^^^^^^^^^^^^^
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/httpclient.py:105: in get_cache_directory
++    cachedir = get_edgar_data_directory() / "_tcache"
++               ^^^^^^^^^^^^^^^^^^^^^^^^^^
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/core.py:324: in get_edgar_data_directory
++    return get_data_directory(create=True)
++           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/edgar/paths.py:115: in get_data_directory
++    path.mkdir(parents=True, exist_ok=True)
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/pathlib/__init__.py:1011: in mkdir
++    os.mkdir(self, mode)
++E   OSError: [Errno 30] Read-only file system: '/home/runner/.edgar'
++_______________ test_wasm_demo_static_routes_serve_stlite_shell ________________
++tests/web/test_wasm_static_routes.py:42: in test_wasm_demo_static_routes_serve_stlite_shell
++    with _static_server(web_dir) as base_url:
++         ^^^^^^^^^^^^^^^^^^^^^^^
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/contextlib.py:141: in __enter__
++    return next(self.gen)
++           ^^^^^^^^^^^^^^
++tests/web/test_wasm_static_routes.py:18: in _static_server
++    with socketserver.TCPServer(("127.0.0.1", 0), handler) as server:
++         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/socketserver.py:453: in __init__
++    self.socket = socket.socket(self.address_family,
++/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/socket.py:236: in __init__
++    _socket.socket.__init__(self, family, type, proto, fileno)
++E   PermissionError: [Errno 1] Operation not permitted
++=========================== short test summary info ============================
++FAILED tests/test_coverage_round_1842.py::test_chat_payload_and_dependency_error_branches_are_stable - AssertionError: assert 'timeout' == 'dependency down'
++  
++  - dependency down
++  + timeout
++FAILED tests/test_edgar_integration.py::test_real_edgartools_parser_reads_committed_fixture - OSError: [Errno 30] Read-only file system: '/home/runner/.edgar'
++FAILED tests/web/test_wasm_static_routes.py::test_wasm_demo_static_routes_serve_stlite_shell - PermissionError: [Errno 1] Operation not permitted
++3 failed, 2645 passed, 28 skipped, 64 warnings in 258.45s (0:04:18)
+diff --git a/docs/evidence/issue-1888/holdings-regression-pytest.txt b/docs/evidence/issue-1888/holdings-regression-pytest.txt
+new file mode 100644
+index 0000000..27f55de
+--- /dev/null
++++ b/docs/evidence/issue-1888/holdings-regression-pytest.txt
+@@ -0,0 +1,4 @@
++...............s........................................................ [ 36%]
++.........................s.............................................. [ 72%]
++........................................................                 [100%]
++198 passed, 2 skipped, 27 warnings in 5.34s
+diff --git a/docs/evidence/issue-1888/mutations/receipts.json b/docs/evidence/issue-1888/mutations/receipts.json
+index 9b84776..9d0e539 100644
+--- a/docs/evidence/issue-1888/mutations/receipts.json
++++ b/docs/evidence/issue-1888/mutations/receipts.json
+@@ -250,5 +250,12 @@
+     "sha256": "6aaa884d143c2f452543adafac506ac0a3b75d920a60e2ea1234e551cfe01524",
+     "red": 1,
+     "green": 0
++  },
++  {
++    "test": "tests/test_issue_1888_coverage.py::test_search_postgres_holdings_without_identifiers_keep_cusip_context",
++    "source": "api/search.py",
++    "sha256": "26ef47d1b7f1d0b11bb95f7c0c5d32174edbe04ff29c16a011a15a6b6f695db3",
++    "red": 1,
++    "green": 0
+   }
+ ]
+diff --git a/docs/evidence/issue-1888/mutations/replay.py b/docs/evidence/issue-1888/mutations/replay.py
+index b44c10d..b77fdf5 100644
+--- a/docs/evidence/issue-1888/mutations/replay.py
++++ b/docs/evidence/issue-1888/mutations/replay.py
+@@ -304,6 +304,14 @@ CASES = [
+         "            ).fetchall()\n",
+         1,
+     ),
++    (
++        "tests/test_issue_1888_coverage.py",
++        "test_search_postgres_holdings_without_identifiers_keep_cusip_context",
++        "api/search.py",
++        "\n            identifier_parts = [f\"CUSIP: {cusip or 'n/a'}\"]",
++        '\n            identifier_parts = [f"CUSIP: {cusip or \'n/a\'}", "Resolved: None"]',
++        1,
++    ),
+ ]
+ 
+ 
+diff --git a/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-green.txt b/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-green.txt
+new file mode 100644
+index 0000000..c90f08d
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-green.txt
+@@ -0,0 +1,6 @@
++cwd: /tmp/issue1888-holdings-mutations
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_holdings_without_identifiers_keep_cusip_context -m 'not slow' --tb=short --disable-warnings
++..                                                                       [100%]
++2 passed, 6 warnings in 0.78s
++
++exit: 0
+diff --git a/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-red.txt b/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-red.txt
+new file mode 100644
+index 0000000..b6360f2
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-red.txt
+@@ -0,0 +1,94 @@
++cwd: /tmp/issue1888-holdings-mutations
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_holdings_without_identifiers_keep_cusip_context -m 'not slow' --tb=short --disable-warnings
++FF                                                                       [100%]
++=================================== FAILURES ===================================
++_ test_search_postgres_holdings_without_identifiers_keep_cusip_context[identifier_columns0] _
++tests/test_issue_1888_coverage.py:204: in test_search_postgres_holdings_without_identifiers_keep_cusip_context
++    assert [result.model_dump() for result in results] == [
++E   AssertionError: assert [{'entity_typ...CUSIP)', ...}] == [{'entity_typ...CUSIP)', ...}]
++E     
++E     At index 0 diff: {'entity_type': 'holding', 'entity_id': 42, 'manager_name': 'Alpha', 'headline': 'Needle Corp (CUSIP)', 'snippet': 'CUSIP: CUSIP | Resolved: None', 'relevance': 0.6000000000000001, 'url': None, 'timestamp': '2024-05-01'} != {'entity_type': 'holding', 'entity_id': 42, 'manager_name': 'Alpha', 'headline': 'Needle Corp (CUSIP)', 'snippet': 'CUSIP: CUSIP', 'relevance': 0.6 ± 6.0e-07, 'url': None, 'timestamp': '2024-05-01'}
++E     
++E     Full diff:
++E       [
++E           {
++E               'entity_type': 'holding',
++E               'entity_id': 42,
++E               'manager_name': 'Alpha',
++E               'headline': 'Needle Corp (CUSIP)',
++E     -         'snippet': 'CUSIP: CUSIP',
++E     +         'snippet': 'CUSIP: CUSIP | Resolved: None',
++E     ?                                 +++++++++++++++++
++E     -         'relevance': 0.6 ± 6.0e-07,
++E     +         'relevance': 0.6000000000000001,
++E               'url': None,
++E               'timestamp': '2024-05-01',
++E           },
++E       ]
++_ test_search_postgres_holdings_without_identifiers_keep_cusip_context[identifier_columns1] _
++tests/test_issue_1888_coverage.py:204: in test_search_postgres_holdings_without_identifiers_keep_cusip_context
++    assert [result.model_dump() for result in results] == [
++E   AssertionError: assert [{'entity_typ...CUSIP)', ...}] == [{'entity_typ...CUSIP)', ...}]
++E     
++E     At index 0 diff: {'entity_type': 'holding', 'entity_id': 42, 'manager_name': 'Alpha', 'headline': 'Needle Corp (CUSIP)', 'snippet': 'CUSIP: CUSIP | Resolved: None', 'relevance': 0.6000000000000001, 'url': None, 'timestamp': '2024-05-01'} != {'entity_type': 'holding', 'entity_id': 42, 'manager_name': 'Alpha', 'headline': 'Needle Corp (CUSIP)', 'snippet': 'CUSIP: CUSIP', 'relevance': 0.6 ± 6.0e-07, 'url': None, 'timestamp': '2024-05-01'}
++E     
++E     Full diff:
++E       [
++E           {
++E               'entity_type': 'holding',
++E               'entity_id': 42,
++E               'manager_name': 'Alpha',
++E               'headline': 'Needle Corp (CUSIP)',
++E     -         'snippet': 'CUSIP: CUSIP',
++E     +         'snippet': 'CUSIP: CUSIP | Resolved: None',
++E     ?                                 +++++++++++++++++
++E     -         'relevance': 0.6 ± 6.0e-07,
++E     +         'relevance': 0.6000000000000001,
++E               'url': None,
++E               'timestamp': '2024-05-01',
++E           },
++E       ]
++=========================== short test summary info ============================
++FAILED tests/test_issue_1888_coverage.py::test_search_postgres_holdings_without_identifiers_keep_cusip_context[identifier_columns0] - AssertionError: assert [{'entity_typ...CUSIP)', ...}] == [{'entity_typ...CUSIP)', ...}]
++  
++  At index 0 diff: {'entity_type': 'holding', 'entity_id': 42, 'manager_name': 'Alpha', 'headline': 'Needle Corp (CUSIP)', 'snippet': 'CUSIP: CUSIP | Resolved: None', 'relevance': 0.6000000000000001, 'url': None, 'timestamp': '2024-05-01'} != {'entity_type': 'holding', 'entity_id': 42, 'manager_name': 'Alpha', 'headline': 'Needle Corp (CUSIP)', 'snippet': 'CUSIP: CUSIP', 'relevance': 0.6 ± 6.0e-07, 'url': None, 'timestamp': '2024-05-01'}
++  
++  Full diff:
++    [
++        {
++            'entity_type': 'holding',
++            'entity_id': 42,
++            'manager_name': 'Alpha',
++            'headline': 'Needle Corp (CUSIP)',
++  -         'snippet': 'CUSIP: CUSIP',
++  +         'snippet': 'CUSIP: CUSIP | Resolved: None',
++  ?                                 +++++++++++++++++
++  -         'relevance': 0.6 ± 6.0e-07,
++  +         'relevance': 0.6000000000000001,
++            'url': None,
++            'timestamp': '2024-05-01',
++        },
++    ]
++FAILED tests/test_issue_1888_coverage.py::test_search_postgres_holdings_without_identifiers_keep_cusip_context[identifier_columns1] - AssertionError: assert [{'entity_typ...CUSIP)', ...}] == [{'entity_typ...CUSIP)', ...}]
++  
++  At index 0 diff: {'entity_type': 'holding', 'entity_id': 42, 'manager_name': 'Alpha', 'headline': 'Needle Corp (CUSIP)', 'snippet': 'CUSIP: CUSIP | Resolved: None', 'relevance': 0.6000000000000001, 'url': None, 'timestamp': '2024-05-01'} != {'entity_type': 'holding', 'entity_id': 42, 'manager_name': 'Alpha', 'headline': 'Needle Corp (CUSIP)', 'snippet': 'CUSIP: CUSIP', 'relevance': 0.6 ± 6.0e-07, 'url': None, 'timestamp': '2024-05-01'}
++  
++  Full diff:
++    [
++        {
++            'entity_type': 'holding',
++            'entity_id': 42,
++            'manager_name': 'Alpha',
++            'headline': 'Needle Corp (CUSIP)',
++  -         'snippet': 'CUSIP: CUSIP',
++  +         'snippet': 'CUSIP: CUSIP | Resolved: None',
++  ?                                 +++++++++++++++++
++  -         'relevance': 0.6 ± 6.0e-07,
++  +         'relevance': 0.6000000000000001,
++            'url': None,
++            'timestamp': '2024-05-01',
++        },
++    ]
++2 failed, 6 warnings in 0.80s
++
++exit: 1
+diff --git a/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context.diff b/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context.diff
+new file mode 100644
+index 0000000..0bdcdb1
+--- /dev/null
++++ b/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context.diff
+@@ -0,0 +1,11 @@
++--- a/api/search.py
+++++ b/api/search.py
++@@ -369,7 +369,7 @@
++             ]
++             issuer_rank, identifier_rank = tail[len(resolved_identifier_columns) :]
++             headline = f"{issuer or 'Holding'} ({cusip or 'n/a'})"
++-            identifier_parts = [f"CUSIP: {cusip or 'n/a'}"]
+++            identifier_parts = [f"CUSIP: {cusip or 'n/a'}", "Resolved: None"]
++             if resolved_values:
++                 identifier_parts.append("Resolved: " + " / ".join(resolved_values))
++             snippet = " | ".join(identifier_parts)
+diff --git a/docs/evidence/issue-1888/pr-body.md b/docs/evidence/issue-1888/pr-body.md
+index 5f1b414..2e4482f 100644
+--- a/docs/evidence/issue-1888/pr-body.md
++++ b/docs/evidence/issue-1888/pr-body.md
+@@ -30,71 +30,7 @@ Source issue #1806; merged PR #1808 delivered: PR #1808 added one test-only modu
+ - [ ] `pytest` passes in CI.
+ <!-- auto-status-summary:end -->
+ 
+-<details>
+ 
+-<summary>Full Issue Text</summary>
+-
+-
+-
+-<!-- closer-core/v1 followup-of=stranske/Manager-Database#1806@1808 -->
+-## Why
+-Three repair attempts by cursor, codex and claude produced no PR, so another repair on #1806 is unlikely to land. The remainder is a clearly scoped piece: the one ranked target #1808 skipped (etl/edgar_flow.py, 26 uncovered units) plus the biggest remaining gaps, with the CI before/after numbers recorded properly.
+-Source issue #1806; merged PR #1808 delivered: PR #1808 added one test-only module with 8 focused tests for helpers in digest_flow, signals, search, daily_report and asic, with no production changes. It does not cover EDGAR, and no CI coverage reduction is shown against the ~180-unit target.
+-
+-## Scope
+-- Re-rank targets by the repo's coverage-gap ranking (escaped-defect priority, then churn, then uncovered mass) from the CI Gate coverage artifact on current main. Record the main-branch figure for uncovered statements+branches as the exact base.
+-- Add tests for etl/edgar_flow.py (26 uncovered units), or write a concrete per-target explanation of why a branch cannot be meaningfully covered.
+-- Cover the largest remaining gaps among the 149 units left after #1808: api/search.py (52), ui/daily_report.py (35), api/signals.py (27). Prefer behaviour-level tests over helper-level ones.
+-- Strengthen the weak assertions in tests/test_issue_1806_coverage.py: headline_markdown escaping with an exact expected string, and exact error messages in the digest guard tests. Move the universal_search guard checks out of the parametrized rank/distance test.
+-- For every new test, run a real break-and-revert (break the covered code, confirm the test fails, revert, confirm it passes) and paste the commands and outputs into the PR body.
+-- Check for the negative-cache pattern (`cache.get(key) is None` used as 'not yet cached') in any code touched. Fix any instance with a minimal diff and explain it in the PR body.
+-
+-## Non-Goals
+-- Do not redo work that PR #1808 already delivered.
+-
+-## Tasks
+-- [ ] Re-rank targets by the repo's coverage-gap ranking (escaped-defect priority, then churn, then uncovered mass) from the CI Gate coverage artifact on current main. Record the main-branch figure for uncovered statements+branches as the exact base.
+-- [x] Add tests for etl/edgar_flow.py (26 uncovered units), or write a concrete per-target explanation of why a branch cannot be meaningfully covered.
+-- [x] Cover the largest remaining gaps among the 149 units left after #1808: api/search.py (52), ui/daily_report.py (35), api/signals.py (27). Prefer behaviour-level tests over helper-level ones.
+-- [x] Strengthen the weak assertions in tests/test_issue_1806_coverage.py: headline_markdown escaping with an exact expected string, and exact error messages in the digest guard tests. Move the universal_search guard checks out of the parametrized rank/distance test.
+-- [x] For every new test, run a real break-and-revert (break the covered code, confirm the test fails, revert, confirm it passes) and paste the commands and outputs into the PR body.
+-- [x] Check for the negative-cache pattern (`cache.get(key) is None` used as 'not yet cached') in any code touched. Fix any instance with a minimal diff and explain it in the PR body.
+-
+-## Acceptance Criteria
+-- [ ] The PR body quotes the CI Gate coverage uncovered statements+branches for the targets on main before and after, taken from CI artifacts, with the reduction at or above ~180 units across the ranked targets. Each target that falls short has a written explanation.
+-- [x] etl/edgar_flow.py has new tests that execute its uncovered branches, or the PR body explains each branch that could not be covered.
+-- [x] The PR body contains the break-and-revert command output for every new test function (fail when broken, pass when reverted).
+-- [x] Any production change is limited to a real bug found by a test and is explained in the PR body. Otherwise the diff is test-only.
+-- [ ] `pytest` passes in CI.
+-
+-## Implementation Notes
+-Verifier report (excerpt):
+-
+-```
+- Completeness: scores within 1 point (avg 3.0/10, range 3.0-3.0)
+-- Quality: scores within 1 point (avg 7.5/10, range 7.0-8.0)
+-- Testing: scores within 1 point (avg 6.0/10, range 6.0-6.0)
+-- Risks: scores within 1 point (avg 9.0/10, range 9.0-9.0)
+-
+-### Disagreement
+-No major disagreements detected.
+-
+-### Unique Insights
+-- openai: The issue’s primary quantitative acceptance criterion is not met or demonstrated. The PR body explicitly states that it does not establish the required approximately 180 whole-CI uncovered statement-and-branch reduction, and reports 149 uncovered units still remaining across the ranked targets.; EDGAR (`etl/edgar_flow.py`) is named as a target but is not exercised by the new module. The acceptance criteria permit an uncovered target only when the PR explains why it could not be meaningfully covered; the PR instead says EDGAR remains for later work and provides no such justification.; The issue requires break-and-revert proof for every new test. The PR body claims a later eight-target causal-proof audit, but the required underlying artifacts/logs are unavailable in the supplied evidence. Therefore that explicit deliverable cannot be verified, and a PASS is not supportable.; The added tests provide useful focused coverage but do not substantiate the issue’s whole-CI coverage objective. The local per-file focused-suite percentages are explicitly not a substitute for the required CI-level reduction.
+-- anthropic: The issue's core quantitative acceptance criterion (targets' uncovered statements+branches down by ~180 or more, or each unreachable target explained) is not met. The PR body admits it 'does not establish the issue body's roughly 180 CI-unit reduction'. A later audit puts the whole-CI uncovered count for the targets at 149 total (digest 3, signals 27, search 52, daily-report 35, EDGAR 26, ASIC 6), with no exact-base comparison.; etl/edgar_flow.py, a ranked target, is not exercised at all by the added module (26 uncovered units remain). Nothing shows it cannot meaningfully be tested, so the alternative of explaining each target that could not be covered is also unmet.; The PR body reports local focused-suite percentages rather than the CI Gate coverage figures the issue says the PR is judged on. The PR's own audit says the exact-base whole-CI artifact was never bound, and the Gate coverage artifacts I could see were partially truncated or unavailable, so I cannot verify any CI-level improvement.; The break-and-revert proof was initially given for only one test (search). A later audit added causal proof for all eight test functions, which is a good outcome. The audit text itself says the criterion is only partially addressed, and the ~180-unit gap still blocks it.; The tests are small, but several assertions are weak. The `'<x>' not in headline_markdown` check and the loose `in` substring checks would pass on many broken variants. The `universal_search` assertions are bundled into a parametrized rank/distance test, which mixes concerns and repeats the same calls for every parameter set.; The diff itself is correct. It adds one test file with no production changes, which matches the low-blast-radius requirement, and the code is clean and readable.
+-
+-### 🔍 LangSmith Traces
+-- [openai](https://smith.langchain.com/r/lc_run--01a14acf-4ef4-7630-961c-969e5200bbdd-0)
+-- [anthropic](https://smith.langchain.com/r/lc_run--01a14acf-6d6c-7ed0-8ae3-9799d7a04f6b-0)
+-
+----
+-
+-Workflow state fingerprint for Agents Verifier. Do not edit.
+-```
+-
+-
+-
+-</details>
+ 
+ —
+ PR created automatically to engage Codex.
+@@ -166,7 +102,7 @@ CI validation remain required before acceptance can be marked complete.
+ 
+ ## Break-and-revert proof for every new function
+ 
+-All 36 receipts have red exit **1** and restored exit **0**. Mutations edit actual
++All 37 receipts have red exit **1** and restored exit **0**. Mutations edit actual
+ runtime source in disposable `/tmp` checkouts; original/restored hashes match.
+ Commands and exact output excerpts follow. Each linked red/green file retains
+ complete output and the environment/cwd; each linked diff records the source edit.
+@@ -1244,3 +1180,55 @@ Publication for the nullable-ticker follow-up was rejected for all three actions
+ PR body update, `needs-human` label and blocker comment. Each returned
+ `MCP tool call requires approval, but approval policy is never`. The prepared body
+ and evidence remain local. PR #1889 is verified open with `isDraft=false`.
++
++
++## PostgreSQL nullable identifier follow-up
++
++Two cases assert complete holdings search results and SQL bind counts with absent
++identifier columns or null identifier values. Search targeted coverage rises
++**97% to 98%**, uncovered statements+branches **11 to 7**, with **79 passed**.
++Related suites: **198 passed, 2 existing nightly skips**. Required repository
++Black check (452 files) and Ruff pass. PostgreSQL execution is modeled. No
++production change; scoped negative-cache audit remains clear. Exact CI base,
++ranking and ~180-unit comparison remain blocked by artifact transfer (`URLError`).
++This local addition has no final-candidate CI result yet.
++
++### 37. `test_search_postgres_holdings_without_identifiers_keep_cusip_context`
++
++Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context.diff).
++[Broken output](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-red.txt),
++[restored output](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-green.txt).
++Same command against deliberately broken then restored source:
++
++```sh
++PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_holdings_without_identifiers_keep_cusip_context -m 'not slow' --tb=short --disable-warnings
++```
++
++```text
++Broken: snippet 'CUSIP: CUSIP | Resolved: None' != 'CUSIP: CUSIP'
++2 failed, 6 warnings in 0.80s
++exit: 1
++
++Restored:
++2 passed, 6 warnings in 0.78s
++exit: 0
++```
++
++Publication of this follow-up body, `needs-human` label, and blocker comment was
++rejected: `MCP tool call requires approval, but approval policy is never`.
++The writable clone independently passes Black (452 files) and 79 search cases.
++PR #1889 remains open and ready for review; the local prepared body is not a
++claim that live PR metadata was updated.
++
++Full local suite completed with **3 failed, 2645 passed, 28 skipped** in 258.45s:
++
++```sh
++PYTHONPATH=/tmp/issue1888-runtime timeout 300 pytest tests/ -m 'not slow' --tb=short --disable-warnings
++```
++
++Exit **1**. Failures are the same three already recorded before this follow-up:
++chat dependency errors timing out (`test_coverage_round_1842`), edgartools attempting
++to write `/home/runner/.edgar` (`test_edgar_integration`), and the sandbox refusing
++a local socket (`test_wasm_static_routes`). Full output: `holdings-full-pytest.txt`.
++No existing test was skipped, disabled, or changed to accommodate these failures.
++This does not satisfy the CI pytest acceptance criterion.
+diff --git a/tests/test_issue_1888_coverage.py b/tests/test_issue_1888_coverage.py
+index 3c19cda..1e9a4ab 100644
+--- a/tests/test_issue_1888_coverage.py
++++ b/tests/test_issue_1888_coverage.py
+@@ -179,6 +179,54 @@ def test_search_postgres_activism_preserves_filing_context(monkeypatch):
+     assert params == ("Target", "Target", "Target", 20)
+ 
+ 
++@pytest.mark.parametrize("identifier_columns", [[], ["resolved_ticker", "isin"]])
++def test_search_postgres_holdings_without_identifiers_keep_cusip_context(
++    monkeypatch, identifier_columns
++):
++    monkeypatch.setattr(search, "table_exists", lambda conn, table: table == "holdings")
++    monkeypatch.setattr(search, "get_table_columns", lambda conn, table: identifier_columns)
++    conn = Mock()
++    conn.execute.return_value.fetchall.return_value = [
++        (
++            42,
++            "Alpha",
++            "Needle Corp",
++            "CUSIP",
++            "2024-05-01",
++            *([None] * len(identifier_columns)),
++            0,
++            0,
++        )
++    ]
++
++    results = search.universal_search("Needle", conn, limit=5, entity_type="holding")
++
++    assert [result.model_dump() for result in results] == [
++        {
++            "entity_type": "holding",
++            "entity_id": 42,
++            "manager_name": "Alpha",
++            "headline": "Needle Corp (CUSIP)",
++            "snippet": "CUSIP: CUSIP",
++            "relevance": pytest.approx(0.6),
++            "url": None,
++            "timestamp": "2024-05-01",
++        }
++    ]
++    conn.execute.assert_called_once()
++    sql, params = conn.execute.call_args.args
++    # Bind counts cover all SELECT/WHERE/ORDER BY identifier-rank expressions.
++    assert params == ("Needle",) * (6 + 3 * len(identifier_columns)) + (5,)
++    assert sql.count("%s") == len(params)
++    if identifier_columns:
++        assert "COALESCE(h.name_of_issuer, '') || ' ' ||" in sql
++        for column in identifier_columns:
++            assert f"h.{column}" in sql
++    else:
++        assert "resolved_" not in sql
++        assert "h.isin" not in sql
++
++
+ def test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery(monkeypatch):
+     from etl import insider_flow, short_interest_flow
+ 
+-- 
+2.56.0
+

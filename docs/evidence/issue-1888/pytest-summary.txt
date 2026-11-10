@@ -1,0 +1,16 @@
+main-local-full:
+FAILED tests/test_coverage_round_1842.py::test_chat_payload_and_dependency_error_branches_are_stable - AssertionError: assert 'timeout' == 'dependency down'
+FAILED tests/test_dashboard_read_failure_evidence.py::test_dashboard_current_replay_proves_ten_pairs_and_refuses_output_reuse - AssertionError: fatal: not a git repository (or any of the parent directories): .git
+FAILED tests/test_edgar_integration.py::test_real_edgartools_parser_reads_committed_fixture - OSError: [Errno 30] Read-only file system: '/home/runner/.edgar'
+FAILED tests/test_manager_cleanup_replay.py::test_cleanup_replay_detects_mutation_restores_source_and_refuses_reuse[standard] - AssertionError: fatal: not a git repository (or any of the parent directories): .git
+FAILED tests/test_manager_cleanup_replay.py::test_cleanup_replay_detects_mutation_restores_source_and_refuses_reuse[optimized] - AssertionError: fatal: not a git repository (or any of the parent directories): .git
+FAILED tests/test_repo_hygiene.py::test_root_generated_clutter_is_not_tracked - subprocess.CalledProcessError: Command '['git', 'ls-files', '--', ':/node_modules', ':/.coverage', ':/codex-prompt-*.md']' returned non-zero exit status 128.
+FAILED tests/web/test_wasm_static_routes.py::test_wasm_demo_static_routes_serve_stlite_shell - PermissionError: [Errno 1] Operation not permitted
+7 failed, 2581 passed, 26 skipped, 2 deselected, 319 warnings in 140.45s (0:02:20)
+
+candidate-local:
+FAILED tests/test_coverage_round_1842.py::test_chat_payload_and_dependency_error_branches_are_stable - AssertionError: assert 'timeout' == 'dependency down'
+FAILED tests/test_edgar_integration.py::test_real_edgartools_parser_reads_committed_fixture - OSError: [Errno 30] Read-only file system: '/home/runner/.edgar'
+FAILED tests/web/test_wasm_static_routes.py::test_wasm_demo_static_routes_serve_stlite_shell - PermissionError: [Errno 1] Operation not permitted
+3 failed, 2606 passed, 26 skipped, 2 deselected, 322 warnings in 286.95s (0:04:46)
+

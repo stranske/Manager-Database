@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -802,7 +802,7 @@
+             ).fetchall()
+             for entity_id, cik, accession, filed, row_count in filing_rows:
+                 headline = f"Filing {accession or 'unknown'}"
+-                snippet = f"{row_count} holdings; filed {filed or 'n/a'}"
++                snippet = f"{row_count + 1} holdings; filed {filed or 'n/a'}"
+                 results.append(
+                     SearchResult(
+                         entity_type="filing",

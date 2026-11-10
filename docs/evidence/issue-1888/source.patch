@@ -1,0 +1,422 @@
+diff --git a/tests/test_edgar_flow.py b/tests/test_edgar_flow.py
+index de13663..1e587a9 100644
+--- a/tests/test_edgar_flow.py
++++ b/tests/test_edgar_flow.py
+@@ -1,10 +1,12 @@
+ import hashlib
+ import json
++import logging
+ import sqlite3
+ import sys
+ from contextlib import contextmanager
+ from datetime import UTC, datetime
+ from pathlib import Path
++from unittest.mock import AsyncMock, Mock
+ 
+ import pytest
+ 
+@@ -14,6 +16,177 @@ import etl.edgar_flow as flow
+ from etl import point_in_time
+ 
+ 
++@pytest.mark.parametrize(
++    "schema, rows",
++    [
++        (None, []),
++        ("name TEXT, cik TEXT", []),
++        ("manager_id INTEGER, name TEXT", []),
++        ("id INTEGER, cik TEXT", [(None, "0")]),
++        ("id INTEGER, cik TEXT", [(7, "other")]),
++        ("id INTEGER, cik TEXT", [(7, "0")]),
++    ],
++)
++def test_manager_lookup_rejects_missing_or_deleted_manager(monkeypatch, schema, rows):
++    conn = sqlite3.connect(":memory:")
++    try:
++        if schema:
++            conn.execute(f"CREATE TABLE managers ({schema})")
++            conn.executemany("INSERT INTO managers VALUES (?, ?)", rows)
++        deleted = Mock(return_value=True)
++        monkeypatch.setattr(flow, "manager_deletion_active", deleted)
++        assert flow._manager_id_for_cik(conn, "0") is None
++        if rows == [(7, "0")]:
++            deleted.assert_called_once_with(conn, 7)
++        else:
++            deleted.assert_not_called()
++    finally:
++        conn.close()
++
++
++@pytest.mark.parametrize(
++    "schema", [None, "manager_id INTEGER", "manager_id INTEGER, filed_date TEXT"]
++)
++def test_watermark_unavailable_without_filing_history(monkeypatch, tmp_path, schema):
++    db_path = tmp_path / "watermark.db"
++    conn = sqlite3.connect(db_path)
++    try:
++        if schema:
++            conn.execute(f"CREATE TABLE filings ({schema})")
++        conn.commit()
++    finally:
++        conn.close()
++    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
++    assert flow._latest_filed_date_for_cik("missing") is None
++
++
++def test_holdings_resolution_failure_preserves_raw_rows(monkeypatch, caplog):
++    conn = sqlite3.connect(":memory:")
++    try:
++        flow._ensure_legacy_tables(conn)
++        conn.execute("INSERT INTO holdings(filing_id, cusip) VALUES (1, 'OLD')")
++        resolver = Mock(side_effect=RuntimeError("resolver unavailable"))
++        monkeypatch.setattr(flow, "resolve_holding_identifiers", resolver)
++        with caplog.at_level(logging.WARNING, logger=flow.__name__):
++            flow._replace_holdings_for_filing(
++                conn,
++                filing_id=1,
++                rows=[{"cusip": "RAW", "sshPrnamt": "12", "value": "34"}],
++                manager_id=None,
++                cik="0",
++                accession="1",
++                filed_date=None,
++            )
++        assert conn.execute("SELECT cusip, shares, value_usd FROM holdings").fetchall() == [
++            ("RAW", 12, 34)
++        ]
++        assert resolver.call_count == 1
++        assert "Identifier resolution failed; inserting raw holdings" in caplog.messages
++    finally:
++        conn.close()
++
++
++def test_empty_holdings_do_not_delete_existing_rows(monkeypatch):
++    conn = sqlite3.connect(":memory:")
++    try:
++        flow._ensure_legacy_tables(conn)
++        conn.execute("INSERT INTO holdings(filing_id, cusip) VALUES (1, 'KEEP')")
++        resolver = Mock(side_effect=AssertionError("empty holdings must not resolve"))
++        monkeypatch.setattr(flow, "resolve_holding_identifiers", resolver)
++        flow._replace_holdings_for_filing(
++            conn, filing_id=1, rows=[], manager_id=1, cik="0", accession="1", filed_date=None
++        )
++        assert conn.execute("SELECT cusip FROM holdings").fetchall() == [("KEEP",)]
++        resolver.assert_not_called()
++    finally:
++        conn.close()
++
++
++def test_bitemporal_unowned_filing_rerun_preserves_version(monkeypatch, tmp_path):
++    conn = _connect_bitemporal_holdings_db(tmp_path)
++    resolver = Mock()
++    monkeypatch.setattr(flow, "resolve_holding_identifiers", resolver)
++    try:
++        kwargs = {
++            "filing_id": 1,
++            "rows": [{"cusip": "AAA", "sshPrnamt": 12, "value": 34}],
++            "manager_id": None,
++            "cik": "0",
++            "accession": "1",
++            "filed_date": "2024-05-01",
++        }
++        flow._replace_holdings_for_filing(conn, **kwargs)
++        flow._replace_holdings_for_filing(conn, **kwargs)
++        assert [
++            tuple(row)
++            for row in conn.execute(
++                "SELECT cusip, shares, value_usd, version, superseded_at FROM holdings"
++            )
++        ] == [("AAA", 12, 34.0, 1, None)]
++        resolver.assert_called_once()
++    finally:
++        conn.close()
++
++
++@pytest.mark.asyncio
++async def test_deletion_during_second_download_keeps_first_filing(monkeypatch, tmp_path):
++    db_path = tmp_path / "deletion.db"
++    _setup_relational_schema(db_path)
++    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
++    monkeypatch.setattr(flow, "ADAPTER", MultiFilingAdapter())
++    lock = Mock(side_effect=[True, False])
++    release = Mock()
++    objects = Mock()
++    alerts = AsyncMock()
++    monkeypatch.setattr(flow, "acquire_manager_ingestion_lock", lock)
++    monkeypatch.setattr(flow, "release_manager_ingestion_lock", release)
++    monkeypatch.setattr(flow.S3, "put_object", objects)
++    monkeypatch.setattr(flow, "store_document", Mock())
++    monkeypatch.setattr(flow, "resolve_holding_identifiers", Mock())
++    monkeypatch.setattr(flow, "fire_alerts_for_event", alerts)
++
++    rows = await flow.fetch_and_store.fn("0", "2024-01-01")
++
++    assert rows == [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
++    assert lock.call_count == 2
++    assert release.call_count == objects.call_count == alerts.await_count == 1
++    with sqlite3.connect(db_path) as conn:
++        assert conn.execute("SELECT COUNT(*) FROM filings").fetchone() == (1,)
++        assert conn.execute("SELECT shares FROM holdings").fetchall() == [(1,)]
++
++
++@pytest.mark.asyncio
++async def test_binary_filing_without_manager_skips_text_index(monkeypatch, tmp_path):
++    db_path = tmp_path / "binary.db"
++    adapter = DummyAdapter()
++    adapter.list_new_filings = AsyncMock(return_value=[{}])
++    adapter.download = AsyncMock(return_value=b"<xml/>")
++    monkeypatch.setattr(flow, "DB_PATH", str(db_path))
++    monkeypatch.setattr(flow, "ADAPTER", adapter)
++    objects, document = Mock(), Mock()
++    alerts = AsyncMock()
++    monkeypatch.setattr(flow.S3, "put_object", objects)
++    monkeypatch.setattr(flow, "store_document", document)
++    monkeypatch.setattr(flow, "resolve_holding_identifiers", Mock())
++    monkeypatch.setattr(flow, "fire_alerts_for_event", alerts)
++
++    rows = await flow.fetch_and_store.fn("0", "2024-01-01")
++
++    assert rows == [{"nameOfIssuer": "Corp", "cusip": "AAA", "value": 1, "sshPrnamt": 1}]
++    document.assert_not_called()
++    raw_key = f"raw/edgar/{hashlib.sha256(b'<xml/>').hexdigest()[:16]}_unknown.xml"
++    objects.assert_called_once_with(
++        Bucket=flow.BUCKET, Key=raw_key, Body=b"<xml/>", ServerSideEncryption="AES256"
++    )
++    event = alerts.await_args.args[1]
++    assert event.manager_id is None
++    assert "filing_id" not in event.payload
++    assert event.payload["accession"] == "unknown"
++    with sqlite3.connect(db_path) as conn:
++        assert conn.execute("SELECT COUNT(*) FROM filings").fetchone() == (0,)
++        assert conn.execute("SELECT filing_id, manager_id FROM holdings").fetchall() == [(0, None)]
++
++
+ class DummyAdapter:
+     async def list_new_filings(self, cik, since):
+         return [{"accession": "1", "cik": cik, "filed": "2024-05-01"}]
+diff --git a/tests/test_issue_1806_coverage.py b/tests/test_issue_1806_coverage.py
+index 7a9b6f1..13ede06 100644
+--- a/tests/test_issue_1806_coverage.py
++++ b/tests/test_issue_1806_coverage.py
+@@ -35,15 +35,21 @@ async def test_digest_delivery_configuration_guards(monkeypatch):
+     digest = digest_flow.DigestDocument(datetime.now(UTC), 24)
+     monkeypatch.delenv("DIGEST_EMAIL_FROM", raising=False)
+     monkeypatch.delenv("ALERT_EMAIL_FROM", raising=False)
+-    assert (await digest_flow.deliver_digest_email(digest)).skipped
++    missing_sender = await digest_flow.deliver_digest_email(digest)
++    assert missing_sender.skipped
++    assert missing_sender.error_message == "DIGEST_EMAIL_FROM is not configured"
+     monkeypatch.setenv("DIGEST_EMAIL_FROM", "sender@example.test")
+     monkeypatch.delenv("DIGEST_EMAIL_TO", raising=False)
+     monkeypatch.delenv("ALERT_EMAIL_TO", raising=False)
+-    assert "TO is not configured" in (await digest_flow.deliver_digest_email(digest)).error_message
++    assert (await digest_flow.deliver_digest_email(digest)).error_message == (
++        "DIGEST_EMAIL_TO is not configured"
++    )
+     monkeypatch.setenv("DIGEST_EMAIL_TO", "recipient@example.test")
+     monkeypatch.setenv("DIGEST_EMAIL_PROVIDER", "sendgrid")
+     monkeypatch.delenv("SENDGRID_API_KEY", raising=False)
+-    assert "SENDGRID_API_KEY" in (await digest_flow.deliver_digest_email(digest)).error_message
++    assert (await digest_flow.deliver_digest_email(digest)).error_message == (
++        "SENDGRID_API_KEY is not configured"
++    )
+ 
+ 
+ @pytest.mark.parametrize(
+@@ -78,6 +84,9 @@ def test_signal_date_helpers_and_empty_schema_guards():
+ def test_search_score_components_clamp_invalid_inputs(rank, distance, expected):
+     assert search._normalize_rank(rank) == expected[0]
+     assert search._vector_relevance(distance) == expected[1]
++
++
++def test_search_guards_return_before_accessing_database():
+     assert search.universal_search(" ", object()) == []
+     assert search.universal_search("query", object(), limit=0) == []
+ 
+@@ -100,7 +109,7 @@ def test_daily_report_formatters_cover_empty_and_directional_values():
+     assert "↓ -2" in daily_report.format_shares_delta(3, 1)
+     assert "n/a" in daily_report.format_percent_change(0, 2)
+     assert "+$2.00" in daily_report.format_value_delta(1, 3)
+-    assert "<x>" not in daily_report.headline_markdown("<x>", None)
++    assert daily_report.headline_markdown("<x>", None) == "&lt;x&gt;"
+     assert "Contrarian: BUY vs SELL" in daily_report.format_signal_badge("BUY", "SELL")
+ 
+ 
+diff --git a/tests/test_issue_1888_coverage.py b/tests/test_issue_1888_coverage.py
+new file mode 100644
+index 0000000..cf8ed9a
+--- /dev/null
++++ b/tests/test_issue_1888_coverage.py
+@@ -0,0 +1,173 @@
++"""Behavior checks for the remaining search, signal, and report boundaries."""
++
++import datetime as dt
++import sqlite3
++from unittest.mock import Mock
++
++import pytest
++
++from api import search, signals
++from ui import daily_report
++
++
++def test_search_legacy_holdings_return_filing_groups_and_holdings():
++    conn = sqlite3.connect(":memory:")
++    try:
++        conn.execute(
++            "CREATE TABLE holdings (cik TEXT, accession TEXT, filed TEXT, nameOfIssuer TEXT, cusip TEXT)"
++        )
++        conn.executemany(
++            "INSERT INTO holdings VALUES (?, ?, ?, ?, ?)",
++            [
++                ("123", "needle-1", "2024-05-01", "needle Corp", "AAA"),
++                ("123", "needle-1", "2024-05-01", "Other", "BBB"),
++            ],
++        )
++        results = search.universal_search("needle", conn)
++        assert [
++            (r.entity_type, r.entity_id, r.manager_name, r.headline, r.snippet, r.timestamp)
++            for r in results
++        ] == [
++            ("filing", 1, "123", "Filing needle-1", "2 holdings; filed 2024-05-01", "2024-05-01"),
++            (
++                "holding",
++                1,
++                "123",
++                "needle Corp (AAA)",
++                "Accession needle-1 filed 2024-05-01",
++                "2024-05-01",
++            ),
++        ]
++    finally:
++        conn.close()
++
++
++def test_search_vector_documents_keep_shared_managers_and_deduplicate(monkeypatch, tmp_path):
++    import embeddings
++
++    conn = sqlite3.connect(tmp_path / "documents.db")
++    try:
++        conn.executescript("""
++            CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT);
++            CREATE TABLE documents (doc_id INTEGER PRIMARY KEY, manager_id INTEGER, filename TEXT, text TEXT);
++            CREATE TABLE document_managers (doc_id INTEGER, manager_id INTEGER);
++            INSERT INTO managers VALUES (1, 'Alpha'), (2, 'Beta');
++            INSERT INTO documents VALUES (1, NULL, 'memo', 'needle memo'), (2, 1, NULL, 'vector only result');
++            INSERT INTO document_managers VALUES (2, 2), (2, 1), (2, 999);
++        """)
++        conn.commit()
++        vector = Mock(
++            return_value=[
++                {"content": ""},
++                {"content": "absent"},
++                {"content": "vector only result", "distance": 0.2},
++                {"content": "vector only result", "distance": 0.8},
++            ]
++        )
++        monkeypatch.setattr(embeddings, "search_documents", vector)
++
++        results = search.universal_search("needle", conn, entity_type="document")
++
++        assert [(r.entity_id, r.manager_name, r.headline, r.snippet) for r in results] == [
++            (1, None, "memo", "needle memo"),
++            (2, "Alpha, Beta", "vector only result", "vector only result"),
++        ]
++        assert [r.relevance for r in results] == pytest.approx([0.7, 0.62])
++        vector.assert_called_once_with("needle", db_path=str(tmp_path / "documents.db"), k=20)
++    finally:
++        conn.close()
++
++
++def test_search_postgres_activism_preserves_filing_context(monkeypatch):
++    monkeypatch.setattr(search, "table_exists", lambda conn, table: table == "activism_filings")
++    conn = Mock()
++    conn.execute.return_value.fetchall.return_value = [
++        (
++            12,
++            "Alpha",
++            "SC 13D",
++            "Target",
++            "CUSIP",
++            5.5,
++            "2024-05-01",
++            "https://example.test/12",
++            0.5,
++        )
++    ]
++
++    results = search.universal_search("Target", conn, entity_type="filing")
++
++    assert len(results) == 1
++    assert results[0].model_dump() == {
++        "entity_type": "filing",
++        "entity_id": 12,
++        "manager_name": "Alpha",
++        "headline": "13D Filing: Alpha -> Target (5.5%)",
++        "snippet": "SC 13D | CUSIP: CUSIP | Filed: 2024-05-01",
++        "relevance": pytest.approx(0.8666666667),
++        "url": "https://example.test/12",
++        "timestamp": "2024-05-01",
++    }
++    sql, params = conn.execute.call_args.args
++    assert "FROM activism_filings af" in sql
++    assert params == ("Target", "Target", "Target", 20)
++
++
++def test_conviction_annotation_survives_unavailable_holdings(monkeypatch):
++    from etl import insider_flow
++
++    conn = sqlite3.connect(":memory:")
++    try:
++        conn.executescript("""
++            CREATE TABLE conviction_scores (
++                manager_id INTEGER, filing_id INTEGER, cusip TEXT, name_of_issuer TEXT,
++                value_usd REAL, conviction_pct REAL, portfolio_weight REAL
++            );
++            CREATE TABLE insider_transactions (ticker TEXT);
++            INSERT INTO conviction_scores VALUES (1, 2, 'AAA', 'Issuer', 300, 50, 0.5);
++        """)
++        annotate = Mock(return_value="BUY")
++        monkeypatch.setattr(insider_flow, "insider_net_direction_for_ticker", annotate)
++
++        rows = signals.query_conviction_scores(conn, 1, filing_id=2)
++
++        assert [row.model_dump() for row in rows] == [
++            {
++                "cusip": "AAA",
++                "name_of_issuer": "Issuer",
++                "value_usd": 300.0,
++                "conviction_pct": 50.0,
++                "portfolio_weight": 0.5,
++                "insider_net_direction": "BUY",
++                "short_interest_pct": None,
++                "short_interest_report_date": None,
++                "short_interest_source": None,
++            }
++        ]
++        annotate.assert_called_once_with(conn, None, cusip="AAA")
++    finally:
++        conn.close()
++
++
++@pytest.mark.parametrize(
++    "loader, query",
++    [
++        ("load_crowded_trades", "query_crowded_trades"),
++        ("load_contrarian_signals", "query_contrarian_signals"),
++    ],
++)
++def test_report_signal_query_failure_returns_empty_and_closes(monkeypatch, loader, query):
++    conn = Mock()
++    failing_query = Mock(side_effect=sqlite3.OperationalError("database unavailable"))
++    monkeypatch.setattr(daily_report, "connect_db", lambda: conn)
++    monkeypatch.setattr(daily_report, query, failing_query)
++    load = getattr(daily_report, loader)
++    load.clear()
++    try:
++        assert load("2024-05-01").empty
++        failing_query.assert_called_once()
++        assert failing_query.call_args.args == (conn,)
++        assert failing_query.call_args.kwargs["report_date"] == dt.date(2024, 5, 1)
++        conn.close.assert_called_once_with()
++    finally:
++        load.clear()

@@ -1,0 +1,132 @@
+........................................................................ [  2%]
+........................................................................ [  5%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+................................sssssssssssss........................... [ 13%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+.............s................sssssss................................... [ 21%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 32%]
+....................F................................................... [ 35%]
+........................................................................ [ 37%]
+........................................................................ [ 40%]
+........................................................................ [ 43%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........s........................s...................................... [ 51%]
+.F...................................................s.................. [ 54%]
+........................................................................ [ 56%]
+........................................................................ [ 59%]
+........................................................................ [ 62%]
+........................................................................ [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 73%]
+........................................................................ [ 75%]
+........................................................................ [ 78%]
+........................................................................ [ 81%]
+........................................................................ [ 83%]
+........s............................................................... [ 86%]
+........................................................................ [ 89%]
+.................sss.................................................... [ 92%]
+........................................................................ [ 94%]
+........................................................................ [ 97%]
+................................................................F./opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/ast.py:46: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76f296369990>
+  return compile(source, filename, mode, flags,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+       [100%]
+=================================== FAILURES ===================================
+__________ test_chat_payload_and_dependency_error_branches_are_stable __________
+tests/test_coverage_round_1842.py:258: in test_chat_payload_and_dependency_error_branches_are_stable
+    assert failed_reason == "dependency down"
+E   AssertionError: assert 'timeout' == 'dependency down'
+E     
+E     - dependency down
+E     + timeout
+_____________ test_real_edgartools_parser_reads_committed_fixture ______________
+tests/test_edgar_integration.py:307: in test_real_edgartools_parser_reads_committed_fixture
+    pytest.importorskip("edgar.thirteenf")
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1314: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:491: in _call_with_frames_removed
+    ???
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1342: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:938: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:763: in exec_module
+    ???
+<frozen importlib._bootstrap>:491: in _call_with_frames_removed
+    ???
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/edgar/__init__.py:11: in <module>
+    from edgar._filings import (
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/edgar/_filings.py:33: in <module>
+    from edgar.attachments import Attachment, Attachments, AttachmentServer, FilingHomepage
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/edgar/attachments.py:35: in <module>
+    from edgar.httpclient import async_http_client
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/edgar/httpclient.py:417: in <module>
+    HTTP_MGR = get_http_mgr(request_per_sec_limit=get_edgar_rate_limit_per_sec())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/edgar/httpclient.py:211: in get_http_mgr
+    cache_dir = get_cache_directory()
+                ^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/edgar/httpclient.py:105: in get_cache_directory
+    cachedir = get_edgar_data_directory() / "_tcache"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/edgar/core.py:324: in get_edgar_data_directory
+    return get_data_directory(create=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/edgar/paths.py:115: in get_data_directory
+    path.mkdir(parents=True, exist_ok=True)
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/pathlib/__init__.py:1011: in mkdir
+    os.mkdir(self, mode)
+E   OSError: [Errno 30] Read-only file system: '/home/runner/.edgar'
+_______________ test_wasm_demo_static_routes_serve_stlite_shell ________________
+tests/web/test_wasm_static_routes.py:42: in test_wasm_demo_static_routes_serve_stlite_shell
+    with _static_server(web_dir) as base_url:
+         ^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+tests/web/test_wasm_static_routes.py:18: in _static_server
+    with socketserver.TCPServer(("127.0.0.1", 0), handler) as server:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/socketserver.py:453: in __init__
+    self.socket = socket.socket(self.address_family,
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/socket.py:236: in __init__
+    _socket.socket.__init__(self, family, type, proto, fileno)
+E   PermissionError: [Errno 1] Operation not permitted
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.14.10-final-0 _______________
+
+Name                 Stmts   Miss Branch BrPart  Cover   Missing
+----------------------------------------------------------------
+api/search.py          294      5    118      9    97%   23->26, 28-31, 67, 93, 310->312, 373->375, 625->709, 656->663, 835->842, 875->879
+api/signals.py         248      2     66      0    99%   398-399
+etl/edgar_flow.py      236      2     72      1    99%   534-536
+ui/daily_report.py     303      6     78      8    96%   66, 196, 295, 349, 354->356, 367->364, 489, 569
+----------------------------------------------------------------
+TOTAL                 1081     15    334     18    98%
+Coverage JSON written to file /tmp/issue1888-boundaries-full.json
+=========================== short test summary info ============================
+FAILED tests/test_coverage_round_1842.py::test_chat_payload_and_dependency_error_branches_are_stable - AssertionError: assert 'timeout' == 'dependency down'
+  
+  - dependency down
+  + timeout
+FAILED tests/test_edgar_integration.py::test_real_edgartools_parser_reads_committed_fixture - OSError: [Errno 30] Read-only file system: '/home/runner/.edgar'
+FAILED tests/web/test_wasm_static_routes.py::test_wasm_demo_static_routes_serve_stlite_shell - PermissionError: [Errno 1] Operation not permitted
+3 failed, 2627 passed, 28 skipped, 328 warnings in 187.09s (0:03:07)

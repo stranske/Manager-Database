@@ -1,0 +1,42 @@
+cwd: /tmp/issue1888-boundaries
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_report_latest_date_ignores_missing_sources ________________
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/pandas/io/sql.py:2802: in execute
+    cur.execute(sql, *args)
+E   sqlite3.OperationalError: no such table: daily_diffs
+
+The above exception was the direct cause of the following exception:
+tests/test_issue_1888_coverage.py:262: in test_report_latest_date_ignores_missing_sources
+    assert daily_report.latest_report_date() == dt.date(2024, 5, 1)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:281: in __call__
+    return self._get_or_create_cached_value(args, kwargs, spinner_message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:326: in _get_or_create_cached_value
+    return self._handle_cache_miss(cache, value_key, func_args, func_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:385: in _handle_cache_miss
+    computed_value = self._info.func(*func_args, **func_kwargs)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ui/daily_report.py:292: in latest_report_date
+    value = pd.read_sql_query(query, conn).iloc[0, 0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/pandas/io/sql.py:539: in read_sql_query
+    return pandas_sql.read_query(
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/pandas/io/sql.py:2877: in read_query
+    cursor = self.execute(sql, params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/pandas/io/sql.py:2825: in execute
+    raise ex from exc
+E   pandas.errors.DatabaseError: Execution failed on sql 'SELECT MAX(report_date) AS report_date FROM daily_diffs': no such table: daily_diffs
+----------------------------- Captured stderr call -----------------------------
+2026-11-04 03:34:49.624 No runtime found, using MemoryCacheStorageManager
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources - pandas.errors.DatabaseError: Execution failed on sql 'SELECT MAX(report_date) AS report_date FROM daily_diffs': no such table: daily_diffs
+1 failed, 6 warnings in 0.62s
+
+exit: 1

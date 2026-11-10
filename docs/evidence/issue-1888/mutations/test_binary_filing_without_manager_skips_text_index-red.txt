@@ -1,0 +1,22 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_binary_filing_without_manager_skips_text_index ______________
+tests/test_edgar_flow.py:178: in test_binary_filing_without_manager_skips_text_index
+    objects.assert_called_once_with(
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:998: in assert_called_once_with
+    return self.assert_called_with(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:986: in assert_called_with
+    raise AssertionError(_error_message()) from cause
+E   AssertionError: expected call not found.
+E   Expected: mock(Bucket='filings', Key='raw/edgar/6eb820e0f9762c61_unknown.xml', Body=b'<xml/>', ServerSideEncryption='AES256')
+E     Actual: mock(Bucket='filings', Key='raw/edgar/6eb820e0f9762c61_incorrect.xml', Body=b'<xml/>', ServerSideEncryption='AES256')
+=========================== short test summary info ============================
+FAILED tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index - AssertionError: expected call not found.
+Expected: mock(Bucket='filings', Key='raw/edgar/6eb820e0f9762c61_unknown.xml', Body=b'<xml/>', ServerSideEncryption='AES256')
+  Actual: mock(Bucket='filings', Key='raw/edgar/6eb820e0f9762c61_incorrect.xml', Body=b'<xml/>', ServerSideEncryption='AES256')
+1 failed, 8 warnings in 1.78s
+
+exit: 1

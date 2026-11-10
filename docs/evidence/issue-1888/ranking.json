@@ -1,0 +1,81 @@
+{
+  "base": "a7f4e626bb4b8359a64c56a56211218e41b6020a",
+  "head": "64fcbc71d7fc93c292aff58a57d19d63b2de2b98",
+  "history_window": "last 500 commits touching runtime source",
+  "priority": "repair-subject proxy, touches, uncovered statements+branches",
+  "repair_subject_regex": "fix|bug|repair|regress|recover",
+  "verified_escaped_defect_counts": false,
+  "coverage_source": "CI Gate artifacts: run 41702885246 (baseline, Python 3.13/3.14) and run 41839886184 (candidate, Python 3.13/3.14)",
+  "baseline_ci_run": 41702885246,
+  "baseline_ci_artifact": 13265760076,
+  "baseline_ci_artifact_sha256": "0ad415416368e7718da8435c0c541d7ea66aa8e02f70812701b83032b193475a",
+  "candidate_ci_run": 41839886184,
+  "ranked": [
+    {
+      "path": "etl/edgar_flow.py",
+      "repair_subject_proxy": 19,
+      "touches": 41,
+      "baseline_missing_lines": 15,
+      "baseline_missing_branches": 14,
+      "baseline_uncovered_units": 29,
+      "candidate_missing_lines": 2,
+      "candidate_missing_branches": 1,
+      "candidate_uncovered_units": 3,
+      "reduction": 26
+    },
+    {
+      "path": "ui/daily_report.py",
+      "repair_subject_proxy": 4,
+      "touches": 14,
+      "baseline_missing_lines": 20,
+      "baseline_missing_branches": 15,
+      "baseline_uncovered_units": 35,
+      "candidate_missing_lines": 1,
+      "candidate_missing_branches": 1,
+      "candidate_uncovered_units": 2,
+      "reduction": 33
+    },
+    {
+      "path": "api/signals.py",
+      "repair_subject_proxy": 3,
+      "touches": 10,
+      "baseline_missing_lines": 9,
+      "baseline_missing_branches": 4,
+      "baseline_uncovered_units": 13,
+      "candidate_missing_lines": 2,
+      "candidate_missing_branches": 0,
+      "candidate_uncovered_units": 2,
+      "reduction": 11
+    },
+    {
+      "path": "api/search.py",
+      "repair_subject_proxy": 2,
+      "touches": 9,
+      "baseline_missing_lines": 25,
+      "baseline_missing_branches": 27,
+      "baseline_uncovered_units": 52,
+      "candidate_missing_lines": 4,
+      "candidate_missing_branches": 2,
+      "candidate_uncovered_units": 6,
+      "reduction": 46
+    },
+    {
+      "path": "etl/digest_flow.py",
+      "repair_subject_proxy": 0,
+      "touches": 4,
+      "baseline_uncovered_units": null,
+      "candidate_uncovered_units": null
+    },
+    {
+      "path": "adapters/asic.py",
+      "repair_subject_proxy": 0,
+      "touches": 2,
+      "baseline_uncovered_units": null,
+      "candidate_uncovered_units": null
+    }
+  ],
+  "total_baseline_uncovered_units": 130,
+  "total_candidate_uncovered_units": 13,
+  "total_reduction": 117,
+  "shortfall_explanation": "The baseline contains 130 uncovered units (statements+branches) across the four targets. A reduction of ~180 units is not attainable within this measured scope; the mathematical bound is 130 units maximum. This criterion remains unmet pending an explicit scope decision."
+}

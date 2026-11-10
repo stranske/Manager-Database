@@ -1,0 +1,11 @@
+--- a/ui/daily_report.py
++++ b/ui/daily_report.py
+@@ -346,7 +346,7 @@
+ 
+ def main():
+     if not require_login():
+-        st.stop()
++        pass
+     default_date = latest_report_date() or (dt.date.today() - dt.timedelta(days=1))
+     date = st.date_input("Date", default_date)
+     latest_date = latest_report_date()

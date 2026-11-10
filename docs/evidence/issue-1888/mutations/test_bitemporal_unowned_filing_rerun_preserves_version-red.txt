@@ -1,0 +1,55 @@
+cwd: /tmp/issue1888-mutations
+PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_bitemporal_unowned_filing_rerun_preserves_version ____________
+tests/test_edgar_flow.py:120: in test_bitemporal_unowned_filing_rerun_preserves_version
+    assert [
+E   AssertionError: assert [('AAA', 12, ...4.0, 2, None)] == [('AAA', 12, 34.0, 1, None)]
+E     
+E     At index 0 diff: ('AAA', 12, 34.0, 1, '2026-11-04T00:53:15Z') != ('AAA', 12, 34.0, 1, None)
+E     Left contains one more item: ('AAA', 12, 34.0, 2, None)
+E     
+E     Full diff:
+E       [
+E           (
+E               'AAA',
+E               12,
+E               34.0,
+E               1,
+E     +         '2026-11-04T00:53:15Z',
+E     +     ),
+E     +     (
+E     +         'AAA',
+E     +         12,
+E     +         34.0,
+E     +         2,
+E               None,
+E           ),
+E       ]
+=========================== short test summary info ============================
+FAILED tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version - AssertionError: assert [('AAA', 12, ...4.0, 2, None)] == [('AAA', 12, 34.0, 1, None)]
+  
+  At index 0 diff: ('AAA', 12, 34.0, 1, '2026-11-04T00:53:15Z') != ('AAA', 12, 34.0, 1, None)
+  Left contains one more item: ('AAA', 12, 34.0, 2, None)
+  
+  Full diff:
+    [
+        (
+            'AAA',
+            12,
+            34.0,
+            1,
+  +         '2026-11-04T00:53:15Z',
+  +     ),
+  +     (
+  +         'AAA',
+  +         12,
+  +         34.0,
+  +         2,
+            None,
+        ),
+    ]
+1 failed, 8 warnings in 2.36s
+
+exit: 1

@@ -1,0 +1,40 @@
+cwd: /tmp/issue1888-navigation-proof
+PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_login_stop_prevents_database_access -m 'not slow' --tb=short --disable-warnings
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_report_login_stop_prevents_database_access ________________
+tests/test_issue_1888_coverage.py:504: in test_report_login_stop_prevents_database_access
+    daily_report.main()
+ui/daily_report.py:350: in main
+    default_date = latest_report_date() or (dt.date.today() - dt.timedelta(days=1))
+                   ^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:281: in __call__
+    return self._get_or_create_cached_value(args, kwargs, spinner_message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:326: in _get_or_create_cached_value
+    return self._handle_cache_miss(cache, value_key, func_args, func_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/site-packages/streamlit/runtime/caching/cache_utils.py:385: in _handle_cache_miss
+    computed_value = self._info.func(*func_args, **func_kwargs)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ui/daily_report.py:281: in latest_report_date
+    conn = connect_db()
+           ^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1176: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1180: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.9/x64/lib/python3.14/unittest/mock.py:1241: in _execute_mock_call
+    raise effect
+E   AssertionError: database accessed before login
+----------------------------- Captured stderr call -----------------------------
+2026-11-04 05:36:08.378 No runtime found, using MemoryCacheStorageManager
+------------------------------ Captured log call -------------------------------
+WARNING  streamlit.runtime.caching.cache_data_api:cache_data_api.py:372 No runtime found, using MemoryCacheStorageManager
+=========================== short test summary info ============================
+FAILED tests/test_issue_1888_coverage.py::test_report_login_stop_prevents_database_access - AssertionError: database accessed before login
+1 failed, 6 warnings in 1.10s
+
+exit: 1

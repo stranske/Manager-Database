@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -285,7 +285,7 @@
+         )
+     insert_columns = [column for column in values if column in columns]
+     if not insert_columns:
+-        return
++        raise RuntimeError("schema rejected")
+     conn.execute(
+         f"INSERT INTO holdings({', '.join(insert_columns)}) "
+         f"VALUES ({', '.join(marker for _ in insert_columns)})",

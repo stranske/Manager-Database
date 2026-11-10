@@ -1,0 +1,20 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -263,7 +263,7 @@
+                 ownership_pct,
+             )
+             snippet = (
+-                f"{filing_type or 'Activism filing'} | CUSIP: {cusip or 'n/a'} | "
++                f"{filing_type or 'Activism filing'} | Wrong: {cusip or 'n/a'} | "
+                 f"Filed: {filed_date or 'n/a'}"
+             )
+             results.append(
+@@ -911,7 +911,7 @@
+                 ownership_pct,
+             )
+             snippet = (
+-                f"{filing_type or 'Activism filing'} | CUSIP: {cusip or 'n/a'} | "
++                f"{filing_type or 'Activism filing'} | Wrong: {cusip or 'n/a'} | "
+                 f"Filed: {filed_date or 'n/a'}"
+             )
+             results.append(

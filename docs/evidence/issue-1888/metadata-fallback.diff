@@ -1,0 +1,11 @@
+--- a/api/search.py
++++ b/api/search.py
+@@ -653,6 +653,8 @@
+             db_path: str | None = None
+             try:
+                 db_rows = conn.execute("PRAGMA database_list").fetchall()
++                if not db_rows:
++                    return []
+                 if db_rows:
+                     maybe_path = str(db_rows[0][2] or "")
+                     if maybe_path and maybe_path != ":memory:":

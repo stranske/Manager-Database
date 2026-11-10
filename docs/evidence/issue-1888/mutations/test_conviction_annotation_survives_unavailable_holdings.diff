@@ -1,0 +1,11 @@
+--- a/api/signals.py
++++ b/api/signals.py
+@@ -371,7 +371,7 @@
+                 value_usd=finite_float_or_none(row[2]),
+                 conviction_pct=finite_float_or_none(row[3]),
+                 portfolio_weight=finite_float_or_none(row[4]),
+-                insider_net_direction=direction,
++                insider_net_direction=None,
+                 short_interest_pct=(
+                     finite_float_or_none(short_interest.get("short_interest_pct"))
+                     if short_interest

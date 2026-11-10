@@ -1,0 +1,11 @@
+--- a/etl/edgar_flow.py
++++ b/etl/edgar_flow.py
+@@ -320,7 +320,7 @@
+ ) -> None:
+     from datetime import UTC, datetime
+ 
+-    if not rows:
++    if rows is None:
+         return
+ 
+     def _work() -> None:
