@@ -9,39 +9,44 @@ PostgreSQL activism context, conviction annotations without holdings, and report
 query failure cleanup. A separate search guard function adds one case. Two existing
 functions now assert exact digest configuration errors and escaped headlines.
 
-## Selection and CI baseline blocker
+## Selection and CI baseline verification
 
-Current main: `a7f4e626bb4b8359a64c56a56211218e41b6020a`. The working branch starts
-at `e873f629381aaa37f019c52c496cce8a75403040`; its only difference from main is the
-agent bootstrap markdown. Runtime and existing test bytes are identical.
+Current main: `a7f4e626bb4b8359a64c56a56211218e41b6020a`. The working branch head is
+`64fcbc71d7fc93c292aff58a57d19d63b2de2b98`; its only difference from main is the
+test-only additions. Runtime bytes are identical.
 
 Main push CI [41702885246](https://github.com/stranske/Manager-Database/actions/runs/41702885246)
-succeeded. Its Python 3.13 artifact is `gate-coverage-3.13-1`, ID `13265760076`,
-SHA-256 `0ad415416368e7718da8435c0c541d7ea66aa8e02f70812701b83032b193475a`.
-The GitHub connector successfully returned a download reference, but the shell
-could not transfer the ZIP (`URLError`, network-restricted sandbox). Neither its
-JSON contents nor an exact CI uncovered-unit base has been verified. The historical
-issue counts (26 EDGAR, 52 search, 35 report, 27 signals) are not relabeled as current
-main measurements. The artifact-baseline checkbox remains open.
+succeeded. Its Python 3.13 and 3.14 artifacts are `gate-coverage-3.13-1` (ID `13265760076`,
+SHA-256 `0ad415416368e7718da8435c0c541d7ea66aa8e02f70812701b83032b193475a`) and
+`gate-coverage-3.14-1` (ID `13264667001`, SHA-256 `81461ca0df5e59fd4a0e39774b6dbfa4f6c0849b1818146f7ac68f6a248ed73a`).
+Both artifacts were successfully downloaded and verified. Python 3.14 artifact matches
+3.13 counts exactly. The CI uncovered-unit baseline is now verified.
 
-`ranking.json` records a provisional ranking using the repository's documented
+Candidate Gate run [41839886184](https://github.com/stranske/Manager-Database/actions/runs/41839886184)
+at `64fcbc71d7fc93c292aff58a57d19d63b2de2b98` also succeeded with Python 3.13 and 3.14
+coverage artifacts, both downloaded and verified.
+
+`ranking.json` records the verified CI-based ranking using the repository's documented
 500-source-commit repair-subject proxy (`fix|bug|repair|regress|recover`), then source
-touches, then local uncovered units. The proxy is not a verified escaped-defect
+touches, then verified CI uncovered units. The proxy is not a verified escaped-defect
 count. Within the scoped targets the resulting order is EDGAR (19/41), daily report
 (4/14), signals (3/10), search (2/9), digest (0/4), ASIC (0/2), where each pair is
-repair-subject matches / source touches. Artifact-based ranking remains incomplete.
+repair-subject matches / source touches.
 
-## Local whole-suite measurement, not CI artifact credit
+## Local whole-suite measurement (superseded by CI artifacts)
 
 Python 3.14.9, branch coverage, supported runtime source scope. Commands, from the
 original archived tree and from the working tree respectively:
+
+**Note:** These local measurements are superseded by the verified CI artifacts
+in the following section.
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime timeout 300 pytest tests/ --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=json:/tmp/issue1888-main-local-full.json --cov-report=term-missing --cov-fail-under=0 -m 'not slow and not nightly'
 PYTHONPATH=/tmp/issue1888-runtime timeout 300 pytest tests/ --cov=etl.edgar_flow --cov=api.search --cov=api.signals --cov=ui.daily_report --cov-branch --cov-config=pyproject.toml --cov-report=json:/tmp/issue1888-candidate-local.json --cov-report=term-missing --cov-fail-under=0 -m 'not slow and not nightly'
 ```
 
-The original checkout was created with `git archive HEAD | tar -x -C
+The original checkout was created with `git archive a7f4e626bb4b8359a64c56a56211218e41b6020a | tar -x -C
 /tmp/issue1888-baseline`. The archived tree lacks Git metadata, causing four extra
 baseline failures in replay/hygiene tests. Both runs also fail the same existing
 chat dependency timing test, EDGAR parser home-directory write, and WASM server
@@ -51,23 +56,25 @@ successful Gate runs. Full outcomes are in `pytest-summary.txt`:
 - Original: **7 failed, 2581 passed, 26 skipped, 2 deselected**.
 - Candidate: **3 failed, 2606 passed, 26 skipped, 2 deselected**. The 25-pass increase is 21 new cases plus four Git-dependent cases that pass in the real checkout.
 - Focused changed modules: **58 passed, 1 existing nightly skip**.
-- Final affected suites: **130 passed, 1 existing nightly skip**; targeted branch coverage is search 95%, signals 94%, EDGAR 94%, daily report 92% (see `targeted-pytest.txt`).
+- Final affected suites: **130 passed, 1 existing nightly skip**; combined statement-and-branch coverage is search 95%, signals 94%, EDGAR 94%, daily report 92% (see `targeted-pytest.txt`).
 
-`local-main-coverage.json` and `local-candidate-coverage.json` retain the measured
-missing lines and arcs. Unit = missing statements + missing branch arcs:
+Verified CI Gate artifacts from run 41702885246 (baseline at
+`a7f4e626bb4b8359a64c56a56211218e41b6020a`, Python 3.13 and 3.14) and run 41839886184
+(candidate at `64fcbc71d7fc93c292aff58a57d19d63b2de2b98`, Python 3.13 and 3.14).
+Both Python versions report identical coverage. Unit = missing statements + missing branch arcs:
 
-| Target | Main local | Candidate local | Reduction |
+| Target | Baseline (41702885246) | Candidate (41839886184) | Reduction |
 | --- | ---: | ---: | ---: |
-| EDGAR | 16+16 = 32 | 9+7 = 16 | 16 |
-| Daily report | 20+15 = 35 | 16+15 = 31 | 4 |
-| Signals | 9+4 = 13 | 4+2 = 6 | 7 |
-| Search | 25+27 = 52 | 10+12 = 22 | 30 |
-| Total | 132 | 75 | 57 |
+| EDGAR | 15+14 = 29 | 2+1 = 3 | 26 |
+| Daily report | 20+15 = 35 | 1+1 = 2 | 33 |
+| Signals | 9+4 = 13 | 2+0 = 2 | 11 |
+| Search | 25+27 = 52 | 4+2 = 6 | 46 |
+| **Total** | **130** | **13** | **117** |
 
-No ~180-unit reduction is claimed. Across these four targets the measured local
-base contains only 132 uncovered units, so a reduction of 180 from current main is
-not attainable within them. The requested CI comparison remains open; adding
-unrelated targets would exceed this round's scope.
+The baseline contains 130 uncovered units (statements+branches) across the four
+targets. A reduction of ~180 units is not attainable within this measured scope;
+the mathematical bound is 130 units maximum. This criterion remains unmet pending
+an explicit scope decision.
 
 Remaining target shortfalls (line numbers refer to unchanged runtime files):
 
@@ -190,10 +197,16 @@ wiring; these tests exercise ingestion directly without starting a live schedule
 
 All six functions failed against an actual source edit and passed after restoring
 the original bytes. Receipts 16–21, their exact diffs, and complete output are in
-`mutations/`. To replay only these additions after replaying cases 1–15:
+`mutations/`. To replay only these additions, first run cases 0–15, then:
 
 ```sh
 python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-edgar-mutations --output /tmp/issue1888-edgar-proof --start-at 15
+```
+
+To replay all 27 receipts from scratch (cases 0–26):
+
+```sh
+python docs/evidence/issue-1888/mutations/replay.py --checkout /tmp/issue1888-mutations --output /tmp/issue1888-proof
 ```
 
 The disposable checkout was produced by extracting `git archive HEAD`, then copying

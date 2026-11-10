@@ -50,10 +50,9 @@ with connection cleanup. Matched targeted coverage rises **97% to 99%**, missing
 statements+branches **13 to 2**; only the script entry point remains. Related
 suites pass **187 tests, 2 existing nightly skips**. Black passes (452 files
 unchanged); Ruff passes. These are local measurements, not CI artifact credit.
-See [the evidence README](docs/evidence/issue-1888/README.md#report-missing-values-and-optional-activism-follow-up-2026-11-04)
-for raw JSON, commands and source mutation proof. Published head `86e8040` passed
-Gate run `41822356850` on Python 3.13 and 3.14 before these changes; the new tests
-still require CI validation.
+See [the evidence README](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/README.md#report-missing-values-and-optional-activism-follow-up-2026-11-04)
+for raw JSON, commands and source mutation proof. Candidate head `64fcbc71` passed
+Gate run `41839886184` on Python 3.13 and 3.14; see [run details](https://github.com/stranske/Manager-Database/actions/runs/41839886184).
 
 Negative-cache audit completed across EDGAR, search, signals, report, digest and
 ASIC. No `cache.get(key) is None` misuse was found. Search's `deduped` only stores
@@ -66,30 +65,48 @@ that a different date queries again. No production fix is warranted.
 
 The main Gate coverage artifact is `13265760076` (`gate-coverage-3.13-1`) from
 [run 41702885246](https://github.com/stranske/Manager-Database/actions/runs/41702885246)
-at `a7f4e626bb4b8359a64c56a56211218e41b6020a`. Artifact transfer is blocked by the
-sandbox; a returned ZIP reference does not verify its JSON. Shell GitHub access
-still fails. The required exact CI base and CI ranking remain unchecked.
-[ranking.json](docs/evidence/issue-1888/ranking.json) is a provisional local ranking
-using repair-subject matches and churn, not verified escaped-defect counts.
+at `a7f4e626bb4b8359a64c56a56211218e41b6020a`. Artifacts were successfully downloaded
+and verified for both Python 3.13 and 3.14, with identical coverage counts.
+Candidate Gate run [41839886184](https://github.com/stranske/Manager-Database/actions/runs/41839886184)
+at `64fcbc71d7fc93c292aff58a57d19d63b2de2b98` also succeeded with verified
+coverage artifacts for Python 3.13 and 3.14.
 
-Earlier matched local whole-suite coverage (not CI artifact credit):
+Verified CI artifact-based uncovered units (statements+branches):
 
-| Target | Main missing statements+branches | Prior candidate | Reduction |
+| Target | Baseline (41702885246) | Candidate (41839886184) | Reduction |
 | --- | ---: | ---: | ---: |
-| EDGAR | 16+16=32 | 9+7=16 | 16 |
-| Daily report | 20+15=35 | 16+15=31 | 4 |
-| Signals | 9+4=13 | 4+2=6 | 7 |
-| Search | 25+27=52 | 10+12=22 | 30 |
-| Total | 132 | 75 | 57 |
+| EDGAR | 15+14 = 29 | 2+1 = 3 | 26 |
+| Daily report | 20+15 = 35 | 1+1 = 2 | 33 |
+| Signals | 9+4 = 13 | 2+0 = 2 | 11 |
+| Search | 25+27 = 52 | 4+2 = 6 | 46 |
+| **Total** | **130** | **13** | **117** |
 
-Later EDGAR-focused tests reduce local missing units from **19 to 6**. A later
-matched full-suite comparison for the search/report/signal additions reduces
-**62 to 33** against the preceding PR head. This round's report-focused comparison
-reduces **29 to 25**. These different baselines/selections must not be added.
-The full-suite comparison still has three identical existing failures before and
-after: a chat dependency timeout, edgartools writing its home directory, and a
-WASM server socket blocked by the sandbox. Full logs and counts are in the README.
-No successful CI pytest result or approximately 180-unit CI reduction is claimed.
+[ranking.json](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/ranking.json)
+contains the verified CI-based ranking using the repository's documented 500-source-commit
+repair-subject proxy, then source touches, then verified CI uncovered units. The proxy
+is not a verified escaped-defect count. The baseline contains 130 uncovered units
+across the four targets, so a reduction of ~180 units is not attainable within this
+measured scope; the mathematical bound is 130 units maximum. This criterion remains
+unmet pending an explicit scope decision.
+
+Verified CI Gate artifact comparison (Python 3.13 and 3.14):
+
+| Target | Main missing statements+branches | Candidate | Reduction |
+| --- | ---: | ---: | ---: |
+| EDGAR | 15+14 = 29 | 2+1 = 3 | 26 |
+| Daily report | 20+15 = 35 | 1+1 = 2 | 33 |
+| Signals | 9+4 = 13 | 2+0 = 2 | 11 |
+| Search | 25+27 = 52 | 4+2 = 6 | 46 |
+| **Total** | **130** | **13** | **117** |
+
+The baseline contains 130 uncovered units (statements+branches) across the four
+targets. A reduction of ~180 units is not attainable within this measured scope;
+the mathematical bound is 130 units maximum. This criterion remains unmet pending
+an explicit scope decision. Per-target shortfall explanations are in [ranking.json](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/ranking.json).
+
+The Gate runs succeeded: baseline [41702885246](https://github.com/stranske/Manager-Database/actions/runs/41702885246)
+at `a7f4e626` and candidate [41839886184](https://github.com/stranske/Manager-Database/actions/runs/41839886184)
+at `64fcbc71`. Both Python 3.13 and 3.14 report identical counts.
 
 Per-target shortfalls: the four-target local main base is only 132 units, so a
 180-unit reduction is unattainable within that measured base. EDGAR retains the
@@ -99,9 +116,9 @@ optional imports and guards in the targeted selection. Report retains compatibil
 error/empty-value guards, the script entry point, and an incomplete annotation
 branch. Login and date-navigation wiring are covered by the preceding tests.
 These are residual coverage paths, not assertions that they cannot be tested.
-[The README](docs/evidence/issue-1888/README.md) records the specific measurements
-and remaining branches for each stage. Current-main CI measurement and candidate
-CI validation remain required before acceptance can be marked complete.
+[The README](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/README.md)
+records the specific measurements and remaining branches for each stage.
+Verified CI measurement and ranking are now documented above.
 
 ## Break-and-revert proof for every new function
 
@@ -109,14 +126,14 @@ All 39 receipts have red exit **1** and restored exit **0**. Mutations edit actu
 runtime source in disposable `/tmp` checkouts; original/restored hashes match.
 Commands and exact output excerpts follow. Each linked red/green file retains
 complete output and the environment/cwd; each linked diff records the source edit.
-[Replay runner](docs/evidence/issue-1888/mutations/replay.py) and
-[receipts](docs/evidence/issue-1888/mutations/receipts.json).
+[Replay runner](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/replay.py) and
+[receipts](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/receipts.json).
 
 ### 1. `test_manager_lookup_rejects_missing_or_deleted_manager`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager -m 'not slow' --tb=short --disable-warnings
@@ -128,7 +145,7 @@ FAILED tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_manager_lookup_rejects_missing_or_deleted_manager-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_manager_lookup_rejects_missing_or_deleted_manager -m 'not slow' --tb=short --disable-warnings
@@ -141,9 +158,9 @@ exit: 0
 
 ### 2. `test_watermark_unavailable_without_filing_history`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history -m 'not slow' --tb=short --disable-warnings
@@ -155,7 +172,7 @@ FAILED tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_histo
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_watermark_unavailable_without_filing_history-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_unavailable_without_filing_history -m 'not slow' --tb=short --disable-warnings
@@ -168,9 +185,9 @@ exit: 0
 
 ### 3. `test_holdings_resolution_failure_preserves_raw_rows`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows -m 'not slow' --tb=short --disable-warnings
@@ -182,7 +199,7 @@ FAILED tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_holdings_resolution_failure_preserves_raw_rows-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holdings_resolution_failure_preserves_raw_rows -m 'not slow' --tb=short --disable-warnings
@@ -195,9 +212,9 @@ exit: 0
 
 ### 4. `test_empty_holdings_do_not_delete_existing_rows`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows -m 'not slow' --tb=short --disable-warnings
@@ -209,7 +226,7 @@ FAILED tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_empty_holdings_do_not_delete_existing_rows-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_empty_holdings_do_not_delete_existing_rows -m 'not slow' --tb=short --disable-warnings
@@ -222,9 +239,9 @@ exit: 0
 
 ### 5. `test_bitemporal_unowned_filing_rerun_preserves_version`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version -m 'not slow' --tb=short --disable-warnings
@@ -236,7 +253,7 @@ FAILED tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_bitemporal_unowned_filing_rerun_preserves_version-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_bitemporal_unowned_filing_rerun_preserves_version -m 'not slow' --tb=short --disable-warnings
@@ -249,9 +266,9 @@ exit: 0
 
 ### 6. `test_deletion_during_second_download_keeps_first_filing`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing -m 'not slow' --tb=short --disable-warnings
@@ -263,7 +280,7 @@ FAILED tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_firs
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_deletion_during_second_download_keeps_first_filing-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_deletion_during_second_download_keeps_first_filing -m 'not slow' --tb=short --disable-warnings
@@ -276,9 +293,9 @@ exit: 0
 
 ### 7. `test_binary_filing_without_manager_skips_text_index`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index -m 'not slow' --tb=short --disable-warnings
@@ -290,7 +307,7 @@ FAILED tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_i
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_binary_filing_without_manager_skips_text_index-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_edgar_flow.py::test_binary_filing_without_manager_skips_text_index -m 'not slow' --tb=short --disable-warnings
@@ -303,9 +320,9 @@ exit: 0
 
 ### 8. `test_search_guards_return_before_accessing_database`
 
-Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database.diff).
+Source: `api/search.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database -m 'not slow' --tb=short --disable-warnings
@@ -317,7 +334,7 @@ FAILED tests/test_issue_1806_coverage.py::test_search_guards_return_before_acces
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_guards_return_before_accessing_database-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_search_guards_return_before_accessing_database -m 'not slow' --tb=short --disable-warnings
@@ -330,9 +347,9 @@ exit: 0
 
 ### 9. `test_digest_delivery_configuration_guards`
 
-Source: `etl/digest_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards.diff).
+Source: `etl/digest_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards -m 'not slow' --tb=short --disable-warnings
@@ -344,7 +361,7 @@ FAILED tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_gua
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_digest_delivery_configuration_guards-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_digest_delivery_configuration_guards -m 'not slow' --tb=short --disable-warnings
@@ -357,9 +374,9 @@ exit: 0
 
 ### 10. `test_daily_report_formatters_cover_empty_and_directional_values`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values -m 'not slow' --tb=short --disable-warnings
@@ -371,7 +388,7 @@ FAILED tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_emp
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_daily_report_formatters_cover_empty_and_directional_values-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1806_coverage.py::test_daily_report_formatters_cover_empty_and_directional_values -m 'not slow' --tb=short --disable-warnings
@@ -384,9 +401,9 @@ exit: 0
 
 ### 11. `test_search_legacy_holdings_return_filing_groups_and_holdings`
 
-Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings.diff).
+Source: `api/search.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings -m 'not slow' --tb=short --disable-warnings
@@ -398,7 +415,7 @@ FAILED tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_fil
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_legacy_holdings_return_filing_groups_and_holdings-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_legacy_holdings_return_filing_groups_and_holdings -m 'not slow' --tb=short --disable-warnings
@@ -411,9 +428,9 @@ exit: 0
 
 ### 12. `test_search_vector_documents_keep_shared_managers_and_deduplicate`
 
-Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate.diff).
+Source: `api/search.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate -m 'not slow' --tb=short --disable-warnings
@@ -425,7 +442,7 @@ FAILED tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shar
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_vector_documents_keep_shared_managers_and_deduplicate-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_vector_documents_keep_shared_managers_and_deduplicate -m 'not slow' --tb=short --disable-warnings
@@ -438,9 +455,9 @@ exit: 0
 
 ### 13. `test_search_postgres_activism_preserves_filing_context`
 
-Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context.diff).
+Source: `api/search.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context -m 'not slow' --tb=short --disable-warnings
@@ -452,7 +469,7 @@ FAILED tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserve
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_activism_preserves_filing_context-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_activism_preserves_filing_context -m 'not slow' --tb=short --disable-warnings
@@ -465,9 +482,9 @@ exit: 0
 
 ### 14. `test_conviction_annotation_survives_unavailable_holdings`
 
-Source: `api/signals.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings.diff).
+Source: `api/signals.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings -m 'not slow' --tb=short --disable-warnings
@@ -479,7 +496,7 @@ FAILED tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_un
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_conviction_annotation_survives_unavailable_holdings-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_conviction_annotation_survives_unavailable_holdings -m 'not slow' --tb=short --disable-warnings
@@ -492,9 +509,9 @@ exit: 0
 
 ### 15. `test_report_signal_query_failure_returns_empty_and_closes`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes -m 'not slow' --tb=short --disable-warnings
@@ -506,7 +523,7 @@ FAILED tests/test_issue_1888_coverage.py::test_report_signal_query_failure_retur
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_signal_query_failure_returns_empty_and_closes-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_signal_query_failure_returns_empty_and_closes -m 'not slow' --tb=short --disable-warnings
@@ -519,9 +536,9 @@ exit: 0
 
 ### 16. `test_watermark_without_source_column_is_scoped_to_manager`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager-red.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager -m 'not slow' --tb=short --disable-warnings
@@ -533,7 +550,7 @@ FAILED tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_watermark_without_source_column_is_scoped_to_manager-green.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_watermark_without_source_column_is_scoped_to_manager -m 'not slow' --tb=short --disable-warnings
@@ -546,9 +563,9 @@ exit: 0
 
 ### 17. `test_upsert_without_raw_key_leaves_legacy_table_unchanged`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged-red.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged -m 'not slow' --tb=short --disable-warnings
@@ -560,7 +577,7 @@ FAILED tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_upsert_without_raw_key_leaves_legacy_table_unchanged-green.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_without_raw_key_leaves_legacy_table_unchanged -m 'not slow' --tb=short --disable-warnings
@@ -573,9 +590,9 @@ exit: 0
 
 ### 18. `test_upsert_ignored_by_trigger_returns_existing_id_or_zero`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero-red.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero -m 'not slow' --tb=short --disable-warnings
@@ -587,7 +604,7 @@ FAILED tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_upsert_ignored_by_trigger_returns_existing_id_or_zero-green.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_upsert_ignored_by_trigger_returns_existing_id_or_zero -m 'not slow' --tb=short --disable-warnings
@@ -600,9 +617,9 @@ exit: 0
 
 ### 19. `test_holding_insert_without_recognized_columns_preserves_legacy_rows`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows-red.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows -m 'not slow' --tb=short --disable-warnings
@@ -614,7 +631,7 @@ FAILED tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_holding_insert_without_recognized_columns_preserves_legacy_rows-green.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_holding_insert_without_recognized_columns_preserves_legacy_rows -m 'not slow' --tb=short --disable-warnings
@@ -627,9 +644,9 @@ exit: 0
 
 ### 20. `test_postgres_upsert_preserves_storage_key`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key-red.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key -m 'not slow' --tb=short --disable-warnings
@@ -641,7 +658,7 @@ FAILED tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key[None
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_postgres_upsert_preserves_storage_key-green.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_postgres_upsert_preserves_storage_key -m 'not slow' --tb=short --disable-warnings
@@ -654,9 +671,9 @@ exit: 0
 
 ### 21. `test_reverse_order_original_keeps_amendment_current`
 
-Source: `etl/edgar_flow.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current.diff).
+Source: `etl/edgar_flow.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current-red.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current -m 'not slow' --tb=short --disable-warnings
@@ -668,7 +685,7 @@ FAILED tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_cur
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_reverse_order_original_keeps_amendment_current-green.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_edgar_flow.py::test_reverse_order_original_keeps_amendment_current -m 'not slow' --tb=short --disable-warnings
@@ -681,9 +698,9 @@ exit: 0
 
 ### 22. `test_report_page_sorts_value_and_filters_news_exports`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
@@ -695,7 +712,7 @@ FAILED tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filte
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_page_sorts_value_and_filters_news_exports-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_sorts_value_and_filters_news_exports -m 'not slow' --tb=short --disable-warnings
@@ -708,9 +725,9 @@ exit: 0
 
 ### 23. `test_report_diff_unexpected_error_propagates_and_closes`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes -m 'not slow' --tb=short --disable-warnings
@@ -722,7 +739,7 @@ FAILED tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_prop
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_diff_unexpected_error_propagates_and_closes-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_diff_unexpected_error_propagates_and_closes -m 'not slow' --tb=short --disable-warnings
@@ -735,9 +752,9 @@ exit: 0
 
 ### 24. `test_report_latest_date_ignores_missing_sources`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources -m 'not slow' --tb=short --disable-warnings
@@ -749,7 +766,7 @@ FAILED tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missin
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_latest_date_ignores_missing_sources-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_ignores_missing_sources -m 'not slow' --tb=short --disable-warnings
@@ -762,9 +779,9 @@ exit: 0
 
 ### 25. `test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids`
 
-Source: `api/signals.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids.diff).
+Source: `api/signals.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids -m 'not slow' --tb=short --disable-warnings
@@ -776,7 +793,7 @@ FAILED tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_da
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_crowded_query_preserves_native_dates_and_tolerates_invalid_ids -m 'not slow' --tb=short --disable-warnings
@@ -789,9 +806,9 @@ exit: 0
 
 ### 26. `test_search_sqlite_vector_failure_preserves_text_results`
 
-Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results.diff).
+Source: `api/search.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
@@ -803,7 +820,7 @@ FAILED tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_pres
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_sqlite_vector_failure_preserves_text_results-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_sqlite_vector_failure_preserves_text_results -m 'not slow' --tb=short --disable-warnings
@@ -816,9 +833,9 @@ exit: 0
 
 ### 27. `test_search_postgres_ignores_vector_hits_without_document_id`
 
-Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id.diff).
+Source: `api/search.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id -m 'not slow' --tb=short --disable-warnings
@@ -830,7 +847,7 @@ FAILED tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hi
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_ignores_vector_hits_without_document_id-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_postgres_ignores_vector_hits_without_document_id -m 'not slow' --tb=short --disable-warnings
@@ -843,9 +860,9 @@ exit: 0
 
 ### 28. `test_report_postgres_news_caches_results_by_date_and_closes`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes -m 'not slow' --tb=short --disable-warnings
@@ -857,7 +874,7 @@ FAILED tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_resul
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_postgres_news_caches_results_by_date_and_closes-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_postgres_news_caches_results_by_date_and_closes -m 'not slow' --tb=short --disable-warnings
@@ -870,9 +887,9 @@ exit: 0
 
 ### 29. `test_report_whitespace_news_url_keeps_escaped_headline`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline -m 'not slow' --tb=short --disable-warnings
@@ -884,7 +901,7 @@ FAILED tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_whitespace_news_url_keeps_escaped_headline-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_whitespace_news_url_keeps_escaped_headline -m 'not slow' --tb=short --disable-warnings
@@ -908,7 +925,7 @@ Matched local report-suite coverage against preceding head `63569b1` increases
 Before: **38 passed**. After: **41 passed**. The affected EDGAR/search/signal/report
 suites pass: **176 passed, 1 existing nightly skip**. These are local incremental
 measurements, not CI artifact credit or amounts to add to earlier comparisons.
-[Commands and raw reports](docs/evidence/issue-1888/README.md#date-navigation-follow-up-2026-11-04).
+[Commands and raw reports](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/README.md#date-navigation-follow-up-2026-11-04).
 
 The live checklist reconciliation was attempted before adding these tests. All 22
 checkboxes are retained here; 16 have verified implementation/evidence, and six
@@ -930,9 +947,9 @@ commit remains pending, so its acceptance checkboxes stay open.
 
 ### 30. `test_report_date_navigation_keeps_display_and_export_in_sync`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_date_navigation_keeps_display_and_export_in_sync.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_date_navigation_keeps_display_and_export_in_sync.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_date_navigation_keeps_display_and_export_in_sync-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_date_navigation_keeps_display_and_export_in_sync-red.txt).
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_date_navigation_keeps_display_and_export_in_sync -m 'not slow' --tb=short --disable-warnings
@@ -945,7 +962,7 @@ FAILED tests/test_issue_1888_coverage.py::test_report_date_navigation_keeps_disp
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_date_navigation_keeps_display_and_export_in_sync-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_date_navigation_keeps_display_and_export_in_sync-green.txt).
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_date_navigation_keeps_display_and_export_in_sync -m 'not slow' --tb=short --disable-warnings
@@ -958,9 +975,9 @@ exit: 0
 
 ### 31. `test_report_login_stop_prevents_database_access`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_login_stop_prevents_database_access.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_login_stop_prevents_database_access.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_login_stop_prevents_database_access-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_login_stop_prevents_database_access-red.txt).
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_login_stop_prevents_database_access -m 'not slow' --tb=short --disable-warnings
@@ -972,7 +989,7 @@ FAILED tests/test_issue_1888_coverage.py::test_report_login_stop_prevents_databa
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_login_stop_prevents_database_access-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_login_stop_prevents_database_access-green.txt).
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_login_stop_prevents_database_access -m 'not slow' --tb=short --disable-warnings
@@ -990,10 +1007,10 @@ pytest tests/ -m 'not slow' --tb=short --disable-warnings` exited **124** after
 reporting **2 failed, 2527 passed, 28 skipped** and interrupting Streamlit's local
 script runner. The failures match previously recorded chat dependency timing and
 edgartools' read-only `/home/runner/.edgar` directory errors. No existing test was
-changed or disabled. [Complete output](docs/evidence/issue-1888/navigation-full-pytest.txt).
+changed or disabled. [Complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/navigation-full-pytest.txt).
 The successful 176-test affected-suite run is separate from this incomplete run.
 
-[Verified CI metadata](docs/evidence/issue-1888/navigation-ci-metadata.json)
+[Verified CI metadata](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/navigation-ci-metadata.json)
 identifies the prior published head's coverage artifacts: `13296162876` for
 Python 3.13 and `13296791087` for 3.14. These are handoff identifiers, not inspected
 coverage contents or CI validation of the new tests. PR #1889 remains open and
@@ -1001,9 +1018,9 @@ ready for review (`draft=false`).
 
 ### 32. `test_report_nearest_date_caches_empty_and_populated_results`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_nearest_date_caches_empty_and_populated_results -m 'not slow' --tb=short --disable-warnings
@@ -1014,7 +1031,7 @@ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_nearest_date_caches_empty_and_populated_results-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_nearest_date_caches_empty_and_populated_results -m 'not slow' --tb=short --disable-warnings
@@ -1027,9 +1044,9 @@ exit: 0
 
 ### 33. `test_report_latest_date_query_errors_close_connections_and_are_retried`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried-red.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_query_errors_close_connections_and_are_retried -m 'not slow' --tb=short --disable-warnings
@@ -1040,7 +1057,7 @@ PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_latest_date_query_errors_close_connections_and_are_retried-green.txt).
 
 ```sh
 PYTHONPATH=/tmp/issue1888-runtime PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.10/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_latest_date_query_errors_close_connections_and_are_retried -m 'not slow' --tb=short --disable-warnings
@@ -1087,7 +1104,7 @@ mount is read-only; a writable-clone commit and patch preserve this follow-up.
 
 ### 34. `test_search_partial_sqlite_schema_keeps_filings_searchable`
 
-Red: [complete output](docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-red.txt).
+Red: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-red.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable -m 'not slow' --tb=short --disable-warnings
@@ -1098,7 +1115,7 @@ PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin
 exit: 1
 ```
 
-Green: [complete output](docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-green.txt).
+Green: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_partial_sqlite_schema_keeps_filings_searchable-green.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_partial_sqlite_schema_keeps_filings_searchable -m 'not slow' --tb=short --disable-warnings
@@ -1111,7 +1128,7 @@ exit: 0
 
 ### 35. `test_search_activism_without_manager_table_preserves_subject_context`
 
-Red: [complete output](docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-red.txt).
+Red: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-red.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context -m 'not slow' --tb=short --disable-warnings
@@ -1122,7 +1139,7 @@ PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin
 exit: 1
 ```
 
-Green: [complete output](docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-green.txt).
+Green: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_activism_without_manager_table_preserves_subject_context-green.txt).
 
 ```sh
 PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.8/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_search_activism_without_manager_table_preserves_subject_context -m 'not slow' --tb=short --disable-warnings
@@ -1158,9 +1175,9 @@ is read-only; a writable-clone commit and patch preserve the follow-up.
 
 ### 36. `test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery`
 
-Source mutation: [diff](docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery.diff).
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery-red.txt).
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery-green.txt).
+Source mutation: [diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery.diff).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery-red.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_conviction_nullable_ticker_lookup_preserves_annotations_without_requery-green.txt).
 The same command runs with broken and restored source:
 
 ```sh
@@ -1198,9 +1215,9 @@ This local addition has no final-candidate CI result yet.
 
 ### 37. `test_search_postgres_holdings_without_identifiers_keep_cusip_context`
 
-Source: `api/search.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context.diff).
-[Broken output](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-red.txt),
-[restored output](docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-green.txt).
+Source: `api/search.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context.diff).
+[Broken output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-red.txt),
+[restored output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_search_postgres_holdings_without_identifiers_keep_cusip_context-green.txt).
 Same command against deliberately broken then restored source:
 
 ```sh
@@ -1248,7 +1265,7 @@ optional psycopg-import arc (23->26), and the blank `_score_result` guard (93).
 The public search entry point rejects blank queries before calling the scorer;
 this last guard cannot be reached through normal public search behavior.
 
-The [source mutation](docs/evidence/issue-1888/metadata-fallback.diff) deliberately
+The [source mutation](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/metadata-fallback.diff) deliberately
 drops text results when metadata is empty. The same command was run against
 broken then restored source in `/tmp/issue1888-metadata-commit`:
 
@@ -1267,9 +1284,9 @@ Restored:
 exit: 0
 ```
 
-[Full failing output](docs/evidence/issue-1888/metadata-fallback-red.txt),
-[full restored output](docs/evidence/issue-1888/metadata-fallback-green.txt), and
-[restoration receipt](docs/evidence/issue-1888/metadata-fallback-receipt.json).
+[Full failing output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/metadata-fallback-red.txt),
+[full restored output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/metadata-fallback-green.txt), and
+[restoration receipt](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/metadata-fallback-receipt.json).
 The original 37 function receipts remain intact.
 
 Reconciliation reviewed all eleven branch commits through `49f5341`: the prepared
@@ -1277,7 +1294,7 @@ checkboxes reflect verified EDGAR and broader search/signal/report tests, exact
 assertions, mutation proof, and the completed negative-cache audit. No runtime
 diff exists. Gate [41815491478](https://github.com/stranske/Manager-Database/actions/runs/41815491478)
 passed pytest for the published `49f5341` head on Python 3.13 and 3.14; see
-[metadata](docs/evidence/issue-1888/metadata-ci-status.json). That result predates
+[metadata](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/metadata-ci-status.json). That result predates
 this added case, so candidate CI remains unchecked.
 
 The main artifact transfer still fails with `URLError`; exact CI baseline/ranking
@@ -1289,9 +1306,9 @@ fails); the test change and evidence are preserved in a writable-clone commit.
 
 ### 38. `test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals-red.txt).
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals -m 'not slow' --tb=short --disable-warnings
@@ -1302,7 +1319,7 @@ PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m p
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals-green.txt).
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_page_preserves_unknown_deltas_and_skips_incomplete_signals -m 'not slow' --tb=short --disable-warnings
@@ -1315,9 +1332,9 @@ exit: 0
 
 ### 39. `test_report_missing_activism_table_caches_empty_result_and_closes`
 
-Source: `ui/daily_report.py`; [mutation diff](docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes.diff).
+Source: `ui/daily_report.py`; [mutation diff](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes.diff).
 
-Broken: [complete output](docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes-red.txt).
+Broken: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes-red.txt).
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_missing_activism_table_caches_empty_result_and_closes -m 'not slow' --tb=short --disable-warnings
@@ -1328,7 +1345,7 @@ PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m p
 exit: 1
 ```
 
-Restored: [complete output](docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes-green.txt).
+Restored: [complete output](https://github.com/stranske/Manager-Database/blob/64fcbc71d7fc93c292aff58a57d19d63b2de2b98/docs/evidence/issue-1888/mutations/test_report_missing_activism_table_caches_empty_result_and_closes-green.txt).
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /opt/hostedtoolcache/Python/3.14.9/x64/bin/python -m pytest tests/test_issue_1888_coverage.py::test_report_missing_activism_table_caches_empty_result_and_closes -m 'not slow' --tb=short --disable-warnings
