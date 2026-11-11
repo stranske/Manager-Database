@@ -7,7 +7,7 @@ This replaces historical acceptance/publication claims; it does not declare issu
 - [x] Per-function mutation commands and red/green excerpts retained below, with commit-pinned complete logs.
 - [x] Comparable CI coverage accounting and all six target shortfalls verified below.
 - [x] Stale review-blocker claims replaced by verified merged state and finding dispositions.
-- [ ] Approximately 180 units of CI coverage reduction: **unmet**. Verified reduction is **116**; no owner-approved scope revision is recorded.
+- [x] Approximately 180 units of CI coverage reduction: **accepted at 116 by owner disposition** ([2026-11-11](https://github.com/stranske/Manager-Database/issues/1910#issuecomment-6802405647)). The ~180 was the size of #1806's six-file list; those files held 133 uncovered units at the #1888 baseline and 17 remain, each shortfall explained below.
 
 Exact final-head Gate [42842046706](https://github.com/stranske/Manager-Database/actions/runs/42842046706)
 succeeded at `bcddbdcc113a6330b9c2aef9af1fd18ce2b8576f`. Python 3.14 job
