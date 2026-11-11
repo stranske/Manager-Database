@@ -9,8 +9,8 @@ residual statement/branch lists, and disposition of all six review findings. Tab
 claims are maintained there once, so this index cannot diverge by duplicating them.
 
 The reproduced four-target CI comparison is **129 → 13**, reduction **116**; including digest and ASIC
-makes **133 → 17**, reduction **116**. The approximately-180 criterion remains **unmet**;
-no owner-approved revision was found. `ranking.json` retains historical nulls for digest/ASIC;
+makes **133 → 17**, reduction **116**. The approximately-180 criterion is **accepted at 116 by owner
+disposition** ([2026-11-11](https://github.com/stranske/Manager-Database/issues/1910#issuecomment-6802405647)). `ranking.json` retains historical nulls for digest/ASIC;
 the current evidence account fills them from downloaded CI JSON and corrects its erroneous 130/117 totals to 129/116 without editing historical data.
 No local incremental deltas are credited. The historical candidate is distinct from the final merged test head.
 
