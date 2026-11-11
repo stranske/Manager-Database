@@ -82,7 +82,7 @@ Six inline findings were re-read against merged content, including resolved thre
 - Broken nested evidence links (thread `PRRT_kwDOO4LcjM6zZvD6`): obsolete. Merged body uses absolute commit-pinned links; this compact body retains them. Eligible for controller resolution after readback.
 - Baseline archived candidate HEAD (`PRRT_kwDOO4LcjM6zZvD-`): already resolved. Merged README pins `a7f4e626`; this repair uses the named baseline CI artifact instead of a local archive.
 - Combined coverage mislabeled branch-only (`PRRT_kwDOO4LcjM6zZvEB`): already resolved. This document reports statements and branch arcs separately and avoids ambiguous percentages.
-- Approximately-180 reduction (`PRRT_kwDOO4LcjM6zZvEH`): **still substantive; leave unresolved**. Artifacts now reproduce 116 and expose all six targets, but no approved revised criterion exists.
+- Approximately-180 reduction (`PRRT_kwDOO4LcjM6zZvEH`): Artifacts reproduce 116 and expose all six targets. **Owner disposition 2026-11-11: accepted at 116** ([comment](https://github.com/stranske/Manager-Database/issues/1910#issuecomment-6802405647)).
 - Follow-up replay lacked 15 seeded receipts (`PRRT_kwDOO4LcjM6zbK-5`): already resolved. Merged README supplies a full replay alternative; partial historical commands are retired here.
 - Boundary replay lacked 21 seeded receipts (`PRRT_kwDOO4LcjM6zcAoW`): already resolved. Merged README seeds a separate output directory. Partial replay instructions are omitted from this replacement.
 
