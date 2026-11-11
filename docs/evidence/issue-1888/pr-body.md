@@ -7,7 +7,7 @@ This replaces historical acceptance/publication claims; it does not declare issu
 - [x] Per-function mutation commands and red/green excerpts retained below, with commit-pinned complete logs.
 - [x] Comparable CI coverage accounting and all six target shortfalls verified below.
 - [x] Stale review-blocker claims replaced by verified merged state and finding dispositions.
-- [ ] Approximately 180 units of CI coverage reduction: **unmet**. Verified reduction is **116**; no owner-approved scope revision is recorded.
+- [x] Approximately 180 units of CI coverage reduction: **accepted at 116 by owner disposition** ([2026-11-11](https://github.com/stranske/Manager-Database/issues/1910#issuecomment-6802405647)). The ~180 was the size of #1806's six-file list; those files held 133 uncovered units at the #1888 baseline and 17 remain, each shortfall explained below.
 
 Exact final-head Gate [42842046706](https://github.com/stranske/Manager-Database/actions/runs/42842046706)
 succeeded at `bcddbdcc113a6330b9c2aef9af1fd18ce2b8576f`. Python 3.14 job
@@ -82,7 +82,7 @@ Six inline findings were re-read against merged content, including resolved thre
 - Broken nested evidence links (thread `PRRT_kwDOO4LcjM6zZvD6`): obsolete. Merged body uses absolute commit-pinned links; this compact body retains them. Eligible for controller resolution after readback.
 - Baseline archived candidate HEAD (`PRRT_kwDOO4LcjM6zZvD-`): already resolved. Merged README pins `a7f4e626`; this repair uses the named baseline CI artifact instead of a local archive.
 - Combined coverage mislabeled branch-only (`PRRT_kwDOO4LcjM6zZvEB`): already resolved. This document reports statements and branch arcs separately and avoids ambiguous percentages.
-- Approximately-180 reduction (`PRRT_kwDOO4LcjM6zZvEH`): **still substantive; leave unresolved**. Artifacts now reproduce 116 and expose all six targets, but no approved revised criterion exists.
+- Approximately-180 reduction (`PRRT_kwDOO4LcjM6zZvEH`): Artifacts reproduce 116 and expose all six targets. **Owner disposition 2026-11-11: accepted at 116** ([comment](https://github.com/stranske/Manager-Database/issues/1910#issuecomment-6802405647)).
 - Follow-up replay lacked 15 seeded receipts (`PRRT_kwDOO4LcjM6zbK-5`): already resolved. Merged README supplies a full replay alternative; partial historical commands are retired here.
 - Boundary replay lacked 21 seeded receipts (`PRRT_kwDOO4LcjM6zcAoW`): already resolved. Merged README seeds a separate output directory. Partial replay instructions are omitted from this replacement.
 
