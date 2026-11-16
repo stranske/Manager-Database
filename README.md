@@ -15,10 +15,24 @@ python -m etl.insider_flow --as-of YYYY-MM-DD [--lookback-days N] [--json]
 ```
 
 `--as-of` selects which holdings supply issuers. Form 4 fetching uses a rolling
-lookback of 90 days by default. Use `--json` to emit the run summary as JSON.
-A `null` counter means the count is unavailable. The current fetcher returns
-transaction rows, so filings scanned, unmatched issuers, and skipped transaction
-codes are reported as `null`.
+lookback of 90 days by default (`--lookback-days`). Use `--json` to emit the run
+summary as JSON; otherwise counters print as `name: value` lines with `null` for
+counts the fetcher cannot supply (never `0` as a stand-in for unavailable).
+
+Example (text summary after a successful partial run):
+
+```text
+issuers_resolved: 2
+filings_scanned: null
+rows_inserted: 3
+unmatched_issuers: null
+skipped_transaction_codes: null
+fetch_errors: 1
+```
+
+The command uses `connect_db()` for the database connection. Per-issuer fetch
+failures increment `fetch_errors` and the run continues; reruns do not insert
+duplicate rows.
 
 ## API Documentation
 

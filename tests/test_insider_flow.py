@@ -320,6 +320,31 @@ def test_local_form4_command_persists_and_annotates(monkeypatch: pytest.MonkeyPa
     assert conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0] == count_before
 
 
+def _run_form4_without_ingest(
+    conn,
+    *,
+    as_of: date,
+    lookback_days: int = 90,
+    fetcher=None,
+) -> dict[str, int | None]:
+    """Mirror deliberate-break: resolve issuers but skip Form-4 ingestion."""
+
+    issuers = insider_flow.resolve_held_issuers(conn, as_of=as_of)
+    ingest_result = {"inserted": 0, "errors": [], "skipped_transaction_codes": None}
+    return insider_flow.build_run_summary(issuers, ingest_result)
+
+
+def test_local_form4_skip_ingest_documents_deliberate_break_regression():
+    """Falsification: skipping ingestion reports zero rows and zero fetch errors."""
+    conn = _conn_two_issuers()
+    insider_flow.ensure_insider_transactions_table(conn)
+    summary = _run_form4_without_ingest(conn, as_of=date(2026, 1, 15), lookback_days=90)
+    assert summary["issuers_resolved"] == 2
+    assert summary["rows_inserted"] == 0
+    assert summary["fetch_errors"] == 0
+    assert conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0] == 0
+
+
 def test_rerun_with_missing_insider_name_inserts_no_duplicates():
     conn = _conn()
 
