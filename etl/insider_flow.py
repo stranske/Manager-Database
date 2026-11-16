@@ -6,7 +6,7 @@ import argparse
 import json
 import logging
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date, timedelta
 from typing import Any
 
@@ -297,7 +297,7 @@ SUMMARY_KEYS = (
 
 
 def build_run_summary(
-    issuers: list[Mapping[str, Any]],
+    issuers: Sequence[Mapping[str, Any]],
     ingest_result: Mapping[str, Any],
 ) -> dict[str, int | None]:
     """Assemble the local Form-4 CLI run summary (#1917)."""
