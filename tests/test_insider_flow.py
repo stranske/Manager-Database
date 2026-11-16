@@ -345,6 +345,40 @@ def test_local_form4_skip_ingest_documents_deliberate_break_regression():
     assert conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0] == 0
 
 
+def _run_form4_strict_fetch_errors(
+    conn,
+    *,
+    as_of: date,
+    lookback_days: int = 90,
+    fetcher=None,
+) -> dict[str, int | None]:
+    """Mirror deliberate-break: abort the run when any issuer fetch fails."""
+
+    issuers = insider_flow.resolve_held_issuers(conn, as_of=as_of)
+    ingest_result = insider_flow.ingest_insider_for_issuers(
+        conn,
+        issuers,
+        lookback_days=lookback_days,
+        fetcher=fetcher,
+        raise_on_fetch_error=True,
+    )
+    return insider_flow.build_run_summary(issuers, ingest_result)
+
+
+def test_local_form4_strict_fetch_error_documents_deliberate_break_regression():
+    """Falsification: abort-on-error prevents tolerant accounting for later issuers."""
+    conn = _conn_two_issuers()
+    insider_flow.ensure_insider_transactions_table(conn)
+    with pytest.raises(InsiderFetchError, match="MSFT"):
+        _run_form4_strict_fetch_errors(
+            conn,
+            as_of=date(2026, 1, 15),
+            lookback_days=90,
+            fetcher=_stub_fetcher_ok_and_fail,
+        )
+    assert conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0] == 3
+
+
 def test_rerun_with_missing_insider_name_inserts_no_duplicates():
     conn = _conn()
 
