@@ -92,7 +92,8 @@ def upsert_insider_transactions(conn: Any, rows: list[Mapping[str, Any]]) -> int
         params = (
             row.get("issuer_cik"),
             row.get("ticker"),
-            row.get("insider_name"),
+            # NULLs never match in a UNIQUE key; coalesce so ownerless reruns dedupe.
+            row.get("insider_name") or "",
             row.get("txn_code"),
             row.get("shares"),
             row.get("txn_date"),
