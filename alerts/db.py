@@ -282,6 +282,7 @@ def _delivery_event_key(fired: FiredAlert) -> str:
             identity["payload"] = event.payload
     elif event.event_type in ("crowded_trade_change", "contrarian_signal"):
         identity["payload"] = event.payload
+        identity["occurred_at"] = event.occurred_at.isoformat()
     else:
         identity["payload"] = event.payload
         identity["occurred_at"] = event.occurred_at.isoformat()
