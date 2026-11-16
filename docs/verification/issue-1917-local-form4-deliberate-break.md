@@ -159,3 +159,21 @@ $ python3 -m pytest tests/test_insider_flow.py -q
 $ python3 scripts/check_deliberate_break.py --base "$(git merge-base origin/main HEAD)" --head HEAD --pr-body-file docs/verification/issue-1917-marker-snippet.txt
 {"verdict": "PASS", "reason": "head-passed-base-failed", ...}
 ```
+
+## Keepalive round 7/12 local verification (2026-11-16)
+
+Prior keepalive could not execute acceptance commands (`hollow_break`). Re-ran
+on worktree head `cursor/issue-1917` at `0e8bcdc` with `/opt/anaconda3/bin/python3`:
+
+```console
+$ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates -q
+.                                                                        [100%]
+1 passed
+
+$ python3 -m pytest tests/test_insider_flow.py -q
+..........                                                               [100%]
+10 passed
+
+$ python3 scripts/check_deliberate_break.py --base "$(git merge-base origin/main HEAD)" --head HEAD --pr-body-file docs/verification/issue-1917-marker-snippet.txt
+{"verdict": "PASS", "reason": "head-passed-base-failed", ...}
+```
