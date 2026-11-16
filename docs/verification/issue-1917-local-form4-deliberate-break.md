@@ -23,8 +23,8 @@ $ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persist
 1 passed
 
 $ python3 -m pytest tests/test_insider_flow.py -q
-.........                                                                [100%]
-9 passed
+..........                                                               [100%]
+10 passed
 
 $ python3 scripts/check_deliberate_break.py --base "$(git merge-base origin/main HEAD)" --head HEAD --pr-body-file docs/verification/issue-1917-marker-snippet.txt
 {"verdict": "PASS", "reason": "head-passed-base-failed", ...}
@@ -62,7 +62,7 @@ per-issuer error accounting.
 
 ## Revert and restoration
 
-The ingestion call was restored in commit `db54727` (break at `0848250`). The named gate and full
+The ingestion call was restored in commit `f981e20` (break at `6aedec2`). The named gate and full
 `test_insider_flow.py` module pass on the restored tree (see outputs below).
 
 Branch history retains the disposable break commit immediately before the
@@ -75,9 +75,10 @@ All acceptance criteria are satisfied on the current branch:
 | Criterion | Evidence |
 | --- | --- |
 | Named local CLI gate | `test_local_form4_command_persists_and_annotates` |
-| Deliberate break → revert | Commits `0848250` (break) and `db54727` (revert + this doc) |
+| Deliberate break → revert | Commits `6aedec2` (break) and `f981e20` (revert) |
 | Full module | `tests/test_insider_flow.py` |
-| Deliberate-break unit gate | `test_local_form4_skip_ingest_documents_deliberate_break_regression` |
+| Deliberate-break unit gate (skip ingest) | `test_local_form4_skip_ingest_documents_deliberate_break_regression` |
+| Deliberate-break unit gate (abort on error) | `test_local_form4_strict_fetch_error_documents_deliberate_break_regression` |
 | README local invocation | `README.md` → **Local Form 4 ingestion** |
 
 ### Keepalive local verification
@@ -90,11 +91,11 @@ $ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persist
 1 passed
 
 $ python3 -m pytest tests/test_insider_flow.py -q
-.........                                                                [100%]
-9 passed
+..........                                                               [100%]
+10 passed
 ```
 
-At commit `0848250` (ingestion skipped), the named gate failed as expected:
+At commit `6aedec2` (ingestion skipped), the named gate failed as expected:
 
 ```console
 $ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates -q
