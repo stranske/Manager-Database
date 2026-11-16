@@ -62,7 +62,7 @@ per-issuer error accounting.
 
 ## Revert and restoration
 
-The ingestion call was restored in commit `f43e8d5` (break at `0848250`). The named gate and full
+The ingestion call was restored in commit `db54727` (break at `0848250`). The named gate and full
 `test_insider_flow.py` module pass on the restored tree (see outputs below).
 
 Branch history retains the disposable break commit immediately before the
@@ -75,7 +75,7 @@ All acceptance criteria are satisfied on the current branch:
 | Criterion | Evidence |
 | --- | --- |
 | Named local CLI gate | `test_local_form4_command_persists_and_annotates` |
-| Deliberate break → revert | Commits `0848250` (break) and `f43e8d5` (revert + this doc) |
+| Deliberate break → revert | Commits `0848250` (break) and `db54727` (revert + this doc) |
 | Full module | `tests/test_insider_flow.py` |
 | Deliberate-break unit gate | `test_local_form4_skip_ingest_documents_deliberate_break_regression` |
 | README local invocation | `README.md` → **Local Form 4 ingestion** |
