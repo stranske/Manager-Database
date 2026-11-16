@@ -98,7 +98,7 @@ $ /opt/anaconda3/bin/python3 -m pytest tests/test_crowded_contrarian.py -q
 21 passed
 ```
 
-## Keepalive round 2/12 local verification (2026-11-15)
+## Keepalive round 3/12 local verification (2026-11-15)
 
 Prior keepalive could not execute acceptance commands (`hollow_break`). Re-ran
 on worktree head `cursor/issue-1916` with `/opt/anaconda3/bin/python3`:
