@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import logging
+import sys
 from collections.abc import Callable, Mapping
 from datetime import date, timedelta
 from typing import Any
 
-from adapters.base import is_sqlite
+from adapters.base import connect_db, is_sqlite
 from adapters.insider import (
     InsiderFetchError,
     fetch_form4_transactions,
     net_direction_for_rows,
 )
+from etl.point_in_time import holdings_visibility_sql
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +92,8 @@ def upsert_insider_transactions(conn: Any, rows: list[Mapping[str, Any]]) -> int
         params = (
             row.get("issuer_cik"),
             row.get("ticker"),
-            row.get("insider_name"),
+            # NULLs never match in a UNIQUE key; coalesce so ownerless reruns dedupe.
+            row.get("insider_name") or "",
             row.get("txn_code"),
             row.get("shares"),
             row.get("txn_date"),
@@ -105,52 +110,32 @@ def upsert_insider_transactions(conn: Any, rows: list[Mapping[str, Any]]) -> int
     return inserted
 
 
-def _holdings_current_clause(conn: Any) -> str:
-    """Prefer non-superseded holdings when the bitemporal column exists."""
-    try:
-        cols = (
-            {
-                str(r[1] if not isinstance(r, Mapping) else r.get("name") or next(iter(r.values())))
-                for r in conn.execute("PRAGMA table_info(holdings)").fetchall()
-            }
-            if is_sqlite(conn)
-            else set()
-        )
-    except Exception:
-        cols = set()
-    if not cols and not is_sqlite(conn):
-        try:
-            rows = conn.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = 'holdings'"
-            ).fetchall()
-            cols = {str(r[0]) for r in rows}
-        except Exception:
-            cols = set()
-    if "superseded_at" in cols:
-        return " AND h.superseded_at IS NULL"
-    return ""
-
-
-def resolve_held_issuers(conn: Any, manager_id: int | None = None) -> list[dict[str, Any]]:
+def resolve_held_issuers(
+    conn: Any,
+    manager_id: int | None = None,
+    *,
+    as_of: date | None = None,
+) -> list[dict[str, Any]]:
     """
     Resolve distinct issuers from current holdings via resolved_ticker / cusip.
     """
-    where = _holdings_current_clause(conn)
-    params: tuple[Any, ...] = ()
+    visibility, vis_params = holdings_visibility_sql(conn, as_of)
+    params: list[Any] = list(vis_params)
     join = ""
+    manager_filter = ""
     if manager_id is not None:
         join = " JOIN filings f ON f.filing_id = h.filing_id "
-        where = f" AND f.manager_id = {'?' if is_sqlite(conn) else '%s'}" + where
-        params = (manager_id,)
+        ph = "?" if is_sqlite(conn) else "%s"
+        manager_filter = f" AND f.manager_id = {ph}"
+        params.append(manager_id)
     sql = (
         "SELECT DISTINCT "
         "COALESCE(NULLIF(h.resolved_ticker, ''), NULL) AS ticker, "
         "h.cusip AS cusip "
         f"FROM holdings h{join} "
-        f"WHERE 1=1{where}"
+        f"WHERE {visibility}{manager_filter}"
     )
-    rows = conn.execute(sql, params).fetchall()
+    rows = conn.execute(sql, tuple(params)).fetchall()
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for row in rows:
@@ -205,7 +190,12 @@ def ingest_insider_for_issuers(
             logger.warning("insider fetch failed for %s: %s", issuer, exc)
             if raise_on_fetch_error:
                 raise InsiderFetchError(msg) from exc
-    return {"inserted": inserted_total, "errors": errors, "issuer_count": len(issuers)}
+    return {
+        "inserted": inserted_total,
+        "errors": errors,
+        "issuer_count": len(issuers),
+        "skipped_transaction_codes": None,
+    }
 
 
 def ingest_insider_for_manager(
@@ -294,3 +284,88 @@ def annotate_conviction_rows(
         )
         out.append(item)
     return out
+
+
+SUMMARY_KEYS = (
+    "issuers_resolved",
+    "filings_scanned",
+    "rows_inserted",
+    "unmatched_issuers",
+    "skipped_transaction_codes",
+    "fetch_errors",
+)
+
+
+def build_run_summary(
+    issuers: list[Mapping[str, Any]],
+    ingest_result: Mapping[str, Any],
+) -> dict[str, int | None]:
+    """Assemble the local Form-4 CLI run summary (#1917)."""
+    skipped = ingest_result.get("skipped_transaction_codes")
+    return {
+        "issuers_resolved": len(issuers),
+        "filings_scanned": None,
+        "rows_inserted": int(ingest_result.get("inserted") or 0),
+        "unmatched_issuers": None,
+        "skipped_transaction_codes": (int(skipped) if skipped is not None else None),
+        "fetch_errors": len(ingest_result.get("errors") or []),
+    }
+
+
+def run_form4_ingest(
+    conn: Any,
+    *,
+    as_of: date,
+    lookback_days: int = 90,
+    fetcher: Callable[..., list[Mapping[str, Any]]] | None = None,
+) -> dict[str, int | None]:
+    """Resolve held issuers as-of ``as_of`` and ingest Form-4 rows."""
+    issuers = resolve_held_issuers(conn, as_of=as_of)
+    ingest_result = ingest_insider_for_issuers(
+        conn,
+        issuers,
+        lookback_days=lookback_days,
+        fetcher=fetcher,
+    )
+    return build_run_summary(issuers, ingest_result)
+
+
+def _format_summary_value(value: int | None) -> str:
+    return "null" if value is None else str(value)
+
+
+def print_run_summary(summary: Mapping[str, int | None], *, as_json: bool = False) -> None:
+    if as_json:
+        print(json.dumps(dict(summary), indent=2, sort_keys=True))
+        return
+    for key in SUMMARY_KEYS:
+        print(f"{key}: {_format_summary_value(summary.get(key))}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Local entry point: ``python -m etl.insider_flow --as-of YYYY-MM-DD``."""
+    parser = argparse.ArgumentParser(description="Ingest Form-4 insider transactions")
+    parser.add_argument(
+        "--as-of",
+        required=True,
+        type=date.fromisoformat,
+        help="Holdings as-of date (YYYY-MM-DD)",
+    )
+    parser.add_argument("--lookback-days", type=int, default=90)
+    parser.add_argument("--json", action="store_true", help="Emit summary as JSON")
+    args = parser.parse_args(argv)
+    conn = connect_db()
+    try:
+        summary = run_form4_ingest(
+            conn,
+            as_of=args.as_of,
+            lookback_days=args.lookback_days,
+        )
+    finally:
+        conn.close()
+    print_run_summary(summary, as_json=args.json)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
