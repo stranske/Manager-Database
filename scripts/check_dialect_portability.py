@@ -44,6 +44,7 @@ AUDITED_SQLITE_ONLY_ALLOWLIST: dict[str, set[str]] = {
     "etl/daily_diff_flow.py": {"AUTOINCREMENT"},
     "etl/digest_flow.py": {"PRAGMA table_xinfo"},
     "etl/edgar_flow.py": {"PRAGMA table_xinfo"},
+    "etl/insider_flow.py": {"AUTOINCREMENT", "INSERT OR IGNORE"},
 }
 
 AUDIT_REPORT_PATH = Path("docs/reports/dialect_portability_audit.md")

@@ -121,7 +121,17 @@ def _conn_two_issuers() -> sqlite3.Connection:
 def _stub_fetcher_ok_and_fail(issuer: str, *, lookback_days: int = 90):
     if issuer.upper() == "MSFT":
         raise RuntimeError(f"boom for {issuer}")
-    return _fake_fetcher_ok(issuer, lookback_days=lookback_days)
+    return [
+        *_fake_fetcher_ok(issuer, lookback_days=lookback_days),
+        {
+            "ticker": issuer,
+            "insider_name": "Cook",
+            "txn_code": "P",
+            "shares": 10,
+            "txn_date": _transaction_date(1),
+            "acquired_disposed": "A",
+        },
+    ]
 
 
 def test_normalize_and_net_direction():
@@ -262,7 +272,7 @@ def test_local_form4_command_persists_and_annotates(monkeypatch: pytest.MonkeyPa
         "filings_scanned": None,
         "issuers_resolved": 2,
         "rows_inserted": 3,
-        "skipped_transaction_codes": 0,
+        "skipped_transaction_codes": None,
         "unmatched_issuers": None,
     }
 

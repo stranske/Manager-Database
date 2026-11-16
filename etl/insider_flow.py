@@ -15,7 +15,6 @@ from adapters.insider import (
     InsiderFetchError,
     fetch_form4_transactions,
     net_direction_for_rows,
-    normalize_form4_rows,
 )
 from etl.point_in_time import holdings_visibility_sql
 
@@ -110,33 +109,6 @@ def upsert_insider_transactions(conn: Any, rows: list[Mapping[str, Any]]) -> int
     return inserted
 
 
-def _holdings_current_clause(conn: Any) -> str:
-    """Prefer non-superseded holdings when the bitemporal column exists."""
-    try:
-        cols = (
-            {
-                str(r[1] if not isinstance(r, Mapping) else r.get("name") or next(iter(r.values())))
-                for r in conn.execute("PRAGMA table_info(holdings)").fetchall()
-            }
-            if is_sqlite(conn)
-            else set()
-        )
-    except Exception:
-        cols = set()
-    if not cols and not is_sqlite(conn):
-        try:
-            rows = conn.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = 'holdings'"
-            ).fetchall()
-            cols = {str(r[0]) for r in rows}
-        except Exception:
-            cols = set()
-    if "superseded_at" in cols:
-        return " AND h.superseded_at IS NULL"
-    return ""
-
-
 def resolve_held_issuers(
     conn: Any,
     manager_id: int | None = None,
@@ -194,8 +166,6 @@ def ingest_insider_for_issuers(
     ensure_insider_transactions_table(conn)
     inserted_total = 0
     errors: list[str] = []
-    skipped_total = 0
-    skipped_known = fetcher is not None
     for issuer_row in issuers:
         issuer = str(issuer_row.get("issuer") or issuer_row.get("ticker") or "").strip()
         if not issuer:
@@ -203,22 +173,12 @@ def ingest_insider_for_issuers(
         ticker = issuer_row.get("ticker")
         cusip = issuer_row.get("cusip")
         try:
-            if fetcher is not None:
-                try:
-                    raw_list = list(fetcher(issuer, lookback_days=lookback_days))
-                except TypeError:
-                    raw_list = list(fetcher(issuer))  # type: ignore[misc, call-arg]
-                rows = normalize_form4_rows(
-                    raw_list, default_ticker=str(ticker) if ticker else None
-                )
-                skipped_total += max(0, len(raw_list) - len(rows))
-            else:
-                rows = fetch_form4_transactions(
-                    issuer,
-                    lookback_days=lookback_days,
-                    ticker=str(ticker) if ticker else None,
-                    fetcher=None,
-                )
+            rows = fetch_form4_transactions(
+                issuer,
+                lookback_days=lookback_days,
+                ticker=str(ticker) if ticker else None,
+                fetcher=fetcher,
+            )
             for row in rows:
                 if cusip and not row.get("cusip"):
                     row["cusip"] = cusip
@@ -233,7 +193,7 @@ def ingest_insider_for_issuers(
         "inserted": inserted_total,
         "errors": errors,
         "issuer_count": len(issuers),
-        "skipped_transaction_codes": skipped_total if skipped_known else None,
+        "skipped_transaction_codes": None,
     }
 
 
