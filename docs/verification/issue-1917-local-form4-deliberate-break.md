@@ -1,5 +1,12 @@
 # Issue #1917 local Form-4 CLI deliberate-break evidence
 
+Keep this line in PR #1921 body so `scripts/check_deliberate_break.py` can execute
+the named gate (fallback parsing misses `Named test` without a colon):
+
+```html
+<!-- deliberate-break: test=tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates test-file=tests/test_insider_flow.py break-file=etl/insider_flow.py -->
+```
+
 This records falsification proof for the local ingestion command in
 `etl/insider_flow.py` (`run_form4_ingest` → `ingest_insider_for_issuers`). The named
 gate is `test_local_form4_command_persists_and_annotates`, which exercises
@@ -7,6 +14,8 @@ gate is `test_local_form4_command_persists_and_annotates`, which exercises
 `api.signals` readback, per-issuer fetch failure tolerance, and rerun idempotency.
 
 ## Named gate on restored code
+
+Verified locally on 2026-11-16 (keepalive round 2, branch `cursor/issue-1917`):
 
 ```console
 $ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates -q
@@ -16,6 +25,9 @@ $ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persist
 $ python3 -m pytest tests/test_insider_flow.py -q
 .........                                                                [100%]
 9 passed
+
+$ python3 scripts/check_deliberate_break.py --base "$(git merge-base origin/main HEAD)" --head HEAD --pr-body-file docs/verification/issue-1917-marker-snippet.txt
+{"verdict": "PASS", "reason": "head-passed-base-failed", ...}
 ```
 
 Unit gate documenting the surgical break (no ingestion call):
