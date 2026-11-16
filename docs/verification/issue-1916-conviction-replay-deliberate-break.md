@@ -25,8 +25,8 @@ $ python3 -m pytest tests/test_crowded_contrarian.py::test_conviction_dispatch_c
 3 passed
 
 $ python3 -m pytest tests/test_crowded_contrarian.py -q
-...................                                                      [100%]
-19 passed
+.....................                                                    [100%]
+21 passed
 ```
 
 ## Deliberate break
@@ -72,12 +72,13 @@ All acceptance criteria are satisfied on the current branch:
 | --- | --- |
 | Named replay gate | `test_conviction_dispatch_replay_reuses_delivery_claim` |
 | Deliberate break → revert | Commits `2a763d8` (break) and `a5dac24` (revert + this doc) |
-| Full module | `tests/test_crowded_contrarian.py` (20 tests) |
+| Full module | `tests/test_crowded_contrarian.py` (21 tests) |
+| Deliberate-break unit gate | `test_conviction_delivery_event_key_documents_deliberate_break_regression` |
 | Payload / report_date / time_window | `test_conviction_dispatch_changed_payload_creates_new_alert`, `test_conviction_dispatch_different_report_date_creates_new_alert`, `test_conviction_dispatch_time_window_rule_fires_on_fresh_run` |
 | Unit identity gate | `test_conviction_delivery_event_key_ignores_occurred_at` |
 
 ```console
 $ python3 -m pytest tests/test_crowded_contrarian.py -q
-....................                                                     [100%]
-20 passed
+.....................                                                    [100%]
+21 passed
 ```

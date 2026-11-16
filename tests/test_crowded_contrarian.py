@@ -1,3 +1,4 @@
+import hashlib
 import importlib
 import json
 import sqlite3
@@ -9,7 +10,7 @@ import alerts.engine as alert_engine
 import alerts.models as alert_models
 import etl.conviction_flow as conviction_module
 from alerts.channels import DeliveryResult, NotificationChannel, StreamlitChannel
-from alerts.db import _delivery_event_key, ensure_alert_tables
+from alerts.db import _delivery_event_key, ensure_alert_tables, serialize_json
 from alerts.integration import fire_alerts_for_event_sync
 from alerts.models import AlertEvent, AlertRule, FiredAlert
 from etl.conviction_flow import conviction_flow, detect_contrarian_signals, detect_crowded_trades
@@ -533,6 +534,61 @@ def test_conviction_delivery_event_key_ignores_occurred_at():
         for stamp in (morning, evening)
     ]
     assert contrarian_keys[0] == contrarian_keys[1]
+
+
+def _pre_1916_conviction_delivery_event_key(fired: FiredAlert) -> str:
+    """Identity helper mirroring pre-fix behavior (occurred_at in the key)."""
+
+    event = fired.event
+    identity = {
+        "rule_id": fired.rule.rule_id,
+        "type": event.event_type,
+        "manager_id": event.manager_id,
+        "payload": event.payload,
+        "occurred_at": event.occurred_at.isoformat(),
+    }
+    return hashlib.sha256(serialize_json(identity).encode()).hexdigest()
+
+
+def test_conviction_delivery_event_key_documents_deliberate_break_regression():
+    """Falsification: including occurred_at duplicates identity on replay clocks."""
+    anchor = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+    rule = AlertRule(
+        rule_id=1,
+        name="crowded",
+        event_type="crowded_trade_change",
+        condition_json={},
+        channels=["email"],
+        enabled=True,
+        created_at=anchor,
+        updated_at=anchor,
+    )
+    payload = {"cusip": "037833100", "report_date": "2024-05-01", "manager_count": 5}
+    morning = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    evening = datetime(2026, 1, 1, 18, 0, tzinfo=UTC)
+    fired_morning = FiredAlert(
+        rule=rule,
+        event=AlertEvent(
+            event_type="crowded_trade_change",
+            payload=payload,
+            occurred_at=morning,
+        ),
+        channels=["email"],
+    )
+    fired_evening = fired_morning.model_copy(
+        update={
+            "event": fired_morning.event.model_copy(update={"occurred_at": evening}),
+        }
+    )
+
+    broken_keys = [
+        _pre_1916_conviction_delivery_event_key(fired_morning),
+        _pre_1916_conviction_delivery_event_key(fired_evening),
+    ]
+    assert broken_keys[0] != broken_keys[1]
+
+    stable_keys = [_delivery_event_key(fired) for fired in (fired_morning, fired_evening)]
+    assert stable_keys[0] == stable_keys[1]
 
 
 def test_conviction_dispatch_replay_reuses_delivery_claim(tmp_path, monkeypatch):
