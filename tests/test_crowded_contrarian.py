@@ -165,7 +165,9 @@ def _seed_conviction_signal_rows(conn: sqlite3.Connection, report_date: str) -> 
     detect_contrarian_signals.fn(report_date, conn=conn)
 
 
-def _insert_conviction_alert_rules(conn: sqlite3.Connection, *, time_window_hours: float | None = None) -> None:
+def _insert_conviction_alert_rules(
+    conn: sqlite3.Connection, *, time_window_hours: float | None = None
+) -> None:
     ensure_alert_tables(conn)
     crowded_condition: dict[str, float | int] = {"similar_manager_count_gte": 3}
     if time_window_hours is not None:
@@ -209,7 +211,9 @@ class _RecordingEmailChannel(NotificationChannel):
         return DeliveryResult("email", success=True)
 
 
-def _patch_conviction_dispatch_env(monkeypatch, db_path: str, email: _RecordingEmailChannel) -> None:
+def _patch_conviction_dispatch_env(
+    monkeypatch, db_path: str, email: _RecordingEmailChannel
+) -> None:
     def fake_connect_db():
         return sqlite3.connect(db_path)
 
@@ -221,7 +225,9 @@ def _patch_conviction_dispatch_env(monkeypatch, db_path: str, email: _RecordingE
         )
 
     monkeypatch.setattr(conviction_module, "connect_db", fake_connect_db)
-    monkeypatch.setattr(conviction_module, "fire_alerts_for_event_sync", dispatch_with_mock_channels)
+    monkeypatch.setattr(
+        conviction_module, "fire_alerts_for_event_sync", dispatch_with_mock_channels
+    )
 
 
 def test_crowded_table_check_wraps_missing_postgres_schema():
