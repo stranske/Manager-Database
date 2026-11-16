@@ -8,6 +8,18 @@ The repo also includes a synthetic, offline stlite browser demo for the
 deterministic analyst pages. Build it with `python scripts/build_wasm_demo.py`
 and serve `web/index.html` locally; details are in `README_bootstrap.md`.
 
+## Local Form 4 ingestion
+
+```text
+python -m etl.insider_flow --as-of YYYY-MM-DD [--lookback-days N] [--json]
+```
+
+`--as-of` selects which holdings supply issuers. Form 4 fetching uses a rolling
+lookback of 90 days by default. Use `--json` to emit the run summary as JSON.
+A `null` counter means the count is unavailable. The current fetcher returns
+transaction rows, so filings scanned, unmatched issuers, and skipped transaction
+codes are reported as `null`.
+
 ## API Documentation
 
 - [API Rate Limiting](docs/api_rate_limiting.md) - Rate limits, headers, and error handling

@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+import tempfile
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 
 from adapters.insider import InsiderFetchError, net_direction_for_rows, normalize_form4_rows
+from api import signals
 from etl import insider_flow
 
 
@@ -102,6 +106,40 @@ def _fake_fetcher_ok(issuer: str, *, lookback_days: int = 90):
 
 def _fake_fetcher_raises(issuer: str, *, lookback_days: int = 90):
     raise RuntimeError(f"boom for {issuer}")
+
+
+def _conn_two_issuers() -> sqlite3.Connection:
+    conn = _conn()
+    conn.execute("ALTER TABLE holdings ADD COLUMN knowledge_time TEXT")
+    conn.execute("UPDATE holdings SET knowledge_time = '2026-01-02T00:00:00Z'")
+    # Known before the 2026-01-15 cutoff, superseded after it: visible as-of.
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, resolved_ticker, superseded_at, knowledge_time) "
+        "VALUES (10, '594918104', 'MSFT', '2026-02-01T00:00:00Z', '2026-01-02T00:00:00Z')"
+    )
+    # Learned after the cutoff: not visible as-of.
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, resolved_ticker, superseded_at, knowledge_time) "
+        "VALUES (10, '67066G104', 'NVDA', NULL, '2026-02-01T00:00:00Z')"
+    )
+    conn.commit()
+    return conn
+
+
+def _stub_fetcher_ok_and_fail(issuer: str, *, lookback_days: int = 90):
+    if issuer.upper() == "MSFT":
+        raise RuntimeError(f"boom for {issuer}")
+    return [
+        *_fake_fetcher_ok(issuer, lookback_days=lookback_days),
+        {
+            "ticker": issuer,
+            "insider_name": "Cook",
+            "txn_code": "P",
+            "shares": 10,
+            "txn_date": _transaction_date(1),
+            "acquired_disposed": "A",
+        },
+    ]
 
 
 def test_normalize_and_net_direction():
@@ -206,3 +244,104 @@ def test_annotate_conviction_rows_joins_direction():
     )
     assert annotated[0]["insider_net_direction"] == "net buy"
     assert annotated[0]["conviction_pct"] == 5.0
+
+
+def test_local_form4_command_persists_and_annotates(monkeypatch: pytest.MonkeyPatch, capsys):
+    db_path = Path(tempfile.mkstemp(suffix=".db")[1])
+    seed = _conn_two_issuers()
+    disk = sqlite3.connect(db_path)
+    seed.backup(disk)
+    disk.close()
+    seed.close()
+
+    def _open_db(*args, **kwargs):
+        return sqlite3.connect(db_path)
+
+    monkeypatch.setattr(insider_flow, "connect_db", _open_db)
+    conn = sqlite3.connect(db_path)
+    real_ingest = insider_flow.ingest_insider_for_issuers
+
+    fetched_issuers: list[list[str]] = []
+
+    def _ingest_with_stub(conn, issuers, **kwargs):
+        fetched_issuers.append(sorted(issuer["ticker"] for issuer in issuers))
+        if kwargs.get("fetcher") is None:
+            kwargs = {**kwargs, "fetcher": _stub_fetcher_ok_and_fail}
+        return real_ingest(conn, issuers, **kwargs)
+
+    monkeypatch.setattr(insider_flow, "ingest_insider_for_issuers", _ingest_with_stub)
+
+    assert (
+        insider_flow.main(
+            ["--as-of", "2026-01-15", "--lookback-days", "90", "--json"],
+        )
+        == 0
+    )
+    summary = json.loads(capsys.readouterr().out)
+    assert summary == {
+        "fetch_errors": 1,
+        "filings_scanned": None,
+        "issuers_resolved": 2,
+        "rows_inserted": 3,
+        "skipped_transaction_codes": None,
+        "unmatched_issuers": None,
+    }
+    assert fetched_issuers == [["AAPL", "MSFT"]]
+
+    stored = conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0]
+    assert stored == 3
+
+    rows = signals.query_conviction_scores(conn, 1, filing_id=10)
+    aapl = next(row for row in rows if row.cusip == "037833100")
+    assert aapl.insider_net_direction == "net buy"
+
+    count_before = stored
+    second = insider_flow.run_form4_ingest(
+        conn,
+        as_of=date(2026, 1, 15),
+        lookback_days=90,
+        fetcher=_stub_fetcher_ok_and_fail,
+    )
+    assert second["rows_inserted"] == 0
+    assert second["fetch_errors"] == 1
+    count_after = conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0]
+    assert count_after == count_before
+
+    assert insider_flow.main(["--as-of", "2026-01-15", "--lookback-days", "90"]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "issuers_resolved: 2",
+        "filings_scanned: null",
+        "rows_inserted: 0",
+        "unmatched_issuers: null",
+        "skipped_transaction_codes: null",
+        "fetch_errors: 1",
+    ]
+    assert fetched_issuers[-1] == ["AAPL", "MSFT"]
+    assert conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0] == count_before
+
+
+def test_rerun_with_missing_insider_name_inserts_no_duplicates():
+    conn = _conn()
+
+    def ownerless_fetcher(issuer: str, *, lookback_days: int = 90):
+        return [
+            {
+                "issuer_cik": "0000320193",
+                "ticker": "AAPL",
+                "insider_name": None,
+                "txn_code": "P",
+                "shares": 25,
+                "txn_date": _transaction_date(3),
+                "acquired_disposed": "A",
+            }
+        ]
+
+    first = insider_flow.run_form4_ingest(
+        conn, as_of=date.today(), lookback_days=90, fetcher=ownerless_fetcher
+    )
+    second = insider_flow.run_form4_ingest(
+        conn, as_of=date.today(), lookback_days=90, fetcher=ownerless_fetcher
+    )
+    assert first["rows_inserted"] == 1
+    assert second["rows_inserted"] == 0
+    assert conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0] == 1
