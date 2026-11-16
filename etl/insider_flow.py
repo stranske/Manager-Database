@@ -151,7 +151,7 @@ def resolve_held_issuers(
 
 def ingest_insider_for_issuers(
     conn: Any,
-    issuers: list[Mapping[str, Any]],
+    issuers: Sequence[Mapping[str, Any]],
     *,
     lookback_days: int = 90,
     fetcher: Callable[..., list[Mapping[str, Any]]] | None = None,
