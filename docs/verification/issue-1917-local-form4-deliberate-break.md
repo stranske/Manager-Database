@@ -62,16 +62,45 @@ per-issuer error accounting.
 
 ## Revert and restoration
 
-The ingestion call was restored before this evidence file was committed. The
-named gate and full `test_insider_flow.py` module pass on the restored tree (see
-outputs above).
+The ingestion call was restored in commit `f43e8d5` (break at `0848250`). The named gate and full
+`test_insider_flow.py` module pass on the restored tree (see outputs below).
 
-## Acceptance criteria reconciliation
+Branch history retains the disposable break commit immediately before the
+restoration commit so the PR diff shows the mutation and its revert.
+
+## Acceptance criteria reconciliation (2026-11-16 keepalive)
+
+All acceptance criteria are satisfied on the current branch:
 
 | Criterion | Evidence |
 | --- | --- |
 | Named local CLI gate | `test_local_form4_command_persists_and_annotates` |
-| Deliberate break → revert | Local break recorded in this doc; tree restored |
+| Deliberate break → revert | Commits `0848250` (break) and `f43e8d5` (revert + this doc) |
 | Full module | `tests/test_insider_flow.py` |
 | Deliberate-break unit gate | `test_local_form4_skip_ingest_documents_deliberate_break_regression` |
 | README local invocation | `README.md` → **Local Form 4 ingestion** |
+
+### Keepalive local verification
+
+Executed on worktree head `cursor/issue-1917` after restoring ingestion:
+
+```console
+$ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates -q
+.                                                                        [100%]
+1 passed
+
+$ python3 -m pytest tests/test_insider_flow.py -q
+.........                                                                [100%]
+9 passed
+```
+
+At commit `0848250` (ingestion skipped), the named gate failed as expected:
+
+```console
+$ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates -q
+F                                                                        [100%]
+FAILED tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates
+  Differing items:
+  {'rows_inserted': 0} != {'rows_inserted': 3}
+  {'fetch_errors': 0} != {'fetch_errors': 1}
+```
