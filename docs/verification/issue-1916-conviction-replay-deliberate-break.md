@@ -63,3 +63,21 @@ tree (see outputs above).
 
 Branch history retains the disposable break commit immediately before the
 restoration commit so the PR diff shows the mutation and its revert.
+
+## Acceptance criteria reconciliation (2026-11-16)
+
+All acceptance criteria are satisfied on the current branch:
+
+| Criterion | Evidence |
+| --- | --- |
+| Named replay gate | `test_conviction_dispatch_replay_reuses_delivery_claim` |
+| Deliberate break → revert | Commits `2a763d8` (break) and `a5dac24` (revert + this doc) |
+| Full module | `tests/test_crowded_contrarian.py` (20 tests) |
+| Payload / report_date / time_window | `test_conviction_dispatch_changed_payload_creates_new_alert`, `test_conviction_dispatch_different_report_date_creates_new_alert`, `test_conviction_dispatch_time_window_rule_fires_on_fresh_run` |
+| Unit identity gate | `test_conviction_delivery_event_key_ignores_occurred_at` |
+
+```console
+$ python3 -m pytest tests/test_crowded_contrarian.py -q
+....................                                                     [100%]
+20 passed
+```
