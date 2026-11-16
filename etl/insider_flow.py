@@ -321,8 +321,12 @@ def run_form4_ingest(
 ) -> dict[str, int | None]:
     """Resolve held issuers as-of ``as_of`` and ingest Form-4 rows."""
     issuers = resolve_held_issuers(conn, as_of=as_of)
-    # Deliberate-break (#1917): resolve issuers but skip ingestion (reverted next commit).
-    ingest_result = {"inserted": 0, "errors": [], "skipped_transaction_codes": None}
+    ingest_result = ingest_insider_for_issuers(
+        conn,
+        issuers,
+        lookback_days=lookback_days,
+        fetcher=fetcher,
+    )
     return build_run_summary(issuers, ingest_result)
 
 
