@@ -1,6 +1,6 @@
 # Issue #1917 local Form-4 CLI deliberate-break evidence
 
-Keep this line in PR #1921 body so `scripts/check_deliberate_break.py` can execute
+Keep this line in PR #1922 body so `scripts/check_deliberate_break.py` can execute
 the named gate (fallback parsing misses `Named test` without a colon):
 
 ```html
@@ -62,7 +62,7 @@ per-issuer error accounting.
 
 ## Revert and restoration
 
-The ingestion call was restored in commit `f981e20` (break at `6aedec2`). The named gate and full
+The ingestion call was restored in commit `dc64881` (break at `27fe8b0`). The named gate and full
 `test_insider_flow.py` module pass on the restored tree (see outputs below).
 
 Branch history retains the disposable break commit immediately before the
@@ -75,7 +75,7 @@ All acceptance criteria are satisfied on the current branch:
 | Criterion | Evidence |
 | --- | --- |
 | Named local CLI gate | `test_local_form4_command_persists_and_annotates` |
-| Deliberate break → revert | Commits `6aedec2` (break) and `f981e20` (revert) |
+| Deliberate break → revert | Commits `27fe8b0` (break) and `dc64881` (revert) |
 | Full module | `tests/test_insider_flow.py` |
 | Deliberate-break unit gate (skip ingest) | `test_local_form4_skip_ingest_documents_deliberate_break_regression` |
 | Deliberate-break unit gate (abort on error) | `test_local_form4_strict_fetch_error_documents_deliberate_break_regression` |
@@ -95,13 +95,30 @@ $ python3 -m pytest tests/test_insider_flow.py -q
 10 passed
 ```
 
-At commit `6aedec2` (ingestion skipped), the named gate failed as expected:
+At commit `27fe8b0` (ingestion skipped), the named gate failed as expected:
 
 ```console
 $ python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates -q
 F                                                                        [100%]
 FAILED tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates
-  Differing items:
-  {'rows_inserted': 0} != {'rows_inserted': 3}
-  {'fetch_errors': 0} != {'fetch_errors': 1}
+```
+
+## Closer lane verification (PR #1922, branch `claude/issue-1917`, 2026-11-16)
+
+```console
+$ /opt/anaconda3/bin/python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates -q
+.                                                                        [100%]
+1 passed
+
+$ /opt/anaconda3/bin/python3 -m pytest tests/test_insider_flow.py -q
+..........                                                               [100%]
+10 passed
+```
+
+Deliberate break (`etl/insider_flow.py` at `27fe8b0`):
+
+```console
+$ /opt/anaconda3/bin/python3 -m pytest tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates -q
+F                                                                        [100%]
+FAILED tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates
 ```
