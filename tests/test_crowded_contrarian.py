@@ -1,10 +1,16 @@
 import importlib
 import json
 import sqlite3
+from datetime import UTC, datetime
 
 import pytest
 
+import alerts.engine as alert_engine
+import alerts.models as alert_models
 import etl.conviction_flow as conviction_module
+from alerts.channels import DeliveryResult, NotificationChannel, StreamlitChannel
+from alerts.db import ensure_alert_tables
+from alerts.integration import fire_alerts_for_event_sync
 from etl.conviction_flow import conviction_flow, detect_contrarian_signals, detect_crowded_trades
 
 
@@ -134,6 +140,88 @@ class _MissingTablePostgresConn:
         if self.missing_table in sql:
             raise _MissingPostgresTableError(f'relation "{self.missing_table}" does not exist')
         return None
+
+
+def _seed_conviction_signal_rows(conn: sqlite3.Connection, report_date: str) -> None:
+    detect_crowded_trades.fn(report_date, min_managers=3, conn=conn)
+    conn.executemany(
+        "INSERT INTO manager_similarity(manager_id_a, manager_id_b, jaccard) VALUES (?, ?, ?)",
+        [(1, 2, 0.9), (1, 3, 0.9), (1, 4, 0.9), (1, 5, 0.9)],
+    )
+    for manager_id in (1, 2, 3, 4):
+        conn.execute(
+            "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+            "shares_prev, shares_curr, value_prev, value_curr) "
+            "VALUES (?, ?, '88160R101', 'Tesla Inc', 'BUY', NULL, 10, NULL, 100)",
+            (manager_id, report_date),
+        )
+    conn.execute(
+        "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        "VALUES (5, ?, '88160R101', 'Tesla Inc', 'SELL', 10, NULL, 100, NULL)",
+        (report_date,),
+    )
+    conn.commit()
+    detect_contrarian_signals.fn(report_date, conn=conn)
+
+
+def _insert_conviction_alert_rules(conn: sqlite3.Connection, *, time_window_hours: float | None = None) -> None:
+    ensure_alert_tables(conn)
+    crowded_condition: dict[str, float | int] = {"similar_manager_count_gte": 3}
+    if time_window_hours is not None:
+        crowded_condition["time_window_hours"] = time_window_hours
+    conn.execute(
+        """INSERT INTO alert_rules(
+            name, event_type, condition_json, channels, enabled
+        ) VALUES (?, ?, ?, ?, ?)""",
+        (
+            "Crowded trade",
+            "crowded_trade_change",
+            json.dumps(crowded_condition),
+            '["email"]',
+            1,
+        ),
+    )
+    conn.execute(
+        """INSERT INTO alert_rules(
+            name, event_type, condition_json, channels, enabled, manager_id
+        ) VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            "Contrarian signal",
+            "contrarian_signal",
+            "{}",
+            '["email"]',
+            1,
+            5,
+        ),
+    )
+    conn.commit()
+
+
+class _RecordingEmailChannel(NotificationChannel):
+    channel_name = "email"
+
+    def __init__(self) -> None:
+        self.deliveries: list[str] = []
+
+    async def deliver(self, alert):
+        self.deliveries.append(alert.event.event_type)
+        return DeliveryResult("email", success=True)
+
+
+def _patch_conviction_dispatch_env(monkeypatch, db_path: str, email: _RecordingEmailChannel) -> None:
+    def fake_connect_db():
+        return sqlite3.connect(db_path)
+
+    def dispatch_with_mock_channels(conn, event):
+        return fire_alerts_for_event_sync(
+            conn,
+            event,
+            channels={"email": email, "streamlit": StreamlitChannel()},
+        )
+
+    monkeypatch.setattr(conviction_module, "connect_db", fake_connect_db)
+    monkeypatch.setattr(conviction_module, "fire_alerts_for_event_sync", dispatch_with_mock_channels)
 
 
 def test_crowded_table_check_wraps_missing_postgres_schema():
@@ -365,6 +453,175 @@ def test_dispatch_conviction_alerts_emits_events_for_detected_rows(tmp_path, mon
     assert events[0].payload["similar_manager_ids"] == [1, 2, 3, 4, 5]
     assert events[0].payload["similar_manager_count"] == 5
     assert events[0].payload["similarity_floor"] == 0.5
+
+
+def test_conviction_dispatch_replay_reuses_delivery_claim(tmp_path, monkeypatch):
+    db_path = _setup_db(tmp_path, manager_count=5)
+    conn = sqlite3.connect(db_path)
+    report_date = "2024-05-01"
+    _seed_conviction_signal_rows(conn, report_date)
+    _insert_conviction_alert_rules(conn)
+    conn.close()
+
+    email = _RecordingEmailChannel()
+    _patch_conviction_dispatch_env(monkeypatch, db_path, email)
+
+    clock = iter(
+        [
+            datetime(2026, 1, 1, 10, 0, tzinfo=UTC),
+            datetime(2026, 1, 1, 10, 1, tzinfo=UTC),
+            datetime(2026, 1, 1, 18, 0, tzinfo=UTC),
+            datetime(2026, 1, 1, 18, 1, tzinfo=UTC),
+        ]
+    )
+
+    class Clock:
+        @staticmethod
+        def now(tz=None):
+            del tz
+            return next(clock)
+
+    monkeypatch.setattr(alert_models, "datetime", Clock)
+
+    conviction_module.dispatch_conviction_alerts.fn(
+        report_date, crowded_trades=1, contrarian_signals=1
+    )
+    conviction_module.dispatch_conviction_alerts.fn(
+        report_date, crowded_trades=1, contrarian_signals=1
+    )
+
+    conn = sqlite3.connect(db_path)
+    try:
+        history_count = conn.execute("SELECT COUNT(*) FROM alert_history").fetchone()[0]
+        attempt_count = conn.execute("SELECT COUNT(*) FROM alert_delivery_attempts").fetchone()[0]
+        attempts = conn.execute(
+            "SELECT event_type, channel FROM alert_history "
+            "JOIN alert_delivery_attempts USING (alert_id) "
+            "ORDER BY event_type"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert history_count == 2
+    assert attempt_count == 2
+    assert attempts == [("contrarian_signal", "email"), ("crowded_trade_change", "email")]
+    assert email.deliveries == ["crowded_trade_change", "contrarian_signal"]
+
+
+def test_conviction_dispatch_changed_payload_creates_new_alert(tmp_path, monkeypatch):
+    db_path = _setup_db(tmp_path, manager_count=5)
+    conn = sqlite3.connect(db_path)
+    report_date = "2024-05-01"
+    _seed_conviction_signal_rows(conn, report_date)
+    _insert_conviction_alert_rules(conn)
+    conn.close()
+
+    email = _RecordingEmailChannel()
+    _patch_conviction_dispatch_env(monkeypatch, db_path, email)
+    conviction_module.dispatch_conviction_alerts.fn(
+        report_date, crowded_trades=1, contrarian_signals=1
+    )
+
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "UPDATE crowded_trades SET manager_count = 9, total_value_usd = 9999 "
+        "WHERE report_date = ? AND cusip = '037833100'",
+        (report_date,),
+    )
+    conn.commit()
+    conn.close()
+
+    conviction_module.dispatch_conviction_alerts.fn(
+        report_date, crowded_trades=1, contrarian_signals=1
+    )
+
+    conn = sqlite3.connect(db_path)
+    try:
+        crowded_rows = conn.execute(
+            "SELECT COUNT(*) FROM alert_history WHERE event_type = 'crowded_trade_change'"
+        ).fetchone()[0]
+        attempt_count = conn.execute(
+            "SELECT COUNT(*) FROM alert_delivery_attempts "
+            "JOIN alert_history USING (alert_id) "
+            "WHERE event_type = 'crowded_trade_change'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert crowded_rows == 2
+    assert attempt_count == 2
+    assert email.deliveries.count("crowded_trade_change") == 2
+
+
+def test_conviction_dispatch_different_report_date_creates_new_alert(tmp_path, monkeypatch):
+    db_path = _setup_db(tmp_path, manager_count=5)
+    conn = sqlite3.connect(db_path)
+    first_date = "2024-05-01"
+    second_date = "2024-05-02"
+    _seed_conviction_signal_rows(conn, first_date)
+    _seed_conviction_signal_rows(conn, second_date)
+    _insert_conviction_alert_rules(conn)
+    conn.close()
+
+    email = _RecordingEmailChannel()
+    _patch_conviction_dispatch_env(monkeypatch, db_path, email)
+    conviction_module.dispatch_conviction_alerts.fn(
+        first_date, crowded_trades=1, contrarian_signals=1
+    )
+    conviction_module.dispatch_conviction_alerts.fn(
+        second_date, crowded_trades=1, contrarian_signals=1
+    )
+
+    conn = sqlite3.connect(db_path)
+    try:
+        history_count = conn.execute("SELECT COUNT(*) FROM alert_history").fetchone()[0]
+        crowded_rows = conn.execute(
+            "SELECT COUNT(*) FROM alert_history WHERE event_type = 'crowded_trade_change'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert history_count == 4
+    assert crowded_rows == 2
+    assert email.deliveries.count("crowded_trade_change") == 2
+
+
+def test_conviction_dispatch_time_window_rule_fires_on_fresh_run(tmp_path, monkeypatch):
+    db_path = _setup_db(tmp_path, manager_count=5)
+    conn = sqlite3.connect(db_path)
+    report_date = "2024-05-01"
+    _seed_conviction_signal_rows(conn, report_date)
+    _insert_conviction_alert_rules(conn, time_window_hours=24)
+    conn.close()
+
+    email = _RecordingEmailChannel()
+    _patch_conviction_dispatch_env(monkeypatch, db_path, email)
+
+    fresh = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+
+    class Clock:
+        @staticmethod
+        def now(tz=None):
+            del tz
+            return fresh
+
+    monkeypatch.setattr(alert_models, "datetime", Clock)
+    monkeypatch.setattr(alert_engine, "datetime", Clock)
+
+    conviction_module.dispatch_conviction_alerts.fn(
+        report_date, crowded_trades=1, contrarian_signals=1
+    )
+
+    conn = sqlite3.connect(db_path)
+    try:
+        crowded_rows = conn.execute(
+            "SELECT COUNT(*) FROM alert_history WHERE event_type = 'crowded_trade_change'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert crowded_rows == 1
+    assert email.deliveries[0] == "crowded_trade_change"
 
 
 def test_detect_contrarian_signals_skips_split_consensus(tmp_path):

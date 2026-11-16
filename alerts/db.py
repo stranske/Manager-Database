@@ -264,7 +264,10 @@ def insert_alert_history(conn: Any, fired_alerts: list[FiredAlert]) -> list[int]
 def _delivery_event_key(fired: FiredAlert) -> str:
     """Identify filing replays independently of their newly generated timestamp.
 
-    Other event producers must preserve occurred_at and payload on retry.
+    Conviction crowded-trade and contrarian dispatches key on payload (which
+    carries report_date) without occurred_at because those producers do not set
+    a stable occurred_at on retry. Other event producers must preserve
+    occurred_at and payload on retry.
     """
     event = fired.event
     identity: dict[str, Any] = {
@@ -277,6 +280,8 @@ def _delivery_event_key(fired: FiredAlert) -> str:
             identity["filing_id"] = event.payload["filing_id"]
         else:
             identity["payload"] = event.payload
+    elif event.event_type in ("crowded_trade_change", "contrarian_signal"):
+        identity["payload"] = event.payload
     else:
         identity["payload"] = event.payload
         identity["occurred_at"] = event.occurred_at.isoformat()
