@@ -195,3 +195,12 @@ $ python3 -m pytest tests/test_insider_flow.py -q
 $ python3 scripts/check_deliberate_break.py --base "$(git merge-base origin/main HEAD)" --head HEAD --pr-body-file docs/verification/issue-1917-marker-snippet.txt
 {"verdict": "PASS", "reason": "head-passed-base-failed", ...}
 ```
+
+## Salvage scope (closer, 2026-11-16)
+
+PR #1921 merges only the finished #1917 acceptance surface (documented
+`python -m etl.insider_flow`, as-of holdings selection, six summary fields, seeded
+SQLite gate, deliberate-break history). CUSIP→issuer mapping, filtering unmapped
+issuers from Form-4 fetch, populating `unmatched_issuers`, and
+`test_local_form4_cusip_only_issuer_resolution` are explicit follow-ups on #1917;
+no partial implementation remains on this branch.

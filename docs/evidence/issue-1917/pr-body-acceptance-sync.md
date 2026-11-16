@@ -2,7 +2,9 @@
 
 <!-- deliberate-break: test=tests/test_insider_flow.py::test_local_form4_command_persists_and_annotates test-file=tests/test_insider_flow.py break-file=etl/insider_flow.py -->
 
-**Progress:** 7/7 tasks complete
+Refs #1917 (CLI, as-of issuer resolution via `resolved_ticker`/CUSIP string, summary counters, acceptance + deliberate-break evidence). Issue #1917 stays open for follow-up: repository CUSIP→CIK/ticker mapping, `unmatched_issuers` accounting, and `test_local_form4_cusip_only_issuer_resolution`.
+
+**Progress:** 7/7 tasks complete (salvage scope)
 
 ### Acceptance Criteria
 
