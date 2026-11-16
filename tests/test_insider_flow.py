@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+import tempfile
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 
 from adapters.insider import InsiderFetchError, net_direction_for_rows, normalize_form4_rows
+from api import signals
 from etl import insider_flow
 
 
@@ -102,6 +106,22 @@ def _fake_fetcher_ok(issuer: str, *, lookback_days: int = 90):
 
 def _fake_fetcher_raises(issuer: str, *, lookback_days: int = 90):
     raise RuntimeError(f"boom for {issuer}")
+
+
+def _conn_two_issuers() -> sqlite3.Connection:
+    conn = _conn()
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, resolved_ticker, superseded_at) "
+        "VALUES (10, '594918104', 'MSFT', NULL)"
+    )
+    conn.commit()
+    return conn
+
+
+def _stub_fetcher_ok_and_fail(issuer: str, *, lookback_days: int = 90):
+    if issuer.upper() == "MSFT":
+        raise RuntimeError(f"boom for {issuer}")
+    return _fake_fetcher_ok(issuer, lookback_days=lookback_days)
 
 
 def test_normalize_and_net_direction():
@@ -206,3 +226,61 @@ def test_annotate_conviction_rows_joins_direction():
     )
     assert annotated[0]["insider_net_direction"] == "net buy"
     assert annotated[0]["conviction_pct"] == 5.0
+
+
+def test_local_form4_command_persists_and_annotates(monkeypatch: pytest.MonkeyPatch, capsys):
+    db_path = Path(tempfile.mkstemp(suffix=".db")[1])
+    seed = _conn_two_issuers()
+    disk = sqlite3.connect(db_path)
+    seed.backup(disk)
+    disk.close()
+    seed.close()
+
+    def _open_db(*args, **kwargs):
+        return sqlite3.connect(db_path)
+
+    monkeypatch.setattr(insider_flow, "connect_db", _open_db)
+    conn = sqlite3.connect(db_path)
+    real_ingest = insider_flow.ingest_insider_for_issuers
+
+    def _ingest_with_stub(conn, issuers, **kwargs):
+        if kwargs.get("fetcher") is None:
+            kwargs = {**kwargs, "fetcher": _stub_fetcher_ok_and_fail}
+        return real_ingest(conn, issuers, **kwargs)
+
+    monkeypatch.setattr(insider_flow, "ingest_insider_for_issuers", _ingest_with_stub)
+
+    assert (
+        insider_flow.main(
+            ["--as-of", "2026-01-15", "--lookback-days", "90", "--json"],
+        )
+        == 0
+    )
+    summary = json.loads(capsys.readouterr().out)
+    assert summary == {
+        "fetch_errors": 1,
+        "filings_scanned": None,
+        "issuers_resolved": 2,
+        "rows_inserted": 3,
+        "skipped_transaction_codes": 0,
+        "unmatched_issuers": None,
+    }
+
+    stored = conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0]
+    assert stored == 3
+
+    rows = signals.query_conviction_scores(conn, 1, filing_id=10)
+    aapl = next(row for row in rows if row.cusip == "037833100")
+    assert aapl.insider_net_direction == "net buy"
+
+    count_before = stored
+    second = insider_flow.run_form4_ingest(
+        conn,
+        as_of=date(2026, 1, 15),
+        lookback_days=90,
+        fetcher=_stub_fetcher_ok_and_fail,
+    )
+    assert second["rows_inserted"] == 0
+    assert second["fetch_errors"] == 1
+    count_after = conn.execute("SELECT COUNT(*) FROM insider_transactions").fetchone()[0]
+    assert count_after == count_before
