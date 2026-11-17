@@ -308,7 +308,12 @@ def test_backtest_persists_run_and_position_rows(tmp_path):
     assert runs[0]["sharpe"] == pytest.approx(4.2426406871, rel=1e-9)
 
 
-def test_persisted_positions_record_source_provenance(tmp_path):
+@pytest.mark.parametrize(
+    "amendment_filed_date",
+    ["2024-05-01", "2024-05-15"],
+    ids=["filed-before-cutoff-known-later", "filed-and-known-later"],
+)
+def test_persisted_positions_record_source_provenance(tmp_path, amendment_filed_date):
     conn = _two_quarter_fixture(tmp_path)
     original_holding_id = conn.execute(
         "SELECT holding_id FROM holdings WHERE filing_id=10"
@@ -353,8 +358,9 @@ def test_persisted_positions_record_source_provenance(tmp_path):
     assert position.source_knowledge_time == known_at
     assert position.applied_cutoff == cutoff
 
-    # A later amendment supersedes the original holding after this decision.
-    _add_filing(conn, 12, "2024-03-31", "2024-05-15")
+    # Knowledge time must isolate the decision even if the amendment was already
+    # filed that day. Filtering solely by filed_date would leak that amendment.
+    _add_filing(conn, 12, "2024-03-31", amendment_filed_date)
     conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=12")
     _add_holding(conn, 12, "AAA000000", "AAA", 99_000_000, "2024-05-15T12:00:00Z")
     conn.execute(

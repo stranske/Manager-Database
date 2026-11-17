@@ -6,7 +6,22 @@ Verified on 2026-11-17 against the provenance implementation in `e3a11a2`.
 - [x] The named amendment-isolation test passes after reloading committed results.
 - [x] Removing the five provenance constructor arguments makes the named test fail;
   restoring the source makes it pass again.
-- [x] The complete backtest test file passes (27 cases).
+- [x] The complete backtest test file passes (28 cases).
+
+Rechecked on 2026-11-17 after extending the named test to cover both an amendment
+filed on the decision date but learned later and one filed and learned later.
+The named test passes both cases with `-m "not slow"`. Removing the five
+provenance arguments makes both cases fail with `assert None == 10` (pytest
+exit status 1); a fresh SQLite readback confirms all five columns are NULL in
+each case. Restoring the implementation byte for byte makes both cases pass
+again (exit status 0). The full test file then passes all 28 cases with
+`-m "not slow"` (exit status 0).
+
+The additional test case and this verification update remain uncommitted:
+`git add` cannot create `.git/index.lock` because the Git directory is mounted
+read-only. Updating the PR acceptance checkboxes was also rejected because the
+tool requires approval and the run's approval policy is `never`. PR #1934 was
+verified open and ready for review before that rejected update.
 
 ## Deliberate break and restoration
 
