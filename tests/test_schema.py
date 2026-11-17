@@ -89,8 +89,8 @@ def test_activism_campaign_migration_generates_sqlite_primary_keys(monkeypatch, 
         )
         campaign = conn.execute(
             "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, "
-            "first_filed, last_filed, status) VALUES (1, '123456789', 'Example Corp', "
-            "'2024-05-01', '2024-05-01', 'active')"
+            "first_filed, last_filed, status, opening_filing_id) VALUES (1, '123456789', "
+            "'Example Corp', '2024-05-01', '2024-05-01', 'active', 1)"
         )
         assert campaign.lastrowid is not None
         timeline = conn.execute(
@@ -113,19 +113,32 @@ def test_activism_campaign_migration_constrains_status_and_filing_only_rows(monk
         conn.execute(
             "INSERT INTO activism_filings(filing_id, manager_id, filing_type, subject_company, "
             "filed_date, url) VALUES (1, 1, 'SC 13D', 'Example Corp', '2024-05-01', "
-            "'https://sec.example/1')"
+            "'https://sec.example/1'), (2, 1, 'SC 13D', 'Example Corp', '2025-06-01', "
+            "'https://sec.example/2')"
         )
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(
                 "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, "
-                "first_filed, last_filed, status) VALUES (1, '123456789', 'Example Corp', "
-                "'2024-05-01', '2024-05-01', 'bogus')"
+                "first_filed, last_filed, status, opening_filing_id) VALUES (1, '123456789', "
+                "'Example Corp', '2024-05-01', '2024-05-01', 'bogus', 1)"
             )
         campaign = conn.execute(
             "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, "
-            "first_filed, last_filed, status) VALUES (1, '123456789', 'Example Corp', "
-            "'2024-05-01', '2024-05-01', 'active')"
+            "first_filed, last_filed, status, opening_filing_id) VALUES (1, '123456789', "
+            "'Example Corp', '2024-05-01', '2024-05-01', 'active', 1)"
         )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, "
+                "first_filed, last_filed, status, opening_filing_id) VALUES (1, '123456789', "
+                "'Example Corp', '2024-05-01', '2024-05-01', 'active', 1)"
+            )
+        second_episode = conn.execute(
+            "INSERT INTO activism_campaigns(manager_id, target_identifier, target_company, "
+            "first_filed, last_filed, status, opening_filing_id) VALUES (1, '123456789', "
+            "'Example Corp', '2025-06-01', '2025-06-01', 'active', 2)"
+        )
+        assert second_episode.lastrowid != campaign.lastrowid
         insert_filing_only = (
             "INSERT INTO activism_campaign_timeline(campaign_id, filing_id, event_date, "
             "event_type, form_type, summary) VALUES (?, 1, '2024-05-01', 'initial_filing', "

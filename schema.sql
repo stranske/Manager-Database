@@ -153,7 +153,8 @@ CREATE TABLE IF NOT EXISTS activism_campaigns (
     source_forms text NOT NULL DEFAULT '[]',
     data_quality_flags text NOT NULL DEFAULT '[]',
     computed_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (manager_id, target_identifier),
+    opening_filing_id bigint NOT NULL REFERENCES activism_filings(filing_id),
+    CONSTRAINT uq_activism_campaign_episode UNIQUE (manager_id, target_identifier, opening_filing_id),
     CONSTRAINT ck_activism_campaigns_status
         CHECK (status IN ('active', 'monitoring', 'closed', 'unknown'))
 );
