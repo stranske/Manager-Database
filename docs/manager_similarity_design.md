@@ -128,7 +128,9 @@ Database environment prerequisites (resolved via `adapters.base.connect_db()` an
 
 - `DB_URL`: optional PostgreSQL connection URL (`postgres://` or `postgresql://`). When set, takes precedence over `DB_PATH`.
 - `DB_PATH`: SQLite database file path used when `DB_URL` is unset (defaults to `manager_database.db`).
-- Populated `managers`, `filings`, and `holdings` tables for a non-empty refresh; running against an empty database safely initializes `manager_similarity` and prints an `"empty"` summary JSON line to stdout.
+- Populated `managers`, `filings`, and `holdings` tables for a non-empty refresh.
+- When `DB_URL` is unset (SQLite), running against an empty or schema-less database safely initializes `manager_similarity` and prints an `"empty"` summary JSON line to stdout.
+- When `DB_URL` selects PostgreSQL, the application schema (`managers`, `filings`, and `holdings`) must already exist; an empty refresh does not create those tables or guarantee an `"empty"` summary instead of a query error.
 
 The first implementation should stay deterministic and local. No LLM call is
 needed to compute similarity.

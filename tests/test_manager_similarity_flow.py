@@ -301,6 +301,82 @@ def test_similar_manager_default_basis_is_config_selectable(tmp_path, monkeypatc
     assert fallback_item["manager_id"] == 3
 
 
+def _seed_sqlite_similarity_inputs(db_path: Path) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        managers_module._ensure_manager_table(conn)
+        conn.executescript("""
+            CREATE TABLE filings (filing_id INTEGER PRIMARY KEY, manager_id INTEGER, period_end TEXT);
+            CREATE TABLE holdings (filing_id INTEGER, cusip TEXT, resolved_ticker TEXT, superseded_at TEXT);
+            """)
+        conn.executemany(
+            "INSERT INTO managers (id, name) VALUES (?, ?)",
+            [(1, "One"), (2, "Two"), (3, "Three")],
+        )
+        conn.executemany(
+            "INSERT INTO filings (filing_id, manager_id, period_end) VALUES (?, ?, ?)",
+            [(1, 1, "2025-03-31"), (2, 2, "2025-03-31"), (3, 3, "2025-03-31")],
+        )
+        conn.executemany(
+            "INSERT INTO holdings (filing_id, cusip, resolved_ticker, superseded_at) VALUES (?, ?, ?, ?)",
+            [
+                (1, "CUSIP-A", "A", None),
+                (1, "B", None, None),
+                (1, "C", None, None),
+                (2, "B", None, None),
+                (2, "C", None, None),
+                (2, "D", None, None),
+                (3, "C", None, None),
+                (3, "E", None, None),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_local_refresh_command_db_path_override_targets_explicit_database(
+    tmp_path, monkeypatch, capsys
+):
+    env_db = Path(tmp_path) / "env.db"
+    override_db = Path(tmp_path) / "override.db"
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", str(env_db))
+
+    assert similarity_flow.main([]) == 0
+    capsys.readouterr()
+    env_before = sqlite3.connect(env_db).execute(
+        "SELECT COUNT(*) FROM manager_similarity"
+    ).fetchone()
+
+    _seed_sqlite_similarity_inputs(override_db)
+
+    assert similarity_flow.main(["--db-path", str(override_db)]) == 0
+    summary = json.loads(capsys.readouterr().out.strip())
+    assert summary["status"] == "updated"
+    assert summary["rows_written"] == 3
+
+    override_conn = sqlite3.connect(override_db)
+    try:
+        assert override_conn.execute("SELECT COUNT(*) FROM manager_similarity").fetchone() == (
+            3,
+        )
+    finally:
+        override_conn.close()
+
+    env_conn = sqlite3.connect(env_db)
+    try:
+        assert env_conn.execute("SELECT COUNT(*) FROM manager_similarity").fetchone() == env_before
+        assert env_before == (0,)
+    finally:
+        env_conn.close()
+
+    monkeypatch.setenv("DB_PATH", str(override_db))
+    response = asyncio.run(_get_similar_manager(1, 10))
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 2
+
+
 def test_local_refresh_command_writes_rows_and_summary(tmp_path, monkeypatch, capsys):
     db_path = Path(tmp_path) / "refresh-similarity.db"
     monkeypatch.delenv("DB_URL", raising=False)
