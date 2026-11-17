@@ -18,14 +18,21 @@ local and SQLite-only CI paths stay green. To run it:
 from __future__ import annotations
 
 import os
+from datetime import UTC, date, datetime
+from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 from urllib.parse import quote
 
 import pytest
 from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from alembic.script import ScriptDirectory
 
 from alembic import command
+from etl.backtest_flow import BacktestReport, Position, persist_backtest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_SQL = ROOT / "schema.sql"
@@ -114,6 +121,48 @@ def test_mv_daily_report_idx_defined_after_matview_in_sql():
         f"CREATE MATERIALIZED VIEW mv_daily_report (offset {matview_pos}). "
         "Move the index creation to after the matview DDL."
     )
+
+
+def test_backtest_provenance_postgres_migration_ddl(monkeypatch):
+    """Check the migration's PostgreSQL types and nullable defaults without a server."""
+    migration = ScriptDirectory.from_config(_alembic_config("postgresql://")).get_revision("024")
+    output = StringIO()
+    operations = Operations(
+        MigrationContext.configure(
+            dialect_name="postgresql", opts={"as_sql": True, "output_buffer": output}
+        )
+    )
+    monkeypatch.setattr(migration.module, "op", operations)
+    monkeypatch.setattr(
+        migration.module.sa,
+        "inspect",
+        lambda bind: SimpleNamespace(get_columns=lambda table: []),
+    )
+    migration.module.upgrade()
+    statements = _split_sql_statements(output.getvalue())
+    expected = {
+        "source_filing_id": "BIGINT",
+        "source_holding_id": "BIGINT",
+        "event_period": "DATE",
+        "source_knowledge_time": "TIMESTAMP WITH TIME ZONE",
+        "applied_cutoff": "TIMESTAMP WITH TIME ZONE",
+    }
+    assert len(statements) == 5
+    for column, sql_type in expected.items():
+        assert f"ALTER TABLE backtest_results ADD COLUMN {column} {sql_type};" in statements
+    bootstrap = next(
+        stmt
+        for stmt in _split_sql_statements(SCHEMA_SQL.read_text())
+        if stmt.startswith("CREATE TABLE IF NOT EXISTS backtest_results")
+    )
+    for definition in (
+        "source_filing_id bigint",
+        "source_holding_id bigint",
+        "event_period date",
+        "source_knowledge_time timestamptz",
+        "applied_cutoff timestamptz",
+    ):
+        assert definition in {line.strip().rstrip(",") for line in bootstrap.splitlines()}
 
 
 @pytest.fixture(scope="module")
@@ -439,3 +488,106 @@ def test_schema_sql_creates_matviews_before_their_indexes(pg_url, psycopg_module
             f"missing indexes after bootstrap: {missing_indexes} "
             f"(check schema.sql ordering: matview creation must precede its index)"
         )
+
+
+@pytest.mark.parametrize("bootstrap", ["schema_sql", "alembic"])
+def test_backtest_provenance_postgres_persistence(pg_url, psycopg_module, monkeypatch, bootstrap):
+    """Both schema entry points support provenance writes and atomic rollback."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    schema_name = f"mgr_backtest_{bootstrap}"
+    with psycopg_module.connect(pg_url, autocommit=True) as conn:
+        _reset_schema(conn, schema_name)
+        if bootstrap == "schema_sql":
+            _apply_schema_sql(conn)
+        else:
+            command.upgrade(_alembic_config(_url_with_search_path(pg_url, schema_name)), "head")
+        metadata = conn.execute(
+            "SELECT column_name, data_type, is_nullable, column_default "
+            "FROM information_schema.columns WHERE table_schema=current_schema() "
+            "AND table_name='backtest_results' AND column_name IN "
+            "('source_filing_id', 'source_holding_id', 'event_period', "
+            "'source_knowledge_time', 'applied_cutoff')"
+        ).fetchall()
+        assert set(metadata) == {
+            ("source_filing_id", "bigint", "YES", None),
+            ("source_holding_id", "bigint", "YES", None),
+            ("event_period", "date", "YES", None),
+            ("source_knowledge_time", "timestamp with time zone", "YES", None),
+            ("applied_cutoff", "timestamp with time zone", "YES", None),
+        }
+        position = Position(
+            date(2024, 5, 1),
+            date(2024, 5, 2),
+            date(2024, 8, 1),
+            "AAA",
+            None,
+            source_filing_id=10,
+            source_holding_id=100,
+            event_period=date(2024, 3, 31),
+            source_knowledge_time=datetime(2024, 5, 1, 12, tzinfo=UTC),
+            applied_cutoff=datetime(2024, 5, 1, 23, 59, 59, tzinfo=UTC),
+        )
+        report = BacktestReport(
+            strategy="test",
+            manager_id=1,
+            start_date=date(2024, 5, 1),
+            end_date=date(2024, 5, 1),
+            positions=[position],
+        )
+
+        def persist():
+            return persist_backtest(
+                conn,
+                report,
+                entry_lag_days=1,
+                holding_period_days=91,
+                benchmark_ticker="SPY",
+                price_source="test",
+                top_n=10,
+            )
+
+        run_id = persist()
+        assert conn.execute(
+            "SELECT source_filing_id, source_holding_id, event_period, "
+            "source_knowledge_time, applied_cutoff FROM backtest_results WHERE run_id=%s",
+            (run_id,),
+        ).fetchone() == (
+            10,
+            100,
+            position.event_period,
+            position.source_knowledge_time,
+            position.applied_cutoff,
+        )
+        # Fail the second detail write after the first provenance row was written.
+        report.positions.append(
+            Position(
+                date(2024, 5, 1), date(2024, 5, 2), date(2024, 8, 1), "BBB", None, status=None
+            )  # type: ignore[arg-type]
+        )
+        with pytest.raises(psycopg_module.errors.NotNullViolation):
+            persist()
+        assert conn.execute("SELECT count(*) FROM backtest_runs").fetchone() == (1,)
+        assert conn.execute("SELECT count(*) FROM backtest_results").fetchone() == (1,)
+
+
+def test_backtest_provenance_postgres_legacy_nulls(pg_url, psycopg_module, monkeypatch):
+    monkeypatch.delenv("DB_URL", raising=False)
+    schema_name = "mgr_backtest_legacy"
+    with psycopg_module.connect(pg_url, autocommit=True) as conn:
+        _reset_schema(conn, schema_name)
+        config = _alembic_config(_url_with_search_path(pg_url, schema_name))
+        command.upgrade(config, "023")
+        run_id = conn.execute(
+            "INSERT INTO backtest_runs(strategy, start_date, end_date) "
+            "VALUES ('legacy', '2024-05-01', '2024-05-01') RETURNING run_id"
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO backtest_results(run_id, decision_date, entry_date, exit_date) "
+            "VALUES (%s, '2024-05-01', '2024-05-02', '2024-08-01')",
+            (run_id,),
+        )
+        command.upgrade(config, "024")
+        assert conn.execute(
+            "SELECT source_filing_id, source_holding_id, event_period, "
+            "source_knowledge_time, applied_cutoff FROM backtest_results"
+        ).fetchall() == [(None, None, None, None, None)]

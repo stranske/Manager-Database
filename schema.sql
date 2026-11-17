@@ -327,7 +327,12 @@ CREATE TABLE IF NOT EXISTS backtest_results (
     excess_return real,
     weight real,
     status text NOT NULL DEFAULT 'filled',
-    skip_reason text
+    skip_reason text,
+    source_filing_id bigint,
+    source_holding_id bigint,
+    event_period date,
+    source_knowledge_time timestamptz,
+    applied_cutoff timestamptz
 );
 CREATE INDEX IF NOT EXISTS idx_backtest_results_run ON backtest_results (run_id);
 
