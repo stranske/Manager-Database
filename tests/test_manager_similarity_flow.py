@@ -345,9 +345,9 @@ def test_local_refresh_command_db_path_override_targets_explicit_database(
 
     assert similarity_flow.main([]) == 0
     capsys.readouterr()
-    env_before = sqlite3.connect(env_db).execute(
-        "SELECT COUNT(*) FROM manager_similarity"
-    ).fetchone()
+    env_before = (
+        sqlite3.connect(env_db).execute("SELECT COUNT(*) FROM manager_similarity").fetchone()
+    )
 
     _seed_sqlite_similarity_inputs(override_db)
 
@@ -358,9 +358,7 @@ def test_local_refresh_command_db_path_override_targets_explicit_database(
 
     override_conn = sqlite3.connect(override_db)
     try:
-        assert override_conn.execute("SELECT COUNT(*) FROM manager_similarity").fetchone() == (
-            3,
-        )
+        assert override_conn.execute("SELECT COUNT(*) FROM manager_similarity").fetchone() == (3,)
     finally:
         override_conn.close()
 
