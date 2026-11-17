@@ -222,7 +222,7 @@ async def emit_news_spike_alerts(items: list[dict[str, Any]], conn: Any) -> int:
                             {identity[2] for identity in item_identities if identity[2]}
                         ),
                         # Include every item, even those beyond the display summary.
-                        "item_identities": item_identities,
+                        "item_identities": [list(identity) for identity in item_identities],
                     },
                     occurred_at=occurred_at.astimezone(UTC),
                 ),

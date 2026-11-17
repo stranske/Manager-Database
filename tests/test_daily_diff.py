@@ -1158,10 +1158,13 @@ def test_news_producer_retry_preserves_delivery_identity(
     ).fetchall() == [("email", 1), ("slack", 1)]
     assert [channel for channel, _ in sends] == ["email", "slack"]
     assert sends[0][1].occurred_at.isoformat() == expected_timestamp
-    assert sends[0][1].payload["item_identities"] == sorted(
-        (str(item["published_at"] or ""), item["url"], item["source"], item["headline"])
-        for item in items
-    )
+    assert sends[0][1].payload["item_identities"] == [
+        list(identity)
+        for identity in sorted(
+            (str(item["published_at"] or ""), item["url"], item["source"], item["headline"])
+            for item in items
+        )
+    ]
     # The named acceptance test also proves a changed batch is a separate event.
     changed = [dict(item) for item in items]
     changed[0]["url"] += "?updated"
