@@ -1,8 +1,14 @@
+import json
 import sqlite3
 
 import pytest
 
 import etl.conviction_flow as conviction_flow
+from alerts.channels import DeliveryResult, NotificationChannel, StreamlitChannel
+from alerts.db import ensure_alert_tables
+from alerts.integration import fire_alerts_for_event_sync
+
+DEFAULT_REPORT_DATE = "2026-01-15"
 
 
 def _create_base_tables(conn: sqlite3.Connection) -> None:
@@ -26,6 +32,55 @@ def _create_base_tables(conn: sqlite3.Connection) -> None:
             shares INTEGER,
             value_usd REAL
         )""")
+
+
+def _create_signal_tables(conn: sqlite3.Connection) -> None:
+    """Inputs the default entry point's detectors read after scoring."""
+    conn.execute("""CREATE TABLE daily_diffs (
+            diff_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manager_id INTEGER NOT NULL,
+            report_date TEXT NOT NULL,
+            cusip TEXT NOT NULL,
+            name_of_issuer TEXT,
+            delta_type TEXT NOT NULL,
+            shares_prev INTEGER,
+            shares_curr INTEGER,
+            value_prev REAL,
+            value_curr REAL
+        )""")
+    conn.execute("""CREATE TABLE manager_similarity (
+            manager_id_a INTEGER NOT NULL,
+            manager_id_b INTEGER NOT NULL,
+            jaccard REAL NOT NULL,
+            CHECK (manager_id_a < manager_id_b)
+        )""")
+    ensure_alert_tables(conn)
+
+
+class _RecordingEmailChannel(NotificationChannel):
+    channel_name = "email"
+
+    def __init__(self) -> None:
+        self.deliveries: list[str] = []
+
+    async def deliver(self, alert):
+        self.deliveries.append(alert.event.event_type)
+        return DeliveryResult("email", success=True)
+
+
+def _patch_default_entry_env(monkeypatch, db_path, email: _RecordingEmailChannel) -> None:
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.delenv("CROWDED_TRADE_MIN_MANAGERS", raising=False)
+    monkeypatch.setattr(conviction_flow, "_default_report_date", lambda: DEFAULT_REPORT_DATE)
+
+    def dispatch_with_fake_channels(conn, event):
+        return fire_alerts_for_event_sync(
+            conn,
+            event,
+            channels={"email": email, "streamlit": StreamlitChannel()},
+        )
+
+    monkeypatch.setattr(conviction_flow, "fire_alerts_for_event_sync", dispatch_with_fake_channels)
 
 
 def _seed_manager_and_filing(
@@ -304,10 +359,12 @@ def test_score_all_latest_filings_skips_a_bad_filing_without_losing_others(tmp_p
 
 def test_conviction_flow_logs_api_usage_and_supports_elliott_sample(monkeypatch, tmp_path):
     db_path = tmp_path / "flow.db"
-    monkeypatch.setenv("DB_PATH", str(db_path))
+    email = _RecordingEmailChannel()
+    _patch_default_entry_env(monkeypatch, db_path, email)
 
     conn = sqlite3.connect(db_path)
     _create_base_tables(conn)
+    _create_signal_tables(conn)
     _seed_manager_and_filing(
         conn,
         manager_id=7,
@@ -340,7 +397,17 @@ def test_conviction_flow_logs_api_usage_and_supports_elliott_sample(monkeypatch,
 
     total_pct = sum(float(row[0]) for row in scores)
 
-    assert result == {"filings_scored": 1, "scores_computed": 3, "filings_failed": 0}
+    # A single manager cannot form a crowd and there are no daily diffs, so the detectors
+    # and dispatch run but find nothing.
+    assert result == {
+        "filings_scored": 1,
+        "scores_computed": 3,
+        "filings_failed": 0,
+        "crowded_trades": 0,
+        "contrarian_signals": 0,
+        "alerts_dispatched": 0,
+    }
+    assert email.deliveries == []
     assert len(scores) == 3
     assert total_pct == pytest.approx(100.0, rel=1e-4)
     assert usage == ("prefect", "flow:conviction-scoring", 200)
@@ -356,10 +423,12 @@ def test_conviction_flow_nightly_run_survives_one_managers_bad_filing(monkeypatc
     conviction scores for every manager that night, not only the one with bad data.
     """
     db_path = tmp_path / "nightly.db"
-    monkeypatch.setenv("DB_PATH", str(db_path))
+    email = _RecordingEmailChannel()
+    _patch_default_entry_env(monkeypatch, db_path, email)
 
     conn = sqlite3.connect(db_path)
     _create_base_tables(conn)
+    _create_signal_tables(conn)
     _seed_manager_and_filing(conn, manager_id=8, filing_id=800, filed_date="2025-12-31")
     _seed_manager_and_filing(conn, manager_id=9, filing_id=900, filed_date="2025-12-31")
     conn.executemany(
@@ -383,11 +452,140 @@ def test_conviction_flow_nightly_run_survives_one_managers_bad_filing(monkeypatc
     ).fetchone()
     verify_conn.close()
 
-    assert result == {"filings_scored": 1, "scores_computed": 1, "filings_failed": 1}
+    assert result == {
+        "filings_scored": 1,
+        "scores_computed": 1,
+        "filings_failed": 1,
+        "crowded_trades": 0,
+        "contrarian_signals": 0,
+        "alerts_dispatched": 0,
+    }
     assert good_manager_scores == 1
     # The money assertion: the nightly flow reports success, not the 500 it used to record
     # when any single manager's data was incomplete.
     assert usage == ("prefect", "flow:conviction-scoring", 200)
+
+
+def _seed_default_entry_signal_inputs(conn: sqlite3.Connection) -> None:
+    """Five managers share one CUSIP; four buy a second CUSIP that manager 5 sells."""
+    for manager_id in range(1, 6):
+        _seed_manager_and_filing(
+            conn,
+            manager_id=manager_id,
+            filing_id=manager_id * 100,
+            filed_date="2025-12-31",
+        )
+        conn.executemany(
+            "INSERT INTO holdings(filing_id, cusip, name_of_issuer, shares, value_usd) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [
+                (manager_id * 100, "037833100", "Apple Inc", 10, 100.0),
+                (manager_id * 100, f"OTHER{manager_id:03d}", f"Other {manager_id}", 10, 100.0),
+            ],
+        )
+    conn.executemany(
+        "INSERT INTO manager_similarity(manager_id_a, manager_id_b, jaccard) VALUES (?, ?, ?)",
+        [(1, 2, 0.9), (1, 3, 0.9), (1, 4, 0.9), (1, 5, 0.9)],
+    )
+    for manager_id in (1, 2, 3, 4):
+        conn.execute(
+            "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+            "shares_prev, shares_curr, value_prev, value_curr) "
+            "VALUES (?, ?, '88160R101', 'Tesla Inc', 'BUY', NULL, 10, NULL, 100)",
+            (manager_id, DEFAULT_REPORT_DATE),
+        )
+    conn.execute(
+        "INSERT INTO daily_diffs(manager_id, report_date, cusip, name_of_issuer, delta_type, "
+        "shares_prev, shares_curr, value_prev, value_curr) "
+        "VALUES (5, ?, '88160R101', 'Tesla Inc', 'SELL', 10, NULL, 100, NULL)",
+        (DEFAULT_REPORT_DATE,),
+    )
+    conn.execute(
+        "INSERT INTO alert_rules(name, event_type, condition_json, channels, enabled) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (
+            "Crowded trade",
+            "crowded_trade_change",
+            json.dumps({"similar_manager_count_gte": 3}),
+            '["email"]',
+            1,
+        ),
+    )
+    conn.execute(
+        "INSERT INTO alert_rules(name, event_type, condition_json, channels, enabled, manager_id) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("Contrarian signal", "contrarian_signal", "{}", '["email"]', 1, 5),
+    )
+
+
+def test_default_entry_point_runs_detection_and_dispatch(monkeypatch, tmp_path):
+    """The nightly deployment calls conviction_flow() with no parameters.
+
+    That default branch used to return straight after scoring, so the scheduled run never
+    wrote crowded/contrarian signal rows and never dispatched an alert. A rerun for the same
+    report date must reuse #1916's stable delivery identity and write no new history row.
+    """
+    db_path = tmp_path / "default_entry.db"
+    email = _RecordingEmailChannel()
+    _patch_default_entry_env(monkeypatch, db_path, email)
+
+    conn = sqlite3.connect(db_path)
+    _create_base_tables(conn)
+    _create_signal_tables(conn)
+    _seed_default_entry_signal_inputs(conn)
+    conn.commit()
+    conn.close()
+
+    first = conviction_flow.conviction_flow.fn()
+
+    def _counts() -> tuple[list[tuple], list[tuple], list[tuple], tuple]:
+        verify_conn = sqlite3.connect(db_path)
+        try:
+            crowded = verify_conn.execute(
+                "SELECT cusip, manager_count, report_date FROM crowded_trades ORDER BY cusip"
+            ).fetchall()
+            contrarian = verify_conn.execute(
+                "SELECT manager_id, cusip, direction, consensus_direction, report_date "
+                "FROM contrarian_signals"
+            ).fetchall()
+            history = verify_conn.execute(
+                "SELECT r.name, a.channel FROM alert_history h "
+                "JOIN alert_rules r ON r.rule_id = h.rule_id "
+                "JOIN alert_delivery_attempts a ON a.alert_id = h.alert_id "
+                "ORDER BY r.name, a.channel"
+            ).fetchall()
+            usage = verify_conn.execute(
+                "SELECT source, endpoint, status FROM api_usage ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        finally:
+            verify_conn.close()
+        return crowded, contrarian, history, usage
+
+    crowded, contrarian, history, usage = _counts()
+    history_count_after_first = len(history)
+
+    assert first == {
+        "filings_scored": 5,
+        "scores_computed": 10,
+        "filings_failed": 0,
+        "crowded_trades": 1,
+        "contrarian_signals": 1,
+        "alerts_dispatched": 2,
+    }
+    assert crowded == [("037833100", 5, DEFAULT_REPORT_DATE)]
+    assert contrarian == [(5, "88160R101", "SELL", "BUY", DEFAULT_REPORT_DATE)]
+    # One alert_history row per rule/channel.
+    assert history == [("Contrarian signal", "email"), ("Crowded trade", "email")]
+    assert email.deliveries == ["crowded_trade_change", "contrarian_signal"]
+    assert usage == ("prefect", "flow:conviction-scoring", 200)
+
+    conviction_flow.conviction_flow.fn()
+
+    _, _, history_after_rerun, usage_after_rerun = _counts()
+    assert len(history_after_rerun) == history_count_after_first
+    assert history_after_rerun == history
+    assert email.deliveries == ["crowded_trade_change", "contrarian_signal"]
+    assert usage_after_rerun == ("prefect", "flow:conviction-scoring", 200)
 
 
 def test_conviction_deployment_nightly_utc_schedule():

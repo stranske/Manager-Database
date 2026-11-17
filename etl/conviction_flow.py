@@ -807,6 +807,11 @@ def dispatch_conviction_alerts(
     return total_alerts
 
 
+def _default_report_date() -> str:
+    """Observation date for an unparameterised run: the previous UTC date."""
+    return str(dt.datetime.now(dt.UTC).date() - dt.timedelta(days=1))
+
+
 @flow(name="conviction-scoring")
 def conviction_flow(
     report_date: str | None = None,
@@ -826,7 +831,22 @@ def conviction_flow(
                 _ensure_postgres_table_exists(db, "api_usage")
             summary = score_all_latest_filings.fn(db)
             scores_computed = summary["scores_computed"]
-            return summary
+            # Commit valid scores before the detectors and the dispatcher (which opens its
+            # own connection) read them; a failure below must not discard the scoring.
+            if isinstance(db, sqlite3.Connection):
+                db.commit()
+            resolved_date = _default_report_date()
+            crowded = detect_crowded_trades.fn(resolved_date, conn=db)
+            contrarian = detect_contrarian_signals.fn(resolved_date, conn=db)
+            if isinstance(db, sqlite3.Connection):
+                db.commit()
+            alerts = dispatch_conviction_alerts.fn(resolved_date, crowded, contrarian)
+            return {
+                **summary,
+                "crowded_trades": crowded,
+                "contrarian_signals": contrarian,
+                "alerts_dispatched": alerts,
+            }
         except Exception:
             status = 500
             raise
@@ -844,7 +864,7 @@ def conviction_flow(
             finally:
                 db.close()
 
-    resolved_date = report_date or str(dt.date.today() - dt.timedelta(days=1))
+    resolved_date = report_date or _default_report_date()
     scored = score_conviction_positions.fn(resolved_date)
     crowded = detect_crowded_trades.fn(resolved_date, min_managers=min_managers)
     contrarian = detect_contrarian_signals.fn(resolved_date)
