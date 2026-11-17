@@ -309,6 +309,14 @@ def test_backtest_persists_run_and_position_rows(tmp_path):
 
 
 @pytest.mark.parametrize(
+    ("original_knowledge_time", "expected_known_at"),
+    [
+        ("2024-05-01T12:00:00Z", datetime(2024, 5, 1, 12, tzinfo=UTC)),
+        ("2024-05-01T23:59:59Z", datetime(2024, 5, 1, 23, 59, 59, tzinfo=UTC)),
+    ],
+    ids=["known-before-cutoff", "known-at-cutoff"],
+)
+@pytest.mark.parametrize(
     ("ticker", "expected_status", "expected_skip_reason"),
     [
         ("AAA", "filled", None),
@@ -323,10 +331,21 @@ def test_backtest_persists_run_and_position_rows(tmp_path):
     ids=["filed-before-cutoff-known-later", "filed-and-known-later"],
 )
 def test_persisted_positions_record_source_provenance(
-    tmp_path, amendment_filed_date, ticker, expected_status, expected_skip_reason
+    tmp_path,
+    amendment_filed_date,
+    ticker,
+    expected_status,
+    expected_skip_reason,
+    original_knowledge_time,
+    expected_known_at,
 ):
     conn = _two_quarter_fixture(tmp_path)
-    conn.execute("UPDATE holdings SET resolved_ticker=? WHERE filing_id=10", (ticker,))
+    # A holding first known exactly at the inclusive decision cutoff must retain
+    # its source instant through persistence and a later amendment replay.
+    conn.execute(
+        "UPDATE holdings SET resolved_ticker=?, knowledge_time=? WHERE filing_id=10",
+        (ticker, original_knowledge_time),
+    )
     conn.commit()
     original_holding_id = conn.execute(
         "SELECT holding_id FROM holdings WHERE filing_id=10"
@@ -366,7 +385,7 @@ def test_persisted_positions_record_source_provenance(
     assert saved["event_period"] == "2024-03-31"
     known_at = datetime.fromisoformat(saved["source_knowledge_time"])
     cutoff = datetime.fromisoformat(saved["applied_cutoff"])
-    assert known_at == datetime(2024, 5, 1, 12, tzinfo=UTC)
+    assert known_at == expected_known_at
     assert cutoff == backtest_flow.decision_cutoff(date(2024, 5, 1))
     assert known_at <= cutoff
     position = report.positions[0]

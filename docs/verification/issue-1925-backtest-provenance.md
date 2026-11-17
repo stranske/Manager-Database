@@ -6,7 +6,46 @@ Verified on 2026-11-17 against the provenance implementation in `e3a11a2`.
 - [x] The named amendment-isolation test passes after reloading committed results.
 - [x] Removing the five provenance constructor arguments makes the named test fail;
   restoring the source makes it pass again.
-- [x] The complete backtest test file passes (32 cases).
+- [x] The complete backtest test file passes (38 cases).
+
+## Latest acceptance recheck (2026-11-17)
+
+The named test now also checks a holding first known exactly at the inclusive
+UTC decision cutoff, using ingestion's UTC timestamp format. Combined with
+the existing position states and amendment dates, it passes all 12 cases:
+
+```sh
+python3 -m pytest tests/test_backtest_flow.py::test_persisted_positions_record_source_provenance -q -m "not slow"
+python3 -m pytest tests/test_backtest_flow.py -q -m "not slow"
+python3 -m pytest tests/test_schema_postgres_bootstrap.py -q -m "not slow"
+```
+
+The full backtest file passes 38 cases. The schema file passes four offline
+cases and skips five live PostgreSQL cases. Removing the five provenance
+constructor arguments made all 12 named cases fail with `assert None == 10`
+(pytest exit 1); fresh connections to all 12 distinct databases confirmed five
+NULL provenance columns in each result. The source was restored byte for byte
+with the SHA256 recorded below, and all 12 cases passed again (exit 0).
+
+The offset-timestamp probe exposed a separate SQLite visibility limitation:
+the existing queries compare timestamp text and assume UTC-formatted storage.
+This change preserves that query behavior and tests the UTC format used by
+ingestion.
+
+All three PR acceptance checkboxes should be checked based on these results
+and the prior verification. Updating the PR body, posting the evidence comment,
+and adding `needs-human` were each rejected with `MCP tool call requires
+approval, but approval policy is never`. Staging the test change also failed:
+`Unable to create '.git/index.lock': Read-only file system`. The test change
+therefore remains uncommitted for the automation or a human to stage and commit.
+
+Black formatted the changed test file and Ruff passed it. The ordinary
+repository-wide Black check stalled; a timed retry was terminated after 30
+seconds. The periodic event-loop timer workaround described below completed
+the same repository-wide check successfully: 456 files would be unchanged.
+PR #1934 was rechecked open with `draft=false`.
+
+## Previous verification
 
 Rechecked in the next iteration on 2026-11-17 after extending the named test
 across filled, missing-price, and unresolved-ticker positions. Each position
