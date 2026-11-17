@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import sqlite3
+from collections.abc import Sequence
 from itertools import combinations
 from math import isfinite, sqrt
 from typing import Any
 
-from adapters.base import get_placeholder, get_table_columns
+from adapters.base import connect_db, get_placeholder, get_table_columns, table_exists
 from embeddings import embed_text
 
 
@@ -42,7 +45,7 @@ def ensure_manager_similarity_table(conn: Any) -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)"
         )
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(manager_similarity)")}
+        columns = get_table_columns(conn, "manager_similarity")
         if "cosine" not in columns:
             conn.execute("ALTER TABLE manager_similarity ADD COLUMN cosine REAL")
         return
@@ -93,45 +96,62 @@ def ensure_manager_similarity_table(conn: Any) -> None:
         conn.execute("ALTER TABLE manager_similarity ADD COLUMN IF NOT EXISTS cosine FLOAT(24)")
 
 
-def compute_manager_similarity(conn: Any) -> int:
-    """Replace pairwise similarities using each manager's latest filing."""
+def refresh_manager_similarity(conn: Any) -> dict[str, Any]:
+    """Replace pairwise similarities using each manager's latest filing and return a run summary."""
     ensure_manager_similarity_table(conn)
-    current_holding_filter = (
-        " AND h.superseded_at IS NULL"
-        if "superseded_at" in get_table_columns(conn, "holdings")
-        else ""
-    )
-    rows = conn.execute(
-        """WITH ranked AS (
+    if isinstance(conn, sqlite3.Connection) and not (
+        table_exists(conn, "filings") and table_exists(conn, "holdings")
+    ):
+        rows: list[tuple[Any, Any]] = []
+    else:
+        current_holding_filter = (
+            " AND h.superseded_at IS NULL"
+            if "superseded_at" in get_table_columns(conn, "holdings")
+            else ""
+        )
+        rows = conn.execute(
+            """WITH ranked AS (
         SELECT f.manager_id, f.filing_id,
                ROW_NUMBER() OVER (PARTITION BY f.manager_id ORDER BY f.period_end DESC, f.filing_id DESC) AS rn
         FROM filings f
     )
     SELECT r.manager_id, COALESCE(NULLIF(h.resolved_ticker, ''), NULLIF(h.cusip, ''))
     FROM ranked r LEFT JOIN holdings h ON h.filing_id = r.filing_id"""
-        + current_holding_filter
-        + """
+            + current_holding_filter
+            + """
     WHERE r.rn = 1"""
-    ).fetchall()
+        ).fetchall()
     holdings: dict[int, set[str]] = {}
+    missing_security = 0
     for manager_id, security in rows:
         securities = holdings.setdefault(int(manager_id), set())
         if security is not None:
             securities.add(str(security))
+        else:
+            missing_security += 1
     vectors = {
         manager_id: embed_text(" ".join(sorted(securities)))
         for manager_id, securities in holdings.items()
     }
 
-    def replace_rows() -> int:
-        conn.execute("DELETE FROM manager_similarity")
+    def replace_rows() -> tuple[int, int, int]:
+        if (
+            not isinstance(conn, sqlite3.Connection)
+            or table_exists(conn, "managers")
+            or conn.execute("SELECT 1 FROM manager_similarity LIMIT 1").fetchone() is not None
+        ):
+            conn.execute("DELETE FROM manager_similarity")
         ph = get_placeholder(conn)
-        count = 0
+        pairs_computed = 0
+        rows_written = 0
+        empty_union = 0
         for left, right in combinations(sorted(holdings), 2):
             union = holdings[left] | holdings[right]
             overlap = holdings[left] & holdings[right]
             if not union:
+                empty_union += 1
                 continue
+            pairs_computed += 1
             conn.execute(
                 "INSERT INTO manager_similarity "
                 "(manager_id_a, manager_id_b, jaccard, cosine, overlap_count, union_count) "
@@ -145,11 +165,55 @@ def compute_manager_similarity(conn: Any) -> int:
                     len(union),
                 ),
             )
-            count += 1
-        return count
+            rows_written += 1
+        return pairs_computed, rows_written, empty_union
 
     if isinstance(conn, sqlite3.Connection):
         with conn:
-            return replace_rows()
-    with conn.transaction():
-        return replace_rows()
+            pairs_computed, rows_written, empty_union = replace_rows()
+    else:
+        with conn.transaction():
+            pairs_computed, rows_written, empty_union = replace_rows()
+
+    skipped_by_reason: dict[str, int] = {}
+    if missing_security:
+        skipped_by_reason["missing_security_identifier"] = missing_security
+    if empty_union:
+        skipped_by_reason["empty_union"] = empty_union
+    return {
+        "rows_scanned": len(rows),
+        "managers_scanned": len(holdings),
+        "pairs_computed": pairs_computed,
+        "rows_written": rows_written,
+        "skipped_by_reason": skipped_by_reason,
+        "status": "updated" if rows_written > 0 else "empty",
+    }
+
+
+def compute_manager_similarity(conn: Any) -> int:
+    """Replace pairwise similarities using each manager's latest filing."""
+    return int(refresh_manager_similarity(conn)["rows_written"])
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run manager similarity refresh from the command line and print JSON summary."""
+    parser = argparse.ArgumentParser(
+        description="Refresh pairwise manager similarity from latest disclosed holdings."
+    )
+    parser.add_argument(
+        "--db-path",
+        default=None,
+        help="Optional SQLite database path override when DB_URL is unset.",
+    )
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    conn = connect_db(args.db_path) if args.db_path is not None else connect_db()
+    try:
+        summary = refresh_manager_similarity(conn)
+    finally:
+        conn.close()
+    print(json.dumps(summary, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
