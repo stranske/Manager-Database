@@ -325,11 +325,14 @@ def test_persisted_positions_record_source_provenance(tmp_path):
         )
 
     def reload(run_id):
-        rows = conn.execute(
-            "SELECT source_filing_id, source_holding_id, event_period, "
-            "source_knowledge_time, applied_cutoff FROM backtest_results WHERE run_id=?",
-            (run_id,),
-        ).fetchall()
+        # Read through a fresh connection to verify committed, durable provenance.
+        with sqlite3.connect(tmp_path / "backtest.db") as reader:
+            reader.row_factory = sqlite3.Row
+            rows = reader.execute(
+                "SELECT source_filing_id, source_holding_id, event_period, "
+                "source_knowledge_time, applied_cutoff FROM backtest_results WHERE run_id=?",
+                (run_id,),
+            ).fetchall()
         assert len(rows) == 1
         return dict(rows[0])
 
@@ -468,7 +471,7 @@ def test_backtest_pairs_portfolio_and_benchmark_periods(tmp_path):
     assert report.excess_return == pytest.approx(0.15)
 
 
-def test_backtest_persistence_rolls_back_the_header_when_a_result_insert_fails(tmp_path):
+def test_backtest_persistence_rolls_back_provenance_when_a_later_result_insert_fails(tmp_path):
     conn = _connect(tmp_path)
     report = BacktestReport(
         strategy="test",
@@ -476,20 +479,23 @@ def test_backtest_persistence_rolls_back_the_header_when_a_result_insert_fails(t
         start_date=date(2024, 1, 1),
         end_date=date(2024, 3, 31),
         positions=[
-            Position(date(2024, 1, 1), date(2024, 1, 2), date(2024, 4, 2), "AAA", None),
             Position(
                 date(2024, 1, 1),
                 date(2024, 1, 2),
                 date(2024, 4, 2),
-                "BBB",
+                "AAA",
                 None,
-                status=None,  # type: ignore[arg-type]
+                source_filing_id=10,
+                source_holding_id=100,
+                event_period=date(2023, 12, 31),
+                source_knowledge_time=datetime(2024, 1, 1, 12, tzinfo=UTC),
+                applied_cutoff=backtest_flow.decision_cutoff(date(2024, 1, 1)),
             ),
         ],
     )
 
-    with pytest.raises(sqlite3.IntegrityError):
-        persist_backtest(
+    def persist():
+        return persist_backtest(
             conn,
             report,
             entry_lag_days=1,
@@ -499,8 +505,31 @@ def test_backtest_persistence_rolls_back_the_header_when_a_result_insert_fails(t
             top_n=10,
         )
 
-    assert conn.execute("SELECT COUNT(*) FROM backtest_runs").fetchone()[0] == 0
-    assert conn.execute("SELECT COUNT(*) FROM backtest_results").fetchone()[0] == 0
+    run_id = persist()
+    saved = dict(conn.execute("SELECT * FROM backtest_results").fetchone())
+    assert saved["run_id"] == run_id
+    assert saved["source_filing_id"] == 10
+    assert saved["source_holding_id"] == 100
+    assert saved["event_period"] == "2023-12-31"
+    assert saved["source_knowledge_time"] == "2024-01-01T12:00:00+00:00"
+    assert saved["applied_cutoff"] == "2024-01-01T23:59:59+00:00"
+    # The first result of the next run succeeds before the second result fails.
+    report.positions.append(
+        Position(
+            date(2024, 1, 1),
+            date(2024, 1, 2),
+            date(2024, 4, 2),
+            "BBB",
+            None,
+            status=None,  # type: ignore[arg-type]
+        )
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        persist()
+
+    assert conn.execute("SELECT COUNT(*) FROM backtest_runs").fetchone()[0] == 1
+    rows = conn.execute("SELECT * FROM backtest_results").fetchall()
+    assert [dict(row) for row in rows] == [saved]
 
 
 def test_decision_dates_derived_from_filing_disclosure_dates(tmp_path):
