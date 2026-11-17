@@ -190,23 +190,23 @@ def _latest_published_at(items: list[dict[str, Any]]) -> str | None:
 
 async def emit_news_spike_alerts(items: list[dict[str, Any]], conn: Any) -> int:
     """Aggregate manager-linked items into one news_spike event per manager."""
-    grouped: dict[int, dict[str, Any]] = {}
+    grouped: dict[int, list[dict[str, Any]]] = {}
     for item in items:
         manager_id = item.get("manager_id")
         if manager_id is None:
             continue
-        entry = grouped.setdefault(
-            int(manager_id),
-            {"news_count": 0, "headlines": [], "sources": set()},
-        )
-        entry["news_count"] += 1
-        if item.get("headline"):
-            entry["headlines"].append(str(item["headline"]))
-        if item.get("source"):
-            entry["sources"].add(str(item["source"]))
+        grouped.setdefault(int(manager_id), []).append(item)
 
     alert_count = 0
-    for manager_id, payload in grouped.items():
+    identity_fields = ("published_at", "url", "source", "headline")
+    for manager_id, manager_items in grouped.items():
+        # Retained batches must keep both payload order and event time on retry.
+        item_identities = sorted(
+            tuple(str(item.get(field) or "") for field in identity_fields) for item in manager_items
+        )
+        occurred_at = _parse_iso_timestamp(_latest_published_at(manager_items)) or datetime(
+            1970, 1, 1, tzinfo=UTC
+        )
         alert_count += len(
             await fire_alerts_for_event(
                 conn,
@@ -214,10 +214,17 @@ async def emit_news_spike_alerts(items: list[dict[str, Any]], conn: Any) -> int:
                     event_type="news_spike",
                     manager_id=manager_id,
                     payload={
-                        "news_count": payload["news_count"],
-                        "headlines": payload["headlines"][:5],
-                        "sources": sorted(payload["sources"]),
+                        "news_count": len(manager_items),
+                        "headlines": [identity[3] for identity in item_identities if identity[3]][
+                            :5
+                        ],
+                        "sources": sorted(
+                            {identity[2] for identity in item_identities if identity[2]}
+                        ),
+                        # Include every item, even those beyond the display summary.
+                        "item_identities": [list(identity) for identity in item_identities],
                     },
+                    occurred_at=occurred_at.astimezone(UTC),
                 ),
             )
         )

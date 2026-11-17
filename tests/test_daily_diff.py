@@ -1061,51 +1061,150 @@ def test_alert_dispatch_inventory_preserves_justified_missing_filing_retirement(
     assert _dispatch_inventory_errors() == []
 
 
-def test_inventory_news_producer_retry_changes_delivery_identity(monkeypatch):
-    """Evidence for review: producer retries lack a retained timestamp/key."""
+@pytest.fixture
+def news_alert_dispatch(monkeypatch):
+    """Use the production producer, rule engine, outbox and channel claims."""
     import asyncio
-    from datetime import UTC, datetime, timedelta
+    from datetime import UTC, datetime
 
+    import alerts.integration as integration
     import alerts.models as models
     import etl.news_flow as news
-    from alerts.db import _delivery_event_key
-    from alerts.models import AlertRule, FiredAlert
+    from alerts.channels import DeliveryResult, NotificationChannel
 
-    events = []
-    clock = iter(
-        [datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 1, tzinfo=UTC) + timedelta(seconds=1)]
+    conn = sqlite3.connect(":memory:")
+    ensure_alert_tables(conn)
+    conn.execute(
+        "INSERT INTO alert_rules(name,event_type,condition_json,channels,enabled,manager_id) "
+        "VALUES (?,?,?,?,?,?)",
+        ("News retry", "news_spike", '{"news_count_gt":1}', '["email","slack"]', 1, 1),
     )
+    conn.commit()
+    sends = []
 
     class Clock:
+        current = datetime(2026, 1, 2, tzinfo=UTC)
+
         @staticmethod
         def now(tz):
-            return next(clock)
+            return Clock.current
 
-    async def capture(conn, event):
-        events.append(event)
-        return []
+    class Channel(NotificationChannel):
+        def __init__(self, name):
+            self.channel_name = name
+
+        async def deliver(self, alert):
+            sends.append((self.channel_name, alert.event))
+            return DeliveryResult(channel=self.channel_name, success=True)
 
     monkeypatch.setattr(models, "datetime", Clock)
-    monkeypatch.setattr(news, "fire_alerts_for_event", capture)
-    items = [{"manager_id": 1, "headline": "Same retained item", "source": "fixture"}]
-    asyncio.run(news.emit_news_spike_alerts(items, object()))
-    asyncio.run(news.emit_news_spike_alerts(items, object()))
-    assert events[0].payload == events[1].payload
-    rule = AlertRule(
-        rule_id=1,
-        name="audit",
-        event_type="news_spike",
-        condition_json={},
-        channels=["streamlit"],
-        enabled=True,
-        created_at=datetime(2026, 1, 1, tzinfo=UTC),
-        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    monkeypatch.setattr(
+        integration,
+        "build_configured_channels",
+        lambda: {name: Channel(name) for name in ["email", "slack"]},
     )
-    keys = [
-        _delivery_event_key(FiredAlert(rule=rule, event=event, channels=["streamlit"]))
-        for event in events
+
+    def emit(items, day):
+        Clock.current = datetime(2026, 1, day, tzinfo=UTC)
+        return asyncio.run(news.emit_news_spike_alerts(items, conn))
+
+    try:
+        yield conn, sends, emit
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    "published_at,expected_timestamp",
+    [
+        (
+            [
+                "2026-01-01T23:00:00Z",
+                "2026-01-02T01:00:00+03:00",
+                "2026-01-01T21:00:00",
+                None,
+                "invalid",
+                "2026-01-01T20:00:00Z",
+            ],
+            "2026-01-01T23:00:00+00:00",
+        ),
+        ([None] * 6, "1970-01-01T00:00:00+00:00"),
+        (["invalid"] * 6, "1970-01-01T00:00:00+00:00"),
+    ],
+    ids=["mixed-timestamps", "missing-timestamps", "invalid-timestamps"],
+)
+def test_news_producer_retry_preserves_delivery_identity(
+    news_alert_dispatch, published_at, expected_timestamp
+):
+    conn, sends, emit = news_alert_dispatch
+    items = [
+        {
+            "manager_id": 1,
+            "published_at": timestamp,
+            "url": f"https://example.com/{index}",
+            "source": "fixture",
+            "headline": f"Retained item {index}",
+        }
+        for index, timestamp in enumerate(published_at)
     ]
-    assert keys[0] != keys[1], "update the audit if the producer acquires a stable retry identity"
+    assert emit(items, 2) == 1
+    assert emit(items, 3) == 1
+    # A retained batch is the same event even if harvest order changes.
+    assert emit(list(reversed(items)), 4) == 1
+    assert conn.execute("SELECT COUNT(*) FROM alert_history").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(DISTINCT event_key) FROM alert_history").fetchone()[0] == 1
+    assert conn.execute(
+        "SELECT channel, COUNT(*) FROM alert_delivery_attempts GROUP BY channel ORDER BY channel"
+    ).fetchall() == [("email", 1), ("slack", 1)]
+    assert [channel for channel, _ in sends] == ["email", "slack"]
+    assert sends[0][1].occurred_at.isoformat() == expected_timestamp
+    assert sends[0][1].payload["item_identities"] == [
+        list(identity)
+        for identity in sorted(
+            (str(item["published_at"] or ""), item["url"], item["source"], item["headline"])
+            for item in items
+        )
+    ]
+    # The named acceptance test also proves a changed batch is a separate event.
+    changed = [dict(item) for item in items]
+    changed[0]["url"] += "?updated"
+    assert emit(changed, 5) == 1
+    assert conn.execute("SELECT COUNT(DISTINCT event_key) FROM alert_history").fetchone()[0] == 2
+    assert [channel for channel, _ in sends] == ["email", "slack", "email", "slack"]
+
+
+@pytest.mark.parametrize("field", ["url", "published_at", "source", "headline"])
+def test_news_producer_distinct_batch_has_separate_delivery_identity(news_alert_dispatch, field):
+    conn, sends, emit = news_alert_dispatch
+    items = [
+        {
+            "manager_id": 1,
+            "published_at": "2026-01-01T00:00:00Z",
+            "url": f"https://example.com/{index}",
+            "source": "fixture",
+            "headline": f"Retained item {index}",
+        }
+        for index in range(6)
+    ]
+    assert emit(items, 2) == 1
+    changed = [dict(item) for item in items]
+    # Change only the sixth item, beyond the five-headline display summary.
+    changed[-1][field] = {
+        "url": "https://example.com/5/updated",
+        "published_at": "2025-12-31T23:00:00Z",
+        "source": "other-source",
+        "headline": "Updated item 5",
+    }[field]
+    # Hold the clock constant to isolate batch identity from event-time changes.
+    assert emit(changed, 2) == 1
+    rows = conn.execute("SELECT event_key FROM alert_history").fetchall()
+    assert len(rows) == 2
+    assert rows[0][0] != rows[1][0]
+    assert sends[0][1].occurred_at == sends[2][1].occurred_at
+    assert conn.execute(
+        "SELECT channel, COUNT(*) FROM alert_delivery_attempts GROUP BY channel ORDER BY channel"
+    ).fetchall() == [("email", 2), ("slack", 2)]
+    assert [channel for channel, _ in sends] == ["email", "slack", "email", "slack"]
 
 
 def test_alert_dispatch_inventory_rejects_unconnected_standing_check():
