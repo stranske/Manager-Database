@@ -133,11 +133,13 @@
       "tests": [
         "tests/test_news_flow.py:test_news_flow_alert_counts_only_new_persisted_identities",
         "tests/test_news_flow.py:test_emit_news_spike_alerts_groups_items_by_manager",
-        "tests/test_daily_diff.py:test_inventory_news_producer_retry_changes_delivery_identity"
+        "tests/test_daily_diff.py:test_news_producer_retry_preserves_delivery_identity",
+        "tests/test_daily_diff.py:test_news_producer_distinct_batch_has_separate_delivery_identity"
       ],
-      "replay": "key includes occurred_at; producer uses generated wall time, while news_flow suppresses already-inserted news identities; delivery-crash retry identity is not durably retained",
+      "replay": "per-manager items sorted by (published_at, url, source, headline), full item identities in payload, and max parsed published_at normalized to UTC as occurred_at (UTC epoch when none parse); retained batch retries reuse the delivery key",
       "owners": [
-        1791
+        1791,
+        1923
       ],
       "disposition": "connected",
       "evidence_kind": "source-call graph plus named executable tests; no live channel-delivery claim",
@@ -147,7 +149,7 @@
           "function": "emit_news_spike_alerts"
         }
       ],
-      "ownership_scope": "Issue #1791 owns this inventory and returned evidence only. No production repair is assigned or authorized by this row."
+      "ownership_scope": "Issue #1791 owns the inventory; issue #1923 owns the stable news-batch retry identity repair."
     },
     "crowded_trade_change": {
       "producer": "etl/conviction_flow.py:dispatch_conviction_alerts",
@@ -535,12 +537,12 @@
   "new_findings": [
     {
       "id": "F22-R1",
-      "disposition": "confirmed identity gap; review proposal only",
+      "disposition": "stable delivery identity implemented in #1923",
       "events": [
         "news_spike"
       ],
-      "evidence": "tests/test_daily_diff.py:test_inventory_news_producer_retry_changes_delivery_identity",
-      "scope": "Re-entering the real emitter with retained identical items at a later clock time changes the actual delivery event key. Ordinary news_flow filters pre-existing identities; delivery-crash retry of the emitter still has no retained timestamp. This is not evidence of observed live duplicate notifications."
+      "evidence": "tests/test_daily_diff.py:test_news_producer_retry_preserves_delivery_identity",
+      "scope": "The real emitter now reconstructs identical payload and occurred_at from a retained batch, including reordered input. SQLite outbox regression verifies one history identity and at most one attempt per channel; distinct batch identities are not suppressed. No live provider-delivery claim."
     },
     {
       "id": "F22-R2",
