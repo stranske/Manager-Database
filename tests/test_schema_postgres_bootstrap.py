@@ -18,14 +18,21 @@ local and SQLite-only CI paths stay green. To run it:
 from __future__ import annotations
 
 import os
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
 import pytest
 from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 
 from alembic import command
+from etl.backtest_flow import BacktestReport, Position, persist_backtest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_SQL = ROOT / "schema.sql"
@@ -438,4 +445,87 @@ def test_schema_sql_creates_matviews_before_their_indexes(pg_url, psycopg_module
         assert not missing_indexes, (
             f"missing indexes after bootstrap: {missing_indexes} "
             f"(check schema.sql ordering: matview creation must precede its index)"
+        )
+
+
+@pytest.mark.parametrize("bootstrap", ["schema_sql", "alembic"])
+def test_backtest_provenance_postgres_parity(pg_url, psycopg_module, bootstrap):
+    """Both PostgreSQL schema paths support the same nullable provenance writes."""
+    schema_name = f"mgr_backtest_{bootstrap}"
+    with psycopg_module.connect(pg_url, autocommit=True) as conn:
+        _reset_schema(conn, schema_name)
+        if bootstrap == "schema_sql":
+            for stmt in _split_sql_statements(SCHEMA_SQL.read_text()):
+                if stmt.startswith(
+                    (
+                        "CREATE TABLE IF NOT EXISTS backtest_runs (",
+                        "CREATE TABLE IF NOT EXISTS backtest_results (",
+                    )
+                ):
+                    conn.execute(stmt)
+        else:
+            # Apply the backtest migrations in isolation so this contract needs
+            # neither pgvector nor the unrelated application tables.
+            scripts = ScriptDirectory.from_config(_alembic_config("postgresql+psycopg://"))
+            url = make_url(pg_url).set(drivername="postgresql+psycopg")
+            engine = create_engine(url, connect_args={"options": f"-csearch_path={schema_name}"})
+            try:
+                with engine.begin() as migration_conn:
+                    with Operations.context(MigrationContext.configure(migration_conn)):
+                        scripts.get_revision("015").module.upgrade()
+                        scripts.get_revision("025").module.upgrade()
+            finally:
+                engine.dispose()
+
+        columns = conn.execute(
+            "SELECT column_name, data_type, is_nullable, column_default "
+            "FROM information_schema.columns WHERE table_schema=current_schema() "
+            "AND table_name='backtest_results' AND column_name IN "
+            "('source_filing_id', 'source_holding_id', 'event_period', "
+            "'source_knowledge_time', 'applied_cutoff')"
+        ).fetchall()
+        assert set(columns) == {
+            ("source_filing_id", "bigint", "YES", None),
+            ("source_holding_id", "bigint", "YES", None),
+            ("event_period", "date", "YES", None),
+            ("source_knowledge_time", "timestamp with time zone", "YES", None),
+            ("applied_cutoff", "timestamp with time zone", "YES", None),
+        }
+        position = Position(
+            date(2024, 5, 1),
+            date(2024, 5, 2),
+            date(2024, 8, 1),
+            "AAA",
+            None,
+            source_filing_id=10,
+            source_holding_id=100,
+            event_period=date(2024, 3, 31),
+            source_knowledge_time=datetime(2024, 5, 1, 12, tzinfo=UTC),
+            applied_cutoff=datetime(2024, 5, 1, 23, 59, 59, tzinfo=UTC),
+        )
+        run_id = persist_backtest(
+            conn,
+            BacktestReport(
+                strategy="test",
+                manager_id=1,
+                start_date=date(2024, 5, 1),
+                end_date=date(2024, 5, 1),
+                positions=[position],
+            ),
+            entry_lag_days=1,
+            holding_period_days=91,
+            benchmark_ticker=None,
+            price_source="test",
+            top_n=10,
+        )
+        assert conn.execute(
+            "SELECT source_filing_id, source_holding_id, event_period, "
+            "source_knowledge_time, applied_cutoff FROM backtest_results WHERE run_id=%s",
+            (run_id,),
+        ).fetchone() == (
+            10,
+            100,
+            position.event_period,
+            position.source_knowledge_time,
+            position.applied_cutoff,
         )
