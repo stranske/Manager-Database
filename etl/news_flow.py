@@ -202,8 +202,7 @@ async def emit_news_spike_alerts(items: list[dict[str, Any]], conn: Any) -> int:
     for manager_id, manager_items in grouped.items():
         # Retained batches must keep both payload order and event time on retry.
         item_identities = sorted(
-            tuple(str(item.get(field) or "") for field in identity_fields)
-            for item in manager_items
+            tuple(str(item.get(field) or "") for field in identity_fields) for item in manager_items
         )
         occurred_at = _parse_iso_timestamp(_latest_published_at(manager_items)) or datetime(
             1970, 1, 1, tzinfo=UTC
@@ -216,8 +215,12 @@ async def emit_news_spike_alerts(items: list[dict[str, Any]], conn: Any) -> int:
                     manager_id=manager_id,
                     payload={
                         "news_count": len(manager_items),
-                        "headlines": [identity[3] for identity in item_identities if identity[3]][:5],
-                        "sources": sorted({identity[2] for identity in item_identities if identity[2]}),
+                        "headlines": [identity[3] for identity in item_identities if identity[3]][
+                            :5
+                        ],
+                        "sources": sorted(
+                            {identity[2] for identity in item_identities if identity[2]}
+                        ),
                         # Include every item, even those beyond the display summary.
                         "item_identities": item_identities,
                     },
