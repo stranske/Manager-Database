@@ -383,6 +383,28 @@ def test_legacy_backtest_provenance_remains_null(tmp_path, monkeypatch, upgrade_
     if upgrade_with == "alembic":
         command.upgrade(config, "024")
     with sqlite3.connect(db_path) as conn:
+        if upgrade_with == "ensure":
+            backtest_flow.ensure_backtest_tables(conn)
+        # Verify the selected upgrade path before the helper can repair missing columns.
+        provenance_columns = {
+            row[1]: (row[3], row[4])
+            for row in conn.execute("PRAGMA table_info(backtest_results)")
+            if row[1]
+            in {
+                "source_filing_id",
+                "source_holding_id",
+                "event_period",
+                "source_knowledge_time",
+                "applied_cutoff",
+            }
+        }
+        assert provenance_columns == {
+            "source_filing_id": (0, None),
+            "source_holding_id": (0, None),
+            "event_period": (0, None),
+            "source_knowledge_time": (0, None),
+            "applied_cutoff": (0, None),
+        }
         # The helper can upgrade legacy tables and is safe on migrated schemas.
         backtest_flow.ensure_backtest_tables(conn)
         backtest_flow.ensure_backtest_tables(conn)

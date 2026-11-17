@@ -123,7 +123,22 @@ def test_mv_daily_report_idx_defined_after_matview_in_sql():
     )
 
 
-def test_backtest_provenance_postgres_migration_ddl(monkeypatch):
+@pytest.mark.parametrize(
+    "existing_columns",
+    [
+        (),
+        ("source_filing_id", "source_knowledge_time"),
+        (
+            "source_filing_id",
+            "source_holding_id",
+            "event_period",
+            "source_knowledge_time",
+            "applied_cutoff",
+        ),
+    ],
+    ids=["legacy", "partially-provisioned", "fully-provisioned"],
+)
+def test_backtest_provenance_postgres_migration_ddl(monkeypatch, existing_columns):
     """Check the migration's PostgreSQL types and nullable defaults without a server."""
     migration = ScriptDirectory.from_config(_alembic_config("postgresql://")).get_revision("024")
     output = StringIO()
@@ -136,7 +151,9 @@ def test_backtest_provenance_postgres_migration_ddl(monkeypatch):
     monkeypatch.setattr(
         migration.module.sa,
         "inspect",
-        lambda bind: SimpleNamespace(get_columns=lambda table: []),
+        lambda bind: SimpleNamespace(
+            get_columns=lambda table: [{"name": name} for name in existing_columns]
+        ),
     )
     migration.module.upgrade()
     statements = _split_sql_statements(output.getvalue())
@@ -147,9 +164,11 @@ def test_backtest_provenance_postgres_migration_ddl(monkeypatch):
         "source_knowledge_time": "TIMESTAMP WITH TIME ZONE",
         "applied_cutoff": "TIMESTAMP WITH TIME ZONE",
     }
-    assert len(statements) == 5
-    for column, sql_type in expected.items():
-        assert f"ALTER TABLE backtest_results ADD COLUMN {column} {sql_type};" in statements
+    assert set(statements) == {
+        f"ALTER TABLE backtest_results ADD COLUMN {column} {sql_type};"
+        for column, sql_type in expected.items()
+        if column not in existing_columns
+    }
     bootstrap = next(
         stmt
         for stmt in _split_sql_statements(SCHEMA_SQL.read_text())
