@@ -92,8 +92,7 @@ def upsert_insider_transactions(conn: Any, rows: list[Mapping[str, Any]]) -> int
         params = (
             row.get("issuer_cik"),
             row.get("ticker"),
-            # NULLs never match in a UNIQUE key; coalesce so ownerless reruns dedupe.
-            row.get("insider_name") or "",
+            row.get("insider_name"),
             row.get("txn_code"),
             row.get("shares"),
             row.get("txn_date"),
@@ -180,22 +179,18 @@ def ingest_insider_for_issuers(
                 ticker=str(ticker) if ticker else None,
                 fetcher=fetcher,
             )
-            for row in rows:
-                if cusip and not row.get("cusip"):
-                    row["cusip"] = cusip
-            inserted_total += upsert_insider_transactions(conn, rows)
         except Exception as exc:
             msg = f"{issuer}: {exc}"
             errors.append(msg)
             logger.warning("insider fetch failed for %s: %s", issuer, exc)
             if raise_on_fetch_error:
                 raise InsiderFetchError(msg) from exc
-    return {
-        "inserted": inserted_total,
-        "errors": errors,
-        "issuer_count": len(issuers),
-        "skipped_transaction_codes": None,
-    }
+            continue
+        for row in rows:
+            if cusip and not row.get("cusip"):
+                row["cusip"] = cusip
+        inserted_total += upsert_insider_transactions(conn, rows)
+    return {"inserted": inserted_total, "errors": errors, "issuer_count": len(issuers)}
 
 
 def ingest_insider_for_manager(
@@ -301,13 +296,12 @@ def build_run_summary(
     ingest_result: Mapping[str, Any],
 ) -> dict[str, int | None]:
     """Assemble the local Form-4 CLI run summary (#1917)."""
-    skipped = ingest_result.get("skipped_transaction_codes")
     return {
         "issuers_resolved": len(issuers),
         "filings_scanned": None,
         "rows_inserted": int(ingest_result.get("inserted") or 0),
         "unmatched_issuers": None,
-        "skipped_transaction_codes": (int(skipped) if skipped is not None else None),
+        "skipped_transaction_codes": None,
         "fetch_errors": len(ingest_result.get("errors") or []),
     }
 

@@ -31,8 +31,9 @@ fetch_errors: 1
 ```
 
 The command uses `connect_db()` for the database connection. Per-issuer fetch
-failures increment `fetch_errors` and the run continues; reruns do not insert
-duplicate rows.
+failures increment `fetch_errors` and the run continues. Reruns deduplicate
+transactions with a complete key. Deduplication for transactions with missing
+key fields is tracked in #1917.
 
 ## API Documentation
 
