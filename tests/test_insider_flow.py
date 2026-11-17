@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from contextlib import closing
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 
+from adapters import insider
 from adapters.insider import InsiderFetchError, net_direction_for_rows, normalize_form4_rows
+from api import signals
 from etl import insider_flow
 
 
@@ -102,6 +107,40 @@ def _fake_fetcher_ok(issuer: str, *, lookback_days: int = 90):
 
 def _fake_fetcher_raises(issuer: str, *, lookback_days: int = 90):
     raise RuntimeError(f"boom for {issuer}")
+
+
+def _conn_two_issuers() -> sqlite3.Connection:
+    conn = _conn()
+    conn.execute("ALTER TABLE holdings ADD COLUMN knowledge_time TEXT")
+    conn.execute("UPDATE holdings SET knowledge_time = '2026-01-02T00:00:00Z'")
+    # Known before the 2026-01-15 cutoff, superseded after it: visible as-of.
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, resolved_ticker, superseded_at, knowledge_time) "
+        "VALUES (10, '594918104', 'MSFT', '2026-02-01T00:00:00Z', '2026-01-02T00:00:00Z')"
+    )
+    # Learned after the cutoff: not visible as-of.
+    conn.execute(
+        "INSERT INTO holdings(filing_id, cusip, resolved_ticker, superseded_at, knowledge_time) "
+        "VALUES (10, '67066G104', 'NVDA', NULL, '2026-02-01T00:00:00Z')"
+    )
+    conn.commit()
+    return conn
+
+
+def _stub_fetcher_ok_and_fail(issuer: str, *, lookback_days: int = 90):
+    if issuer.upper() == "MSFT":
+        raise RuntimeError(f"boom for {issuer}")
+    return [
+        *_fake_fetcher_ok(issuer, lookback_days=lookback_days),
+        {
+            "ticker": issuer,
+            "insider_name": "Cook",
+            "txn_code": "P",
+            "shares": 10,
+            "txn_date": _transaction_date(1),
+            "acquired_disposed": "A",
+        },
+    ]
 
 
 def test_normalize_and_net_direction():
@@ -206,3 +245,72 @@ def test_annotate_conviction_rows_joins_direction():
     )
     assert annotated[0]["insider_net_direction"] == "net buy"
     assert annotated[0]["conviction_pct"] == 5.0
+
+
+def test_local_form4_command_persists_and_annotates(
+    monkeypatch: pytest.MonkeyPatch, capsys, tmp_path: Path
+):
+    db_path = tmp_path / "form4.db"
+    with closing(_conn_two_issuers()) as seed, closing(sqlite3.connect(db_path)) as disk:
+        seed.backup(disk)
+
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    resolve_held_issuers = insider_flow.resolve_held_issuers
+
+    def failing_issuer_first(*args, **kwargs):
+        issuers = resolve_held_issuers(*args, **kwargs)
+        return sorted(issuers, key=lambda issuer: issuer["ticker"] != "MSFT")
+
+    monkeypatch.setattr(insider_flow, "resolve_held_issuers", failing_issuer_first)
+
+    fetch_calls: list[tuple[str, int]] = []
+
+    def fetch(issuer: str, *, lookback_days: int):
+        fetch_calls.append((issuer, lookback_days))
+        return _stub_fetcher_ok_and_fail(issuer, lookback_days=lookback_days)
+
+    monkeypatch.setattr(insider, "_default_edgartools_fetcher", fetch)
+
+    args = ["--as-of", "2026-01-15", "--lookback-days", "45"]
+    assert insider_flow.main([*args, "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "fetch_errors": 1,
+        "filings_scanned": None,
+        "issuers_resolved": 2,
+        "rows_inserted": 3,
+        "skipped_transaction_codes": None,
+        "unmatched_issuers": None,
+    }
+    assert fetch_calls == [("MSFT", 45), ("AAPL", 45)]
+
+    with closing(sqlite3.connect(db_path)) as conn:
+        counts = "SELECT ticker, COUNT(*) FROM insider_transactions GROUP BY ticker"
+        assert conn.execute(counts).fetchall() == [("AAPL", 3)]
+        rows = signals.query_conviction_scores(conn, 1, filing_id=10)
+        aapl = next(row for row in rows if row.cusip == "037833100")
+        assert aapl.insider_net_direction == "net buy"
+
+        fetch_calls.clear()
+        assert insider_flow.main(args) == 0
+        assert capsys.readouterr().out.splitlines() == [
+            "issuers_resolved: 2",
+            "filings_scanned: null",
+            "rows_inserted: 0",
+            "unmatched_issuers: null",
+            "skipped_transaction_codes: null",
+            "fetch_errors: 1",
+        ]
+        assert fetch_calls == [("MSFT", 45), ("AAPL", 45)]
+        assert conn.execute(counts).fetchall() == [("AAPL", 3)]
+
+
+def test_form4_write_error_propagates():
+    with closing(_conn()) as conn:
+        insider_flow.ensure_insider_transactions_table(conn)
+        conn.execute(
+            "CREATE TRIGGER fail_insider_write BEFORE INSERT ON insider_transactions "
+            "BEGIN SELECT RAISE(ABORT, 'insider write failed'); END"
+        )
+        with pytest.raises(sqlite3.IntegrityError, match="insider write failed"):
+            insider_flow.run_form4_ingest(conn, as_of=date.today(), fetcher=_fake_fetcher_ok)
