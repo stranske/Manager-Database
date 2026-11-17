@@ -92,17 +92,43 @@ Suggested constraints and indexes:
 Add a small ETL function that can run after holdings ingestion or on demand:
 
 ```text
-compute_manager_similarity(report_date=None, min_shared=2, limit_per_manager=25)
+refresh_manager_similarity(conn) -> dict[str, Any]
+compute_manager_similarity(conn) -> int
 ```
 
 Expected behavior:
 
-1. Resolve the latest report date when `report_date` is omitted.
-2. Build one normalized holdings vector per manager from the selected snapshot.
-3. Compare managers with at least `min_shared` overlapping usable identifiers.
-4. Upsert top peers per manager into `manager_similarity`.
-5. Emit a run-contract summary with rows scanned, pairs computed, rows written,
-   and skipped rows by reason.
+1. Resolve each manager's latest filing (`filings` joined to current `holdings` where `superseded_at IS NULL` when present).
+2. Build one normalized holdings set and embedding vector per manager from the latest filing.
+3. Replace canonical manager pairs `(manager_id_a < manager_id_b)` in `manager_similarity`.
+4. Keep `compute_manager_similarity(conn) -> int` returning `rows_written` for backwards compatibility.
+5. Return a JSON-serializable run summary from `refresh_manager_similarity(conn)` with:
+   - `rows_scanned`
+   - `managers_scanned`
+   - `pairs_computed`
+   - `rows_written`
+   - `skipped_by_reason` (for example `missing_security_identifier` and `empty_union`)
+   - `status` (`"updated"` when `rows_written > 0`, otherwise `"empty"`)
+
+### CLI Invocation And Database Prerequisites
+
+Run the refresh locally on demand or immediately after holdings updates:
+
+```bash
+python -m etl.manager_similarity_flow
+```
+
+An optional SQLite file override can also be passed when `DB_URL` is unset:
+
+```bash
+python -m etl.manager_similarity_flow --db-path /path/to/manager_database.db
+```
+
+Database environment prerequisites (resolved via `adapters.base.connect_db()` and `config.load_runtime_config()`):
+
+- `DB_URL`: optional PostgreSQL connection URL (`postgres://` or `postgresql://`). When set, takes precedence over `DB_PATH`.
+- `DB_PATH`: SQLite database file path used when `DB_URL` is unset (defaults to `manager_database.db`).
+- Populated `managers`, `filings`, and `holdings` tables for a non-empty refresh; running against an empty database safely initializes `manager_similarity` and prints an `"empty"` summary JSON line to stdout.
 
 The first implementation should stay deterministic and local. No LLM call is
 needed to compute similarity.
