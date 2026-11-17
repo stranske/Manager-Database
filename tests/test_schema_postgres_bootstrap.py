@@ -18,14 +18,25 @@ local and SQLite-only CI paths stay green. To run it:
 from __future__ import annotations
 
 import os
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
 import pytest
 from alembic.config import Config
+from alembic.ddl.base import AddColumn
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, event
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.engine import make_url
+from sqlalchemy.schema import CreateColumn
+from sqlglot import parse_one
 
 from alembic import command
+from etl.backtest_flow import BacktestReport, Position, persist_backtest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_SQL = ROOT / "schema.sql"
@@ -438,4 +449,185 @@ def test_schema_sql_creates_matviews_before_their_indexes(pg_url, psycopg_module
         assert not missing_indexes, (
             f"missing indexes after bootstrap: {missing_indexes} "
             f"(check schema.sql ordering: matview creation must precede its index)"
+        )
+
+
+def test_backtest_provenance_migration_postgres_ddl_matches_schema():
+    """Check PostgreSQL column parity even when a live server is unavailable."""
+    provenance_names = {
+        "source_filing_id",
+        "source_holding_id",
+        "event_period",
+        "source_knowledge_time",
+        "applied_cutoff",
+    }
+    table_sql = next(
+        stmt
+        for stmt in _split_sql_statements(SCHEMA_SQL.read_text())
+        if stmt.startswith("CREATE TABLE IF NOT EXISTS backtest_results (")
+    )
+    expected = {
+        column.name: column.sql(dialect="postgres")
+        for column in parse_one(table_sql, read="postgres").this.expressions
+        if column.name in provenance_names
+    }
+    assert set(expected) == provenance_names
+    actual = {}
+
+    def capture_column(conn, clauseelement, multiparams, params, execution_options):
+        if isinstance(clauseelement, AddColumn):
+            column_sql = str(
+                CreateColumn(clauseelement.column).compile(dialect=postgresql.dialect())
+            )
+            column = parse_one(
+                f"CREATE TABLE backtest_results ({column_sql})", read="postgres"
+            ).this.expressions[0]
+            actual[column.name] = column.sql(dialect="postgres")
+
+    scripts = ScriptDirectory.from_config(_alembic_config("sqlite://"))
+    engine = create_engine("sqlite://")
+    try:
+        with engine.begin() as conn:
+            with Operations.context(MigrationContext.configure(conn)):
+                scripts.get_revision("015").module.upgrade()
+                # Execute the real migration while compiling the emitted columns
+                # for PostgreSQL, including timezone, nullability and defaults.
+                event.listen(conn, "before_execute", capture_column)
+                scripts.get_revision("025").module.upgrade()
+    finally:
+        engine.dispose()
+    assert actual == expected
+
+
+@pytest.mark.parametrize("bootstrap", ["schema_sql", "alembic"])
+def test_backtest_provenance_postgres_parity(pg_url, psycopg_module, bootstrap):
+    """Both schema paths preserve legacy NULLs and commit provenance atomically."""
+    schema_name = f"mgr_backtest_{bootstrap}"
+    legacy_run_sql = (
+        "INSERT INTO backtest_runs(strategy, start_date, end_date) "
+        "VALUES ('legacy', '2024-05-01', '2024-05-01')"
+    )
+    legacy_result_sql = (
+        "INSERT INTO backtest_results(run_id, decision_date, entry_date, exit_date, ticker) "
+        "SELECT run_id, '2024-05-01', '2024-05-02', '2024-08-01', 'LEGACY' "
+        "FROM backtest_runs WHERE strategy='legacy'"
+    )
+    with psycopg_module.connect(pg_url, autocommit=True) as conn:
+        _reset_schema(conn, schema_name)
+        if bootstrap == "schema_sql":
+            for stmt in _split_sql_statements(SCHEMA_SQL.read_text()):
+                if stmt.startswith(
+                    (
+                        "CREATE TABLE IF NOT EXISTS backtest_runs (",
+                        "CREATE TABLE IF NOT EXISTS backtest_results (",
+                    )
+                ):
+                    conn.execute(stmt)
+            conn.execute(legacy_run_sql)
+            conn.execute(legacy_result_sql)
+        else:
+            # Apply the backtest migrations in isolation so this contract needs
+            # neither pgvector nor the unrelated application tables.
+            scripts = ScriptDirectory.from_config(_alembic_config("postgresql+psycopg://"))
+            url = make_url(pg_url).set(drivername="postgresql+psycopg")
+            engine = create_engine(url, connect_args={"options": f"-csearch_path={schema_name}"})
+            try:
+                with engine.begin() as migration_conn:
+                    with Operations.context(MigrationContext.configure(migration_conn)):
+                        scripts.get_revision("015").module.upgrade()
+                        # Seed a real pre-upgrade result; nullable declarations alone
+                        # cannot prove a migration leaves historical rows untouched.
+                        migration_conn.exec_driver_sql(legacy_run_sql)
+                        migration_conn.exec_driver_sql(legacy_result_sql)
+                        scripts.get_revision("025").module.upgrade()
+            finally:
+                engine.dispose()
+
+        columns = conn.execute(
+            "SELECT column_name, data_type, is_nullable, column_default "
+            "FROM information_schema.columns WHERE table_schema=current_schema() "
+            "AND table_name='backtest_results' AND column_name IN "
+            "('source_filing_id', 'source_holding_id', 'event_period', "
+            "'source_knowledge_time', 'applied_cutoff')"
+        ).fetchall()
+        assert set(columns) == {
+            ("source_filing_id", "bigint", "YES", None),
+            ("source_holding_id", "bigint", "YES", None),
+            ("event_period", "date", "YES", None),
+            ("source_knowledge_time", "timestamp with time zone", "YES", None),
+            ("applied_cutoff", "timestamp with time zone", "YES", None),
+        }
+        assert conn.execute(
+            "SELECT ticker, source_filing_id, source_holding_id, event_period, "
+            "source_knowledge_time, applied_cutoff FROM backtest_results"
+        ).fetchall() == [("LEGACY", None, None, None, None, None)]
+        position = Position(
+            date(2024, 5, 1),
+            date(2024, 5, 2),
+            date(2024, 8, 1),
+            "AAA",
+            None,
+            source_filing_id=10,
+            source_holding_id=100,
+            event_period=date(2024, 3, 31),
+            source_knowledge_time=datetime(2024, 5, 1, 12, tzinfo=UTC),
+            applied_cutoff=datetime(2024, 5, 1, 23, 59, 59, tzinfo=UTC),
+        )
+        report = BacktestReport(
+            strategy="test",
+            manager_id=1,
+            start_date=date(2024, 5, 1),
+            end_date=date(2024, 5, 1),
+            positions=[position],
+        )
+
+        def persist():
+            return persist_backtest(
+                conn,
+                report,
+                entry_lag_days=1,
+                holding_period_days=91,
+                benchmark_ticker=None,
+                price_source="test",
+                top_n=10,
+            )
+
+        run_id = persist()
+        assert conn.execute(
+            "SELECT source_filing_id, source_holding_id, event_period, "
+            "source_knowledge_time, applied_cutoff FROM backtest_results WHERE run_id=%s",
+            (run_id,),
+        ).fetchone() == (
+            10,
+            100,
+            position.event_period,
+            position.source_knowledge_time,
+            position.applied_cutoff,
+        )
+        saved_runs = conn.execute("SELECT * FROM backtest_runs ORDER BY run_id").fetchall()
+        saved_results = conn.execute("SELECT * FROM backtest_results ORDER BY result_id").fetchall()
+        # The next run's first detail insert succeeds before the second one
+        # violates NOT NULL, exercising rollback on an autocommit connection.
+        report.positions.append(
+            Position(
+                date(2024, 5, 1),
+                date(2024, 5, 2),
+                date(2024, 8, 1),
+                "BBB",
+                None,
+                status=None,  # type: ignore[arg-type]
+            )
+        )
+        with pytest.raises(psycopg_module.errors.NotNullViolation):
+            persist()
+
+    # A separate connection observes only the legacy run and successful run,
+    # including their exact detail rows and the committed provenance values.
+    with psycopg_module.connect(_url_with_search_path(pg_url, schema_name)) as reader:
+        assert (
+            reader.execute("SELECT * FROM backtest_runs ORDER BY run_id").fetchall() == saved_runs
+        )
+        assert (
+            reader.execute("SELECT * FROM backtest_results ORDER BY result_id").fetchall()
+            == saved_results
         )

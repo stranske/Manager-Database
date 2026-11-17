@@ -84,8 +84,24 @@ def ensure_backtest_tables(conn: Any) -> None:
                 excess_return REAL,
                 weight REAL,
                 status TEXT NOT NULL DEFAULT 'filled',
-                skip_reason TEXT
+                skip_reason TEXT,
+                source_filing_id INTEGER,
+                source_holding_id INTEGER,
+                event_period DATE,
+                source_knowledge_time TIMESTAMP,
+                applied_cutoff TIMESTAMP
             )""")
+        # CREATE TABLE does not evolve databases created by earlier harness versions.
+        columns = get_table_columns(conn, "backtest_results")
+        for name, column_type in (
+            ("source_filing_id", "INTEGER"),
+            ("source_holding_id", "INTEGER"),
+            ("event_period", "DATE"),
+            ("source_knowledge_time", "TIMESTAMP"),
+            ("applied_cutoff", "TIMESTAMP"),
+        ):
+            if name not in columns:
+                conn.execute(f"ALTER TABLE backtest_results ADD COLUMN {name} {column_type}")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_backtest_results_run ON backtest_results(run_id)"
         )
@@ -123,6 +139,11 @@ class Position:
     excess_return: float | None = None
     status: str = "filled"
     skip_reason: str | None = None
+    source_filing_id: int | None = None
+    source_holding_id: int | None = None
+    event_period: date | None = None
+    source_knowledge_time: datetime | None = None
+    applied_cutoff: datetime | None = None
 
 
 @dataclass
@@ -567,6 +588,11 @@ def _price_position(
         cusip=cusip,
         weight=finite_float_or_none(row.get("value_usd"), min_value=0.0),
         benchmark_return=benchmark_return,
+        source_filing_id=row.get("filing_id"),
+        source_holding_id=row.get("holding_id", row.get("id")),
+        event_period=_coerce_date(row.get("_reporting_period")),
+        source_knowledge_time=_knowledge_time(row),
+        applied_cutoff=decision_cutoff(decision_date),
     )
 
     if not ticker:
@@ -657,8 +683,9 @@ def persist_backtest(
                     "INSERT INTO backtest_results("
                     "run_id, decision_date, entry_date, exit_date, ticker, cusip, entry_price, "
                     "exit_price, position_return, benchmark_return, excess_return, weight, "
-                    "status, skip_reason) "
-                    f"VALUES ({', '.join([ph] * 14)})",
+                    "status, skip_reason, source_filing_id, source_holding_id, event_period, "
+                    "source_knowledge_time, applied_cutoff) "
+                    f"VALUES ({', '.join([ph] * 19)})",
                     (
                         run_id,
                         position.decision_date.isoformat(),
@@ -674,6 +701,15 @@ def persist_backtest(
                         position.weight,
                         position.status,
                         position.skip_reason,
+                        position.source_filing_id,
+                        position.source_holding_id,
+                        position.event_period.isoformat() if position.event_period else None,
+                        (
+                            position.source_knowledge_time.isoformat()
+                            if position.source_knowledge_time
+                            else None
+                        ),
+                        position.applied_cutoff.isoformat() if position.applied_cutoff else None,
                     ),
                 )
         return run_id

@@ -5,13 +5,15 @@ from __future__ import annotations
 import math
 import sqlite3
 import sys
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from alembic.config import Config
 
 from adapters.prices import PriceAdapter, fetch_yfinance_prices
+from alembic import command
 from etl import backtest_flow
 from etl.backtest_flow import (
     BacktestReport,
@@ -245,6 +247,23 @@ def test_missing_price_skips_position_without_crashing(tmp_path, caplog):
     assert report.hit_rate == pytest.approx(1.0)
     assert "Missing price for position" in caplog.text
     assert "no resolved ticker" in caplog.text
+    # Skipped selections retain the same audit trail as filled positions.
+    for position in report.skipped:
+        holding_id = conn.execute(
+            "SELECT holding_id FROM holdings WHERE cusip=?", (position.cusip,)
+        ).fetchone()[0]
+        assert conn.execute(
+            "SELECT source_filing_id, source_holding_id, event_period, "
+            "source_knowledge_time, applied_cutoff FROM backtest_results "
+            "WHERE run_id=? AND cusip=?",
+            (report.run_id, position.cusip),
+        ).fetchone()[:] == (
+            10,
+            holding_id,
+            "2024-03-31",
+            "2024-05-01T12:00:00+00:00",
+            "2024-05-01T23:59:59+00:00",
+        )
 
 
 def test_backtest_persists_run_and_position_rows(tmp_path):
@@ -289,6 +308,145 @@ def test_backtest_persists_run_and_position_rows(tmp_path):
     assert runs[0]["sharpe"] == pytest.approx(4.2426406871, rel=1e-9)
 
 
+@pytest.mark.parametrize(
+    ("original_knowledge_time", "expected_known_at"),
+    [
+        ("2024-05-01T12:00:00Z", datetime(2024, 5, 1, 12, tzinfo=UTC)),
+        ("2024-05-01T23:59:59Z", datetime(2024, 5, 1, 23, 59, 59, tzinfo=UTC)),
+    ],
+    ids=["known-before-cutoff", "known-at-cutoff"],
+)
+@pytest.mark.parametrize(
+    ("ticker", "expected_status", "expected_skip_reason"),
+    [
+        ("AAA", "filled", None),
+        ("MIA", "skipped", "missing_price"),
+        (None, "skipped", "unresolved_ticker"),
+    ],
+    ids=["filled", "missing-price", "unresolved-ticker"],
+)
+@pytest.mark.parametrize(
+    "amendment_filed_date",
+    ["2024-05-01", "2024-05-15"],
+    ids=["filed-before-cutoff-known-later", "filed-and-known-later"],
+)
+def test_persisted_positions_record_source_provenance(
+    tmp_path,
+    amendment_filed_date,
+    ticker,
+    expected_status,
+    expected_skip_reason,
+    original_knowledge_time,
+    expected_known_at,
+):
+    conn = _two_quarter_fixture(tmp_path)
+    # A holding first known exactly at the inclusive decision cutoff must retain
+    # its source instant through persistence and a later amendment replay.
+    conn.execute(
+        "UPDATE holdings SET resolved_ticker=?, knowledge_time=? WHERE filing_id=10",
+        (ticker, original_knowledge_time),
+    )
+    conn.commit()
+    original_holding_id = conn.execute(
+        "SELECT holding_id FROM holdings WHERE filing_id=10"
+    ).fetchone()[0]
+
+    def replay():
+        return run_backtest(
+            conn,
+            1,
+            date(2024, 1, 1),
+            date(2024, 5, 1),
+            price_adapter=_adapter(conn),
+            decision_dates=[date(2024, 5, 1)],
+        )
+
+    def reload(run_id):
+        # Read through a fresh connection to verify committed, durable provenance.
+        with sqlite3.connect(tmp_path / "backtest.db") as reader:
+            reader.row_factory = sqlite3.Row
+            rows = reader.execute(
+                "SELECT ticker, status, skip_reason, source_filing_id, source_holding_id, event_period, "
+                "source_knowledge_time, applied_cutoff FROM backtest_results WHERE run_id=?",
+                (run_id,),
+            ).fetchall()
+        assert len(rows) == 1
+        return dict(rows[0])
+
+    report = replay()
+    saved = reload(report.run_id)
+    assert (saved["ticker"], saved["status"], saved["skip_reason"]) == (
+        ticker,
+        expected_status,
+        expected_skip_reason,
+    )
+    assert saved["source_filing_id"] == 10, saved
+    assert saved["source_holding_id"] == original_holding_id
+    assert saved["event_period"] == "2024-03-31"
+    known_at = datetime.fromisoformat(saved["source_knowledge_time"])
+    cutoff = datetime.fromisoformat(saved["applied_cutoff"])
+    assert known_at == expected_known_at
+    assert cutoff == backtest_flow.decision_cutoff(date(2024, 5, 1))
+    assert known_at <= cutoff
+    position = report.positions[0]
+    assert position.source_filing_id == 10
+    assert position.source_holding_id == original_holding_id
+    assert position.event_period == date(2024, 3, 31)
+    assert position.source_knowledge_time == known_at
+    assert position.applied_cutoff == cutoff
+
+    # Knowledge time must isolate the decision even if the amendment was already
+    # filed that day. Filtering solely by filed_date would leak that amendment.
+    _add_filing(conn, 12, "2024-03-31", amendment_filed_date)
+    conn.execute("UPDATE filings SET type='13F-HR/A' WHERE filing_id=12")
+    _add_holding(conn, 12, "AAA000000", "AAA", 99_000_000, "2024-05-15T12:00:00Z")
+    conn.execute(
+        "UPDATE holdings SET superseded_at='2024-05-15T12:00:00Z' WHERE holding_id=?",
+        (original_holding_id,),
+    )
+    conn.commit()
+    assert backtest_flow.visible_holdings(conn, 1, date(2024, 5, 15))[0]["filing_id"] == 12
+    assert reload(report.run_id) == saved
+    assert reload(replay().run_id) == saved
+
+
+@pytest.mark.parametrize("upgrade_with", ["ensure", "alembic"])
+def test_legacy_backtest_provenance_remains_null(tmp_path, monkeypatch, upgrade_with):
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "legacy.db"
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
+    command.upgrade(config, "024")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO backtest_runs(run_id, strategy, start_date, end_date) "
+            "VALUES (1, 'legacy', '2024-05-01', '2024-05-01')"
+        )
+        conn.execute(
+            "INSERT INTO backtest_results(run_id, decision_date, entry_date, exit_date, ticker) "
+            "VALUES (1, '2024-05-01', '2024-05-02', '2024-08-01', 'AAA')"
+        )
+    if upgrade_with == "alembic":
+        command.upgrade(config, "025")
+    with sqlite3.connect(db_path) as conn:
+        if upgrade_with == "ensure":
+            backtest_flow.ensure_backtest_tables(conn)
+        assert conn.execute(
+            "SELECT ticker, source_filing_id, source_holding_id, event_period, "
+            "source_knowledge_time, applied_cutoff FROM backtest_results"
+        ).fetchall() == [("AAA", None, None, None, None, None)]
+        backtest_flow.ensure_backtest_tables(conn)
+
+    # Alembic must also tolerate SQLite tables already upgraded by the helper.
+    command.upgrade(config, "025")
+    command.downgrade(config, "024")
+    with sqlite3.connect(db_path) as conn:
+        assert "source_filing_id" not in {
+            row[1] for row in conn.execute("PRAGMA table_info(backtest_results)")
+        }
+        assert conn.execute("SELECT ticker FROM backtest_results").fetchall() == [("AAA",)]
+
+
 def test_backtest_pairs_portfolio_and_benchmark_periods(tmp_path):
     conn = _two_quarter_fixture(tmp_path)
     prices = {ticker: dict(series) for ticker, series in PRICES.items()}
@@ -311,7 +469,7 @@ def test_backtest_pairs_portfolio_and_benchmark_periods(tmp_path):
     assert report.excess_return == pytest.approx(0.15)
 
 
-def test_backtest_persistence_rolls_back_the_header_when_a_result_insert_fails(tmp_path):
+def test_backtest_persistence_rolls_back_provenance_when_a_later_result_insert_fails(tmp_path):
     conn = _connect(tmp_path)
     report = BacktestReport(
         strategy="test",
@@ -319,20 +477,23 @@ def test_backtest_persistence_rolls_back_the_header_when_a_result_insert_fails(t
         start_date=date(2024, 1, 1),
         end_date=date(2024, 3, 31),
         positions=[
-            Position(date(2024, 1, 1), date(2024, 1, 2), date(2024, 4, 2), "AAA", None),
             Position(
                 date(2024, 1, 1),
                 date(2024, 1, 2),
                 date(2024, 4, 2),
-                "BBB",
+                "AAA",
                 None,
-                status=None,  # type: ignore[arg-type]
+                source_filing_id=10,
+                source_holding_id=100,
+                event_period=date(2023, 12, 31),
+                source_knowledge_time=datetime(2024, 1, 1, 12, tzinfo=UTC),
+                applied_cutoff=backtest_flow.decision_cutoff(date(2024, 1, 1)),
             ),
         ],
     )
 
-    with pytest.raises(sqlite3.IntegrityError):
-        persist_backtest(
+    def persist():
+        return persist_backtest(
             conn,
             report,
             entry_lag_days=1,
@@ -342,8 +503,31 @@ def test_backtest_persistence_rolls_back_the_header_when_a_result_insert_fails(t
             top_n=10,
         )
 
-    assert conn.execute("SELECT COUNT(*) FROM backtest_runs").fetchone()[0] == 0
-    assert conn.execute("SELECT COUNT(*) FROM backtest_results").fetchone()[0] == 0
+    run_id = persist()
+    saved = dict(conn.execute("SELECT * FROM backtest_results").fetchone())
+    assert saved["run_id"] == run_id
+    assert saved["source_filing_id"] == 10
+    assert saved["source_holding_id"] == 100
+    assert saved["event_period"] == "2023-12-31"
+    assert saved["source_knowledge_time"] == "2024-01-01T12:00:00+00:00"
+    assert saved["applied_cutoff"] == "2024-01-01T23:59:59+00:00"
+    # The first result of the next run succeeds before the second result fails.
+    report.positions.append(
+        Position(
+            date(2024, 1, 1),
+            date(2024, 1, 2),
+            date(2024, 4, 2),
+            "BBB",
+            None,
+            status=None,  # type: ignore[arg-type]
+        )
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        persist()
+
+    assert conn.execute("SELECT COUNT(*) FROM backtest_runs").fetchone()[0] == 1
+    rows = conn.execute("SELECT * FROM backtest_results").fetchall()
+    assert [dict(row) for row in rows] == [saved]
 
 
 def test_decision_dates_derived_from_filing_disclosure_dates(tmp_path):
