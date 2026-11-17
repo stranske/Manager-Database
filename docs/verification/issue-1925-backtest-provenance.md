@@ -35,11 +35,20 @@ executes migration `025` on SQLite, captures its emitted columns, compiles them
 with the PostgreSQL dialect, and compares them with `schema.sql`, including
 types, timezone, nullability, and defaults.
 
-The live parity cases now check pre-migration legacy rows, successful provenance
-writes, and rollback after a later detail insert fails, with readback from a
-separate connection. These live checks remain unverified here: the sandbox
-denies both TCP and Unix socket creation, so the temporary PostgreSQL server
-could not start. Run them with `MGRDB_PG_TEST_URL` in a socket-enabled environment.
+Rechecked on November 16, 2026 (America/Chicago) at `5d5c377`.
+Both PostgreSQL parity cases passed using psycopg over a Unix socket against
+PGlite 0.5.16, and the offline DDL comparison passed in the same run.
+The parity cases verified legacy NULLs, committed provenance, and rollback
+after a later detail insert fails. A separate connection confirmed the
+persisted state for both schema paths.
+
+```sh
+# MGRDB_PG_TEST_URL points to the temporary PostgreSQL-protocol socket.
+python3 -m pytest tests/test_schema_postgres_bootstrap.py::test_backtest_provenance_postgres_parity tests/test_schema_postgres_bootstrap.py::test_backtest_provenance_migration_postgres_ddl_matches_schema -q
+```
+
+Native PostgreSQL 16 remains unverified locally because `initdb` could not
+allocate shared memory in this sandbox.
 
 Provenance uses revision `025` because revision `024` already belongs to activism
 campaign episodes. Renumbering it to the originally requested `024` would collide
@@ -54,12 +63,8 @@ completions in this sandbox. A temporary Python wrapper added a periodic timer
 to Black's event loop; formatting rules, file discovery, validation and exit
 handling were unchanged. No formatter configuration was changed in the repo.
 
-## Delivery blocker
+## Reported CI jobs
 
-These follow-up tests and this record remain uncommitted: Git cannot create
-`.git/index.lock` because this run mounts `.git` read-only. Updating the PR's
-acceptance checkboxes and adding `needs-human` also failed: the GitHub tools
-require approval, while this run's approval policy is `never`. No PR metadata
-was changed. A writable checkout is needed to commit the local changes to the
-existing PR branch; the verification above does not establish live PostgreSQL
-transaction behavior.
+On `e3a11a2`, GitHub cancelled both Autofix jobs before either ran a step.
+The `Resolve Context` annotation reports a higher-priority waiting request
+for `autofix-1934`. The Gate run on that commit passed.
