@@ -45,7 +45,7 @@ def ensure_manager_similarity_table(conn: Any) -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_manager_similarity_b ON manager_similarity(manager_id_b)"
         )
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(manager_similarity)")}
+        columns = get_table_columns(conn, "manager_similarity")
         if "cosine" not in columns:
             conn.execute("ALTER TABLE manager_similarity ADD COLUMN cosine REAL")
         return
