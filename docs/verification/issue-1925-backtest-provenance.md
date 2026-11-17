@@ -6,7 +6,20 @@ Verified on 2026-11-17 against the provenance implementation in `e3a11a2`.
 - [x] The named amendment-isolation test passes after reloading committed results.
 - [x] Removing the five provenance constructor arguments makes the named test fail;
   restoring the source makes it pass again.
-- [x] The complete backtest test file passes (28 cases).
+- [x] The complete backtest test file passes (32 cases).
+
+Rechecked in the next iteration on 2026-11-17 after extending the named test
+across filled, missing-price, and unresolved-ticker positions. Each position
+state is paired with both amendment filing dates, for six cases. The test
+reloads ticker, status, skip reason, and all five provenance fields through a
+fresh connection, then checks they remain unchanged after amendment ingestion
+and replay of the original decision.
+
+The deliberate break made all six cases fail with `assert None == 10` (pytest
+exit status 1). Fresh connections to all six failed-run databases confirmed
+that all five provenance columns were NULL. Restoring `etl/backtest_flow.py`
+byte for byte made all six cases pass (exit status 0), followed by all 32 cases
+in the complete file (exit status 0). Both commands included `-m "not slow"`.
 
 Rechecked on 2026-11-17 after extending the named test to cover both an amendment
 filed on the decision date but learned later and one filed and learned later.
@@ -17,11 +30,19 @@ each case. Restoring the implementation byte for byte makes both cases pass
 again (exit status 0). The full test file then passes all 28 cases with
 `-m "not slow"` (exit status 0).
 
-The additional test case and this verification update remain uncommitted:
-`git add` cannot create `.git/index.lock` because the Git directory is mounted
-read-only. Updating the PR acceptance checkboxes was also rejected because the
-tool requires approval and the run's approval policy is `never`. PR #1934 was
-verified open and ready for review before that rejected update.
+The previous iteration's additional amendment case and verification update
+were subsequently committed by automation in `e535b0e`. In this iteration,
+updating the PR acceptance checkboxes was again rejected because the tool
+requires approval and the run's approval policy is `never`. The intended
+checkbox reconciliation is all three acceptance criteria complete, based on
+the recorded break/restoration evidence and the passing commands above.
+The current test changes and verification update remain uncommitted:
+`git add tests/test_backtest_flow.py docs/verification/issue-1925-backtest-provenance.md`
+failed with `Unable to create '.git/index.lock': Read-only file system`.
+The repository-wide Black check again passed for all 456 files using the
+periodic-timer wrapper described below, and Ruff passed the changed test file.
+Posting the verification comment and adding `needs-human` were also rejected
+by the same approval restriction. PR #1934 was rechecked open and ready for review.
 
 ## Deliberate break and restoration
 

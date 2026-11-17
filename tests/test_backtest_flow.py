@@ -309,12 +309,25 @@ def test_backtest_persists_run_and_position_rows(tmp_path):
 
 
 @pytest.mark.parametrize(
+    ("ticker", "expected_status", "expected_skip_reason"),
+    [
+        ("AAA", "filled", None),
+        ("MIA", "skipped", "missing_price"),
+        (None, "skipped", "unresolved_ticker"),
+    ],
+    ids=["filled", "missing-price", "unresolved-ticker"],
+)
+@pytest.mark.parametrize(
     "amendment_filed_date",
     ["2024-05-01", "2024-05-15"],
     ids=["filed-before-cutoff-known-later", "filed-and-known-later"],
 )
-def test_persisted_positions_record_source_provenance(tmp_path, amendment_filed_date):
+def test_persisted_positions_record_source_provenance(
+    tmp_path, amendment_filed_date, ticker, expected_status, expected_skip_reason
+):
     conn = _two_quarter_fixture(tmp_path)
+    conn.execute("UPDATE holdings SET resolved_ticker=? WHERE filing_id=10", (ticker,))
+    conn.commit()
     original_holding_id = conn.execute(
         "SELECT holding_id FROM holdings WHERE filing_id=10"
     ).fetchone()[0]
@@ -334,7 +347,7 @@ def test_persisted_positions_record_source_provenance(tmp_path, amendment_filed_
         with sqlite3.connect(tmp_path / "backtest.db") as reader:
             reader.row_factory = sqlite3.Row
             rows = reader.execute(
-                "SELECT source_filing_id, source_holding_id, event_period, "
+                "SELECT ticker, status, skip_reason, source_filing_id, source_holding_id, event_period, "
                 "source_knowledge_time, applied_cutoff FROM backtest_results WHERE run_id=?",
                 (run_id,),
             ).fetchall()
@@ -343,6 +356,11 @@ def test_persisted_positions_record_source_provenance(tmp_path, amendment_filed_
 
     report = replay()
     saved = reload(report.run_id)
+    assert (saved["ticker"], saved["status"], saved["skip_reason"]) == (
+        ticker,
+        expected_status,
+        expected_skip_reason,
+    )
     assert saved["source_filing_id"] == 10, saved
     assert saved["source_holding_id"] == original_holding_id
     assert saved["event_period"] == "2024-03-31"
