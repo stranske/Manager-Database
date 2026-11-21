@@ -607,3 +607,118 @@ def test_alert_migration_upgrade_and_downgrade(monkeypatch, tmp_path):
             ).fetchall()
         }
         assert {"alert_rules", "alert_history"}.isdisjoint(tables)
+
+
+def test_migration_026_owns_api_usage_cost_precision_and_monthly_usage(monkeypatch, tmp_path):
+    """Revision 001 keeps pre-026 types/views; revision 026 alone owns the transition."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema_026.db"
+    config = _alembic_config(f"sqlite:///{db_path}")
+
+    command.upgrade(config, "025")
+    with sqlite3.connect(db_path) as conn:
+        cols = {
+            row[1]: row[2].upper()
+            for row in conn.execute("PRAGMA table_info('api_usage')").fetchall()
+        }
+        assert cols["cost_usd"] == "NUMERIC(10, 4)"
+        conn.execute(
+            "INSERT INTO api_usage(id, source, endpoint, status, bytes, latency_ms, cost_usd) "
+            "VALUES (1, 'edgar', '/submissions', 200, 2048, 50, 0.0), "
+            "(2, 'langchain', 'openai/gpt-4o-mini', 200, 640, 120, 0.000154)"
+        )
+        conn.commit()
+        pre_026 = {
+            row[0]: row[1]
+            for row in conn.execute("SELECT source, mb FROM monthly_usage").fetchall()
+        }
+        assert pre_026 == {"edgar": 2048, "langchain": 640}
+
+    command.upgrade(config, "head")
+    with sqlite3.connect(db_path) as conn:
+        post_026 = {
+            row[0]: row[1]
+            for row in conn.execute("SELECT source, mb FROM monthly_usage").fetchall()
+        }
+        assert post_026 == {"edgar": 2048, "langchain": 0}
+
+    command.downgrade(config, "025")
+    with sqlite3.connect(db_path) as conn:
+        downgraded = {
+            row[0]: row[1]
+            for row in conn.execute("SELECT source, mb FROM monthly_usage").fetchall()
+        }
+        assert downgraded == {"edgar": 2048, "langchain": 640}
+
+
+def test_migration_026_rejects_precision_losing_postgres_downgrade_before_ddl():
+    """PostgreSQL downgrade must abort before any DDL when rows exceed NUMERIC(10, 4)."""
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from alembic.script import ScriptDirectory
+    from sqlalchemy.dialects import postgresql
+
+    scripts = ScriptDirectory.from_config(_alembic_config("postgresql+psycopg://"))
+    rev_026 = scripts.get_revision("026")
+    assert rev_026 is not None
+
+    class _ScalarResult:
+        def __init__(self, value: int) -> None:
+            self._value = value
+
+        def scalar_one(self) -> int:
+            return self._value
+
+    class _FakePostgresBind:
+        dialect = postgresql.dialect()
+        info: dict[str, object] = {}
+
+        def __init__(self, precision_loss_count: int) -> None:
+            self.precision_loss_count = precision_loss_count
+            self.statements: list[str] = []
+
+        def execution_options(self, **kwargs):
+            _ = kwargs
+            return self
+
+        def execute(self, statement, *args, **kwargs):
+            compiled = str(
+                statement.compile(dialect=self.dialect)
+                if hasattr(statement, "compile")
+                else statement
+            )
+            self.statements.append(compiled)
+            if "round(cost_usd, 4)" in compiled:
+                return _ScalarResult(self.precision_loss_count)
+            return _ScalarResult(0)
+
+    # Precision-losing rows present -> raises before DROP MATERIALIZED VIEW / ALTER TABLE.
+    failing_bind = _FakePostgresBind(precision_loss_count=2)
+    ctx_fail = MigrationContext.configure(
+        connection=failing_bind,  # type: ignore[arg-type]
+        opts={"as_sql": False},
+    )
+    with Operations.context(ctx_fail):
+        with pytest.raises(RuntimeError, match="Cannot downgrade revision 026"):
+            rev_026.module.downgrade()
+    assert len(failing_bind.statements) == 1
+    assert "round(cost_usd, 4)" in failing_bind.statements[0]
+    assert not any("DROP MATERIALIZED VIEW" in s for s in failing_bind.statements)
+    assert not any("ALTER TABLE" in s for s in failing_bind.statements)
+
+    # No precision-losing rows -> executes full downgrade sequence.
+    ok_bind = _FakePostgresBind(precision_loss_count=0)
+    ctx_ok = MigrationContext.configure(
+        connection=ok_bind,  # type: ignore[arg-type]
+        opts={"as_sql": False},
+    )
+    with Operations.context(ctx_ok):
+        rev_026.module.downgrade()
+    assert len(ok_bind.statements) == 4
+    assert "round(cost_usd, 4)" in ok_bind.statements[0]
+    assert "DROP MATERIALIZED VIEW IF EXISTS monthly_usage" in ok_bind.statements[1]
+    assert (
+        "ALTER TABLE api_usage ALTER COLUMN cost_usd TYPE NUMERIC(10, 4)" in ok_bind.statements[2]
+    )
+    assert "CREATE MATERIALIZED VIEW monthly_usage AS" in ok_bind.statements[3]
+    assert "sum(bytes) AS mb" in ok_bind.statements[3]

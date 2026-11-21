@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 import sqlite3
+import threading
 from contextlib import closing
 from types import SimpleNamespace
 from typing import Any, cast
@@ -21,7 +22,10 @@ from chains.nl_query import NLQueryChain
 from llm import langsmith_fleet as fleet
 from llm.cost_tracking import (
     USAGE_BYTES_UNKNOWN,
+    ProviderUsage,
+    UsageCapture,
     _as_cost,
+    capture_provider_usage,
     estimate_cost_usd,
     extract_usage_from_llm_result,
     legacy_placeholder_usage_bytes,
@@ -29,6 +33,7 @@ from llm.cost_tracking import (
     observed_cost_usd,
     observed_usage_bytes,
     persist_observed_provider_usage,
+    record_provider_invocation,
 )
 from tools.langchain_client import ClientInfo
 from tools.registry import TOOL_REGISTRY
@@ -279,6 +284,225 @@ def test_observed_cost_rejects_non_finite_reported_values():
 
 def test_estimate_cost_usd_uses_cached_input_rate():
     assert estimate_cost_usd("gpt-4o-mini", 1000, 0, tokens_cached_in=600) == 0.000105
+
+
+def test_cached_input_cost_matches_across_stored_row_and_fleet_observation(tmp_path, monkeypatch):
+    db_path = tmp_path / "cached_usage.db"
+    fleet_path = tmp_path / "fleet.ndjson"
+    with closing(sqlite3.connect(db_path)) as seed:
+        seed.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT)")
+        seed.execute("INSERT INTO managers VALUES (1, 'Elliott', '0001791786')")
+        seed.commit()
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.setenv(fleet.ENV_FLEET_PATH, str(fleet_path))
+    monkeypatch.delenv(fleet.ENV_LANGSMITH_KEY, raising=False)
+    chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
+
+    cached_provider = _ScriptedProvider(
+        script=[
+            _ai(
+                _NL_JSON,
+                usage_metadata={
+                    "input_tokens": 1000,
+                    "output_tokens": 0,
+                    "total_tokens": 1000,
+                    "input_token_details": {"cache_read": 600},
+                },
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        chat_api_module,
+        "_build_chat_client_info",
+        lambda: ClientInfo(cached_provider, "openai", "gpt-4o-mini"),
+    )
+
+    async def _post_cached() -> int:
+        await cast(Any, chat_api_module.app.router).startup()
+        try:
+            transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://test", timeout=10.0
+            ) as client:
+                response = await client.post(
+                    "/api/chat", json={"question": "List managers", "chain": "nl_query"}
+                )
+                return response.status_code
+        finally:
+            await cast(Any, chat_api_module.app.router).shutdown()
+
+    assert asyncio.run(_post_cached()) == 200
+
+    with closing(sqlite3.connect(db_path)) as reader:
+        stored_cost = reader.execute("SELECT cost_usd FROM api_usage").fetchone()[0]
+    fleet_record = json.loads(fleet_path.read_text(encoding="utf-8").splitlines()[0])
+
+    assert stored_cost == 0.000105
+    assert fleet_record["domain"]["cost_usd"] == 0.000105
+    assert stored_cost == fleet_record["domain"]["cost_usd"]
+
+    # Direct record_provider_invocation matches observation.cost_usd and fresh-connection readback.
+    direct_db = tmp_path / "cached_direct.db"
+    monkeypatch.setenv("DB_PATH", str(direct_db))
+    capture = UsageCapture(request_id="cached1939", provider="openai", model="gpt-4o-mini")
+    with capture_provider_usage(capture):
+        observation = record_provider_invocation(
+            None,
+            invocation="chat",
+            usage=ProviderUsage(
+                tokens_in=1000,
+                tokens_out=0,
+                cost_usd=None,
+                tokens_cached_in=600,
+            ),
+            latency_ms=115,
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+    with closing(sqlite3.connect(direct_db)) as reader:
+        direct_stored_cost = reader.execute("SELECT cost_usd FROM api_usage").fetchone()[0]
+    assert observation.cost_usd == 0.000105
+    assert capture.total_cost_usd() == 0.000105
+    assert direct_stored_cost == 0.000105
+
+    # Explicit unknown cost (invalid provider-reported cost) stays NULL instead of re-estimating.
+    unknown_db = tmp_path / "unknown_cost.db"
+    monkeypatch.setenv("DB_PATH", str(unknown_db))
+    unknown_obs = record_provider_invocation(
+        None,
+        invocation="chat",
+        usage=ProviderUsage(tokens_in=1000, tokens_out=0, cost_usd=-0.01),
+        latency_ms=80,
+        provider="openai",
+        model="gpt-4o-mini",
+    )
+    with closing(sqlite3.connect(unknown_db)) as reader:
+        unknown_stored_cost = reader.execute("SELECT cost_usd FROM api_usage").fetchone()[0]
+    assert unknown_obs.cost_usd is None
+    assert unknown_stored_cost is None
+
+
+def test_two_sqlite_writers_upgrade_legacy_monthly_view_and_preserve_borrowed_tx(
+    tmp_path, monkeypatch
+):
+    db_path = tmp_path / "concurrent_legacy.db"
+    with closing(sqlite3.connect(db_path)) as seed:
+        seed.execute("""CREATE TABLE api_usage (
+                id INTEGER PRIMARY KEY,
+                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source TEXT,
+                endpoint TEXT,
+                status INT,
+                bytes INT,
+                latency_ms INT,
+                cost_usd REAL
+            )""")
+        seed.execute(
+            "CREATE VIEW monthly_usage AS "
+            "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
+            "COUNT(*) AS calls, SUM(bytes) AS mb, SUM(cost_usd) AS cost "
+            "FROM api_usage GROUP BY 1,2"
+        )
+        seed.execute(
+            "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd) "
+            "VALUES ('edgar', '/submissions', 200, 4096, 50, 0.0)"
+        )
+        seed.commit()
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.delenv("DB_URL", raising=False)
+
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
+
+    def _write(idx: int) -> None:
+        try:
+            barrier.wait(timeout=5.0)
+            persist_observed_provider_usage(
+                None,
+                invocation="chat",
+                provider="openai",
+                model="gpt-4o-mini",
+                tokens_in=1000,
+                tokens_out=0,
+                latency_ms=100 + idx,
+                request_id=f"writer-{idx}",
+            )
+        except BaseException as exc:  # pragma: no cover - asserted empty below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_write, args=(i,)) for i in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10.0)
+        assert not t.is_alive()
+
+    assert errors == []
+
+    with closing(sqlite3.connect(db_path)) as reader:
+        llm_count = reader.execute(
+            "SELECT COUNT(*) FROM api_usage WHERE source = 'langchain'"
+        ).fetchone()[0]
+        assert llm_count == 2
+        monthly = {
+            row[0]: (row[1], row[2], round(float(row[3]), 6))
+            for row in reader.execute(
+                "SELECT source, calls, mb, cost FROM monthly_usage ORDER BY source"
+            ).fetchall()
+        }
+        assert monthly["edgar"] == (1, 4096, 0.0)
+        assert monthly["langchain"] == (2, 0, 0.0003)
+
+    # Current view is not dropped or recreated on subsequent writes.
+    traced_sql: list[str] = []
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.set_trace_callback(traced_sql.append)
+        persist_observed_provider_usage(conn, invocation="chat", **FOCUSED_CHAT_USAGE)
+        conn.commit()
+    assert not any("DROP VIEW" in stmt.upper() for stmt in traced_sql)
+    assert not any("CREATE VIEW" in stmt.upper() for stmt in traced_sql)
+
+    # Borrowed active transaction against a legacy view is neither committed nor rolled back.
+    borrowed_path = tmp_path / "borrowed_legacy.db"
+    with closing(sqlite3.connect(borrowed_path)) as seed:
+        seed.execute("CREATE TABLE scratch (id INT)")
+        seed.execute("""CREATE TABLE api_usage (
+                id INTEGER PRIMARY KEY,
+                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source TEXT,
+                endpoint TEXT,
+                status INT,
+                bytes INT,
+                latency_ms INT,
+                cost_usd REAL
+            )""")
+        seed.execute(
+            "CREATE VIEW monthly_usage AS "
+            "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
+            "COUNT(*) AS calls, SUM(bytes) AS mb, SUM(cost_usd) AS cost "
+            "FROM api_usage GROUP BY 1,2"
+        )
+        seed.commit()
+
+    writer = sqlite3.connect(borrowed_path)
+    try:
+        writer.execute("INSERT INTO scratch VALUES (1)")
+        assert writer.in_transaction
+        persist_observed_provider_usage(writer, invocation="chat", **FOCUSED_CHAT_USAGE)
+        assert writer.in_transaction
+        assert writer.execute("SELECT COUNT(*) FROM scratch").fetchone()[0] == 1
+        assert writer.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 1
+        with closing(sqlite3.connect(borrowed_path)) as reader:
+            assert reader.execute("SELECT COUNT(*) FROM scratch").fetchone()[0] == 0
+            assert reader.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 0
+        writer.rollback()
+        assert writer.execute("SELECT COUNT(*) FROM scratch").fetchone()[0] == 0
+        assert writer.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 0
+    finally:
+        writer.close()
 
 
 def test_extract_usage_from_llm_result_merges_message_cost_and_llm_output_tokens():

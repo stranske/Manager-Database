@@ -176,10 +176,8 @@ def resolve_manager_id_column(conn: Any) -> str:
 
 
 _MONTHLY_USAGE_MB_SUM = "SUM(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END)"
-
-
-def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
-    conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
+_NORMALIZED_MONTHLY_USAGE_MB_SUM = " ".join(_MONTHLY_USAGE_MB_SUM.lower().split())
+_SQLITE_API_USAGE_TABLE_SQL = """CREATE TABLE IF NOT EXISTS api_usage (
             id INTEGER PRIMARY KEY,
             ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             source TEXT,
@@ -188,14 +186,95 @@ def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
             bytes INT,
             latency_ms INT,
             cost_usd REAL
-        )""")
-    conn.execute("DROP VIEW IF EXISTS monthly_usage")
-    conn.execute(
-        "CREATE VIEW monthly_usage AS "
-        "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
-        f"COUNT(*) AS calls, {_MONTHLY_USAGE_MB_SUM} AS mb, SUM(cost_usd) AS cost "
-        "FROM api_usage GROUP BY 1,2"
-    )
+        )"""
+_SQLITE_MONTHLY_USAGE_VIEW_SQL = (
+    "CREATE VIEW monthly_usage AS "
+    "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
+    f"COUNT(*) AS calls, {_MONTHLY_USAGE_MB_SUM} AS mb, SUM(cost_usd) AS cost "
+    "FROM api_usage GROUP BY 1,2"
+)
+_SQLITE_LOCK_RETRY_ATTEMPTS = 5
+_SQLITE_LOCK_RETRY_BASE_DELAY_S = 0.01
+
+
+def _sqlite_usage_schema_state(conn: sqlite3.Connection) -> tuple[bool, bool]:
+    rows = conn.execute(
+        "SELECT type, name, sql FROM sqlite_master WHERE name IN ('api_usage', 'monthly_usage')"
+    ).fetchall()
+    has_table = False
+    has_current_view = False
+    for obj_type, name, ddl in rows:
+        if obj_type == "table" and name == "api_usage":
+            has_table = True
+        elif obj_type == "view" and name == "monthly_usage" and ddl:
+            normalized = " ".join(str(ddl).lower().split())
+            if _NORMALIZED_MONTHLY_USAGE_MB_SUM in normalized:
+                has_current_view = True
+    return has_table, has_current_view
+
+
+def _apply_sqlite_usage_schema_ddl(conn: sqlite3.Connection) -> None:
+    has_table, has_current_view = _sqlite_usage_schema_state(conn)
+    if not has_table:
+        conn.execute(_SQLITE_API_USAGE_TABLE_SQL)
+    if not has_current_view:
+        conn.execute("DROP VIEW IF EXISTS monthly_usage")
+        conn.execute(_SQLITE_MONTHLY_USAGE_VIEW_SQL)
+
+
+def _is_sqlite_lock_error(exc: sqlite3.OperationalError) -> bool:
+    message = str(exc).lower()
+    return "locked" in message or "busy" in message
+
+
+def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
+    has_table, has_current_view = _sqlite_usage_schema_state(conn)
+    if has_table and has_current_view:
+        return
+
+    if conn.in_transaction:
+        savepoint = "ensure_sqlite_usage_schema"
+        conn.execute(f"SAVEPOINT {savepoint}")
+        try:
+            _apply_sqlite_usage_schema_ddl(conn)
+        except Exception:
+            try:
+                conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+            except sqlite3.Error:
+                pass
+            raise
+        conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+        return
+
+    for attempt in range(_SQLITE_LOCK_RETRY_ATTEMPTS):
+        started_tx = False
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            started_tx = True
+            _apply_sqlite_usage_schema_ddl(conn)
+            conn.execute("COMMIT")
+            return
+        except sqlite3.OperationalError as exc:
+            if started_tx and conn.in_transaction:
+                try:
+                    conn.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+            if _is_sqlite_lock_error(exc) and attempt + 1 < _SQLITE_LOCK_RETRY_ATTEMPTS:
+                time.sleep(_SQLITE_LOCK_RETRY_BASE_DELAY_S * (2**attempt))
+                has_table, has_current_view = _sqlite_usage_schema_state(conn)
+                if has_table and has_current_view:
+                    return
+                continue
+            raise
+        except Exception:
+            if started_tx and conn.in_transaction:
+                try:
+                    conn.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+            raise
 
 
 def _ensure_postgres_usage_schema(conn: Any) -> None:

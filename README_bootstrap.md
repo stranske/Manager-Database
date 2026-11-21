@@ -49,11 +49,65 @@ against seeded synthetic rows. The Upload page uses `USE_SIMPLE_EMBED=1` so no
 model download is attempted. Do not use this bundle for proprietary data on a
 public host; rebuild it only from synthetic or explicitly redacted inputs.
 
-The `schema.sql` file defines an `api_usage` table used for cost telemetry. Apply it to the Postgres container once it is running:
+The `schema.sql` file defines an `api_usage` table used for cost telemetry. Fresh Compose volumes initialize it automatically via `/docker-entrypoint-initdb.d/schema.sql`. On an **existing** Postgres `pgdata` volume, `/docker-entrypoint-initdb.d/schema.sql` does not rerun, so apply Alembic migration `026` (`api_usage.cost_usd` `NUMERIC(12, 6)` and updated `monthly_usage`) **before** starting `api` (`uvicorn`):
 
 ```bash
-docker exec -i <db_container_name> psql -U postgres -f /path/to/schema.sql
+# 1. Keep uvicorn stopped while upgrading the existing Postgres volume
+docker compose stop api ui
+docker compose up -d db
+
+# 2. Check whether this volume is already Alembic-managed
+docker compose exec -T db psql -U postgres -d postgres -c \
+  "SELECT to_regclass('alembic_version') AS alembic_version_table;"
 ```
+
+- **Alembic-managed volume** (`alembic_version` exists and `alembic current` reports a revision):
+  ```bash
+  docker compose run --rm --no-deps api python -m alembic current
+  docker compose run --rm --no-deps api python -m alembic upgrade head
+  docker compose run --rm --no-deps api python -m alembic current   # expect: 026 (head)
+  ```
+- **`schema.sql`-initialized volume** (`alembic_version` is absent or empty): establish the actual schema baseline **before** running `alembic stamp` so earlier migrations are never skipped:
+  ```bash
+  docker compose exec -T db psql -U postgres -d postgres -c "
+  SELECT column_name, numeric_precision, numeric_scale
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'api_usage' AND column_name = 'cost_usd';
+  SELECT definition FROM pg_matviews
+  WHERE schemaname = 'public' AND matviewname = 'monthly_usage';
+  SELECT table_name, column_name
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND (
+      (table_name = 'backtest_results' AND column_name IN ('source_filing_id', 'applied_cutoff'))
+      OR (table_name = 'activism_campaigns' AND column_name = 'opening_filing_id')
+      OR (table_name = 'manager_deletion_operations' AND column_name = 'operation_id')
+    )
+  ORDER BY table_name, column_name;
+  "
+  ```
+  - If all pre-`026` objects through `025` are present (all four rows above exist) and `cost_usd` is still `(10, 4)` (or `monthly_usage` still sums `bytes` directly), stamp `025` and upgrade to `head`:
+    ```bash
+    docker compose run --rm --no-deps api python -m alembic stamp 025
+    docker compose run --rm --no-deps api python -m alembic upgrade head
+    ```
+  - If any pre-`026` table or column is missing (an older `schema.sql` volume), compare `alembic/versions/` against the live catalog to identify the highest revision whose objects are all present, run `docker compose run --rm --no-deps api python -m alembic stamp <verified_revision>`, and then run `docker compose run --rm --no-deps api python -m alembic upgrade head`.
+  - If all `025` objects are present, `cost_usd` is already `(12, 6)`, and `monthly_usage` already excludes `'langchain'` / negative `bytes`, stamp `026` (`docker compose run --rm --no-deps api python -m alembic stamp 026`).
+
+```bash
+# 3. Verify cost_usd precision and monthly_usage refresh before starting uvicorn
+docker compose exec -T db psql -U postgres -d postgres -c "
+SELECT numeric_precision, numeric_scale
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'api_usage' AND column_name = 'cost_usd';
+REFRESH MATERIALIZED VIEW monthly_usage;
+"
+
+# 4. Start the application services after 026 is active
+docker compose up -d minio api ui
+```
+
+If you run migrations from the host environment instead of `docker compose run`, set `DB_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@localhost:5432/postgres` and run `make db-migrate` (`python -m alembic upgrade head`) before starting `api`.
 
 Feel free to open issues or pull requests as you iterate.
 

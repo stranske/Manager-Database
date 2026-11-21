@@ -255,6 +255,13 @@ def capture_provider_usage(capture: UsageCapture) -> Iterator[UsageCapture]:
         _ACTIVE_CAPTURE.reset(token)
 
 
+class _UnsetCost:
+    pass
+
+
+_UNSET_COST = _UnsetCost()
+
+
 def record_provider_invocation(
     db_conn: Any | None,
     *,
@@ -303,6 +310,7 @@ def record_provider_invocation(
             latency_ms=latency_ms,
             trace_url=trace_url,
             reported_cost_usd=reported.cost_usd,
+            resolved_cost_usd=observation.cost_usd,
             request_id=request_id,
         )
     except Exception:
@@ -323,6 +331,7 @@ def persist_observed_provider_usage(
     latency_ms: int,
     trace_url: str | None = None,
     reported_cost_usd: float | None = None,
+    resolved_cost_usd: float | None | _UnsetCost = _UNSET_COST,
     request_id: str | None = None,
 ) -> None:
     """Supported entry point for persisting one chat or analysis provider observation."""
@@ -336,6 +345,7 @@ def persist_observed_provider_usage(
         latency_ms=latency_ms,
         trace_url=trace_url,
         reported_cost_usd=reported_cost_usd,
+        resolved_cost_usd=resolved_cost_usd,
         request_id=request_id,
     )
 
@@ -350,6 +360,7 @@ def log_llm_usage(
     latency_ms: int,
     trace_url: str | None = None,
     reported_cost_usd: float | None = None,
+    resolved_cost_usd: float | None | _UnsetCost = _UNSET_COST,
     request_id: str | None = None,
 ) -> None:
     """Insert one ``api_usage`` row.
@@ -367,7 +378,12 @@ def log_llm_usage(
         if trace_url is not None:
             endpoint = f"{endpoint} {trace_url}"
         usage_bytes = observed_usage_bytes(tokens_in, tokens_out)
-        cost_usd = observed_cost_usd(model, tokens_in, tokens_out, reported_cost_usd)
+        if isinstance(resolved_cost_usd, _UnsetCost):
+            cost_usd = observed_cost_usd(model, tokens_in, tokens_out, reported_cost_usd)
+        elif resolved_cost_usd is None:
+            cost_usd = None
+        else:
+            cost_usd = observed_cost_usd(model, tokens_in, tokens_out, resolved_cost_usd)
         ph = get_placeholder(conn)
         ensure_api_usage_schema(conn)
         conn.execute(

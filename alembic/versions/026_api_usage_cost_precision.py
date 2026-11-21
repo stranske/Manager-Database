@@ -59,6 +59,22 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     if _is_postgresql():
+        precision_loss_count = (
+            op.get_bind()
+            .execute(
+                sa.text(
+                    "SELECT COUNT(*) FROM api_usage "
+                    "WHERE cost_usd IS NOT NULL AND cost_usd <> round(cost_usd, 4)"
+                )
+            )
+            .scalar_one()
+        )
+        if precision_loss_count:
+            raise RuntimeError(
+                "Cannot downgrade revision 026: "
+                f"{precision_loss_count} api_usage row(s) have cost_usd precision "
+                "beyond NUMERIC(10, 4) and would be rounded."
+            )
         op.execute("DROP MATERIALIZED VIEW IF EXISTS monthly_usage")
         op.alter_column(
             "api_usage",
