@@ -1032,13 +1032,11 @@ async def _run_chain(
     finally:
         close = getattr(chain, "db", None)
         if close is not None:
-            commit_error: BaseException | None = None
             try:
                 if is_sqlite(close):
                     # This connection is owned here; make usage rows durable before closing.
                     _commit_sqlite_with_retry(close)
-            except BaseException as exc:
-                commit_error = exc
+            except BaseException:
                 if chain_error is None:
                     logger.error("Failed to commit chain database before closing", exc_info=True)
                     raise
