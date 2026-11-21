@@ -167,7 +167,7 @@ def test_manager_schema_and_stats_cover_legacy_quality_and_jurisdiction_paths(mo
         conn.close()
 
 
-def test_chat_payload_and_dependency_error_branches_are_stable():
+def test_chat_payload_and_dependency_error_branches_are_stable(monkeypatch):
     filing = chat._format_filing_summary_payload(
         {
             "manager_name": "Alpha",
@@ -223,9 +223,6 @@ def test_chat_payload_and_dependency_error_branches_are_stable():
     def timeout_check():
         raise TimeoutError
 
-    def boom():
-        raise RuntimeError("dependency down")
-
     breaker = chat.CircuitBreaker(failure_threshold=1)
     payload, reason = asyncio.run(
         chat._run_dependency_check(
@@ -253,7 +250,11 @@ def test_chat_payload_and_dependency_error_branches_are_stable():
     assert timed_out["healthy"] is False
     assert timeout_reason == "timeout"
 
-    failed, failed_reason = asyncio.run(chat._run_dependency_check(boom, 0.01))
+    async def boom(*_args):
+        raise RuntimeError("dependency down")
+
+    monkeypatch.setattr(chat, "_run_health_check_with_retries", boom)
+    failed, failed_reason = asyncio.run(chat._run_dependency_check(lambda: None, 0.01))
     assert failed["healthy"] is False
     assert failed_reason == "dependency down"
 
