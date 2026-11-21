@@ -165,8 +165,8 @@ def _build_request(scenario: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
     Scenario shape:
         endpoint: "list" | "detail" | "stats"
-        params:   {limit, offset, jurisdiction, tag}   # list filters
-        manager_id: int                                  # detail target
+        params:   {limit, offset, jurisdiction, tag, search, name}  # list filters
+        manager_id: int                                              # detail target
     """
     endpoint = scenario["endpoint"]
     if endpoint == "list":
@@ -235,6 +235,36 @@ def reduce_metrics(scenario: dict[str, Any], payload: dict[str, Any]) -> dict[st
     elif endpoint == "stats":
         base.update(_stats_metrics(body))
     return base
+
+
+@contextmanager
+def observe_route_reads():
+    """Yield the active runtime parameter-read set from ``api.managers`` if supported."""
+    from api import managers as managers_module
+
+    observer_factory = getattr(managers_module, "observe_manager_param_reads", None)
+    if observer_factory is None:
+        yield set()
+        return
+    with observer_factory() as observed_reads:
+        yield observed_reads
+
+
+def run_scenario_observed(
+    scenario: dict[str, Any],
+    seed_rows: list[dict[str, Any]],
+    db_path: Path,
+) -> tuple[dict[str, Any], dict[str, float | int], set[str]]:
+    """Seed a fresh DB, call the scenario's endpoint, return (payload, metrics, read_keys)."""
+    from baseline_kit import response_to_payload
+
+    seed_database(db_path, seed_rows)
+    path, params = _build_request(scenario)
+    with _seeded_client(db_path) as client, observe_route_reads() as observed_reads:
+        response = client.get(path, params=params)
+    payload = response_to_payload(response)
+    metrics = reduce_metrics(scenario, payload)
+    return payload, metrics, set(observed_reads)
 
 
 def run_scenario(

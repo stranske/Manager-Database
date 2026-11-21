@@ -10,6 +10,9 @@ import math
 import os
 import re
 import sqlite3
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Annotated, Any, cast
@@ -92,6 +95,31 @@ CIK_WHITESPACE_CODEPOINTS = (
     12288,
 )
 BULK_CIK_LOOKUP_CHUNK_SIZE = 900
+_PARAM_READ_LOCK = threading.Lock()
+_ACTIVE_PARAM_READ_OBSERVERS: dict[int, set[str]] = {}
+
+
+def _record_param_read(*names: str) -> None:
+    """Record runtime consumption of /managers request parameters when observed."""
+    if not _ACTIVE_PARAM_READ_OBSERVERS:
+        return
+    with _PARAM_READ_LOCK:
+        for sink in _ACTIVE_PARAM_READ_OBSERVERS.values():
+            sink.update(names)
+
+
+@contextmanager
+def observe_manager_param_reads() -> Iterator[set[str]]:
+    """Collect /managers request parameter names actually consumed during the block."""
+    observed: set[str] = set()
+    token = id(observed)
+    with _PARAM_READ_LOCK:
+        _ACTIVE_PARAM_READ_OBSERVERS[token] = observed
+    try:
+        yield observed
+    finally:
+        with _PARAM_READ_LOCK:
+            _ACTIVE_PARAM_READ_OBSERVERS.pop(token, None)
 
 
 class ManagerCreate(BaseModel):
@@ -595,12 +623,14 @@ def _manager_filter_clauses(
         else:
             clauses.append("%s = ANY(jurisdictions)")
         params.append(jurisdiction)
+        _record_param_read("jurisdiction")
     if tag:
         if isinstance(conn, sqlite3.Connection):
             clauses.append("EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)")
         else:
             clauses.append("%s = ANY(tags)")
         params.append(tag)
+        _record_param_read("tag")
     if search:
         pattern = f"%{_escape_like(search.lower())}%"
         if isinstance(conn, sqlite3.Connection):
@@ -615,9 +645,11 @@ def _manager_filter_clauses(
                 "WHERE LOWER(alias.value) LIKE %s ESCAPE '\\'))"
             )
         params.extend([pattern, pattern])
+        _record_param_read("search")
     if name:
         clauses.append(f"LOWER(name) LIKE {placeholder} ESCAPE '\\'")
         params.append(f"{_escape_like(name.lower())}%")
+        _record_param_read("name")
     return clauses, params
 
 
@@ -1183,6 +1215,7 @@ async def create_manager(
     },
 )
 async def list_managers(
+    request: Request,
     limit: int = Query(
         25,
         ge=1,
@@ -1206,6 +1239,7 @@ async def list_managers(
     ),
 ):
     """Return a paginated list of managers."""
+    _record_param_read("endpoint")
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
     conn = None
     try:
@@ -1216,6 +1250,14 @@ async def list_managers(
         normalized_tag = tag.strip() or None if tag else None
         normalized_search = search.strip() or None if search else None
         normalized_name = name.strip() or None if name else None
+        if _ACTIVE_PARAM_READ_OBSERVERS:
+            _manager_filter_clauses(
+                conn,
+                normalized_jurisdiction,
+                normalized_tag,
+                normalized_search,
+                normalized_name,
+            )
         total = _count_managers(
             conn,
             db_identity,
@@ -1225,7 +1267,11 @@ async def list_managers(
             normalized_name,
         )
         # Default to a 25-row page while preserving the client-requested limit in metadata.
+        if "offset" in request.query_params:
+            _record_param_read("offset")
         remaining = max(total - offset, 0)
+        if "limit" in request.query_params:
+            _record_param_read("limit")
         page_limit = min(limit, remaining)
         if page_limit:
             rows = _fetch_managers(
@@ -1541,6 +1587,7 @@ async def import_manager_universe(
 )
 async def get_manager_stats():
     """Return aggregate manager universe statistics."""
+    _record_param_read("endpoint")
     conn = None
     try:
         conn = connect_db()
@@ -1630,12 +1677,14 @@ async def get_manager(
     id: int = Path(..., ge=1, description="Manager identifier"),
 ):
     """Return a manager by id or raise 404."""
+    _record_param_read("endpoint")
     db_identity = os.getenv("DB_URL") or os.getenv("DB_PATH", "dev.db")
     conn = None
     try:
         conn = connect_db()
         # Ensure the table exists before attempting the lookup.
         _ensure_manager_table(conn)
+        _record_param_read("manager_id")
         row = _fetch_manager(conn, db_identity, id)
     except DB_ERROR_TYPES as exc:
         _raise_db_unavailable(exc)

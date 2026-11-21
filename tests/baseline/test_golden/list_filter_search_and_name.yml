@@ -1,0 +1,18 @@
+json:
+  items:
+  - aliases: []
+    cik: '0001647251'
+    jurisdictions:
+    - uk
+    lei: null
+    manager_id: 3
+    name: TCI Fund Management
+    quality_flags: []
+    registry_ids:
+      fca_frn: '190271'
+    tags:
+    - activist
+  limit: 25
+  offset: 0
+  total: 1
+status_code: 200
