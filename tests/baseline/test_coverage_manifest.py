@@ -167,14 +167,15 @@ def test_manager_search_baseline_records_observed_filter_reads(
         with adapter.observe_route_reads() as blank_reads:
             blank_resp = client.get(
                 "/managers",
-                params={"search": "   ", "unused_control": "ignored"},
+                params={"search": "   ", "name": "   ", "unused_control": "ignored"},
             )
         assert blank_resp.status_code == 200
         assert blank_resp.json()["total"] == 8
         assert blank_reads == {"endpoint"}
 
-        # Bypassed-key control: when filter construction bypasses ``name``, even a declared
-        # query parameter present on the URL and in a scenario catalog must not register as read.
+        # Bypassed-key controls: when filter construction bypasses ``name`` or ``search``,
+        # even a declared query parameter present on the URL and in a scenario catalog
+        # must not register as read.
         real_filter_clauses = managers_module._manager_filter_clauses
 
         def _bypass_name_filter(conn, jurisdiction, tag, search, _name):
@@ -219,6 +220,41 @@ def test_manager_search_baseline_records_observed_filter_reads(
         assert bypassed_manifest.read_keys == {"endpoint", "search"}
         assert "name" not in bypassed_manifest.read_keys
         assert "bypassed_control" not in bypassed_manifest.read_keys
+        assert bypassed_manifest.unknown_catalog_keys == {"bypassed_control"}
+        assert [
+            p for p in bypassed_manifest.priority_params if p not in bypassed_manifest.read_keys
+        ] == ["name"]
+
+        def _bypass_search_filter(conn, jurisdiction, tag, _search, name):
+            return real_filter_clauses(conn, jurisdiction, tag, None, name)
+
+        monkeypatch.setattr(managers_module, "_manager_filter_clauses", _bypass_search_filter)
+        reset_cache_backend()
+        with adapter.observe_route_reads() as bypassed_search_reads:
+            bypassed_search_resp = client.get(
+                "/managers",
+                params={"search": "management", "name": "t", "unused_control": "ignored"},
+            )
+        assert bypassed_search_resp.status_code == 200
+        assert [item["manager_id"] for item in bypassed_search_resp.json()["items"]] == [3, 7]
+        assert bypassed_search_reads == {"endpoint", "name"}
+        assert "search" not in bypassed_search_reads
+        assert "unused_control" not in bypassed_search_reads
+
+        bypassed_search_manifest = CoverageManifest(
+            all_keys=set(_ALL_PARAMS),
+            touched_keys=_touched_params(bypassed_catalog),
+            priority_params=bypassed_priority,
+            read_keys=_observed_read_params(bypassed_catalog, tmp_path / "bypassed_search.db"),
+        )
+        assert bypassed_search_manifest.read_keys == {"endpoint", "name"}
+        assert "search" not in bypassed_search_manifest.read_keys
+        assert "bypassed_control" not in bypassed_search_manifest.read_keys
+        assert [
+            p
+            for p in bypassed_search_manifest.priority_params
+            if p not in bypassed_search_manifest.read_keys
+        ] == ["search"]
         monkeypatch.undo()
         reset_cache_backend()
 
