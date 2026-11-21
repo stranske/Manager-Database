@@ -129,26 +129,34 @@ def test_legacy_bytes_placeholder_compatibility_control_for_focused_analysis_inp
 
 
 @pytest.mark.parametrize("replay_key", ["chat", "analysis"])
-def test_pin_log_llm_usage_focused_fixture_readback(replay_key):
-    """Pin ``log_llm_usage`` persistence for the focused issue #1939 replay inputs."""
+def test_pin_cost_tracking_focused_fixture_supported_entry_point_readback(replay_key, monkeypatch):
+    """Pin cost_tracking for focused #1939 inputs: legacy ``bytes=0`` fails; observed readback passes."""
     replay = ISSUE_1939_REPLAY_EXPECTATIONS[replay_key]
     inp = replay["input"]
+
+    conn_legacy = sqlite3.connect(":memory:")
+    monkeypatch.setattr(
+        "llm.cost_tracking.observed_usage_bytes",
+        lambda _tokens_in, _tokens_out: legacy_placeholder_usage_bytes(),
+    )
+    persist_observed_provider_usage(conn_legacy, invocation=replay["invocation"], **inp)
+    legacy_readback = conn_legacy.execute("SELECT bytes, cost_usd FROM api_usage").fetchone()
+    assert legacy_readback[0] == replay["legacy_bytes_control"]
+    with pytest.raises(AssertionError):
+        assert legacy_readback == (replay["api_usage_bytes"], replay["cost_usd"])
+    conn_legacy.close()
+
     conn = sqlite3.connect(":memory:")
-    try:
-        log_llm_usage(
-            conn,
-            provider=inp["provider"],
-            model=inp["model"],
-            tokens_in=inp["tokens_in"],
-            tokens_out=inp["tokens_out"],
-            latency_ms=inp["latency_ms"],
-            trace_url=inp.get("trace_url"),
-        )
-        readback = conn.execute("SELECT bytes, cost_usd FROM api_usage").fetchone()
-        assert readback == (replay["api_usage_bytes"], replay["cost_usd"])
-        assert readback[0] != replay["legacy_bytes_control"]
-    finally:
-        conn.close()
+    monkeypatch.setattr("llm.cost_tracking.observed_usage_bytes", observed_usage_bytes)
+    persist_observed_provider_usage(conn, invocation=replay["invocation"], **inp)
+    readback = conn.execute("SELECT bytes, cost_usd FROM api_usage").fetchone()
+    assert readback == (replay["api_usage_bytes"], replay["cost_usd"])
+    assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 1
+    assert readback[0] != replay["legacy_bytes_control"]
+    _legacy_bytes_readback_fails_for_observed_fixture(
+        readback[0], legacy_bytes=replay["legacy_bytes_control"]
+    )
+    conn.close()
 
 
 def test_focused_missing_usage_persists_unknown_via_supported_entry_point():
@@ -227,37 +235,6 @@ def test_issue_1939_supported_endpoints_same_fixture_legacy_fails_observed_passe
     monkeypatch.setattr("llm.cost_tracking.observed_usage_bytes", observed_usage_bytes)
     observed = _drive_supported_endpoints(observed_dir, monkeypatch)
     assert [row[3] for row in observed["rows"]] == expected_bytes
-
-
-@pytest.mark.parametrize("replay_key", ["chat", "analysis"])
-def test_issue_1939_same_fixture_simulated_legacy_fails_observed_readback_passes(
-    replay_key, monkeypatch
-):
-    """Pre-1939 ``observed_usage_bytes`` pinned at zero fails; post-change readback stores token sum."""
-    replay = ISSUE_1939_REPLAY_EXPECTATIONS[replay_key]
-    expected_bytes = replay["api_usage_bytes"]
-
-    conn_legacy = sqlite3.connect(":memory:")
-    monkeypatch.setattr(
-        "llm.cost_tracking.observed_usage_bytes",
-        lambda _tokens_in, _tokens_out: legacy_placeholder_usage_bytes(),
-    )
-    persist_observed_provider_usage(conn_legacy, invocation=replay["invocation"], **replay["input"])
-    legacy_readback = conn_legacy.execute("SELECT bytes FROM api_usage").fetchone()[0]
-    assert legacy_readback == replay["legacy_bytes_control"]
-    with pytest.raises(AssertionError):
-        assert legacy_readback == expected_bytes
-    conn_legacy.close()
-
-    conn_observed = sqlite3.connect(":memory:")
-    monkeypatch.setattr("llm.cost_tracking.observed_usage_bytes", observed_usage_bytes)
-    persist_observed_provider_usage(
-        conn_observed, invocation=replay["invocation"], **replay["input"]
-    )
-    observed_readback = conn_observed.execute("SELECT bytes FROM api_usage").fetchone()[0]
-    assert observed_readback == expected_bytes
-    assert observed_readback != replay["legacy_bytes_control"]
-    conn_observed.close()
 
 
 def test_log_llm_usage_owned_sqlite_connection_commits_and_closes(tmp_path, monkeypatch):
