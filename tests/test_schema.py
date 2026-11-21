@@ -607,3 +607,130 @@ def test_alert_migration_upgrade_and_downgrade(monkeypatch, tmp_path):
             ).fetchall()
         }
         assert {"alert_rules", "alert_history"}.isdisjoint(tables)
+
+
+def test_migration_026_owns_api_usage_cost_precision_and_monthly_usage(monkeypatch, tmp_path):
+    """Revision 001 keeps pre-026 types/views; revision 026 alone owns the transition."""
+    monkeypatch.delenv("DB_URL", raising=False)
+    db_path = tmp_path / "schema_026.db"
+    config = _alembic_config(f"sqlite:///{db_path}")
+
+    command.upgrade(config, "025")
+    with sqlite3.connect(db_path) as conn:
+        cols = {
+            row[1]: row[2].upper()
+            for row in conn.execute("PRAGMA table_info('api_usage')").fetchall()
+        }
+        assert cols["cost_usd"] == "NUMERIC(10, 4)"
+        conn.execute(
+            "INSERT INTO api_usage(id, source, endpoint, status, bytes, latency_ms, cost_usd) "
+            "VALUES (1, 'edgar', '/submissions', 200, 2048, 50, 0.0), "
+            "(2, 'langchain', 'openai/gpt-4o-mini', 200, 640, 120, 0.000154)"
+        )
+        conn.commit()
+        pre_026 = {
+            row[0]: row[1]
+            for row in conn.execute("SELECT source, mb FROM monthly_usage").fetchall()
+        }
+        assert pre_026 == {"edgar": 2048, "langchain": 640}
+
+    command.upgrade(config, "head")
+    with sqlite3.connect(db_path) as conn:
+        post_026 = {
+            row[0]: row[1]
+            for row in conn.execute("SELECT source, mb FROM monthly_usage").fetchall()
+        }
+        assert post_026 == {"edgar": 2048, "langchain": 0}
+
+    command.downgrade(config, "025")
+    with sqlite3.connect(db_path) as conn:
+        downgraded = {
+            row[0]: row[1]
+            for row in conn.execute("SELECT source, mb FROM monthly_usage").fetchall()
+        }
+        assert downgraded == {"edgar": 2048, "langchain": 640}
+
+
+def test_migration_026_rejects_precision_losing_postgres_downgrade_before_ddl(monkeypatch):
+    """PostgreSQL downgrade locks api_usage, validates before DDL, and supports --sql offline mode."""
+    import io
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from alembic.script import ScriptDirectory
+    from sqlalchemy.dialects import postgresql
+
+    scripts = ScriptDirectory.from_config(_alembic_config("postgresql+psycopg://"))
+    rev_026 = scripts.get_revision("026")
+    assert rev_026 is not None
+
+    class _FakePostgresBind:
+        dialect = postgresql.dialect()
+        info: dict[str, object] = {}
+
+        def __init__(self, *, raise_on_guard: bool) -> None:
+            self.raise_on_guard = raise_on_guard
+            self.statements: list[str] = []
+
+        def execution_options(self, **kwargs):
+            _ = kwargs
+            return self
+
+        def execute(self, statement, *args, **kwargs):
+            compiled = str(
+                statement.compile(dialect=self.dialect)
+                if hasattr(statement, "compile")
+                else statement
+            )
+            self.statements.append(compiled)
+            if self.raise_on_guard and "round(cost_usd, 4)" in compiled:
+                raise RuntimeError(
+                    "Cannot downgrade revision 026: 2 api_usage row(s) have cost_usd "
+                    "precision beyond NUMERIC(10, 4) and would be rounded."
+                )
+            return None
+
+    # Guard executes first with ACCESS EXCLUSIVE lock and aborts before any DDL on precision loss.
+    failing_bind = _FakePostgresBind(raise_on_guard=True)
+    ctx_fail = MigrationContext.configure(
+        connection=failing_bind,  # type: ignore[arg-type]
+        opts={"as_sql": False},
+    )
+    with Operations.context(ctx_fail):
+        with pytest.raises(RuntimeError, match="Cannot downgrade revision 026"):
+            rev_026.module.downgrade()
+    assert len(failing_bind.statements) == 1
+    assert "LOCK TABLE api_usage IN ACCESS EXCLUSIVE MODE" in failing_bind.statements[0]
+    assert "cost_usd <> round(cost_usd, 4)" in failing_bind.statements[0]
+    assert not any("DROP MATERIALIZED VIEW" in s for s in failing_bind.statements)
+    assert not any("ALTER TABLE" in s for s in failing_bind.statements)
+
+    # Online downgrade without precision loss runs guard -> DROP -> ALTER -> CREATE in order.
+    ok_bind = _FakePostgresBind(raise_on_guard=False)
+    ctx_ok = MigrationContext.configure(
+        connection=ok_bind,  # type: ignore[arg-type]
+        opts={"as_sql": False},
+    )
+    with Operations.context(ctx_ok):
+        rev_026.module.downgrade()
+    assert len(ok_bind.statements) == 4
+    assert "LOCK TABLE api_usage IN ACCESS EXCLUSIVE MODE" in ok_bind.statements[0]
+    assert "DROP MATERIALIZED VIEW IF EXISTS monthly_usage" in ok_bind.statements[1]
+    assert (
+        "ALTER TABLE api_usage ALTER COLUMN cost_usd TYPE NUMERIC(10, 4)" in ok_bind.statements[2]
+    )
+    assert "CREATE MATERIALIZED VIEW monthly_usage AS" in ok_bind.statements[3]
+    assert "sum(bytes) AS mb" in ok_bind.statements[3]
+
+    # Offline SQL generation (`alembic downgrade 026:025 --sql`) completes and emits the guard first.
+    monkeypatch.setenv("DB_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/postgres")
+    buf = io.StringIO()
+    offline_cfg = _alembic_config("postgresql+psycopg://postgres:postgres@localhost:5432/postgres")
+    offline_cfg.output_buffer = buf
+    command.downgrade(offline_cfg, "026:025", sql=True)
+    sql_script = buf.getvalue()
+    guard_pos = sql_script.find("LOCK TABLE api_usage IN ACCESS EXCLUSIVE MODE")
+    check_pos = sql_script.find("cost_usd <> round(cost_usd, 4)")
+    drop_pos = sql_script.find("DROP MATERIALIZED VIEW IF EXISTS monthly_usage")
+    alter_pos = sql_script.find("ALTER TABLE api_usage ALTER COLUMN cost_usd TYPE NUMERIC(10, 4)")
+    assert 0 <= guard_pos < check_pos < drop_pos < alter_pos

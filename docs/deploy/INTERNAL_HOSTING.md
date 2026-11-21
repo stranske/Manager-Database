@@ -39,11 +39,82 @@ reachable via an **internal URL** (optionally behind the org reverse proxy / VPN
 
 ### Stand up the stack
 
+On a **fresh** Postgres `pgdata` volume, `db` automatically applies `schema.sql` (already at head) on first start:
+
 ```bash
-# On the internal host, from the repo root:
+# Fresh volume on the internal host, from the repo root:
 docker compose up -d db minio api ui
 
 # Confirm the API is healthy before exposing the UI URL:
+curl -fsS http://<internal-host>:8000/health/detailed
+```
+
+#### Upgrading an existing PostgreSQL volume (migration 026)
+
+Postgres only runs `/docker-entrypoint-initdb.d/schema.sql` on an empty `pgdata` volume. Before starting `api` (`uvicorn`) against an **existing** volume, apply Alembic revision `026` (`api_usage.cost_usd` `NUMERIC(12, 6)` and updated `monthly_usage` materialized view) so usage writes are never rounded or miscounted:
+
+```bash
+# 1. Stop API/UI (if running) and ensure only Postgres is up
+docker compose stop api ui
+docker compose up -d db
+
+# 2. Check whether the volume already tracks Alembic revisions
+docker compose exec -T db psql -U postgres -d postgres -c \
+  "SELECT to_regclass('alembic_version') AS alembic_version_table;"
+```
+
+- **Alembic-managed volume** (`alembic_version` exists and `alembic current` reports a revision):
+  ```bash
+  docker compose run --rm --no-deps api python -m alembic current
+  docker compose run --rm --no-deps api python -m alembic upgrade head
+  docker compose run --rm --no-deps api python -m alembic current   # expect: 026 (head)
+  ```
+- **`schema.sql`-initialized volume** (`alembic_version` is absent or empty): establish the actual schema baseline **before** any `alembic stamp` so intermediate revisions are never skipped:
+  ```bash
+  docker compose exec -T db psql -U postgres -d postgres -c "
+  SELECT column_name, numeric_precision, numeric_scale
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'api_usage' AND column_name = 'cost_usd';
+  SELECT definition FROM pg_matviews
+  WHERE schemaname = 'public' AND matviewname = 'monthly_usage';
+  SELECT table_name, column_name
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND (
+      (table_name = 'backtest_results' AND column_name IN (
+        'source_filing_id',
+        'source_holding_id',
+        'event_period',
+        'source_knowledge_time',
+        'applied_cutoff'
+      ))
+      OR (table_name = 'activism_campaigns' AND column_name = 'opening_filing_id')
+      OR (table_name = 'manager_deletion_operations' AND column_name = 'operation_id')
+    )
+  ORDER BY table_name, column_name;
+  "
+  ```
+  - Only after confirming the complete revision-`025` baseline (all five `backtest_results` provenance columns, `activism_campaigns.opening_filing_id`, `manager_deletion_operations`, and no missing tables/columns from earlier revisions in `alembic/versions/`):
+    - If `cost_usd` is `(10, 4)` (or `monthly_usage` still sums `bytes` directly), stamp `025` and upgrade:
+      ```bash
+      docker compose run --rm --no-deps api python -m alembic stamp 025
+      docker compose run --rm --no-deps api python -m alembic upgrade head
+      ```
+    - If `cost_usd` is already `(12, 6)` and `monthly_usage` already excludes `'langchain'` / negative `bytes`, stamp `026` (`docker compose run --rm --no-deps api python -m alembic stamp 026`).
+  - If any pre-`026` object is missing, compare `alembic/versions/` against the live catalog to find the highest revision whose complete schema object set is present, stamp that verified baseline (`docker compose run --rm --no-deps api python -m alembic stamp <verified_revision>`), and run `docker compose run --rm --no-deps api python -m alembic upgrade head`.
+
+```bash
+# 3. Confirm 026 is active and refresh monthly_usage before starting uvicorn
+docker compose run --rm --no-deps api python -m alembic current
+docker compose exec -T db psql -U postgres -d postgres -c "
+SELECT numeric_precision, numeric_scale
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'api_usage' AND column_name = 'cost_usd';
+REFRESH MATERIALIZED VIEW monthly_usage;
+"
+
+# 4. Start uvicorn and the rest of the stack
+docker compose up -d minio api ui
 curl -fsS http://<internal-host>:8000/health/detailed
 ```
 
