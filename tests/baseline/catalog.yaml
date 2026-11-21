@@ -198,6 +198,27 @@ scenarios:
     # richer seed has 8 managers (base + 3).
     expect: {count: 8, total: 8}
 
+  - id: list_filter_search_alias
+    endpoint: list
+    seed: base
+    params: {search: rentech}
+    # case-insensitive alias match on id 5 ("Renaissance Technologies", alias "RenTech").
+    expect: {count: 1, total: 1}
+
+  - id: list_filter_name
+    endpoint: list
+    seed: richer
+    params: {name: t}
+    # case-insensitive name prefix "t": ids 3 ("TCI Fund Management"), 7 ("Two Sigma Investments").
+    expect: {count: 2, total: 2}
+
+  - id: list_filter_search_and_name
+    endpoint: list
+    seed: richer
+    params: {search: management, name: t}
+    # search="management" (ids 1,3,4) AND name="t" (ids 3,7) -> only id 3.
+    expect: {count: 1, total: 1}
+
   # --- GET /managers/{id} (detail) ----------------------------------------
   - id: detail_found
     endpoint: detail
@@ -284,6 +305,27 @@ directionals:
     metric: with_cik
     direction: greater_or_equal
     enforce: true
+  # A search filter narrows the count against the unfiltered seed.
+  - id: search_filter_narrows_count
+    scenario: list_filter_search_alias
+    control: list_all_base
+    metric: count
+    direction: less_than
+    enforce: true
+  # A name-prefix filter narrows the count against the unfiltered seed.
+  - id: name_filter_narrows_count
+    scenario: list_filter_name
+    control: list_all_richer
+    metric: count
+    direction: less_than
+    enforce: true
+  # Combining search and name narrows strictly further than name alone.
+  - id: search_and_name_narrows_further
+    scenario: list_filter_search_and_name
+    control: list_filter_name
+    metric: count
+    direction: less_than
+    enforce: true
 
 # ---------------------------------------------------------------------------
 # Coverage manifest: input-parameter space the kit must exercise. These are the
@@ -296,4 +338,6 @@ priority_params:
   - offset
   - jurisdiction
   - tag
+  - search
+  - name
   - manager_id

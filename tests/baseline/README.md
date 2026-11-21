@@ -37,7 +37,7 @@ boto3 / langsmith / prometheus import chain):
 
 | Endpoint | What it returns |
 |---|---|
-| `GET /managers` | paginated list (`limit`/`offset`) + `jurisdiction`/`tag` filters; `{items, total, limit, offset}` envelope |
+| `GET /managers` | paginated list (`limit`/`offset`) + `jurisdiction`/`tag`/`search`/`name` filters; `{items, total, limit, offset}` envelope |
 | `GET /managers/{id}` | a single manager (404 when absent) |
 | `GET /managers/stats` | universe aggregates (`total_managers`, `by_jurisdiction`, `by_tag`, `with_cik`, `with_lei`) |
 
