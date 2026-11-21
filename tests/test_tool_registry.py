@@ -52,6 +52,12 @@ def test_deterministic_tools_have_no_llm():
     assert TOOL_REGISTRY["RAGSearchChain"].llm_boundary == "external_authorized"
     assert TOOL_REGISTRY["FilingSummaryChain"].llm_boundary == "external_authorized"
     assert TOOL_REGISTRY["NLQueryChain"].llm_boundary == "external_authorized"
+    assert TOOL_REGISTRY["HoldingsAnalysisChain"].llm_boundary == "external_authorized"
+
+
+def test_llm_chains_declare_api_usage_writes():
+    for name in ("FilingSummaryChain", "NLQueryChain", "HoldingsAnalysisChain"):
+        assert "api_usage" in TOOL_REGISTRY[name].db_writes
 
 
 def test_diff_holdings_runresult_reports_registry_boundary():

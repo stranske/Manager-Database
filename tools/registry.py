@@ -56,6 +56,13 @@ TOOL_REGISTRY: dict[str, ToolDescriptor] = {
         db_writes=["api_usage"],
         llm_boundary="external_authorized",
     ),
+    "HoldingsAnalysisChain": ToolDescriptor(
+        name="HoldingsAnalysisChain",
+        data_zone="internal_notes",
+        external_sources=["database_schema"],
+        db_writes=["api_usage"],
+        llm_boundary="external_authorized",
+    ),
 }
 
 

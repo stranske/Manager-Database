@@ -85,7 +85,16 @@ ISSUE_1939_REPLAY_EXPECTATIONS: dict[str, dict[str, Any]] = {
         ),
     },
     "missing_usage": {
+        "invocation": "chat",
+        "input": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "tokens_in": None,
+            "tokens_out": None,
+            "latency_ms": 120,
+        },
         "api_usage_bytes": USAGE_BYTES_UNKNOWN,
+        "legacy_bytes_control": legacy_placeholder_usage_bytes(),
         "cost_usd": None,
     },
 }
@@ -112,6 +121,26 @@ def test_legacy_bytes_placeholder_compatibility_control_for_focused_analysis_inp
     assert observed_usage_bytes(
         FOCUSED_ANALYSIS_USAGE["tokens_in"], FOCUSED_ANALYSIS_USAGE["tokens_out"]
     ) == (FOCUSED_ANALYSIS_USAGE["tokens_in"] + FOCUSED_ANALYSIS_USAGE["tokens_out"])
+
+
+def test_focused_missing_usage_persists_unknown_via_supported_entry_point():
+    """Supported entry point records explicit unknown bytes/cost when usage is absent."""
+    replay = ISSUE_1939_REPLAY_EXPECTATIONS["missing_usage"]
+    conn = sqlite3.connect(":memory:")
+    inp = replay["input"]
+    persist_observed_provider_usage(
+        conn,
+        invocation=replay["invocation"],
+        provider=inp["provider"],
+        model=inp["model"],
+        tokens_in=inp["tokens_in"],
+        tokens_out=inp["tokens_out"],
+        latency_ms=inp["latency_ms"],
+    )
+    readback = conn.execute("SELECT bytes, cost_usd FROM api_usage").fetchone()
+    assert readback == (replay["api_usage_bytes"], replay["cost_usd"])
+    assert readback[0] != replay["legacy_bytes_control"]
+    conn.close()
 
 
 @pytest.mark.parametrize("replay_key", ["chat", "analysis"])
@@ -490,3 +519,11 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
     assert "cost_usd" not in domains[2]
     for key in ("input_tokens", "output_tokens", "total_tokens", "cost_usd"):
         assert key not in domains[3]
+
+    legacy_bytes = legacy_placeholder_usage_bytes()
+    for row in rows:
+        if row[3] == USAGE_BYTES_UNKNOWN:
+            assert row[3] != legacy_bytes
+        else:
+            assert row[3] != legacy_bytes
+            assert row[3] > 0
