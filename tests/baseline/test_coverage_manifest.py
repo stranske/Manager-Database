@@ -79,11 +79,7 @@ def _build_manifest(db_path: Path | None = None) -> CoverageManifest:
 def test_no_unknown_catalog_params(tmp_path: Path):
     from api import managers as managers_module
 
-    sig_params = {
-        name
-        for name in inspect.signature(managers_module.list_managers).parameters
-        if name != "request"
-    }
+    sig_params = set(inspect.signature(managers_module.list_managers).parameters)
     missing = sorted(sig_params - _ALL_PARAMS)
     assert sig_params <= _ALL_PARAMS, f"list_managers query parameters missing: {missing}"
     m = _build_manifest(tmp_path / "manifest.db")
@@ -197,7 +193,7 @@ def test_manager_search_baseline_records_observed_filter_reads(
         assert "name" not in bypassed_reads
         assert "unused_control" not in bypassed_reads
 
-        bypassed_priority_params = ["search", "name"]
+        bypassed_priority = ["search", "name"]
         bypassed_catalog = {
             "scenarios": [
                 {
@@ -211,12 +207,12 @@ def test_manager_search_baseline_records_observed_filter_reads(
                     },
                 }
             ],
-            "priority_params": bypassed_priority_params,
+            "priority_params": bypassed_priority,
         }
         bypassed_manifest = CoverageManifest(
             all_keys=set(_ALL_PARAMS),
             touched_keys=_touched_params(bypassed_catalog),
-            priority_params=bypassed_priority_params,
+            priority_params=bypassed_priority,
             read_keys=_observed_read_params(bypassed_catalog, tmp_path / "bypassed.db"),
         )
         assert {"search", "name", "bypassed_control"} <= bypassed_manifest.touched_keys

@@ -32,7 +32,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
+import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -237,17 +240,83 @@ def reduce_metrics(scenario: dict[str, Any], payload: dict[str, Any]) -> dict[st
     return base
 
 
+_SQL_STRING_LITERAL_RE = re.compile(r"'(?:''|[^'])*'")
+_MANAGER_ID_WHERE_RE = re.compile(r"\bWHERE\s+id\s*=\s*\d+\b")
+_LIMIT_OFFSET_RE = re.compile(r"\bLIMIT\s+(\d+)\s+OFFSET\s+(\d+)\b")
+_JURISDICTION_CLAUSE = "EXISTS (SELECT 1 FROM json_each(jurisdictions) WHERE value = '')"
+_TAG_CLAUSE = "EXISTS (SELECT 1 FROM json_each(tags) WHERE value = '')"
+_SEARCH_CLAUSE = (
+    "(LOWER(name) LIKE '' ESCAPE '' OR EXISTS "
+    "(SELECT 1 FROM json_each(aliases) WHERE LOWER(value) LIKE '' ESCAPE ''))"
+)
+_NAME_CLAUSE = "LOWER(name) LIKE '' ESCAPE ''"
+_OBSERVER_LOCK = threading.Lock()
+
+
+def _record_sql_reads(sql: str, observed: set[str], last_total: list[int | None]) -> None:
+    """Record /managers request parameters actually consumed by executed SQLite SQL."""
+    stripped = sql.strip()
+    if not stripped.upper().startswith("SELECT ") or " FROM managers" not in stripped:
+        return
+    normalized = _SQL_STRING_LITERAL_RE.sub("''", stripped)
+    observed.add("endpoint")
+    if _JURISDICTION_CLAUSE in normalized:
+        observed.add("jurisdiction")
+    if _TAG_CLAUSE in normalized:
+        observed.add("tag")
+    if _SEARCH_CLAUSE in normalized:
+        observed.add("search")
+    if _NAME_CLAUSE in normalized.replace(_SEARCH_CLAUSE, ""):
+        observed.add("name")
+    if _MANAGER_ID_WHERE_RE.search(normalized):
+        observed.add("manager_id")
+    page_match = _LIMIT_OFFSET_RE.search(normalized)
+    if page_match:
+        executed_limit = int(page_match.group(1))
+        executed_offset = int(page_match.group(2))
+        if executed_offset > 0:
+            observed.add("offset")
+        total = last_total[0]
+        if total is not None and executed_limit < max(total - executed_offset, 0):
+            observed.add("limit")
+
+
 @contextmanager
-def observe_route_reads():
-    """Yield the active runtime parameter-read set from ``api.managers`` if supported."""
+def observe_route_reads() -> Iterator[set[str]]:
+    """Observe /managers request parameters actually executed by SQLite at runtime.
+
+    Non-invasively attaches a SQLite trace callback to connections opened by
+    ``api.managers.connect_db`` and records total counts from ``_count_managers``
+    so observed reads reflect real SQL filter/pagination/lookup execution without
+    modifying production code in ``api/managers.py``.
+    """
     from api import managers as managers_module
 
-    observer_factory = getattr(managers_module, "observe_manager_param_reads", None)
-    if observer_factory is None:
-        yield set()
-        return
-    with observer_factory() as observed_reads:
-        yield observed_reads
+    observed: set[str] = set()
+    last_total: list[int | None] = [None]
+
+    with _OBSERVER_LOCK:
+        orig_connect_db = managers_module.connect_db
+        orig_count_managers = managers_module._count_managers
+
+        def _traced_connect_db(*args: Any, **kwargs: Any):
+            conn = orig_connect_db(*args, **kwargs)
+            if isinstance(conn, sqlite3.Connection):
+                conn.set_trace_callback(lambda sql: _record_sql_reads(sql, observed, last_total))
+            return conn
+
+        def _observed_count_managers(*args: Any, **kwargs: Any) -> int:
+            total = orig_count_managers(*args, **kwargs)
+            last_total[0] = int(total)
+            return total
+
+        managers_module.connect_db = _traced_connect_db  # type: ignore[assignment]
+        managers_module._count_managers = _observed_count_managers  # type: ignore[assignment]
+        try:
+            yield observed
+        finally:
+            managers_module.connect_db = orig_connect_db  # type: ignore[assignment]
+            managers_module._count_managers = orig_count_managers  # type: ignore[assignment]
 
 
 def run_scenario_observed(
