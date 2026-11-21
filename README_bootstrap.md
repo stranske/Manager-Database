@@ -79,20 +79,27 @@ docker compose exec -T db psql -U postgres -d postgres -c \
   FROM information_schema.columns
   WHERE table_schema = 'public'
     AND (
-      (table_name = 'backtest_results' AND column_name IN ('source_filing_id', 'applied_cutoff'))
+      (table_name = 'backtest_results' AND column_name IN (
+        'source_filing_id',
+        'source_holding_id',
+        'event_period',
+        'source_knowledge_time',
+        'applied_cutoff'
+      ))
       OR (table_name = 'activism_campaigns' AND column_name = 'opening_filing_id')
       OR (table_name = 'manager_deletion_operations' AND column_name = 'operation_id')
     )
   ORDER BY table_name, column_name;
   "
   ```
-  - If all pre-`026` objects through `025` are present (all four rows above exist) and `cost_usd` is still `(10, 4)` (or `monthly_usage` still sums `bytes` directly), stamp `025` and upgrade to `head`:
-    ```bash
-    docker compose run --rm --no-deps api python -m alembic stamp 025
-    docker compose run --rm --no-deps api python -m alembic upgrade head
-    ```
-  - If any pre-`026` table or column is missing (an older `schema.sql` volume), compare `alembic/versions/` against the live catalog to identify the highest revision whose objects are all present, run `docker compose run --rm --no-deps api python -m alembic stamp <verified_revision>`, and then run `docker compose run --rm --no-deps api python -m alembic upgrade head`.
-  - If all `025` objects are present, `cost_usd` is already `(12, 6)`, and `monthly_usage` already excludes `'langchain'` / negative `bytes`, stamp `026` (`docker compose run --rm --no-deps api python -m alembic stamp 026`).
+  - Only after confirming the complete revision-`025` baseline (all five `backtest_results` provenance columns, `activism_campaigns.opening_filing_id`, `manager_deletion_operations`, and no missing tables/columns from earlier revisions in `alembic/versions/`):
+    - If `cost_usd` is still `(10, 4)` (or `monthly_usage` still sums `bytes` directly), stamp `025` and upgrade to `head`:
+      ```bash
+      docker compose run --rm --no-deps api python -m alembic stamp 025
+      docker compose run --rm --no-deps api python -m alembic upgrade head
+      ```
+    - If `cost_usd` is already `(12, 6)` and `monthly_usage` already excludes `'langchain'` / negative `bytes`, stamp `026` (`docker compose run --rm --no-deps api python -m alembic stamp 026`).
+  - If any pre-`026` table or column is missing (an older `schema.sql` volume), compare `alembic/versions/` against the live catalog to identify the highest revision whose complete object set is present, run `docker compose run --rm --no-deps api python -m alembic stamp <verified_revision>`, and then run `docker compose run --rm --no-deps api python -m alembic upgrade head`.
 
 ```bash
 # 3. Verify cost_usd precision and monthly_usage refresh before starting uvicorn

@@ -17,7 +17,7 @@ depends_on = None
 
 
 def _is_postgresql() -> bool:
-    return op.get_bind().dialect.name == "postgresql"
+    return op.get_context().dialect.name == "postgresql"
 
 
 _MONTHLY_USAGE_MB_SUM = "sum(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END)"
@@ -59,22 +59,23 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     if _is_postgresql():
-        precision_loss_count = (
-            op.get_bind()
-            .execute(
-                sa.text(
-                    "SELECT COUNT(*) FROM api_usage "
-                    "WHERE cost_usd IS NOT NULL AND cost_usd <> round(cost_usd, 4)"
-                )
-            )
-            .scalar_one()
-        )
-        if precision_loss_count:
-            raise RuntimeError(
-                "Cannot downgrade revision 026: "
-                f"{precision_loss_count} api_usage row(s) have cost_usd precision "
-                "beyond NUMERIC(10, 4) and would be rounded."
-            )
+        op.execute("""
+            DO $$
+            DECLARE
+                precision_loss_count bigint;
+            BEGIN
+                LOCK TABLE api_usage IN ACCESS EXCLUSIVE MODE;
+                SELECT COUNT(*) INTO precision_loss_count
+                FROM api_usage
+                WHERE cost_usd IS NOT NULL AND cost_usd <> round(cost_usd, 4);
+                IF precision_loss_count > 0 THEN
+                    RAISE EXCEPTION
+                        'Cannot downgrade revision 026: % api_usage row(s) have cost_usd precision beyond NUMERIC(10, 4) and would be rounded.',
+                        precision_loss_count;
+                END IF;
+            END
+            $$;
+            """)
         op.execute("DROP MATERIALIZED VIEW IF EXISTS monthly_usage")
         op.alter_column(
             "api_usage",

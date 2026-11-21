@@ -242,7 +242,11 @@ def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
                 conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
                 conn.execute(f"RELEASE SAVEPOINT {savepoint}")
             except sqlite3.Error:
-                pass
+                logger.warning(
+                    "Failed to roll back SQLite savepoint %s after schema setup error",
+                    savepoint,
+                    exc_info=True,
+                )
             raise
         conn.execute(f"RELEASE SAVEPOINT {savepoint}")
         return
@@ -260,7 +264,10 @@ def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
                 try:
                     conn.execute("ROLLBACK")
                 except sqlite3.Error:
-                    pass
+                    logger.warning(
+                        "Failed to roll back SQLite schema setup transaction after lock error",
+                        exc_info=True,
+                    )
             if _is_sqlite_lock_error(exc) and attempt + 1 < _SQLITE_LOCK_RETRY_ATTEMPTS:
                 time.sleep(_SQLITE_LOCK_RETRY_BASE_DELAY_S * (2**attempt))
                 has_table, has_current_view = _sqlite_usage_schema_state(conn)
@@ -273,7 +280,10 @@ def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
                 try:
                     conn.execute("ROLLBACK")
                 except sqlite3.Error:
-                    pass
+                    logger.warning(
+                        "Failed to roll back SQLite schema setup transaction after error",
+                        exc_info=True,
+                    )
             raise
 
 

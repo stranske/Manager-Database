@@ -651,8 +651,10 @@ def test_migration_026_owns_api_usage_cost_precision_and_monthly_usage(monkeypat
         assert downgraded == {"edgar": 2048, "langchain": 640}
 
 
-def test_migration_026_rejects_precision_losing_postgres_downgrade_before_ddl():
-    """PostgreSQL downgrade must abort before any DDL when rows exceed NUMERIC(10, 4)."""
+def test_migration_026_rejects_precision_losing_postgres_downgrade_before_ddl(monkeypatch):
+    """PostgreSQL downgrade locks api_usage, validates before DDL, and supports --sql offline mode."""
+    import io
+
     from alembic.migration import MigrationContext
     from alembic.operations import Operations
     from alembic.script import ScriptDirectory
@@ -662,19 +664,12 @@ def test_migration_026_rejects_precision_losing_postgres_downgrade_before_ddl():
     rev_026 = scripts.get_revision("026")
     assert rev_026 is not None
 
-    class _ScalarResult:
-        def __init__(self, value: int) -> None:
-            self._value = value
-
-        def scalar_one(self) -> int:
-            return self._value
-
     class _FakePostgresBind:
         dialect = postgresql.dialect()
         info: dict[str, object] = {}
 
-        def __init__(self, precision_loss_count: int) -> None:
-            self.precision_loss_count = precision_loss_count
+        def __init__(self, *, raise_on_guard: bool) -> None:
+            self.raise_on_guard = raise_on_guard
             self.statements: list[str] = []
 
         def execution_options(self, **kwargs):
@@ -688,12 +683,15 @@ def test_migration_026_rejects_precision_losing_postgres_downgrade_before_ddl():
                 else statement
             )
             self.statements.append(compiled)
-            if "round(cost_usd, 4)" in compiled:
-                return _ScalarResult(self.precision_loss_count)
-            return _ScalarResult(0)
+            if self.raise_on_guard and "round(cost_usd, 4)" in compiled:
+                raise RuntimeError(
+                    "Cannot downgrade revision 026: 2 api_usage row(s) have cost_usd "
+                    "precision beyond NUMERIC(10, 4) and would be rounded."
+                )
+            return None
 
-    # Precision-losing rows present -> raises before DROP MATERIALIZED VIEW / ALTER TABLE.
-    failing_bind = _FakePostgresBind(precision_loss_count=2)
+    # Guard executes first with ACCESS EXCLUSIVE lock and aborts before any DDL on precision loss.
+    failing_bind = _FakePostgresBind(raise_on_guard=True)
     ctx_fail = MigrationContext.configure(
         connection=failing_bind,  # type: ignore[arg-type]
         opts={"as_sql": False},
@@ -702,12 +700,13 @@ def test_migration_026_rejects_precision_losing_postgres_downgrade_before_ddl():
         with pytest.raises(RuntimeError, match="Cannot downgrade revision 026"):
             rev_026.module.downgrade()
     assert len(failing_bind.statements) == 1
-    assert "round(cost_usd, 4)" in failing_bind.statements[0]
+    assert "LOCK TABLE api_usage IN ACCESS EXCLUSIVE MODE" in failing_bind.statements[0]
+    assert "cost_usd <> round(cost_usd, 4)" in failing_bind.statements[0]
     assert not any("DROP MATERIALIZED VIEW" in s for s in failing_bind.statements)
     assert not any("ALTER TABLE" in s for s in failing_bind.statements)
 
-    # No precision-losing rows -> executes full downgrade sequence.
-    ok_bind = _FakePostgresBind(precision_loss_count=0)
+    # Online downgrade without precision loss runs guard -> DROP -> ALTER -> CREATE in order.
+    ok_bind = _FakePostgresBind(raise_on_guard=False)
     ctx_ok = MigrationContext.configure(
         connection=ok_bind,  # type: ignore[arg-type]
         opts={"as_sql": False},
@@ -715,10 +714,23 @@ def test_migration_026_rejects_precision_losing_postgres_downgrade_before_ddl():
     with Operations.context(ctx_ok):
         rev_026.module.downgrade()
     assert len(ok_bind.statements) == 4
-    assert "round(cost_usd, 4)" in ok_bind.statements[0]
+    assert "LOCK TABLE api_usage IN ACCESS EXCLUSIVE MODE" in ok_bind.statements[0]
     assert "DROP MATERIALIZED VIEW IF EXISTS monthly_usage" in ok_bind.statements[1]
     assert (
         "ALTER TABLE api_usage ALTER COLUMN cost_usd TYPE NUMERIC(10, 4)" in ok_bind.statements[2]
     )
     assert "CREATE MATERIALIZED VIEW monthly_usage AS" in ok_bind.statements[3]
     assert "sum(bytes) AS mb" in ok_bind.statements[3]
+
+    # Offline SQL generation (`alembic downgrade 026:025 --sql`) completes and emits the guard first.
+    monkeypatch.setenv("DB_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/postgres")
+    buf = io.StringIO()
+    offline_cfg = _alembic_config("postgresql+psycopg://postgres:postgres@localhost:5432/postgres")
+    offline_cfg.output_buffer = buf
+    command.downgrade(offline_cfg, "026:025", sql=True)
+    sql_script = buf.getvalue()
+    guard_pos = sql_script.find("LOCK TABLE api_usage IN ACCESS EXCLUSIVE MODE")
+    check_pos = sql_script.find("cost_usd <> round(cost_usd, 4)")
+    drop_pos = sql_script.find("DROP MATERIALIZED VIEW IF EXISTS monthly_usage")
+    alter_pos = sql_script.find("ALTER TABLE api_usage ALTER COLUMN cost_usd TYPE NUMERIC(10, 4)")
+    assert 0 <= guard_pos < check_pos < drop_pos < alter_pos
