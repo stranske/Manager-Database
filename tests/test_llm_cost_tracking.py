@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 import sqlite3
 from contextlib import closing
-from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import Mock
 
+import httpx
 import pytest
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.runnables import RunnableLambda
 
+import api.chat as chat_api_module
 from llm import langsmith_fleet as fleet
 from llm.cost_tracking import (
     USAGE_BYTES_UNKNOWN,
@@ -19,6 +26,7 @@ from llm.cost_tracking import (
     observed_usage_bytes,
     persist_observed_provider_usage,
 )
+from tools.langchain_client import ClientInfo
 
 # Deterministic provider observations replayed in issue #1939 acceptance tests.
 FOCUSED_CHAT_USAGE: dict[str, Any] = {
@@ -237,147 +245,248 @@ def test_log_llm_usage_creates_api_usage_and_inserts_row():
     )
 
 
-def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
-    """Replay deterministic chat and analysis observations through ``persist_observed_provider_usage``."""
-    conn = sqlite3.connect(":memory:")
+class _ScriptedProvider(BaseChatModel):
+    """Deterministic provider: replays scripted messages and counts real invocations.
+
+    ``with_structured_output`` mirrors a real chat model: the provider is invoked (and reports
+    usage) first, then the schema parser may reject the reply, which the chain answers by
+    falling back to a second, text invocation.
+    """
+
+    model_name: str = "scripted"
+    script: list[AIMessage]
+    invocations: int = 0
+
+    @property
+    def _llm_type(self) -> str:
+        return "scripted"
+
+    def _generate(self, messages: list[BaseMessage], stop=None, run_manager=None, **kwargs: Any):
+        message = self.script[self.invocations]
+        self.invocations += 1
+        return ChatResult(generations=[ChatGeneration(message=message)])
+
+    def with_structured_output(self, schema: Any, **kwargs: Any):
+        def _parse(message: AIMessage) -> Any:
+            return schema.model_validate_json(str(message.content))
+
+        return self | RunnableLambda(_parse)
+
+
+def _ai(content: str, **usage: Any) -> AIMessage:
+    message = AIMessage(content=content)
+    if "usage_metadata" in usage:
+        message.usage_metadata = usage["usage_metadata"]
+    if "response_metadata" in usage:
+        message.response_metadata = usage["response_metadata"]
+    return message
+
+
+_ANALYSIS_JSON = json.dumps(
+    {
+        "thesis": "Concentrated exposure.",
+        "top_positions": [],
+        "period_changes": [],
+        "cross_manager_overlap": None,
+        "concentration_metrics": {},
+    }
+)
+_NL_JSON = json.dumps({"sql": "SELECT manager_id, name FROM managers ORDER BY name LIMIT 5"})
+
+
+def _drive_supported_endpoints(tmp_path, monkeypatch) -> dict[str, Any]:
+    """Drive POST /api/chat for chat and holdings analysis with deterministic providers.
+
+    Returns the ``api_usage`` rows read back through a fresh connection (so uncommitted
+    writes would be invisible), the fleet records, and the number of provider invocations.
+    """
+    db_path = tmp_path / "usage.db"
+    with closing(sqlite3.connect(db_path)) as seed:
+        seed.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT)")
+        seed.execute("INSERT INTO managers VALUES (1, 'Elliott', '0001791786')")
+        seed.execute(
+            "CREATE TABLE holdings (manager_id INTEGER, report_date TEXT, name_of_issuer TEXT, "
+            "cusip TEXT, shares INTEGER, value_usd REAL)"
+        )
+        seed.execute(
+            "CREATE TABLE daily_diffs (manager_id INTEGER, report_date TEXT, delta_type TEXT, "
+            "name_of_issuer TEXT, value_prev REAL, value_curr REAL)"
+        )
+        seed.commit()
     fleet_path = tmp_path / "fleet.ndjson"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.delenv("DB_URL", raising=False)
     monkeypatch.setenv(fleet.ENV_FLEET_PATH, str(fleet_path))
     monkeypatch.delenv(fleet.ENV_LANGSMITH_KEY, raising=False)
+    chat_api_module.CHAT_RATE_LIMITER.clear()
+    chat_api_module.CHAT_IP_RATE_LIMITER.clear()
 
-    chat_replay = ISSUE_1939_REPLAY_EXPECTATIONS["chat"]
-    analysis_replay = ISSUE_1939_REPLAY_EXPECTATIONS["analysis"]
-    assert "Supported entry point" in (persist_observed_provider_usage.__doc__ or "")
+    chat_provider = _ScriptedProvider(
+        script=[
+            _ai(
+                _NL_JSON,
+                usage_metadata={"input_tokens": 512, "output_tokens": 128, "total_tokens": 640},
+            )
+        ]
+    )
+    analysis_provider = _ScriptedProvider(
+        script=[
+            # Structured attempt: reported usage, but the reply cannot be parsed -> fallback.
+            _ai(
+                "not json",
+                usage_metadata={"input_tokens": 300, "output_tokens": 50, "total_tokens": 350},
+            ),
+            # Text fallback: usage plus a provider-reported cost.
+            _ai(
+                _ANALYSIS_JSON,
+                usage_metadata={"input_tokens": 1000, "output_tokens": 200, "total_tokens": 1200},
+                response_metadata={"cost": 0.0123},
+            ),
+        ]
+    )
+    unpriced_provider = _ScriptedProvider(
+        script=[
+            _ai(
+                _NL_JSON,
+                usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+            )
+        ]
+    )
+    no_usage_provider = _ScriptedProvider(script=[_ai(_NL_JSON)])
+    turns = [
+        ("nl_query", ClientInfo(chat_provider, "openai", "gpt-4o-mini")),
+        (
+            "holdings_analysis",
+            ClientInfo(analysis_provider, "anthropic", "claude-sonnet-4-20250514"),
+        ),
+        ("nl_query", ClientInfo(unpriced_provider, "acme", "mystery-model")),
+        ("nl_query", ClientInfo(no_usage_provider, "openai", "gpt-4o-mini")),
+    ]
+    pending = iter(turns)
+    current: dict[str, ClientInfo] = {}
+    monkeypatch.setattr(chat_api_module, "_build_chat_client_info", lambda: current["client"])
 
-    persist_observed_provider_usage(
-        conn, invocation=chat_replay["invocation"], **chat_replay["input"]
-    )
-    assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 1
-    persist_observed_provider_usage(
-        conn, invocation=analysis_replay["invocation"], **analysis_replay["input"]
-    )
-    assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 2
+    async def _drive() -> list[int]:
+        await cast(Any, chat_api_module.app.router).startup()
+        try:
+            transport = httpx.ASGITransport(app=cast(Any, chat_api_module.app))
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://test", timeout=10.0
+            ) as client:
+                statuses = []
+                for chain, info in pending:
+                    current["client"] = info
+                    response = await client.post(
+                        "/api/chat", json={"question": "Which managers hold AAPL?", "chain": chain}
+                    )
+                    statuses.append(response.status_code)
+                return statuses
+        finally:
+            await cast(Any, chat_api_module.app.router).shutdown()
 
-    chat_row = conn.execute(
-        "SELECT source, endpoint, status, bytes, latency_ms, cost_usd FROM api_usage ORDER BY rowid LIMIT 1"
-    ).fetchone()
-    analysis_row = conn.execute(
-        "SELECT source, endpoint, status, bytes, latency_ms, cost_usd FROM api_usage ORDER BY rowid DESC LIMIT 1"
-    ).fetchone()
-    assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 2
-
-    chat_bytes = chat_replay["api_usage_bytes"]
-    analysis_bytes = analysis_replay["api_usage_bytes"]
-    chat_cost = chat_replay["cost_usd"]
-    analysis_cost = analysis_replay["cost_usd"]
-
-    assert chat_row == (
-        "langchain",
-        "openai/gpt-4o-mini https://smith.langchain.com/r/chat-replay-1939",
-        200,
-        chat_bytes,
-        FOCUSED_CHAT_USAGE["latency_ms"],
-        chat_cost,
-    )
-    assert analysis_row == (
-        "langchain",
-        "anthropic/claude-sonnet-4-20250514",
-        200,
-        analysis_bytes,
-        FOCUSED_ANALYSIS_USAGE["latency_ms"],
-        analysis_cost,
-    )
-    assert chat_row[3] == chat_replay["api_usage_bytes"]
-    assert analysis_row[3] == analysis_replay["api_usage_bytes"]
-    _legacy_bytes_readback_fails_for_observed_fixture(
-        chat_row[3], legacy_bytes=chat_replay["legacy_bytes_control"]
-    )
-    _legacy_bytes_readback_fails_for_observed_fixture(
-        analysis_row[3], legacy_bytes=analysis_replay["legacy_bytes_control"]
-    )
-    assert {chat_row[1], analysis_row[1]} == {
-        "openai/gpt-4o-mini https://smith.langchain.com/r/chat-replay-1939",
-        "anthropic/claude-sonnet-4-20250514",
+    statuses = asyncio.run(_drive())
+    with closing(sqlite3.connect(db_path)) as reader:
+        rows = reader.execute(
+            "SELECT source, endpoint, status, bytes, latency_ms, cost_usd FROM api_usage "
+            "ORDER BY id"
+        ).fetchall()
+    records = [
+        json.loads(line) for line in fleet_path.read_text(encoding="utf-8").splitlines() if line
+    ]
+    return {
+        "statuses": statuses,
+        "rows": rows,
+        "records": records,
+        "invocations": [
+            chat_provider.invocations,
+            analysis_provider.invocations,
+            unpriced_provider.invocations,
+            no_usage_provider.invocations,
+        ],
     }
 
-    missing_replay = ISSUE_1939_REPLAY_EXPECTATIONS["missing_usage"]
-    persist_observed_provider_usage(
-        conn,
-        invocation="chat",
-        provider="openai",
-        model="gpt-4o-mini",
-        tokens_in=None,
-        tokens_out=None,
-        latency_ms=1,
-    )
-    unknown_row = conn.execute(
-        "SELECT bytes, cost_usd FROM api_usage ORDER BY rowid DESC LIMIT 1"
-    ).fetchone()
-    assert unknown_row == (missing_replay["api_usage_bytes"], missing_replay["cost_usd"])
-    assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 3
 
-    chat_fleet = fleet.record_chat_event(
-        context=fleet.ChatFleetContext(
-            run_id="chat-replay-1939",
-            request_id="req-chat-1939",
-            endpoint="/api/chat",
-            chain="nl_query",
-            provider=FOCUSED_CHAT_USAGE["provider"],
-            model=FOCUSED_CHAT_USAGE["model"],
-            trace_url=FOCUSED_CHAT_USAGE["trace_url"],
-        ),
-        latency_ms=FOCUSED_CHAT_USAGE["latency_ms"],
-        http_status=200,
-        token_usage=fleet.TokenUsage(
-            input_tokens=FOCUSED_CHAT_USAGE["tokens_in"],
-            output_tokens=FOCUSED_CHAT_USAGE["tokens_out"],
-            total_tokens=chat_bytes,
-        ),
-        cost_usd=chat_cost,
-        response_id="chat-replay-1939",
-        artifact_path=fleet_path,
-    )
-    analysis_fleet = fleet.build_chat_fleet_record(
-        context=fleet.ChatFleetContext(
-            run_id="analysis-replay-1939",
-            request_id="req-analysis-1939",
-            endpoint="/api/chat/holdings-analysis",
-            chain="holdings_analysis",
-            provider=FOCUSED_ANALYSIS_USAGE["provider"],
-            model=FOCUSED_ANALYSIS_USAGE["model"],
-        ),
-        latency_ms=FOCUSED_ANALYSIS_USAGE["latency_ms"],
-        http_status=200,
-        token_usage=fleet.TokenUsage(
-            input_tokens=FOCUSED_ANALYSIS_USAGE["tokens_in"],
-            output_tokens=FOCUSED_ANALYSIS_USAGE["tokens_out"],
-            total_tokens=analysis_bytes,
-        ),
-        cost_usd=analysis_cost,
-    )
-    missing_usage_fleet = fleet.build_chat_fleet_record(
-        context=fleet.ChatFleetContext(
-            run_id="missing-usage-1939",
-            request_id="req-missing-1939",
-            endpoint="/api/chat",
-            chain="nl_query",
-        ),
-        latency_ms=1,
-        http_status=200,
-        token_usage=fleet.TokenUsage(),
-    )
+def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
+    """Supported chat and holdings-analysis endpoints persist one row per provider invocation.
 
-    assert chat_fleet["domain"]["input_tokens"] == FOCUSED_CHAT_USAGE["tokens_in"]
-    assert chat_fleet["domain"]["output_tokens"] == FOCUSED_CHAT_USAGE["tokens_out"]
-    assert chat_fleet["domain"]["cost_usd"] == chat_cost
-    assert analysis_fleet["domain"]["total_tokens"] == analysis_bytes
-    assert "input_tokens" not in missing_usage_fleet["domain"]
-    assert "cost_usd" not in missing_usage_fleet["domain"]
+    Expected values are literals, independent of the helpers under test. Run against the
+    pre-change source this fixture fails: chat wrote no row and analysis wrote a single
+    ``holdings_analysis_chain`` placeholder row sized by the response text.
+    """
+    observed = _drive_supported_endpoints(tmp_path, monkeypatch)
 
-    records = [
-        json.loads(line)
-        for line in Path(fleet_path).read_text(encoding="utf-8").splitlines()
-        if line.strip()
+    assert observed["statuses"] == [200, 200, 200, 200]
+    # chat 1 + analysis 2 (structured attempt, then text fallback) + unpriced 1 + no-usage 1.
+    assert observed["invocations"] == [1, 2, 1, 1]
+    rows = observed["rows"]
+    assert len(rows) == 5
+
+    def _request_id(endpoint: str) -> str:
+        match = re.search(r"request_id=([0-9a-f]+)", endpoint)
+        assert match is not None, endpoint
+        return match.group(1)
+
+    request_ids = [_request_id(row[1]) for row in rows]
+    # Rows of one request share an id; separate requests never do.
+    assert request_ids[1] == request_ids[2]
+    assert len({request_ids[0], request_ids[1], request_ids[3], request_ids[4]}) == 4
+
+    def _strip(row: tuple[Any, ...]) -> tuple[Any, ...]:
+        return (row[0], row[1].split(" request_id=")[0], row[2], row[3], row[5])
+
+    assert [_strip(row) for row in rows] == [
+        ("langchain", "openai/gpt-4o-mini", 200, 640, 0.000154),
+        ("langchain", "anthropic/claude-sonnet-4-20250514", 200, 350, 0.00165),
+        ("langchain", "anthropic/claude-sonnet-4-20250514", 200, 1200, 0.0123),
+        # Tokens reported but the model is unpriced and no cost was supplied: cost unknown.
+        ("langchain", "acme/mystery-model", 200, 15, None),
+        # No usage reported at all: tokens and cost explicitly unknown.
+        ("langchain", "openai/gpt-4o-mini", 200, -1, None),
     ]
-    assert len(records) == 1
-    assert records[0]["run_id"] == "chat-replay-1939"
-    conn.close()
+    assert all(row[4] >= 0 for row in rows)
+
+    records = observed["records"]
+    assert len(records) == 4
+    assert [r["domain"]["chain"] for r in records] == [
+        "nl_query",
+        "holdings_analysis",
+        "nl_query",
+        "nl_query",
+    ]
+    # The fleet record joins its rows through the same request id and carries the same
+    # provider/model and the same observed tokens and cost.
+    for record, request_id in zip(
+        records, [request_ids[0], request_ids[1], request_ids[3], request_ids[4]], strict=True
+    ):
+        assert record["domain"]["request_id_hash"] == fleet._hash_identifier(request_id)
+    domains = [r["domain"] for r in records]
+    assert (records[0]["provider"], records[0]["model"]) == ("openai", "gpt-4o-mini")
+    assert (
+        domains[0]["input_tokens"],
+        domains[0]["output_tokens"],
+        domains[0]["total_tokens"],
+    ) == (
+        512,
+        128,
+        640,
+    )
+    assert domains[0]["cost_usd"] == 0.000154
+    assert (records[1]["provider"], records[1]["model"]) == (
+        "anthropic",
+        "claude-sonnet-4-20250514",
+    )
+    assert (
+        domains[1]["input_tokens"],
+        domains[1]["output_tokens"],
+        domains[1]["total_tokens"],
+    ) == (
+        1300,
+        250,
+        1550,
+    )
+    assert domains[1]["cost_usd"] == 0.01395
+    assert (records[2]["provider"], records[2]["model"]) == ("acme", "mystery-model")
+    assert (domains[2]["input_tokens"], domains[2]["output_tokens"]) == (10, 5)
+    assert "cost_usd" not in domains[2]
+    for key in ("input_tokens", "output_tokens", "total_tokens", "cost_usd"):
+        assert key not in domains[3]

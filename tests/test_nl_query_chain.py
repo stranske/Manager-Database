@@ -204,7 +204,9 @@ def test_comma_join_and_nested_relations_are_rejected_before_execute(sql):
     try:
         with pytest.raises(ValueError):
             NLQueryChain(llm=FakeLLM(sql), db_conn=conn).run("List managers")
-        assert conn.executed_sql == []
+        # The rejected SQL never reaches the database. Only usage accounting for the
+        # provider invocation that produced it may touch ``api_usage``.
+        assert [sql for sql in conn.executed_sql if "api_usage" not in sql] == []
     finally:
         conn.close()
 

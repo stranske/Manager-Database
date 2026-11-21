@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ from sqlglot.optimizer.scope import Scope, traverse_scope
 
 from adapters.base import is_sqlite
 from chains.utils import acquire_connection, guard_context_values
+from llm.cost_tracking import extract_provider_usage, record_provider_invocation
 from llm.injection import guard_input
 from tools.llm_provider import (
     build_langsmith_metadata,
@@ -260,6 +262,7 @@ class NLQueryChain:
 
         config = build_langsmith_metadata(operation="nl-query")
         response = None
+        started = time.perf_counter()
         if hasattr(self.llm, "invoke"):
             try:
                 response = self.llm.invoke(prompt, config=config)
@@ -270,7 +273,16 @@ class NLQueryChain:
         else:
             raise TypeError("Configured LLM does not support invoke()")
 
+        latency_ms = int((time.perf_counter() - started) * 1000)
         trace_url = derive_langsmith_trace_url(extract_trace_id(response))
+        # Capture reported usage from the provider response before it is reduced to text.
+        record_provider_invocation(
+            self.db,
+            invocation="chat",
+            usage=extract_provider_usage(response),
+            latency_ms=latency_ms,
+            trace_url=trace_url,
+        )
         if isinstance(response, str):
             return response, trace_url
         if hasattr(response, "content"):

@@ -36,6 +36,7 @@ from api.memory_profiler import start_memory_profiler, stop_memory_profiler
 from api.search import SearchEntityType, SearchResult, universal_search
 from api.signals import router as signals_router
 from config import load_runtime_config
+from llm.cost_tracking import UsageCapture, capture_provider_usage
 from llm.langsmith_fleet import (
     ChatFleetContext,
     TokenUsage,
@@ -1009,8 +1010,14 @@ async def _run_chain(
     finally:
         close = getattr(chain, "db", None)
         try:
-            if close is not None and hasattr(close, "close"):
-                close.close()
+            if close is not None:
+                try:
+                    # This connection is owned here; make usage rows durable before closing.
+                    if is_sqlite(close):
+                        close.commit()
+                finally:
+                    if hasattr(close, "close"):
+                        close.close()
         except Exception:
             pass
 
@@ -1059,10 +1066,16 @@ def _record_chat_fleet_safe(
     response_id: str | None = None,
     error_category: str | None = None,
     rate_limited: bool = False,
+    usage: UsageCapture | None = None,
 ) -> None:
     """Emit one chat-turn fleet record, swallowing errors so API stays healthy."""
     try:
         run_id = response_id or _response_id_from_trace_url(trace_url) or request_id
+        tokens_in, tokens_out = usage.token_totals() if usage else (None, None)
+        if usage is not None and usage.observations:
+            # Same observed provider/model that the persisted usage rows carry.
+            provider = usage.observations[0].provider
+            model = usage.observations[0].model
         record_chat_event(
             context=ChatFleetContext(
                 run_id=run_id,
@@ -1078,7 +1091,16 @@ def _record_chat_fleet_safe(
             http_status=http_status,
             error_category=error_category,
             rate_limited=rate_limited,
-            token_usage=TokenUsage(),
+            token_usage=TokenUsage(
+                input_tokens=tokens_in,
+                output_tokens=tokens_out,
+                total_tokens=(
+                    tokens_in + tokens_out
+                    if tokens_in is not None and tokens_out is not None
+                    else None
+                ),
+            ),
+            cost_usd=usage.total_cost_usd() if usage else None,
             response_id=run_id,
         )
     except Exception:  # pragma: no cover - never let observability break the API
@@ -1095,6 +1117,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
     chain_used = "unknown"
     provider_name: str | None = None
     model_name: str | None = None
+    usage_capture = UsageCapture(request_id=request_id)
     try:
         _enforce_chat_rate_limit(raw_request)
         if _chat_zone_disabled():
@@ -1127,15 +1150,18 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             )
         provider_name = getattr(client_info, "provider", None)
         model_name = getattr(client_info, "model", None)
+        usage_capture.provider = provider_name
+        usage_capture.model = model_name
 
         requested_chain = (request.chain or "auto").strip().lower()
         if requested_chain not in VALID_CHAIN_NAMES:
             raise HTTPException(status_code=400, detail="Invalid chain")
         chain_used = _resolve_chain_name(requested_chain, request.question, request.context)
 
-        answer, sources, sql, trace_url = await _run_chain(
-            chain_used, request.question, request.context, client_info
-        )
+        with capture_provider_usage(usage_capture):
+            answer, sources, sql, trace_url = await _run_chain(
+                chain_used, request.question, request.context, client_info
+            )
         latency_ms = int((time.perf_counter() - started) * 1000)
         response_id = _response_id_from_trace_url(trace_url) or str(uuid.uuid4())
         _record_chat_fleet_safe(
@@ -1145,6 +1171,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             session_id=session_id,
             provider=provider_name,
             model=model_name,
+            usage=usage_capture,
             latency_ms=latency_ms,
             http_status=200,
             trace_url=trace_url,
@@ -1173,6 +1200,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             session_id=session_id,
             provider=provider_name,
             model=model_name,
+            usage=usage_capture,
             latency_ms=int((time.perf_counter() - started) * 1000),
             http_status=400,
             error_category="prompt_injection",
@@ -1190,6 +1218,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             session_id=session_id,
             provider=provider_name,
             model=model_name,
+            usage=usage_capture,
             latency_ms=int((time.perf_counter() - started) * 1000),
             http_status=503,
             error_category="chain_unavailable",
@@ -1203,6 +1232,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             session_id=session_id,
             provider=provider_name,
             model=model_name,
+            usage=usage_capture,
             latency_ms=int((time.perf_counter() - started) * 1000),
             http_status=exc.status_code,
             error_category=_error_category_from_http(exc.status_code),
@@ -1218,6 +1248,7 @@ async def chat_api(request: ChatRequest, raw_request: Request) -> ChatResponse:
             session_id=session_id,
             provider=provider_name,
             model=model_name,
+            usage=usage_capture,
             latency_ms=int((time.perf_counter() - started) * 1000),
             http_status=500,
             error_category=type(exc).__name__.lower(),
