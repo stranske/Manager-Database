@@ -1,4 +1,4 @@
-"""Protect HTTP similarity results from non-finite rows and database outages."""
+"""Verify the similarity endpoint and its dashboard presentation."""
 
 import asyncio
 import sqlite3
@@ -6,20 +6,28 @@ from typing import Any, cast
 from unittest.mock import Mock
 
 import httpx
+import pandas as pd
 import pytest
+import streamlit as st
+from streamlit.testing.v1 import AppTest
 
 from api import managers
 from api.chat import app
+from ui import dashboard
 
 
-def _get(basis, limit=1):
+def _api_get(url, params=None):
     async def request():
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=cast(Any, app)), base_url="http://test"
         ) as client:
-            return await client.get("/managers/1/similar", params={"basis": basis, "limit": limit})
+            return await client.get(url, params=params)
 
     return asyncio.run(request())
+
+
+def _get(basis, limit=1):
+    return _api_get("/managers/1/similar", params={"basis": basis, "limit": limit})
 
 
 @pytest.mark.parametrize("basis", ["jaccard", "cosine"])
@@ -136,3 +144,108 @@ def test_similarity_database_outage_is_sanitized_and_connection_closed(monkeypat
         assert "ORDER BY cosine DESC" in query
         assert parameters == (1, 1, 1)
         conn.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("layout", ["tabs", "tabless"])
+def test_dashboard_shows_peer_similarity_in_both_layouts(tmp_path, monkeypatch, layout):
+    path = tmp_path / "dashboard.db"
+    monkeypatch.setenv("DB_PATH", str(path))
+    monkeypatch.delenv("DB_URL", raising=False)
+    monkeypatch.delenv("UI_OFFLINE", raising=False)
+    monkeypatch.setenv("API_BASE_URL", "http://testserver")
+    monkeypatch.setenv("MANAGER_SIMILARITY_DEFAULT_BASIS", "cosine")
+    with sqlite3.connect(path) as conn:
+        managers._ensure_manager_table(conn)
+        conn.executemany(
+            "INSERT INTO managers(id, name) VALUES (?, ?)", [(1, "Selected"), (2, "Peer Capital")]
+        )
+        managers.ensure_manager_similarity_table(conn)
+        conn.execute(
+            "INSERT INTO manager_similarity "
+            "(manager_id_a, manager_id_b, jaccard, cosine, overlap_count, union_count, computed_at) "
+            "VALUES (1, 2, 0.5, 0.75, 2, 4, '2000-01-01 00:00:00')"
+        )
+
+    http_client = httpx.Client
+    requests = []
+
+    def send(request):
+        response = _api_get(str(request.url))
+        requests.append((request.method, request.url.path, response.status_code))
+        return httpx.Response(response.status_code, content=response.content)
+
+    transport = httpx.MockTransport(send)
+    monkeypatch.setattr(
+        httpx, "Client", lambda **kwargs: http_client(transport=transport, **kwargs)
+    )
+    monkeypatch.setattr(dashboard, "require_login", lambda: True)
+    monkeypatch.setattr(dashboard, "load_unacknowledged_alert_count", lambda: 0)
+    monkeypatch.setattr(dashboard, "load_managers", dashboard.load_managers.__wrapped__)
+    conviction = {
+        "name_of_issuer": "Conviction Issuer",
+        "cusip": "000000001",
+        "conviction_pct": 60.0,
+        "portfolio_weight": 0.6,
+        "value_usd": 2000.0,
+    }
+    monkeypatch.setattr(
+        dashboard,
+        "load_manager_conviction_scores",
+        lambda *_args, **_kwargs: pd.DataFrame([conviction]),
+    )
+    if layout == "tabless":
+
+        class TablessStreamlit:
+            def __getattr__(self, name):
+                if name == "tabs":
+                    raise AttributeError(name)
+                return getattr(st, name)
+
+        monkeypatch.setattr(dashboard, "st", TablessStreamlit())
+
+    view = AppTest.from_string("from ui.dashboard import main\nmain()", default_timeout=10)
+    view.session_state["selected_manager_id"] = 1
+
+    def render():
+        view.run()
+        assert not view.exception
+        assert [tab.label for tab in view.tabs] == (
+            ["Portfolio", "Activism", "Conviction & Signals"] if layout == "tabs" else []
+        )
+        tables = [element.value for element in view.dataframe]
+        assert [table.to_dict("records") for table in tables if "conviction_pct" in table] == [
+            [conviction]
+        ]
+        assert len(view.get("vega_lite_chart")) == 1
+        assert {
+            "No crowded trades overlap found for the selected manager.",
+            "No contrarian signals found for the selected manager.",
+        } <= {info.value for info in view.info}
+        panels = [panel for panel in view.expander if panel.label == "Similar Managers"]
+        assert len(panels) == 1
+        return panels[0]
+
+    panel = render()
+    assert panel.dataframe[0].value.to_dict("records") == [
+        {
+            "Manager": "Peer Capital",
+            "Manager ID": 2,
+            "Score": 0.75,
+            "Basis": "Cosine",
+            "Overlap Count": 2,
+            "Union Count": 4,
+        }
+    ]
+    assert panel.caption[0].value == "As-of date unavailable. Similarity data may be stale."
+
+    with sqlite3.connect(path) as conn:
+        conn.execute("DELETE FROM manager_similarity")
+    panel = render()
+    assert not panel.dataframe
+    assert panel.info[0].value == "No similarity results available for the selected manager."
+
+    monkeypatch.setattr(managers, "connect_db", Mock(side_effect=sqlite3.OperationalError))
+    panel = render()
+    assert not panel.dataframe
+    assert panel.warning[0].value == "Similarity data is currently unavailable."
+    assert requests == [("GET", "/managers/1/similar", status) for status in (200, 200, 503)]

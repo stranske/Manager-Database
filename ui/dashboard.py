@@ -418,6 +418,44 @@ def render_manager_selector() -> int | None:
     return None
 
 
+def render_manager_similarity(manager_id: int) -> None:
+    if os.getenv("UI_OFFLINE") == "1":
+        st.info("Similarity data is unavailable in offline mode.")
+        return
+
+    api_base_url = (os.getenv("API_BASE_URL") or "http://localhost:8000").rstrip("/")
+    try:
+        with httpx.Client(timeout=2.0) as client:
+            response = client.get(f"{api_base_url}/managers/{manager_id}/similar")
+        response.raise_for_status()
+        items = response.json()["items"]
+        if not isinstance(items, list):
+            raise ValueError("Expected a list of similar managers")
+        rows = [
+            {
+                "Manager ID": item["manager_id"],
+                "Score": item["score"],
+                "Basis": item["basis"].title(),
+                "Overlap Count": item["overlap_count"],
+                "Union Count": item["union_count"],
+            }
+            for item in items
+        ]
+    except (httpx.HTTPError, httpx.InvalidURL, AttributeError, KeyError, TypeError, ValueError):
+        st.warning("Similarity data is currently unavailable.")
+        return
+
+    if not rows:
+        st.info("No similarity results available for the selected manager.")
+        return
+
+    names = {row.manager_id: row.name for row in load_managers().itertuples(index=False)}
+    peers = pd.DataFrame(rows)
+    peers.insert(0, "Manager", peers["Manager ID"].map(names).fillna("Name unavailable"))
+    st.caption("As-of date unavailable. Similarity data may be stale.")
+    st.dataframe(peers, width="stretch", hide_index=True)
+
+
 def render_filing_timeline(selected_manager_id: int | None, show_heading: bool = True) -> None:
     if show_heading:
         st.subheader("Filing Timeline")
@@ -1192,6 +1230,9 @@ def render_manager_dashboard(selected_manager_id: int) -> None:
                 render_news_stream(selected_manager_id, show_heading=False)
             with st.expander("QC Flags", expanded=True):
                 render_qc_flags(selected_manager_id, show_heading=False)
+
+        with st.expander("Similar Managers", expanded=True):
+            render_manager_similarity(selected_manager_id)
 
     def _render_signals() -> None:
         with st.expander("Top Convictions", expanded=True):
