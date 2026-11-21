@@ -106,35 +106,36 @@ def test_legacy_bytes_placeholder_compatibility_control_for_focused_analysis_inp
     ) == (FOCUSED_ANALYSIS_USAGE["tokens_in"] + FOCUSED_ANALYSIS_USAGE["tokens_out"])
 
 
-def test_focused_chat_fixture_legacy_readback_zero_observed_readback_matches_tokens():
-    """Same ``FOCUSED_CHAT_USAGE``: pre-1939 readback stored ``bytes=0``; post-change stores token sum."""
+@pytest.mark.parametrize("replay_key", ["chat", "analysis"])
+def test_focused_fixture_legacy_readback_zero_observed_readback_matches_tokens(replay_key):
+    """Same replay fixture: pre-1939 readback stored ``bytes=0``; post-change stores token sum."""
     conn = sqlite3.connect(":memory:")
-    chat_replay = ISSUE_1939_REPLAY_EXPECTATIONS["chat"]
-    legacy_bytes = chat_replay["legacy_bytes_control"]
-    observed_bytes = chat_replay["api_usage_bytes"]
+    replay = ISSUE_1939_REPLAY_EXPECTATIONS[replay_key]
+    legacy_bytes = replay["legacy_bytes_control"]
+    observed_bytes = replay["api_usage_bytes"]
 
-    persist_observed_provider_usage(
-        conn, invocation=chat_replay["invocation"], **chat_replay["input"]
-    )
+    persist_observed_provider_usage(conn, invocation=replay["invocation"], **replay["input"])
     readback = conn.execute("SELECT bytes, cost_usd FROM api_usage").fetchone()
 
     assert legacy_bytes == 0
-    assert readback == (observed_bytes, chat_replay["cost_usd"])
+    assert readback == (observed_bytes, replay["cost_usd"])
     assert readback[0] != legacy_bytes
-    # Deliberate break on pre-1939 behavior: ``assert readback[0] == legacy_bytes`` → 640 != 0.
+    # Deliberate break on pre-1939 behavior: ``assert readback[0] == legacy_bytes`` fails (e.g. 640 != 0).
     conn.close()
 
 
-def test_pre_1939_legacy_bytes_control_fails_same_fixture_readback():
-    """Compatibility control: asserting legacy ``bytes=0`` would fail on the recorded chat replay."""
+@pytest.mark.parametrize("replay_key", ["chat", "analysis"])
+def test_pre_1939_legacy_bytes_control_fails_same_fixture_readback(replay_key):
+    """Compatibility control: asserting legacy ``bytes=0`` would fail on the recorded replay."""
     conn = sqlite3.connect(":memory:")
-    chat_replay = ISSUE_1939_REPLAY_EXPECTATIONS["chat"]
-    persist_observed_provider_usage(
-        conn, invocation=chat_replay["invocation"], **chat_replay["input"]
-    )
+    replay = ISSUE_1939_REPLAY_EXPECTATIONS[replay_key]
+    persist_observed_provider_usage(conn, invocation=replay["invocation"], **replay["input"])
     persisted_bytes = conn.execute("SELECT bytes FROM api_usage").fetchone()[0]
-    assert persisted_bytes == chat_replay["api_usage_bytes"]
-    assert persisted_bytes != chat_replay["legacy_bytes_control"]
+    assert persisted_bytes == replay["api_usage_bytes"]
+    assert persisted_bytes != replay["legacy_bytes_control"]
+    _legacy_bytes_readback_fails_for_observed_fixture(
+        persisted_bytes, legacy_bytes=replay["legacy_bytes_control"]
+    )
     conn.close()
 
 
