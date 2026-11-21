@@ -157,7 +157,8 @@ def test_dashboard_shows_peer_similarity_in_both_layouts(tmp_path, monkeypatch, 
     with sqlite3.connect(path) as conn:
         managers._ensure_manager_table(conn)
         conn.executemany(
-            "INSERT INTO managers(id, name) VALUES (?, ?)", [(1, "Selected"), (2, "Peer Capital")]
+            "INSERT INTO managers(id, name) VALUES (?, ?)",
+            [(1, "Selected"), (2, "Peer Capital"), (3, "No Peers")],
         )
         managers.ensure_manager_similarity_table(conn)
         conn.execute(
@@ -203,29 +204,48 @@ def test_dashboard_shows_peer_similarity_in_both_layouts(tmp_path, monkeypatch, 
 
         monkeypatch.setattr(dashboard, "st", TablessStreamlit())
 
-    view = AppTest.from_string("from ui.dashboard import main\nmain()", default_timeout=10)
-    view.session_state["selected_manager_id"] = 1
+    view = AppTest.from_file("ui/app.py", default_timeout=10).run()
+    assert not view.exception
+    assert view.selectbox(key="selected_manager_id").value == "all"
+    assert all(panel.label != "Similar Managers" for panel in view.expander)
+    assert not requests
 
-    def render():
+    def render(manager_id):
+        view.selectbox(key="selected_manager_id").set_value(manager_id)
         view.run()
         assert not view.exception
-        assert [tab.label for tab in view.tabs] == (
-            ["Portfolio", "Activism", "Conviction & Signals"] if layout == "tabs" else []
-        )
-        tables = [element.value for element in view.dataframe]
+        if layout == "tabs":
+            assert [tab.label for tab in view.tabs] == [
+                "Portfolio",
+                "Activism",
+                "Conviction & Signals",
+            ]
+            portfolio, _, conviction_card = view.tabs
+            signals_info = conviction_card.info
+        else:
+            assert not view.tabs
+            portfolio = view
+            cards = {panel.label: panel for panel in view.expander}
+            conviction_card = cards["Top Convictions"]
+            signals_info = [*cards["Crowded Trades"].info, *cards["Contrarian Alerts"].info]
+
+        tables = [element.value for element in conviction_card.dataframe]
         assert [table.to_dict("records") for table in tables if "conviction_pct" in table] == [
             [conviction]
         ]
-        assert len(view.get("vega_lite_chart")) == 1
+        assert len(conviction_card.get("vega_lite_chart")) == 1
         assert {
             "No crowded trades overlap found for the selected manager.",
             "No contrarian signals found for the selected manager.",
-        } <= {info.value for info in view.info}
+        } <= {info.value for info in signals_info}
         panels = [panel for panel in view.expander if panel.label == "Similar Managers"]
-        assert len(panels) == 1
+        assert len(panels) == 1, "Expected one Similar Managers panel after choosing a manager"
+        assert panels[0] in portfolio.expander
+        assert not panels[0].get("vega_lite_chart")
         return panels[0]
 
-    panel = render()
+    panel = render(1)
+    assert len(panel.dataframe) == 1
     assert panel.dataframe[0].value.to_dict("records") == [
         {
             "Manager": "Peer Capital",
@@ -238,14 +258,16 @@ def test_dashboard_shows_peer_similarity_in_both_layouts(tmp_path, monkeypatch, 
     ]
     assert panel.caption[0].value == "As-of date unavailable. Similarity data may be stale."
 
-    with sqlite3.connect(path) as conn:
-        conn.execute("DELETE FROM manager_similarity")
-    panel = render()
+    panel = render(3)
     assert not panel.dataframe
     assert panel.info[0].value == "No similarity results available for the selected manager."
 
     monkeypatch.setattr(managers, "connect_db", Mock(side_effect=sqlite3.OperationalError))
-    panel = render()
+    panel = render(1)
     assert not panel.dataframe
     assert panel.warning[0].value == "Similarity data is currently unavailable."
-    assert requests == [("GET", "/managers/1/similar", status) for status in (200, 200, 503)]
+    assert requests == [
+        ("GET", "/managers/1/similar", 200),
+        ("GET", "/managers/3/similar", 200),
+        ("GET", "/managers/1/similar", 503),
+    ]
