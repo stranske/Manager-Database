@@ -207,6 +207,13 @@ def test_comma_join_and_nested_relations_are_rejected_before_execute(sql):
         # The rejected SQL never reaches the database. Only usage accounting for the
         # provider invocation that produced it may touch ``api_usage``.
         allowed_usage_sql = (
+            "SELECT type, name, sql FROM sqlite_master WHERE name IN ('api_usage', 'monthly_usage')",
+            "BEGIN IMMEDIATE",
+            "COMMIT",
+            "ROLLBACK",
+            "SAVEPOINT ensure_sqlite_usage_schema",
+            "RELEASE SAVEPOINT ensure_sqlite_usage_schema",
+            "ROLLBACK TO SAVEPOINT ensure_sqlite_usage_schema",
             "CREATE TABLE IF NOT EXISTS api_usage",
             "CREATE VIEW IF NOT EXISTS monthly_usage",
             "CREATE VIEW monthly_usage",
