@@ -97,8 +97,8 @@ def test_priority_params_covered(tmp_path: Path):
     m = _build_manifest(tmp_path / "manifest.db")
     assert not m.priority_gaps, "Priority params with no scenario: " + ", ".join(m.priority_gaps)
     unread_priority = [p for p in m.priority_params if p not in m.read_keys]
-    assert not unread_priority, (
-        "Priority params not observed read at runtime: " + ", ".join(unread_priority)
+    assert not unread_priority, "Priority params not observed read at runtime: " + ", ".join(
+        unread_priority
     )
 
 
@@ -197,6 +197,7 @@ def test_manager_search_baseline_records_observed_filter_reads(
         assert "name" not in bypassed_reads
         assert "unused_control" not in bypassed_reads
 
+        bypassed_priority_params = ["search", "name"]
         bypassed_catalog = {
             "scenarios": [
                 {
@@ -210,12 +211,12 @@ def test_manager_search_baseline_records_observed_filter_reads(
                     },
                 }
             ],
-            "priority_params": ["search", "name"],
+            "priority_params": bypassed_priority_params,
         }
         bypassed_manifest = CoverageManifest(
             all_keys=set(_ALL_PARAMS),
             touched_keys=_touched_params(bypassed_catalog),
-            priority_params=bypassed_catalog["priority_params"],
+            priority_params=bypassed_priority_params,
             read_keys=_observed_read_params(bypassed_catalog, tmp_path / "bypassed.db"),
         )
         assert {"search", "name", "bypassed_control"} <= bypassed_manifest.touched_keys

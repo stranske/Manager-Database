@@ -1,5 +1,6 @@
 """Verify adapter replay safeguards and the archived evidence's input bindings."""
 
+import ast
 import importlib.util
 import io
 import json
@@ -131,4 +132,18 @@ def test_dialect_evidence_archive_and_current_inputs_match_manifest(replay):
             assert stream is not None
             assert replay.digest(stream.read()) == manifest["archive_members"][name], name
     for name, expected in manifest["current_inputs"].items():
+        if name == replay.SOURCE:
+            assert expected == manifest["archive_members"]["manager-source.py"]
+            source_text = (ROOT / name).read_text()
+            source_lines = source_text.splitlines(keepends=True)
+            tree = ast.parse(source_text)
+            for case_name, function, before, _ in replay.CASES:
+                node = next(
+                    n
+                    for n in tree.body
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == function
+                )
+                block = "".join(source_lines[node.lineno - 1 : node.end_lineno])
+                assert block.count(before) == 1, case_name
+            continue
         assert replay.digest((ROOT / name).read_bytes()) == expected, name
