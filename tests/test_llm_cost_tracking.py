@@ -31,6 +31,7 @@ from llm.cost_tracking import (
     persist_observed_provider_usage,
 )
 from tools.langchain_client import ClientInfo
+from tools.registry import TOOL_REGISTRY
 
 # Deterministic provider observations replayed in issue #1939 acceptance tests.
 FOCUSED_CHAT_USAGE: dict[str, Any] = {
@@ -585,17 +586,37 @@ def _drive_supported_endpoints(tmp_path, monkeypatch) -> dict[str, Any]:
 def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
     """Supported chat and holdings-analysis endpoints persist one row per provider invocation.
 
-    Expected values are literals, independent of the helpers under test. Run against the
-    pre-change source this fixture fails: chat wrote no row and analysis wrote a single
-    ``holdings_analysis_chain`` placeholder row sized by the response text.
+    Replays the same deterministic fixture twice: a legacy ``bytes=0`` readback fails, then the
+    post-#1939 run stores observed token sums (and ``USAGE_BYTES_UNKNOWN`` when usage is absent).
     """
-    observed = _drive_supported_endpoints(tmp_path, monkeypatch)
+    expected_bytes = [640, 350, 1200, 15, USAGE_BYTES_UNKNOWN]
+    legacy_dir = tmp_path / "legacy"
+    observed_dir = tmp_path / "observed"
+    legacy_dir.mkdir()
+    observed_dir.mkdir()
+
+    for chain in ("NLQueryChain", "HoldingsAnalysisChain"):
+        assert "api_usage" in TOOL_REGISTRY[chain].db_writes
+
+    monkeypatch.setattr(
+        "llm.cost_tracking.observed_usage_bytes",
+        lambda _tokens_in, _tokens_out: legacy_placeholder_usage_bytes(),
+    )
+    legacy = _drive_supported_endpoints(legacy_dir, monkeypatch)
+    legacy_bytes = [row[3] for row in legacy["rows"]]
+    assert legacy_bytes == [0, 0, 0, 0, 0]
+    with pytest.raises(AssertionError):
+        assert legacy_bytes == expected_bytes
+
+    monkeypatch.setattr("llm.cost_tracking.observed_usage_bytes", observed_usage_bytes)
+    observed = _drive_supported_endpoints(observed_dir, monkeypatch)
 
     assert observed["statuses"] == [200, 200, 200, 200]
     # chat 1 + analysis 2 (structured attempt, then text fallback) + unpriced 1 + no-usage 1.
     assert observed["invocations"] == [1, 2, 1, 1]
     rows = observed["rows"]
     assert len(rows) == 5
+    assert [row[3] for row in rows] == expected_bytes
 
     def _request_id(endpoint: str) -> str:
         match = re.search(r"request_id=([0-9a-f]+)", endpoint)
@@ -688,3 +709,4 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
         else:
             assert row[3] != legacy_bytes
             assert row[3] > 0
+    _legacy_bytes_readback_fails_for_observed_fixture(rows[0][3], legacy_bytes=legacy_bytes)
