@@ -5,6 +5,7 @@ import json
 import re
 import sqlite3
 from contextlib import closing
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock
 
@@ -16,10 +17,13 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableLambda
 
 import api.chat as chat_api_module
+from chains.nl_query import NLQueryChain
 from llm import langsmith_fleet as fleet
 from llm.cost_tracking import (
     USAGE_BYTES_UNKNOWN,
+    _as_cost,
     estimate_cost_usd,
+    extract_usage_from_llm_result,
     legacy_placeholder_usage_bytes,
     log_llm_usage,
     observed_cost_usd,
@@ -246,12 +250,106 @@ def test_log_llm_usage_owned_sqlite_connection_commits_and_closes(tmp_path, monk
         assert reader.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 1
 
 
-def test_log_llm_usage_borrowed_connection_stays_open():
-    conn = sqlite3.connect(":memory:")
+def test_log_llm_usage_borrowed_connection_stays_open(tmp_path):
+    db_path = tmp_path / "borrowed.db"
+    writer = sqlite3.connect(db_path)
     try:
-        persist_observed_provider_usage(conn, invocation="analysis", **FOCUSED_ANALYSIS_USAGE)
-        assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 1
-        conn.execute("SELECT 1").fetchone()
+        persist_observed_provider_usage(writer, invocation="analysis", **FOCUSED_ANALYSIS_USAGE)
+        assert writer.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 1
+        with closing(sqlite3.connect(db_path)) as reader:
+            assert reader.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 0
+        writer.rollback()
+        assert writer.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 0
+        writer.execute("SELECT 1").fetchone()
+    finally:
+        writer.close()
+
+
+def test_observed_cost_rejects_non_finite_reported_values():
+    assert observed_cost_usd("gpt-4o-mini", 10, 5, float("inf")) is None
+    assert observed_cost_usd("gpt-4o-mini", 10, 5, float("nan")) is None
+    assert observed_cost_usd("gpt-4o-mini", 10, 5, -0.01) is None
+    assert _as_cost(float("inf")) is None
+    assert _as_cost(-1.0) is None
+
+
+def test_estimate_cost_usd_uses_cached_input_rate():
+    assert estimate_cost_usd("gpt-4o-mini", 1000, 0, tokens_cached_in=600) == 0.000105
+
+
+def test_extract_usage_from_llm_result_merges_message_cost_and_llm_output_tokens():
+    message = AIMessage(content="ok")
+    message.response_metadata = {"cost": 0.0123}
+    result = SimpleNamespace(
+        generations=[[SimpleNamespace(message=message)]],
+        llm_output={"token_usage": {"prompt_tokens": 12, "completion_tokens": 4}},
+    )
+    usage = extract_usage_from_llm_result(result)
+    assert usage.tokens_in == 12
+    assert usage.tokens_out == 4
+    assert usage.cost_usd == 0.0123
+
+
+@pytest.mark.asyncio
+async def test_run_chain_retries_sqlite_commit_before_close(monkeypatch):
+    calls: list[str] = []
+
+    class CommitConn:
+        attempts = 0
+
+        def commit(self) -> None:
+            self.attempts += 1
+            calls.append("commit")
+            if self.attempts == 1:
+                raise sqlite3.OperationalError("database is locked")
+
+        def close(self) -> None:
+            calls.append("close")
+
+    commit_conn = CommitConn()
+
+    class SuccessChain:
+        db = commit_conn
+
+        def run(self, *, question, context):
+            return {"answer": "ok", "sql": None}
+
+    monkeypatch.setattr(chat_api_module, "connect_db", lambda: SimpleNamespace(close=lambda: None))
+    monkeypatch.setattr(chat_api_module, "is_sqlite", lambda conn: isinstance(conn, CommitConn))
+    monkeypatch.setattr(chat_api_module, "_build_chain", lambda *_a, **_k: SuccessChain())
+
+    payload = await chat_api_module._run_chain(
+        "nl_query", "question", {}, SimpleNamespace(client=None)
+    )
+    assert payload is not None
+    assert commit_conn.attempts == 2
+    assert calls.count("commit") == 2
+    assert calls[-1] == "close"
+
+
+def test_nl_query_chain_records_direct_provider_model_labels():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT)")
+    try:
+        class AttributionLLM:
+            model_name = "gpt-4o-mini"
+            _llm_type = "openai"
+
+            def invoke(self, prompt: str, config=None):
+                return AIMessage(
+                    content=json.dumps(
+                        {
+                            "sql": "SELECT manager_id, name FROM managers LIMIT 1",
+                            "explanation": "",
+                            "columns": [],
+                        }
+                    ),
+                    usage_metadata={"input_tokens": 9, "output_tokens": 3, "total_tokens": 12},
+                )
+
+        NLQueryChain(llm=AttributionLLM(), db_conn=conn).run("List managers")
+        endpoint = conn.execute("SELECT endpoint FROM api_usage").fetchone()[0]
+        assert endpoint.startswith("openai/gpt-4o-mini")
     finally:
         conn.close()
 

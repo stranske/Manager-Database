@@ -542,7 +542,7 @@ CREATE TABLE IF NOT EXISTS api_usage (
     status int,
     bytes int,
     latency_ms int,
-    cost_usd numeric(10,4)
+    cost_usd numeric(12,6)
 );
 
 DO $$
@@ -556,7 +556,7 @@ BEGIN
       SELECT date_trunc('month', ts) AS month,
              source,
              count(*)        AS calls,
-             sum(bytes)      AS mb,
+             sum(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END) AS mb,
              sum(cost_usd)   AS cost
       FROM api_usage
       GROUP BY 1, 2

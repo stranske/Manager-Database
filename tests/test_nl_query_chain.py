@@ -206,7 +206,19 @@ def test_comma_join_and_nested_relations_are_rejected_before_execute(sql):
             NLQueryChain(llm=FakeLLM(sql), db_conn=conn).run("List managers")
         # The rejected SQL never reaches the database. Only usage accounting for the
         # provider invocation that produced it may touch ``api_usage``.
-        assert [sql for sql in conn.executed_sql if "api_usage" not in sql] == []
+        allowed_usage_sql = (
+            "CREATE TABLE IF NOT EXISTS api_usage",
+            "CREATE VIEW IF NOT EXISTS monthly_usage",
+            "CREATE VIEW monthly_usage",
+            "DROP VIEW IF EXISTS monthly_usage",
+            "INSERT INTO api_usage",
+        )
+
+        def _disallowed_sql(statement: str) -> bool:
+            normalized = statement.strip()
+            return not any(normalized.startswith(prefix) for prefix in allowed_usage_sql)
+
+        assert [sql for sql in conn.executed_sql if _disallowed_sql(sql)] == []
     finally:
         conn.close()
 

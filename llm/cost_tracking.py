@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -19,6 +20,13 @@ _MODEL_PRICING_PER_1K_TOKENS: dict[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.00015, 0.0006),
     "claude-sonnet-4-20250514": (0.003, 0.015),
     "claude-sonnet-5-5": (0.002, 0.010),
+}
+
+# Cached prompt tokens per 1k (billed below full input rate when the provider reports cache hits).
+_MODEL_CACHED_INPUT_PER_1K_TOKENS: dict[str, float] = {
+    "gpt-4o-mini": 0.000075,
+    "claude-sonnet-4-20250514": 0.0003,
+    "claude-sonnet-5-5": 0.0002,
 }
 
 # Pre-1939 ``log_llm_usage`` ignored provider token counts and always stored zero bytes.
@@ -39,9 +47,23 @@ def observed_usage_bytes(tokens_in: int | None, tokens_out: int | None) -> int:
     return int(tokens_in) + int(tokens_out)
 
 
-def estimate_cost_usd(model: str, tokens_in: int, tokens_out: int) -> float:
+def estimate_cost_usd(
+    model: str,
+    tokens_in: int,
+    tokens_out: int,
+    *,
+    tokens_cached_in: int = 0,
+) -> float:
     in_rate, out_rate = _MODEL_PRICING_PER_1K_TOKENS.get(model, (0.0, 0.0))
-    return round((tokens_in / 1000.0) * in_rate + (tokens_out / 1000.0) * out_rate, 6)
+    cached_rate = _MODEL_CACHED_INPUT_PER_1K_TOKENS.get(model, in_rate)
+    cached = max(min(tokens_cached_in, tokens_in), 0)
+    fresh_in = tokens_in - cached
+    return round(
+        (fresh_in / 1000.0) * in_rate
+        + (cached / 1000.0) * cached_rate
+        + (tokens_out / 1000.0) * out_rate,
+        6,
+    )
 
 
 def observed_cost_usd(
@@ -49,15 +71,25 @@ def observed_cost_usd(
     tokens_in: int | None,
     tokens_out: int | None,
     reported_cost_usd: float | None = None,
+    *,
+    tokens_cached_in: int | None = None,
 ) -> float | None:
     """Return the provider-reported cost, else a priced estimate, else ``None`` (unknown)."""
     if reported_cost_usd is not None:
-        return round(float(reported_cost_usd), 6)
+        cost = float(reported_cost_usd)
+        if not math.isfinite(cost) or cost < 0:
+            return None
+        return round(cost, 6)
     if tokens_in is None or tokens_out is None:
         return None
     if model not in _MODEL_PRICING_PER_1K_TOKENS:
         return None
-    return estimate_cost_usd(model, tokens_in, tokens_out)
+    return estimate_cost_usd(
+        model,
+        tokens_in,
+        tokens_out,
+        tokens_cached_in=tokens_cached_in or 0,
+    )
 
 
 @dataclass(frozen=True)
@@ -67,6 +99,7 @@ class ProviderUsage:
     tokens_in: int | None = None
     tokens_out: int | None = None
     cost_usd: float | None = None
+    tokens_cached_in: int | None = None
 
 
 def _as_count(value: Any) -> int | None:
@@ -80,7 +113,10 @@ def _as_count(value: Any) -> int | None:
 def _as_cost(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value) if value >= 0 else None
+    cost = float(value)
+    if not math.isfinite(cost) or cost < 0:
+        return None
+    return cost
 
 
 def _first_reported(sources: list[Mapping[str, Any]], keys: tuple[str, ...], convert: Any) -> Any:
@@ -90,6 +126,15 @@ def _first_reported(sources: list[Mapping[str, Any]], keys: tuple[str, ...], con
             if converted is not None:
                 return converted
     return None
+
+
+def _cached_input_tokens(usage_metadata: Any) -> int | None:
+    if not isinstance(usage_metadata, Mapping):
+        return None
+    details = usage_metadata.get("input_token_details")
+    if not isinstance(details, Mapping):
+        return None
+    return _as_count(details.get("cache_read"))
 
 
 def _usage_from_metadata(usage_metadata: Any, response_metadata: Any) -> ProviderUsage:
@@ -105,6 +150,7 @@ def _usage_from_metadata(usage_metadata: Any, response_metadata: Any) -> Provide
         tokens_in=_first_reported(sources, ("input_tokens", "prompt_tokens"), _as_count),
         tokens_out=_first_reported(sources, ("output_tokens", "completion_tokens"), _as_count),
         cost_usd=_first_reported(sources, ("cost_usd", "cost", "total_cost"), _as_cost),
+        tokens_cached_in=_cached_input_tokens(usage_metadata),
     )
 
 
@@ -115,17 +161,31 @@ def extract_provider_usage(response: Any) -> ProviderUsage:
     )
 
 
+def _merge_provider_usage(left: ProviderUsage, right: ProviderUsage) -> ProviderUsage:
+    return ProviderUsage(
+        tokens_in=left.tokens_in if left.tokens_in is not None else right.tokens_in,
+        tokens_out=left.tokens_out if left.tokens_out is not None else right.tokens_out,
+        cost_usd=left.cost_usd if left.cost_usd is not None else right.cost_usd,
+        tokens_cached_in=(
+            left.tokens_cached_in
+            if left.tokens_cached_in is not None
+            else right.tokens_cached_in
+        ),
+    )
+
+
 def extract_usage_from_llm_result(result: Any) -> ProviderUsage:
     """Read reported usage from a LangChain ``LLMResult`` (one provider invocation)."""
+    merged = ProviderUsage()
     for generations in getattr(result, "generations", None) or []:
         for generation in generations:
             message = getattr(generation, "message", None)
             if message is None:
                 continue
-            usage = extract_provider_usage(message)
-            if usage.tokens_in is not None or usage.tokens_out is not None:
-                return usage
-    return _usage_from_metadata(None, getattr(result, "llm_output", None))
+            merged = _merge_provider_usage(merged, extract_provider_usage(message))
+    return _merge_provider_usage(
+        merged, _usage_from_metadata(None, getattr(result, "llm_output", None))
+    )
 
 
 class ProviderUsageCollector(BaseCallbackHandler):
@@ -224,7 +284,11 @@ def record_provider_invocation(
         tokens_in=reported.tokens_in,
         tokens_out=reported.tokens_out,
         cost_usd=observed_cost_usd(
-            resolved_model, reported.tokens_in, reported.tokens_out, reported.cost_usd
+            resolved_model,
+            reported.tokens_in,
+            reported.tokens_out,
+            reported.cost_usd,
+            tokens_cached_in=reported.tokens_cached_in,
         ),
         latency_ms=latency_ms,
         trace_url=trace_url,

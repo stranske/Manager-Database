@@ -543,12 +543,15 @@ class HoldingsAnalysisChain:
             return self._parse_analysis(raw_output, question)
         return None
 
-    def _invoke_provider(self, runnable: Any, payload: dict[str, Any], config: Any) -> Any:
-        """Invoke a provider chain and persist one usage row per actual provider invocation.
-
-        Usage is collected at the provider boundary so output parsers cannot discard it.
-        A completed invocation with no reported usage is recorded with explicit unknown usage.
-        """
+    def _invoke_provider(
+        self,
+        runnable: Any,
+        payload: dict[str, Any],
+        config: Any,
+        *,
+        usage_buffer: list[tuple[list[ProviderUsage], int]],
+    ) -> Any:
+        """Invoke a provider chain and buffer usage for persistence after provider calls complete."""
         collector = ProviderUsageCollector()
         call_config = {**config, "callbacks": [*(config.get("callbacks") or []), collector]}
         started = time.perf_counter()
@@ -559,15 +562,8 @@ class HoldingsAnalysisChain:
             return result
         finally:
             latency_ms = int((time.perf_counter() - started) * 1000)
-            for usage in collector.usages or ([ProviderUsage()] if completed else []):
-                record_provider_invocation(
-                    self.db,
-                    invocation="analysis",
-                    usage=usage,
-                    latency_ms=latency_ms,
-                    provider=self._provider,
-                    model=self._model,
-                )
+            usages = collector.usages or ([ProviderUsage()] if completed else [])
+            usage_buffer.append((usages, latency_ms))
 
     def run(
         self,
@@ -607,18 +603,35 @@ class HoldingsAnalysisChain:
         if as_of is not None:
             trace_inputs["as_of"] = as_of.isoformat()
 
-        with langsmith_tracing_context(name="holdings-analysis", inputs=trace_inputs):
-            if self._structured_chain is not None:
-                try:
-                    structured = self._invoke_provider(self._structured_chain, payload, config)
-                    parsed_result = self._parse_structured_output(structured, question)
-                    if parsed_result is not None:
-                        output_text = parsed_result.model_dump_json()
-                except Exception:
-                    parsed_result = None
+        usage_buffer: list[tuple[list[ProviderUsage], int]] = []
+        try:
+            with langsmith_tracing_context(name="holdings-analysis", inputs=trace_inputs):
+                if self._structured_chain is not None:
+                    try:
+                        structured = self._invoke_provider(
+                            self._structured_chain, payload, config, usage_buffer=usage_buffer
+                        )
+                        parsed_result = self._parse_structured_output(structured, question)
+                        if parsed_result is not None:
+                            output_text = parsed_result.model_dump_json()
+                    except Exception:
+                        parsed_result = None
 
-            if parsed_result is None:
-                output_text = self._invoke_provider(self.chain, payload, config)
-                parsed_result = self._parse_analysis(output_text, question)
+                if parsed_result is None:
+                    output_text = self._invoke_provider(
+                        self.chain, payload, config, usage_buffer=usage_buffer
+                    )
+                    parsed_result = self._parse_analysis(output_text, question)
 
-        return parsed_result
+            return parsed_result
+        finally:
+            for usages, latency_ms in usage_buffer:
+                for usage in usages:
+                    record_provider_invocation(
+                        self.db,
+                        invocation="analysis",
+                        usage=usage,
+                        latency_ms=latency_ms,
+                        provider=self._provider,
+                        model=self._model,
+                    )

@@ -15,7 +15,11 @@ from sqlglot.optimizer.scope import Scope, traverse_scope
 
 from adapters.base import is_sqlite
 from chains.utils import acquire_connection, guard_context_values
-from llm.cost_tracking import extract_provider_usage, record_provider_invocation
+from llm.cost_tracking import (
+    _ACTIVE_CAPTURE,
+    extract_provider_usage,
+    record_provider_invocation,
+)
 from llm.injection import guard_input
 from tools.llm_provider import (
     build_langsmith_metadata,
@@ -256,6 +260,28 @@ class NLQueryChain:
             + f"Question: {question}\n"
         )
 
+    def _provider_model_labels(self, response: Any) -> tuple[str | None, str | None]:
+        model: str | None = None
+        provider: str | None = None
+        metadata = getattr(response, "response_metadata", None)
+        if isinstance(metadata, dict):
+            raw_model = metadata.get("model_name") or metadata.get("model")
+            if isinstance(raw_model, str) and raw_model.strip():
+                model = raw_model.strip()
+        llm = self.llm
+        if llm is not None:
+            for attr in ("model_name", "model"):
+                raw = getattr(llm, attr, None)
+                if isinstance(raw, str) and raw.strip():
+                    model = model or raw.strip()
+                    break
+            for attr in ("_llm_type", "provider"):
+                raw = getattr(llm, attr, None)
+                if isinstance(raw, str) and raw.strip():
+                    provider = raw.strip()
+                    break
+        return provider, model
+
     def _invoke_llm(self, prompt: str) -> tuple[str, str | None]:
         if self.llm is None:
             return "SELECT manager_id, name FROM managers ORDER BY name LIMIT 10", None
@@ -275,6 +301,11 @@ class NLQueryChain:
 
         latency_ms = int((time.perf_counter() - started) * 1000)
         trace_url = derive_langsmith_trace_url(extract_trace_id(response))
+        usage_kwargs: dict[str, Any] = {}
+        if _ACTIVE_CAPTURE.get() is None:
+            provider, model = self._provider_model_labels(response)
+            usage_kwargs["provider"] = provider
+            usage_kwargs["model"] = model
         # Capture reported usage from the provider response before it is reduced to text.
         record_provider_invocation(
             self.db,
@@ -282,6 +313,7 @@ class NLQueryChain:
             usage=extract_provider_usage(response),
             latency_ms=latency_ms,
             trace_url=trace_url,
+            **usage_kwargs,
         )
         if isinstance(response, str):
             return response, trace_url

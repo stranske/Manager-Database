@@ -9,6 +9,7 @@ import importlib
 import json
 import logging
 import os
+import sqlite3
 import time
 import uuid
 from collections import defaultdict, deque
@@ -948,6 +949,23 @@ def _attach_langsmith_feedback(feedback: FeedbackRequest) -> bool:
         return False
 
 
+def _commit_sqlite_with_retry(conn: Any, *, max_attempts: int = 5) -> None:
+    """Retry transient SQLite commit failures before closing a borrowed chain connection."""
+    last_error: sqlite3.OperationalError | None = None
+    for attempt in range(max_attempts):
+        try:
+            conn.commit()
+            return
+        except sqlite3.OperationalError as exc:
+            last_error = exc
+            message = str(exc).lower()
+            if attempt + 1 >= max_attempts or ("locked" not in message and "busy" not in message):
+                raise
+            time.sleep(0.05 * (attempt + 1))
+    if last_error is not None:
+        raise last_error
+
+
 async def _run_chain(
     chain_name: str, question: str, context: dict[str, Any] | None, client_info: Any
 ):
@@ -979,6 +997,7 @@ async def _run_chain(
             ) from exc
 
     chain = _build_chain(chain_name, client_info)
+    chain_error: BaseException | None = None
     try:
         if chain_name == "filing_summary":
             filing_id = normalized_context.get("filing_id")
@@ -1007,19 +1026,34 @@ async def _run_chain(
             result = chain.invoke({"question": question, "context": normalized_context or {}})
         else:
             raise RuntimeError(f"Chain '{chain_name}' does not expose run/invoke")
+    except BaseException as exc:
+        chain_error = exc
+        raise
     finally:
         close = getattr(chain, "db", None)
-        try:
-            if close is not None:
-                try:
+        if close is not None:
+            commit_error: BaseException | None = None
+            try:
+                if is_sqlite(close):
                     # This connection is owned here; make usage rows durable before closing.
-                    if is_sqlite(close):
-                        close.commit()
-                finally:
-                    if hasattr(close, "close"):
+                    _commit_sqlite_with_retry(close)
+            except BaseException as exc:
+                commit_error = exc
+                if chain_error is None:
+                    logger.error("Failed to commit chain database before closing", exc_info=True)
+                    raise
+                logger.warning(
+                    "Failed to commit chain database after chain failure",
+                    exc_info=True,
+                )
+            finally:
+                if hasattr(close, "close"):
+                    try:
                         close.close()
-        except Exception:
-            pass
+                    except BaseException:
+                        if chain_error is None and commit_error is None:
+                            raise
+                        logger.warning("Failed to close chain database", exc_info=True)
 
     if asyncio.iscoroutine(result):
         result = await result
