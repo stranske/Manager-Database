@@ -127,6 +127,29 @@ def test_legacy_bytes_placeholder_compatibility_control_for_focused_analysis_inp
     ) == (FOCUSED_ANALYSIS_USAGE["tokens_in"] + FOCUSED_ANALYSIS_USAGE["tokens_out"])
 
 
+@pytest.mark.parametrize("replay_key", ["chat", "analysis"])
+def test_pin_log_llm_usage_focused_fixture_readback(replay_key):
+    """Pin ``log_llm_usage`` persistence for the focused issue #1939 replay inputs."""
+    replay = ISSUE_1939_REPLAY_EXPECTATIONS[replay_key]
+    inp = replay["input"]
+    conn = sqlite3.connect(":memory:")
+    try:
+        log_llm_usage(
+            conn,
+            provider=inp["provider"],
+            model=inp["model"],
+            tokens_in=inp["tokens_in"],
+            tokens_out=inp["tokens_out"],
+            latency_ms=inp["latency_ms"],
+            trace_url=inp.get("trace_url"),
+        )
+        readback = conn.execute("SELECT bytes, cost_usd FROM api_usage").fetchone()
+        assert readback == (replay["api_usage_bytes"], replay["cost_usd"])
+        assert readback[0] != replay["legacy_bytes_control"]
+    finally:
+        conn.close()
+
+
 def test_focused_missing_usage_persists_unknown_via_supported_entry_point():
     """Supported entry point records explicit unknown bytes/cost when usage is absent."""
     replay = ISSUE_1939_REPLAY_EXPECTATIONS["missing_usage"]
@@ -587,14 +610,28 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
     def _strip(row: tuple[Any, ...]) -> tuple[Any, ...]:
         return (row[0], row[1].split(" request_id=")[0], row[2], row[3], row[5])
 
+    chat_replay = ISSUE_1939_REPLAY_EXPECTATIONS["chat"]
+    missing_replay = ISSUE_1939_REPLAY_EXPECTATIONS["missing_usage"]
     assert [_strip(row) for row in rows] == [
-        ("langchain", "openai/gpt-4o-mini", 200, 640, 0.000154),
+        (
+            "langchain",
+            "openai/gpt-4o-mini",
+            200,
+            chat_replay["api_usage_bytes"],
+            chat_replay["cost_usd"],
+        ),
         ("langchain", "anthropic/claude-sonnet-4-20250514", 200, 350, 0.00165),
         ("langchain", "anthropic/claude-sonnet-4-20250514", 200, 1200, 0.0123),
         # Tokens reported but the model is unpriced and no cost was supplied: cost unknown.
         ("langchain", "acme/mystery-model", 200, 15, None),
         # No usage reported at all: tokens and cost explicitly unknown.
-        ("langchain", "openai/gpt-4o-mini", 200, -1, None),
+        (
+            "langchain",
+            "openai/gpt-4o-mini",
+            200,
+            missing_replay["api_usage_bytes"],
+            missing_replay["cost_usd"],
+        ),
     ]
     assert all(row[4] >= 0 for row in rows)
 
