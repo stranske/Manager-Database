@@ -20,9 +20,7 @@ def _is_postgresql() -> bool:
     return op.get_bind().dialect.name == "postgresql"
 
 
-_MONTHLY_USAGE_MB_SUM = (
-    "sum(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END)"
-)
+_MONTHLY_USAGE_MB_SUM = "sum(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END)"
 
 
 def upgrade() -> None:
@@ -35,8 +33,7 @@ def upgrade() -> None:
             type_=sa.Numeric(12, 6),
             existing_nullable=True,
         )
-        op.execute(
-            f"""
+        op.execute(f"""
             CREATE MATERIALIZED VIEW monthly_usage AS
             SELECT date_trunc('month', ts) AS month,
                    source,
@@ -45,12 +42,10 @@ def upgrade() -> None:
                    sum(cost_usd) AS cost
             FROM api_usage
             GROUP BY 1, 2
-            """
-        )
+            """)
     else:
         op.execute("DROP VIEW IF EXISTS monthly_usage")
-        op.execute(
-            f"""
+        op.execute(f"""
             CREATE VIEW monthly_usage AS
             SELECT strftime('%Y-%m-01', ts) AS month,
                    source,
@@ -59,8 +54,7 @@ def upgrade() -> None:
                    sum(cost_usd) AS cost
             FROM api_usage
             GROUP BY 1, 2
-            """
-        )
+            """)
 
 
 def downgrade() -> None:

@@ -167,9 +167,7 @@ def _merge_provider_usage(left: ProviderUsage, right: ProviderUsage) -> Provider
         tokens_out=left.tokens_out if left.tokens_out is not None else right.tokens_out,
         cost_usd=left.cost_usd if left.cost_usd is not None else right.cost_usd,
         tokens_cached_in=(
-            left.tokens_cached_in
-            if left.tokens_cached_in is not None
-            else right.tokens_cached_in
+            left.tokens_cached_in if left.tokens_cached_in is not None else right.tokens_cached_in
         ),
     )
 

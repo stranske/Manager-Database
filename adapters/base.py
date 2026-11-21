@@ -175,9 +175,7 @@ def resolve_manager_id_column(conn: Any) -> str:
     return manager_id_column(conn) or "id"
 
 
-_MONTHLY_USAGE_MB_SUM = (
-    "SUM(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END)"
-)
+_MONTHLY_USAGE_MB_SUM = "SUM(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END)"
 
 
 def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:

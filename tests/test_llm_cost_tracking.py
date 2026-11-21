@@ -331,6 +331,7 @@ def test_nl_query_chain_records_direct_provider_model_labels():
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE managers (manager_id INTEGER PRIMARY KEY, name TEXT, cik TEXT)")
     try:
+
         class AttributionLLM:
             model_name = "gpt-4o-mini"
             _llm_type = "openai"
