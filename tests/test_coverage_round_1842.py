@@ -439,6 +439,7 @@ def test_dashboard_qc_and_selector_edge_paths(monkeypatch):
 def test_dashboard_unplottable_convictions_and_tabless_manager_view(monkeypatch):
     fake_st = _DashboardStreamlit(has_tabs=False)
     monkeypatch.setattr(dashboard, "st", fake_st)
+    monkeypatch.setenv("UI_OFFLINE", "1")
     monkeypatch.setattr(
         dashboard,
         "load_manager_conviction_scores",
@@ -471,6 +472,7 @@ def test_dashboard_unplottable_convictions_and_tabless_manager_view(monkeypatch)
     monkeypatch.setattr(dashboard, "load_manager_contrarian_signals", lambda _id: pd.DataFrame())
     dashboard.render_manager_dashboard(9)
     assert "No filings found for the selected manager." in fake_st.infos
+    assert "Similarity data is unavailable in offline mode." in fake_st.infos
     assert "No contrarian signals found for the selected manager." in fake_st.infos
 
 

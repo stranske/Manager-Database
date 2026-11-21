@@ -1394,6 +1394,7 @@ def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
     monkeypatch.setattr("ui.dashboard.render_top_deltas", _recorder("top_deltas"))
     monkeypatch.setattr("ui.dashboard.render_news_stream", _recorder("news_stream"))
     monkeypatch.setattr("ui.dashboard.render_qc_flags", _recorder("qc_flags"))
+    monkeypatch.setattr("ui.dashboard.render_manager_similarity", _recorder("similarity"))
     monkeypatch.setattr("ui.dashboard.render_top_convictions", _recorder("top_convictions"))
     monkeypatch.setattr("ui.dashboard.render_manager_crowded_trades", _recorder("crowded_trades"))
     monkeypatch.setattr("ui.dashboard.render_contrarian_alerts", _recorder("contrarian_alerts"))
@@ -1407,6 +1408,7 @@ def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
         ("Top Deltas", True),
         ("News", True),
         ("QC Flags", True),
+        ("Similar Managers", True),
         ("Top Convictions", True),
         ("Crowded Trades", True),
         ("Contrarian Alerts", True),
@@ -1417,6 +1419,7 @@ def test_render_manager_dashboard_uses_columns_and_expanders(monkeypatch):
         ("top_deltas", 7, False),
         ("news_stream", 7, False),
         ("qc_flags", 7, False),
+        ("similarity", 7, True),
         ("top_convictions", 7, False),
         ("crowded_trades", 7, False),
         ("contrarian_alerts", 7, False),
@@ -1664,6 +1667,7 @@ class PerfStreamlit:
 def test_dashboard_render_under_two_seconds_with_ten_managers(tmp_path: Path, monkeypatch):
     db_path = setup_performance_db(tmp_path, manager_count=10)
     monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.setenv("UI_OFFLINE", "1")
     st.cache_data.clear()
 
     fake_st = PerfStreamlit()
