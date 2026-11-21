@@ -12,7 +12,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, ValidationError
 
-from adapters.base import ensure_api_usage_schema, get_placeholder
+from adapters.base import get_placeholder
 from chains.filing_summary import langsmith_tracing_context
 from chains.utils import (
     extract_json_text,
@@ -22,6 +22,7 @@ from chains.utils import (
     truncate_context,
 )
 from etl.point_in_time import holdings_visibility_sql
+from llm.cost_tracking import ProviderUsage, ProviderUsageCollector, record_provider_invocation
 from scripts.langchain.injection_guard import check_prompt_injection
 from tools.langchain_client import ClientInfo
 from tools.llm_provider import build_langsmith_metadata
@@ -87,6 +88,8 @@ class HoldingsAnalysisChain:
         self.llm: Any = client_info.client
         self.db = db_conn
         self._provider_label = client_info.provider_label
+        self._provider = client_info.provider
+        self._model = client_info.model
         self.chain = cast(Any, HOLDINGS_ANALYSIS_TEMPLATE) | cast(Any, self.llm) | StrOutputParser()
         self._structured_chain = self._build_structured_chain()
 
@@ -540,34 +543,27 @@ class HoldingsAnalysisChain:
             return self._parse_analysis(raw_output, question)
         return None
 
-    def _log_usage(self, *, question: str, output_text: str, latency_ms: int, status: int) -> None:
+    def _invoke_provider(
+        self,
+        runnable: Any,
+        payload: dict[str, Any],
+        config: Any,
+        *,
+        usage_buffer: list[tuple[list[ProviderUsage], int]],
+    ) -> Any:
+        """Invoke a provider chain and buffer usage for persistence after provider calls complete."""
+        collector = ProviderUsageCollector()
+        call_config = {**config, "callbacks": [*(config.get("callbacks") or []), collector]}
+        started = time.perf_counter()
+        completed = False
         try:
-            ensure_api_usage_schema(self.db)
-        except Exception:
-            return
-
-        placeholder = get_placeholder(self.db)
-        insert_sql = (
-            "INSERT INTO api_usage(source, endpoint, status, bytes, latency_ms, cost_usd) "
-            f"VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, "
-            f"{placeholder})"
-        )
-        try:
-            endpoint = question[:64]
-            self.db.execute(
-                insert_sql,
-                (
-                    "holdings_analysis_chain",
-                    endpoint,
-                    int(status),
-                    len(output_text.encode("utf-8")),
-                    latency_ms,
-                    0.0,
-                ),
-            )
-            self.db.commit()
-        except Exception:
-            pass
+            result = runnable.invoke(payload, config=cast(Any, call_config))
+            completed = True
+            return result
+        finally:
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            usages = collector.usages or ([ProviderUsage()] if completed else [])
+            usage_buffer.append((usages, latency_ms))
 
     def run(
         self,
@@ -593,10 +589,8 @@ class HoldingsAnalysisChain:
         }
         self._guard_prompt_inputs(payload)
 
-        started = time.perf_counter()
         output_text = ""
         parsed_result: HoldingsAnalysis | None = None
-        status = 0
         config: Any = build_langsmith_metadata(operation="holdings-analysis")
         trace_inputs: dict[str, Any] = {"question": question}
         if manager_ids:
@@ -609,24 +603,35 @@ class HoldingsAnalysisChain:
         if as_of is not None:
             trace_inputs["as_of"] = as_of.isoformat()
 
-        with langsmith_tracing_context(name="holdings-analysis", inputs=trace_inputs):
-            if self._structured_chain is not None:
-                try:
-                    structured = self._structured_chain.invoke(payload, config=cast(Any, config))
-                    parsed_result = self._parse_structured_output(structured, question)
-                    if parsed_result is not None:
-                        output_text = parsed_result.model_dump_json()
-                        status = 1
-                except Exception:
-                    parsed_result = None
+        usage_buffer: list[tuple[list[ProviderUsage], int]] = []
+        try:
+            with langsmith_tracing_context(name="holdings-analysis", inputs=trace_inputs):
+                if self._structured_chain is not None:
+                    try:
+                        structured = self._invoke_provider(
+                            self._structured_chain, payload, config, usage_buffer=usage_buffer
+                        )
+                        parsed_result = self._parse_structured_output(structured, question)
+                        if parsed_result is not None:
+                            output_text = parsed_result.model_dump_json()
+                    except Exception:
+                        parsed_result = None
 
-            if parsed_result is None:
-                output_text = self.chain.invoke(payload, config=cast(Any, config))
-                parsed_result = self._parse_analysis(output_text, question)
-                status = 1
+                if parsed_result is None:
+                    output_text = self._invoke_provider(
+                        self.chain, payload, config, usage_buffer=usage_buffer
+                    )
+                    parsed_result = self._parse_analysis(output_text, question)
 
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        self._log_usage(
-            question=question, output_text=output_text, latency_ms=latency_ms, status=status
-        )
-        return parsed_result
+            return parsed_result
+        finally:
+            for usages, latency_ms in usage_buffer:
+                for usage in usages:
+                    record_provider_invocation(
+                        self.db,
+                        invocation="analysis",
+                        usage=usage,
+                        latency_ms=latency_ms,
+                        provider=self._provider,
+                        model=self._model,
+                    )

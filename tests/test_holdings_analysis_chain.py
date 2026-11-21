@@ -1086,14 +1086,17 @@ def test_run_logs_usage_to_api_usage_table() -> None:
 
     chain.run("Which managers hold AAPL?")
 
-    row = conn.execute(
-        "SELECT source, endpoint, status, bytes, latency_ms FROM api_usage ORDER BY id DESC LIMIT 1"
-    ).fetchone()
-    assert row is not None
-    assert row["source"] == "holdings_analysis_chain"
-    assert row["endpoint"] == "Which managers hold AAPL?"
-    assert row["status"] == 1
-    assert row["bytes"] > 0
+    rows = conn.execute(
+        "SELECT source, endpoint, status, bytes, latency_ms, cost_usd FROM api_usage"
+    ).fetchall()
+    # One provider invocation, no usage reported by this stub: explicit unknown usage/cost.
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["source"] == "langchain"
+    assert row["endpoint"] == "test-provider/test-model"
+    assert row["status"] == 200
+    assert row["bytes"] == -1
+    assert row["cost_usd"] is None
     assert row["latency_ms"] >= 0
 
 

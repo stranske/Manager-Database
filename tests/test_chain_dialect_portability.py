@@ -7,6 +7,7 @@ from langchain_core.runnables import RunnableLambda
 
 from chains.filing_summary import FilingSummaryChain
 from chains.holdings_analysis import HoldingsAnalysisChain
+from llm.cost_tracking import record_provider_invocation
 from tests._pg_fakes import StrictPostgresConn
 from tools.langchain_client import ClientInfo
 
@@ -47,24 +48,52 @@ def test_filing_summary_usage_log_uses_sqlite_schema_and_placeholders() -> None:
     assert row == ("filing_summary_chain", "filing_id:123", 1, 2, 7, 0.0)
 
 
+_PAYLOAD = {"question": "Which managers hold AAPL?", "data_context": "", "output_schema": "{}"}
+
+
+def _persist_holdings_usage_buffer(chain: HoldingsAnalysisChain, usage_buffer: list) -> None:
+    for usages, latency_ms in usage_buffer:
+        for usage in usages:
+            record_provider_invocation(
+                chain.db,
+                invocation="analysis",
+                usage=usage,
+                latency_ms=latency_ms,
+                provider=chain._provider,
+                model=chain._model,
+            )
+
+
 def test_holdings_analysis_usage_log_uses_postgres_schema_and_placeholders() -> None:
     conn = StrictPostgresConn()
     chain = HoldingsAnalysisChain(client_info=_client_info(), db_conn=conn)
 
-    chain._log_usage(question="Which managers hold AAPL?", output_text="{}", latency_ms=9, status=1)
+    usage_buffer: list = []
+    chain._invoke_provider(chain.chain, _PAYLOAD, {}, usage_buffer=usage_buffer)
+    _persist_holdings_usage_buffer(chain, usage_buffer)
 
     executed_sql = " ".join(conn.statements)
     assert "BIGSERIAL PRIMARY KEY" in executed_sql
     assert "VALUES (%s, %s, %s, %s, %s, %s)" in executed_sql
-    assert conn.params[-1] == ("holdings_analysis_chain", "Which managers hold AAPL?", 1, 2, 9, 0.0)
-    assert conn.committed is True
+    source, endpoint, status, usage_bytes, _latency_ms, cost = conn.params[-1]
+    assert (source, endpoint, status, usage_bytes, cost) == (
+        "langchain",
+        "test-provider/test-model",
+        200,
+        -1,
+        None,
+    )
+    # Borrowed connections stay under the caller's transaction control.
+    assert conn.committed is False
 
 
 def test_holdings_analysis_usage_log_uses_sqlite_schema_and_placeholders() -> None:
     conn = sqlite3.connect(":memory:")
     chain = HoldingsAnalysisChain(client_info=_client_info(), db_conn=conn)
 
-    chain._log_usage(question="Which managers hold AAPL?", output_text="{}", latency_ms=9, status=1)
+    usage_buffer: list = []
+    chain._invoke_provider(chain.chain, _PAYLOAD, {}, usage_buffer=usage_buffer)
+    _persist_holdings_usage_buffer(chain, usage_buffer)
 
     table_sql = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='api_usage'"
@@ -72,7 +101,7 @@ def test_holdings_analysis_usage_log_uses_sqlite_schema_and_placeholders() -> No
     assert table_sql is not None
     assert "INTEGER PRIMARY KEY" in table_sql[0]
     assert "BIGSERIAL" not in table_sql[0]
-    row = conn.execute(
-        "SELECT source, endpoint, status, bytes, latency_ms, cost_usd FROM api_usage"
-    ).fetchone()
-    assert row == ("holdings_analysis_chain", "Which managers hold AAPL?", 1, 2, 9, 0.0)
+    rows = conn.execute(
+        "SELECT source, endpoint, status, bytes, cost_usd FROM api_usage"
+    ).fetchall()
+    assert rows == [("langchain", "test-provider/test-model", 200, -1, None)]

@@ -233,7 +233,7 @@ def upgrade() -> None:
         sa.Column("status", sa.Integer(), nullable=True),
         sa.Column("bytes", sa.Integer(), nullable=True),
         sa.Column("latency_ms", sa.Integer(), nullable=True),
-        sa.Column("cost_usd", sa.Numeric(10, 4), nullable=True),
+        sa.Column("cost_usd", sa.Numeric(12, 6), nullable=True),
     )
 
     # ── materialized views (Postgres) / regular views (SQLite) ─
@@ -243,7 +243,7 @@ def upgrade() -> None:
             SELECT date_trunc('month', ts) AS month,
                    source,
                    count(*) AS calls,
-                   sum(bytes) AS mb,
+                   sum(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END) AS mb,
                    sum(cost_usd) AS cost
             FROM api_usage
             GROUP BY 1, 2
@@ -277,7 +277,7 @@ def upgrade() -> None:
             SELECT strftime('%Y-%m-01', ts) AS month,
                    source,
                    count(*) AS calls,
-                   sum(bytes) AS mb,
+                   sum(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END) AS mb,
                    sum(cost_usd) AS cost
             FROM api_usage
             GROUP BY 1, 2

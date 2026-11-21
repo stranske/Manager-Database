@@ -175,6 +175,9 @@ def resolve_manager_id_column(conn: Any) -> str:
     return manager_id_column(conn) or "id"
 
 
+_MONTHLY_USAGE_MB_SUM = "SUM(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END)"
+
+
 def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
     conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
             id INTEGER PRIMARY KEY,
@@ -186,10 +189,11 @@ def _ensure_sqlite_usage_schema(conn: sqlite3.Connection) -> None:
             latency_ms INT,
             cost_usd REAL
         )""")
+    conn.execute("DROP VIEW IF EXISTS monthly_usage")
     conn.execute(
-        "CREATE VIEW IF NOT EXISTS monthly_usage AS "
+        "CREATE VIEW monthly_usage AS "
         "SELECT substr(ts, 1, 7) || '-01' AS month, source, "
-        "COUNT(*) AS calls, SUM(bytes) AS mb, SUM(cost_usd) AS cost "
+        f"COUNT(*) AS calls, {_MONTHLY_USAGE_MB_SUM} AS mb, SUM(cost_usd) AS cost "
         "FROM api_usage GROUP BY 1,2"
     )
 
@@ -203,7 +207,7 @@ def _ensure_postgres_usage_schema(conn: Any) -> None:
             status INT,
             bytes INT,
             latency_ms INT,
-            cost_usd NUMERIC(10,4)
+            cost_usd NUMERIC(12,6)
         )""")
     conn.execute("SELECT to_regclass('api_usage')")
     conn.execute("""
@@ -218,7 +222,7 @@ def _ensure_postgres_usage_schema(conn: Any) -> None:
               SELECT date_trunc('month', ts) AS month,
                      source,
                      count(*)        AS calls,
-                     sum(bytes)      AS mb,
+                     sum(CASE WHEN source = 'langchain' OR bytes < 0 THEN 0 ELSE bytes END) AS mb,
                      sum(cost_usd)   AS cost
               FROM api_usage
               GROUP BY 1, 2
