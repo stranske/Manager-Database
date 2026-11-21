@@ -62,6 +62,30 @@ def test_legacy_bytes_placeholder_compatibility_control_for_focused_analysis_inp
     ) == (FOCUSED_ANALYSIS_USAGE["tokens_in"] + FOCUSED_ANALYSIS_USAGE["tokens_out"])
 
 
+def test_focused_chat_fixture_legacy_readback_zero_observed_readback_matches_tokens():
+    """Same ``FOCUSED_CHAT_USAGE``: pre-1939 readback stored ``bytes=0``; post-change stores token sum."""
+    conn = sqlite3.connect(":memory:")
+    legacy_bytes = legacy_placeholder_usage_bytes()
+    observed_bytes = observed_usage_bytes(
+        FOCUSED_CHAT_USAGE["tokens_in"], FOCUSED_CHAT_USAGE["tokens_out"]
+    )
+
+    persist_observed_provider_usage(conn, invocation="chat", **FOCUSED_CHAT_USAGE)
+    readback = conn.execute("SELECT bytes, cost_usd FROM api_usage").fetchone()
+
+    assert legacy_bytes == 0
+    assert readback == (
+        observed_bytes,
+        observed_cost_usd(
+            FOCUSED_CHAT_USAGE["model"],
+            FOCUSED_CHAT_USAGE["tokens_in"],
+            FOCUSED_CHAT_USAGE["tokens_out"],
+        ),
+    )
+    assert readback[0] != legacy_bytes
+    conn.close()
+
+
 def test_log_llm_usage_owned_sqlite_connection_commits_and_closes(tmp_path, monkeypatch):
     db_path = tmp_path / "usage.db"
     conn = sqlite3.connect(db_path)
