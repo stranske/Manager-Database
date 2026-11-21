@@ -176,6 +176,31 @@ def test_pre_1939_legacy_bytes_control_fails_same_fixture_readback(replay_key):
     conn.close()
 
 
+def test_issue_1939_supported_endpoints_same_fixture_legacy_fails_observed_passes(
+    tmp_path, monkeypatch
+):
+    """Live chat/analysis fixture: pre-1939 ``bytes=0`` readback fails; observed sums pass."""
+    expected_bytes = [640, 350, 1200, 15, USAGE_BYTES_UNKNOWN]
+    legacy_dir = tmp_path / "legacy"
+    observed_dir = tmp_path / "observed"
+    legacy_dir.mkdir()
+    observed_dir.mkdir()
+
+    monkeypatch.setattr(
+        "llm.cost_tracking.observed_usage_bytes",
+        lambda _tokens_in, _tokens_out: legacy_placeholder_usage_bytes(),
+    )
+    legacy = _drive_supported_endpoints(legacy_dir, monkeypatch)
+    legacy_bytes = [row[3] for row in legacy["rows"]]
+    assert legacy_bytes == [0, 0, 0, 0, 0]
+    with pytest.raises(AssertionError):
+        assert legacy_bytes == expected_bytes
+
+    monkeypatch.setattr("llm.cost_tracking.observed_usage_bytes", observed_usage_bytes)
+    observed = _drive_supported_endpoints(observed_dir, monkeypatch)
+    assert [row[3] for row in observed["rows"]] == expected_bytes
+
+
 @pytest.mark.parametrize("replay_key", ["chat", "analysis"])
 def test_issue_1939_same_fixture_simulated_legacy_fails_observed_readback_passes(
     replay_key, monkeypatch
