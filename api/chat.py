@@ -1051,8 +1051,7 @@ async def _run_chain(
                     try:
                         close.close()
                     except BaseException:
-                        if chain_error is None and commit_error is None:
-                            raise
+                        # Never let cleanup failures replace a successful chain payload.
                         logger.warning("Failed to close chain database", exc_info=True)
 
     if asyncio.iscoroutine(result):
