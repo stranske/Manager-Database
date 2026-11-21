@@ -104,6 +104,19 @@ ISSUE_1939_REPLAY_EXPECTATIONS: dict[str, dict[str, Any]] = {
     },
 }
 
+# Live POST /api/chat replay: one ``api_usage`` row per provider invocation (issue #1939).
+ISSUE_1939_LIVE_REPLAY_EXPECTED_BYTES: list[int] = [640, 350, 1200, 15, USAGE_BYTES_UNKNOWN]
+
+ISSUE_1939_ACCEPTANCE_REPLAY_RECORD: dict[str, Any] = {
+    "focused_inputs": {"chat": FOCUSED_CHAT_USAGE, "analysis": FOCUSED_ANALYSIS_USAGE},
+    "compatibility_control": {
+        "legacy_bytes_per_row": legacy_placeholder_usage_bytes(),
+        "legacy_readback_sequence": [0, 0, 0, 0, 0],
+    },
+    "observed_readback_bytes": ISSUE_1939_LIVE_REPLAY_EXPECTED_BYTES,
+    "provider_invocations_per_request": [1, 2, 1, 1],
+}
+
 
 def test_estimate_cost_usd_uses_model_pricing():
     assert estimate_cost_usd("gpt-4o-mini", 1000, 500) == 0.00045
@@ -212,29 +225,19 @@ def test_pre_1939_legacy_bytes_control_fails_same_fixture_readback(replay_key):
     conn.close()
 
 
-def test_issue_1939_supported_endpoints_same_fixture_legacy_fails_observed_passes(
-    tmp_path, monkeypatch
-):
-    """Live chat/analysis fixture: pre-1939 ``bytes=0`` readback fails; observed sums pass."""
-    expected_bytes = [640, 350, 1200, 15, USAGE_BYTES_UNKNOWN]
-    legacy_dir = tmp_path / "legacy"
-    observed_dir = tmp_path / "observed"
-    legacy_dir.mkdir()
-    observed_dir.mkdir()
-
-    monkeypatch.setattr(
-        "llm.cost_tracking.observed_usage_bytes",
-        lambda _tokens_in, _tokens_out: legacy_placeholder_usage_bytes(),
-    )
-    legacy = _drive_supported_endpoints(legacy_dir, monkeypatch)
-    legacy_bytes = [row[3] for row in legacy["rows"]]
-    assert legacy_bytes == [0, 0, 0, 0, 0]
+def test_issue_1939_acceptance_replay_record_pins_focused_fixture_readback():
+    """Pin live acceptance replay against focused #1939 inputs and the legacy bytes control."""
+    record = ISSUE_1939_ACCEPTANCE_REPLAY_RECORD
+    chat = ISSUE_1939_REPLAY_EXPECTATIONS["chat"]
+    missing = ISSUE_1939_REPLAY_EXPECTATIONS["missing_usage"]
+    assert record["observed_readback_bytes"][0] == chat["api_usage_bytes"]
+    assert record["observed_readback_bytes"][-1] == missing["api_usage_bytes"]
+    assert record["compatibility_control"]["legacy_bytes_per_row"] == chat["legacy_bytes_control"]
     with pytest.raises(AssertionError):
-        assert legacy_bytes == expected_bytes
-
-    monkeypatch.setattr("llm.cost_tracking.observed_usage_bytes", observed_usage_bytes)
-    observed = _drive_supported_endpoints(observed_dir, monkeypatch)
-    assert [row[3] for row in observed["rows"]] == expected_bytes
+        assert (
+            record["compatibility_control"]["legacy_readback_sequence"]
+            == record["observed_readback_bytes"]
+        )
 
 
 def test_log_llm_usage_owned_sqlite_connection_commits_and_closes(tmp_path, monkeypatch):
@@ -566,7 +569,8 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
     Replays the same deterministic fixture twice: a legacy ``bytes=0`` readback fails, then the
     post-#1939 run stores observed token sums (and ``USAGE_BYTES_UNKNOWN`` when usage is absent).
     """
-    expected_bytes = [640, 350, 1200, 15, USAGE_BYTES_UNKNOWN]
+    replay = ISSUE_1939_ACCEPTANCE_REPLAY_RECORD
+    expected_bytes = replay["observed_readback_bytes"]
     legacy_dir = tmp_path / "legacy"
     observed_dir = tmp_path / "observed"
     legacy_dir.mkdir()
@@ -581,19 +585,31 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
     )
     legacy = _drive_supported_endpoints(legacy_dir, monkeypatch)
     legacy_bytes = [row[3] for row in legacy["rows"]]
-    assert legacy_bytes == [0, 0, 0, 0, 0]
+    assert legacy_bytes == replay["compatibility_control"]["legacy_readback_sequence"]
     with pytest.raises(AssertionError):
         assert legacy_bytes == expected_bytes
 
     monkeypatch.setattr("llm.cost_tracking.observed_usage_bytes", observed_usage_bytes)
+    persist_invocations: list[str] = []
+    real_persist = persist_observed_provider_usage
+
+    def _count_supported_entry_point(*args: Any, **kwargs: Any) -> None:
+        persist_invocations.append(kwargs["invocation"])
+        real_persist(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "llm.cost_tracking.persist_observed_provider_usage", _count_supported_entry_point
+    )
     observed = _drive_supported_endpoints(observed_dir, monkeypatch)
 
     assert observed["statuses"] == [200, 200, 200, 200]
     # chat 1 + analysis 2 (structured attempt, then text fallback) + unpriced 1 + no-usage 1.
-    assert observed["invocations"] == [1, 2, 1, 1]
+    assert observed["invocations"] == replay["provider_invocations_per_request"]
     rows = observed["rows"]
     assert len(rows) == 5
     assert [row[3] for row in rows] == expected_bytes
+    assert len(persist_invocations) == len(rows) == sum(observed["invocations"])
+    assert persist_invocations == ["chat", "analysis", "analysis", "chat", "chat"]
 
     def _request_id(endpoint: str) -> str:
         match = re.search(r"request_id=([0-9a-f]+)", endpoint)
