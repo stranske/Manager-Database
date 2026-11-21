@@ -38,6 +38,40 @@ FOCUSED_ANALYSIS_USAGE: dict[str, Any] = {
     "latency_ms": 1520,
 }
 
+# Recorded replay expectations for issue #1939 (input fixture → persisted api_usage readback).
+ISSUE_1939_REPLAY_EXPECTATIONS: dict[str, dict[str, Any]] = {
+    "chat": {
+        "invocation": "chat",
+        "input": FOCUSED_CHAT_USAGE,
+        "api_usage_bytes": observed_usage_bytes(
+            FOCUSED_CHAT_USAGE["tokens_in"], FOCUSED_CHAT_USAGE["tokens_out"]
+        ),
+        "legacy_bytes_control": legacy_placeholder_usage_bytes(),
+        "cost_usd": observed_cost_usd(
+            FOCUSED_CHAT_USAGE["model"],
+            FOCUSED_CHAT_USAGE["tokens_in"],
+            FOCUSED_CHAT_USAGE["tokens_out"],
+        ),
+    },
+    "analysis": {
+        "invocation": "analysis",
+        "input": FOCUSED_ANALYSIS_USAGE,
+        "api_usage_bytes": observed_usage_bytes(
+            FOCUSED_ANALYSIS_USAGE["tokens_in"], FOCUSED_ANALYSIS_USAGE["tokens_out"]
+        ),
+        "legacy_bytes_control": legacy_placeholder_usage_bytes(),
+        "cost_usd": observed_cost_usd(
+            FOCUSED_ANALYSIS_USAGE["model"],
+            FOCUSED_ANALYSIS_USAGE["tokens_in"],
+            FOCUSED_ANALYSIS_USAGE["tokens_out"],
+        ),
+    },
+    "missing_usage": {
+        "api_usage_bytes": USAGE_BYTES_UNKNOWN,
+        "cost_usd": None,
+    },
+}
+
 
 def test_estimate_cost_usd_uses_model_pricing():
     assert estimate_cost_usd("gpt-4o-mini", 1000, 500) == 0.00045
@@ -65,24 +99,32 @@ def test_legacy_bytes_placeholder_compatibility_control_for_focused_analysis_inp
 def test_focused_chat_fixture_legacy_readback_zero_observed_readback_matches_tokens():
     """Same ``FOCUSED_CHAT_USAGE``: pre-1939 readback stored ``bytes=0``; post-change stores token sum."""
     conn = sqlite3.connect(":memory:")
-    legacy_bytes = legacy_placeholder_usage_bytes()
-    observed_bytes = observed_usage_bytes(
-        FOCUSED_CHAT_USAGE["tokens_in"], FOCUSED_CHAT_USAGE["tokens_out"]
-    )
+    chat_replay = ISSUE_1939_REPLAY_EXPECTATIONS["chat"]
+    legacy_bytes = chat_replay["legacy_bytes_control"]
+    observed_bytes = chat_replay["api_usage_bytes"]
 
-    persist_observed_provider_usage(conn, invocation="chat", **FOCUSED_CHAT_USAGE)
+    persist_observed_provider_usage(
+        conn, invocation=chat_replay["invocation"], **chat_replay["input"]
+    )
     readback = conn.execute("SELECT bytes, cost_usd FROM api_usage").fetchone()
 
     assert legacy_bytes == 0
-    assert readback == (
-        observed_bytes,
-        observed_cost_usd(
-            FOCUSED_CHAT_USAGE["model"],
-            FOCUSED_CHAT_USAGE["tokens_in"],
-            FOCUSED_CHAT_USAGE["tokens_out"],
-        ),
-    )
+    assert readback == (observed_bytes, chat_replay["cost_usd"])
     assert readback[0] != legacy_bytes
+    # Deliberate break on pre-1939 behavior: ``assert readback[0] == legacy_bytes`` → 640 != 0.
+    conn.close()
+
+
+def test_pre_1939_legacy_bytes_control_fails_same_fixture_readback():
+    """Compatibility control: asserting legacy ``bytes=0`` would fail on the recorded chat replay."""
+    conn = sqlite3.connect(":memory:")
+    chat_replay = ISSUE_1939_REPLAY_EXPECTATIONS["chat"]
+    persist_observed_provider_usage(
+        conn, invocation=chat_replay["invocation"], **chat_replay["input"]
+    )
+    persisted_bytes = conn.execute("SELECT bytes FROM api_usage").fetchone()[0]
+    assert persisted_bytes == chat_replay["api_usage_bytes"]
+    assert persisted_bytes != chat_replay["legacy_bytes_control"]
     conn.close()
 
 
@@ -160,8 +202,18 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
     monkeypatch.setenv(fleet.ENV_FLEET_PATH, str(fleet_path))
     monkeypatch.delenv(fleet.ENV_LANGSMITH_KEY, raising=False)
 
-    persist_observed_provider_usage(conn, invocation="chat", **FOCUSED_CHAT_USAGE)
-    persist_observed_provider_usage(conn, invocation="analysis", **FOCUSED_ANALYSIS_USAGE)
+    chat_replay = ISSUE_1939_REPLAY_EXPECTATIONS["chat"]
+    analysis_replay = ISSUE_1939_REPLAY_EXPECTATIONS["analysis"]
+    assert "Supported entry point" in (persist_observed_provider_usage.__doc__ or "")
+
+    persist_observed_provider_usage(
+        conn, invocation=chat_replay["invocation"], **chat_replay["input"]
+    )
+    assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 1
+    persist_observed_provider_usage(
+        conn, invocation=analysis_replay["invocation"], **analysis_replay["input"]
+    )
+    assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 2
 
     chat_row = conn.execute(
         "SELECT source, endpoint, status, bytes, latency_ms, cost_usd FROM api_usage ORDER BY rowid LIMIT 1"
@@ -171,22 +223,10 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
     ).fetchone()
     assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 2
 
-    chat_bytes = observed_usage_bytes(
-        FOCUSED_CHAT_USAGE["tokens_in"], FOCUSED_CHAT_USAGE["tokens_out"]
-    )
-    analysis_bytes = observed_usage_bytes(
-        FOCUSED_ANALYSIS_USAGE["tokens_in"], FOCUSED_ANALYSIS_USAGE["tokens_out"]
-    )
-    chat_cost = observed_cost_usd(
-        FOCUSED_CHAT_USAGE["model"],
-        FOCUSED_CHAT_USAGE["tokens_in"],
-        FOCUSED_CHAT_USAGE["tokens_out"],
-    )
-    analysis_cost = observed_cost_usd(
-        FOCUSED_ANALYSIS_USAGE["model"],
-        FOCUSED_ANALYSIS_USAGE["tokens_in"],
-        FOCUSED_ANALYSIS_USAGE["tokens_out"],
-    )
+    chat_bytes = chat_replay["api_usage_bytes"]
+    analysis_bytes = analysis_replay["api_usage_bytes"]
+    chat_cost = chat_replay["cost_usd"]
+    analysis_cost = analysis_replay["cost_usd"]
 
     assert chat_row == (
         "langchain",
@@ -204,8 +244,11 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
         FOCUSED_ANALYSIS_USAGE["latency_ms"],
         analysis_cost,
     )
-    assert legacy_placeholder_usage_bytes() != chat_row[3]
+    assert chat_replay["legacy_bytes_control"] != chat_row[3]
+    assert chat_row[3] == chat_replay["api_usage_bytes"]
+    assert analysis_row[3] == analysis_replay["api_usage_bytes"]
 
+    missing_replay = ISSUE_1939_REPLAY_EXPECTATIONS["missing_usage"]
     log_llm_usage(
         conn,
         provider="openai",
@@ -217,7 +260,7 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
     unknown_row = conn.execute(
         "SELECT bytes, cost_usd FROM api_usage ORDER BY rowid DESC LIMIT 1"
     ).fetchone()
-    assert unknown_row == (USAGE_BYTES_UNKNOWN, None)
+    assert unknown_row == (missing_replay["api_usage_bytes"], missing_replay["cost_usd"])
     assert conn.execute("SELECT COUNT(*) FROM api_usage").fetchone()[0] == 3
 
     chat_fleet = fleet.record_chat_event(
