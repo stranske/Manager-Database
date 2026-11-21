@@ -38,7 +38,17 @@ FOCUSED_ANALYSIS_USAGE: dict[str, Any] = {
     "latency_ms": 1520,
 }
 
+
 # Recorded replay expectations for issue #1939 (input fixture → persisted api_usage readback).
+def _legacy_bytes_readback_fails_for_observed_fixture(
+    observed_bytes: int, *, legacy_bytes: int
+) -> None:
+    """Pre-1939 compatibility control: token-bearing invocations persisted ``bytes=0``."""
+    assert legacy_bytes == legacy_placeholder_usage_bytes()
+    with pytest.raises(AssertionError):
+        assert observed_bytes == legacy_bytes
+
+
 ISSUE_1939_REPLAY_EXPECTATIONS: dict[str, dict[str, Any]] = {
     "chat": {
         "invocation": "chat",
@@ -244,13 +254,23 @@ def test_chat_and_analysis_persist_observed_usage_once(tmp_path, monkeypatch):
         FOCUSED_ANALYSIS_USAGE["latency_ms"],
         analysis_cost,
     )
-    assert chat_replay["legacy_bytes_control"] != chat_row[3]
     assert chat_row[3] == chat_replay["api_usage_bytes"]
     assert analysis_row[3] == analysis_replay["api_usage_bytes"]
+    _legacy_bytes_readback_fails_for_observed_fixture(
+        chat_row[3], legacy_bytes=chat_replay["legacy_bytes_control"]
+    )
+    _legacy_bytes_readback_fails_for_observed_fixture(
+        analysis_row[3], legacy_bytes=analysis_replay["legacy_bytes_control"]
+    )
+    assert {chat_row[1], analysis_row[1]} == {
+        "openai/gpt-4o-mini https://smith.langchain.com/r/chat-replay-1939",
+        "anthropic/claude-sonnet-4-20250514",
+    }
 
     missing_replay = ISSUE_1939_REPLAY_EXPECTATIONS["missing_usage"]
-    log_llm_usage(
+    persist_observed_provider_usage(
         conn,
+        invocation="chat",
         provider="openai",
         model="gpt-4o-mini",
         tokens_in=None,
