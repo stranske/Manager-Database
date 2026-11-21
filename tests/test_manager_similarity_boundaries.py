@@ -260,14 +260,23 @@ def test_dashboard_shows_peer_similarity_in_both_layouts(tmp_path, monkeypatch, 
 
     panel = render(3)
     assert not panel.dataframe
+    assert not panel.caption
+    assert not panel.warning
     assert panel.info[0].value == "No similarity results available for the selected manager."
 
+    # Return to the populated manager so a failure on the next rerun has real
+    # results for the same selection that it must clear.
+    panel = render(1)
+    assert panel.dataframe[0].value["Manager"].tolist() == ["Peer Capital"]
     monkeypatch.setattr(managers, "connect_db", Mock(side_effect=sqlite3.OperationalError))
     panel = render(1)
     assert not panel.dataframe
+    assert not panel.caption
+    assert not panel.info
     assert panel.warning[0].value == "Similarity data is currently unavailable."
     assert requests == [
         ("GET", "/managers/1/similar", 200),
         ("GET", "/managers/3/similar", 200),
+        ("GET", "/managers/1/similar", 200),
         ("GET", "/managers/1/similar", 503),
     ]
